@@ -9,7 +9,8 @@
     "tags": [],
     "servers": [
         {
-          "url": "https://api.vcita.biz/v3/"
+            "url": "https://api.vcita.biz",
+            "description": "API Gateway server"
         }
     ],
     "components": {
@@ -86,7 +87,7 @@
                         "description": "List of BizAIChats",
                         "type": "array",
                         "items": {
-                            "$ref": "#/components/schemas/ChatResponseDto"
+                            "$ref": "https://vcita.github.io/developers-hub/entities/ai/BizAIChat.json"
                         }
                     }
                 },
@@ -99,8 +100,13 @@
                 "properties": {
                     "instruction": {
                         "type": "string",
-                        "description": "Agent persona",
-                        "example": "You are a comedian assistant. Answer with a joke at the end of each message"
+                        "description": "A prompt describing the basic instructions for the agent. The instructions are set at the beginning of a chat and set the tone and functionality for the entire conversation.",
+                        "example": "You are an experienced business consultant with a friendly voice. Answer shortly and ask questions where more information is needed."
+                    },
+                    "model_name": {
+                        "type": "string",
+                        "description": "OpenAI model name to use for the agent",
+                        "example": "gpt-3.5-turbo"
                     }
                 }
             },
@@ -109,10 +115,14 @@
                 "properties": {
                     "agent": {
                         "type": "string",
-                        "description": "The agent name",
+                        "description": "The agent code name. \n\nAvailable values: \n* vanilla - No business info included in the conversation\n* biz-ai - Seed information on the business is included, as well as a set of instructions to make the bot behave like a biz-ai chat.",
+                        "enum": [
+                            "vanilla",
+                            "biz-ai"
+                        ],
                         "example": "vanilla"
                     },
-                    "metadata": {
+                    "config": {
                         "description": "The agent configuration",
                         "allOf": [
                             {
@@ -182,6 +192,7 @@
                 "properties": {
                     "text": {
                         "type": "string",
+                        "description": "The text sent to the bot",
                         "example": "Tell me a joke!"
                     }
                 },
@@ -195,7 +206,7 @@
                     "uid": {
                         "type": "string",
                         "example": "prompt-xyz123",
-                        "description": "Unique identifier (UID) of the prompt"
+                        "description": "The uid of the prompt you wish to use"
                     },
                     "variables": {
                         "type": "object",
@@ -203,7 +214,7 @@
                             "name": "John",
                             "age": 30
                         },
-                        "description": "Variables associated with the prompt"
+                        "description": "A key-value object listing values of variables you want BizAI to replace in the prompt. For more information consult our “Using Prompts” guide: https://dash.readme.com/project/vcita-developers-hub/v3.0/docs/using-prompts"
                     }
                 },
                 "required": [
@@ -216,6 +227,7 @@
                 "properties": {
                     "type": {
                         "type": "string",
+                        "description": "The type of message sent to the bot (free text or a saved prompt template). A saved prompt can include reusable instructions that can be retrieved from BizAI for advanced functionality.",
                         "example": "text",
                         "enum": [
                             "text",
@@ -223,7 +235,7 @@
                         ]
                     },
                     "content": {
-                        "description": "Message content",
+                        "description": "An object representing the content sent to the bot. Each prompt type must have its own object (“Text Content Object” for “text” and “Prompt Content Object” for “prompt”).",
                         "oneOf": [
                             {
                                 "$ref": "#/components/schemas/TextContentDto"
@@ -272,6 +284,58 @@
         }
     },
     "paths": {
+        "/v3/ai/bizai_prompts": {
+            "get": {
+                "operationId": "PromptsController_getPrompts",
+                "summary": "Get BizAIChatPrompts",
+                "description": "Get a list of prompts by feature and language",
+                "parameters": [
+                    {
+                        "name": "feature",
+                        "required": true,
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "language",
+                        "required": true,
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "allOf": [
+                                        {
+                                            "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                                        },
+                                        {
+                                            "properties": {
+                                                "data": {
+                                                    "type": "object",
+                                                    "$ref": "#/components/schemas/Object"
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "tags": [
+                    "BizAI Prompts"
+                ]
+            }
+        },
         "/v3/ai/bizai_chats": {
             "get": {
                 "operationId": "ChatsController_getChats",
@@ -551,6 +615,5 @@
                 ]
             }
         }
-       
     }
 }
