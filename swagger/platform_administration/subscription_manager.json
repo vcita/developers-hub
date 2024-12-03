@@ -18,8 +18,15 @@
       }
     ],
     "components": {
+      "securitySchemes": {
+        "Bearer": {
+          "type": "http",
+          "scheme": "bearer",
+          "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+        }
+      },
       "schemas": {
-        "subscriptionDTO": {
+        "CreateSubscriptionDTO": {
           "type": "object",
           "properties": {
             "purchase_params": {
@@ -71,6 +78,106 @@
             }
           }
         },
+        "SubscriptionDTO":{
+          "type":"object",
+          "properties": {
+            "uid": {
+              "type":"string",
+              "description": "The unique identifier of the subscription",
+              "example":"41eee83a-dba5-459c-b8a8-e6fc309893e5"
+            },
+            "display_name":{
+              "type": "string",
+              "description": "The display name of the underlying product",
+              "example":"100_sms"
+            },
+            "purchasable_uid":{
+              "type":"string",
+              "description": "The unique identifier of the underlying offering",
+              "example":"cdeeb972-b151-4aba-8a16-83e1333ada60"
+            },
+            "buyer_uid":{
+              "type": "string",
+              "description": "The unique identifier of the staff member that initiated the subscription creation",
+              "example":"8rorlwnfkhu63prx"
+            },
+            "business_uid":{
+              "type": "string",
+              "description": "The unique identifier of the business that uses the subscription",
+              "example":"ato1v21vej20krqm"
+            },
+            "purchase_currency": {
+              "type": "string",
+              "description": "The type of currency used for the purchase",
+              "enum": [
+                "USD",
+                "GBP",
+                "EUR"
+              ],
+              "example":"USD"
+            },
+            "purchase_price": {
+              "type": "number",
+              "description":"the cost of the underlying product",
+              "example":8.00
+            },
+            "purchase_state": {
+              "type":"string",
+              "description": "The state of the subscription",
+              "enum": [
+                "purchased",
+                "suspended",
+                "expired",
+                "canceled"
+              ],
+              "example":"canceled"
+            },
+            "cancellation_date": {
+              "type":"string",
+              "format": "date-time",
+              "description": "The date and time when the cancellation of the subscription was requested.",
+              "example":"2024-03-31T10:16:28.000Z"
+            },
+            "expiration_date":{
+              "type": "string",
+              "format":"date-time",
+              "description": "The date the subscription expired",
+              "example":null
+            },
+            "updated_at": {
+              "type":"string",
+              "format": "date-time",
+              "description": "The date and time of last update.",
+              "example":"2024-03-31T10:16:28.000Z"
+            },
+            "created_at":{
+              "type":"string",
+              "format": "date-time",
+              "description": "The date and time when the subscription was created.",
+              "example":"2024-03-15T10:16:28.000Z"
+            },
+            "payment_type":{
+              "type": "string",
+              "description": "The subscription payment type",
+              "enum": [
+                "monthly",
+                "annualy",
+                "free",
+                "bundled",
+                "single_charge"
+              ]
+            },
+            "bundled_from_subscription_uid": {
+              "type": "string",
+              "description": "The unique identifier of the bundling subscription",
+              "example":null
+            },
+            "is_active":{
+              "title": "boolean",
+              "description": "A calculated property that indicates whether or not this subscription is active"
+            }
+          }
+        },  
         "SubscriptionList": {
           "type": "object",
           "properties": {
@@ -78,7 +185,7 @@
               "description": "List of Subscriptions",
               "type": "array",
               "items": {
-                "$ref": "#/components/schemas/subscriptionDTO"
+                "$ref": "#/components/schemas/SubscriptionDTO"
               }
             }
           }
@@ -88,8 +195,17 @@
     "paths": {
       "/business/subscriptionsmng/v1/subscriptions": {
         "get": {
-          "summary": "List all Subscriptions.",
+          "summary": "List all Subscriptions",
           "parameters": [
+            {
+              "description": "API Token. The resulting header should look like this: 'Authorization: \"Bearer API_TOKEN\"'",
+              "in": "header",
+              "name": "Authorization",
+              "required": true,
+              "schema":{
+                "type": "string"
+              }
+            },
             {
               "in": "query",
               "name": "page",
@@ -130,7 +246,7 @@
           ],
           "responses": {
             "200": {
-              "description": "A list of Subscriptions.",
+              "description": "A list of subscriptions.",
               "content": {
                 "application/json": {
                   "schema": {
@@ -142,7 +258,7 @@
                         "properties": {
                           "data": {
                             "type": "object",
-                            "$ref": "https://vcita.github.io/developers-hub/entities/license/subscription.json"
+                            "$ref": "#/components/schemas/SubscriptionList"
                           }
                         }
                       }
@@ -154,22 +270,33 @@
           },
           "security": [
             {
-              "api_key": []
+              "Bearer": []
             }
           ],
           "tags": [
             "Subscription"
           ],
-          "description": "List all Subscriptions in scope.\n\nAvailable for **Directory, user, app, and internal Tokens**\n"
+          "description": "List all Subscriptions in scope.\n\nAvailable for **directory, staff, and app tokens**\n **DEPREACTED - END-OF-LIFE ON MARCH 2025**"
         }
       },
       "/system/subscriptions/manual": {
         "post": {
+          "parameters": [
+            {
+              "description": "API Token. The resulting header should look like this: 'Authorization: \"Bearer API_TOKEN\"'",
+              "in": "header",
+              "name": "Authorization",
+              "required": true,
+              "schema":{
+                "type": "string"
+              }
+            }
+          ],
           "requestBody": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/subscriptionDTO"
+                  "$ref": "#/components/schemas/CreateSubscriptionDTO"
                 }
               }
             },
@@ -192,10 +319,10 @@
             }
           },
           "summary": "Create a Subscription",
-          "description": "Create a new subscription for a business.\n\nAvailable for **user Tokens**\n",
+          "description": "Create a new subscription for a business.\n\nAvailable for **Staff Tokens**\n **DEPREACTED - END-OF-LIFE ON MARCH 2025**",
           "security": [
             {
-              "api_key": []
+              "Bearer": []
             }
           ],
           "tags": [
@@ -205,17 +332,26 @@
       },
       "/business/subscriptionsmng/v1/subscriptions/{Subscription_uid}":{
         "put": {
-          "summary": "Update a Subscription.",
+          "summary": "Update a Subscription",
           "parameters": [
-            {
-                "name": "Subscription_uid",
-                "in": "path",
-                "required": true,
-                "schema": {
-                  "type": "string",
-                  "format": "uuid"
-                }
+            { 
+              "name": "Subscription_uid",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid"
               }
+            },
+            {
+              "description": "API Token. The resulting header should look like this: 'Authorization: \"Bearer API_TOKEN\"'",
+              "in": "header",
+              "name": "Authorization",
+              "required": true,
+              "schema":{
+                "type": "string"
+              }
+            }
           ],
           "requestBody": {
             "required": true,
@@ -253,13 +389,18 @@
               "content": {
                 "application/json": {
                   "schema": {
-                    "$ref": "#/components/schemas/subscriptionDTO"
+                    "$ref": "#/components/schemas/SubscriptionDTO"
                   }
                 }
               }
             }
           },
-          "description" : "Update the subscription with a new purchase state and expiration date.",
+          "description" : "Update the subscription with a new purchase state and expiration date.\n\nAvailable for **Staff Tokens**\n **DEPREACTED - END-OF-LIFE ON MARCH 2025**",
+          "security": [
+            {
+              "Bearer": []
+            }
+          ],
           "tags" : [ "Subscription" ]
         }
       }
