@@ -17,126 +17,46 @@
     "securitySchemes": {
       "Bearer": {
         "type": "http",
-        "scheme": "bearer"
+        "scheme": "bearer",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
       }
     },
     "schemas": {
-      "Response": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "data": {
-            "type": "object"
-          }
-        },
-        "required": [
-          "success",
-          "data"
-        ]
-      },
-      "ResponseEntity": {
-        "type": "object",
-        "properties": {
-          "uid": {
-            "type": "string",
-            "description": "The unique identifier of the setting"
-          },
-          "business_uid": {
-            "type": "string",
-            "description": "The unique identifier of the business"
-          },
-          "staff_uid": {
-            "type": "string",
-            "description": "The unique identifier of the staff"
-          },
-          "forwarding_enabled": {
-            "type": "string",
-            "description": "Whether or not forwarding to the staff is enabled"
-          },
-          "forward_number": {
-            "type": "string",
-            "description": "The number to forward to"
-          },
-          "dedicated_number": {
-            "type": "string",
-            "description": "The dedicated number"
-          },
-          "call_forwarding_policy": {
-            "type": "string",
-            "description": "The call forwarding policy"
-          },
-          "call_timeout_sec": {
-            "type": "number",
-            "description": "The call timeout in seconds"
-          },
-          "external_app_name": {
-            "type": "string",
-            "description": "The external app name"
-          },
-          "app_status": {
-            "type": "string",
-            "description": "The status of the app"
-          }
-        },
-        "required": [
-          "uid",
-          "business_uid",
-          "staff_uid",
-          "external_app_name",
-          "app_status"
-        ]
-      },
-      "DisplayNameDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "WidgetDimentionsDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "CustomizedWidgetDimentionsDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "ComponentDataDto": {
-        "type": "object",
-        "properties": {}
-      },
-      "WidgetRequestDto": {
+      "CreateWidgetRequestDto": {
         "type": "object",
         "properties": {
           "display_name": {
-            "description": "The widget display name in different languages",
             "allOf": [
               {
                 "$ref": "#/components/schemas/DisplayNameDto"
               }
             ]
           },
-          "dimentions": {
-            "description": "The widget dimetions",
+          "dimensions": {
             "allOf": [
               {
-                "$ref": "#/components/schemas/WidgetDimentionsDto"
+                "$ref": "#/components/schemas/WidgetDimensionsDto"
               }
             ]
           },
           "permessions": {
-            "type": "string",
-            "description": "The permessions required to get this widget"
+            "type": "array",
+            "description": "The permissions required for the widget to show up for a staff member",
+            "items": {
+              "type": "string"
+            }
           },
           "module": {
             "type": "string",
-            "description": "The module which this widget belongs to"
-          },
-          "feature_flags": {
-            "type": "string",
-            "description": "The feature flags required for this widget, seperated with comma"
+            "description": "The module (FF) required for the widget to show up for a staff member",
+            "enum": [
+              "Payments",
+              "Bookings",
+              "Clients",
+              "Campaigns"
+            ]
           },
           "component_data": {
-            "description": "The widget component data, name and config",
             "allOf": [
               {
                 "$ref": "#/components/schemas/ComponentDataDto"
@@ -146,8 +66,47 @@
         },
         "required": [
           "display_name",
-          "dimentions",
+          "dimensions",
           "component_data"
+        ]
+      },
+      "CreateStaffWidgetsBoardRequestDto": {
+        "type": "object",
+        "properties": {
+          "board_layout_code_name": {
+            "type": "string",
+            "description": "A string representing the board layout",
+            "enum": [
+              "MainAndSideBar2Columns"
+            ]
+          },
+          "type": {
+            "type": "string",
+            "description": "the grid frame of the layout, determines the layout frame containing the board",
+            "enum": [
+              "home"
+            ]
+          },
+          "sections": {
+            "type": "array",
+            "description": "An array of sections for the widgets board",
+            "items":{"$ref": "#/components/schemas/SectionDto"}
+          
+            
+          }
+        },
+        "required": [
+          "staff_uid",
+          "client_uid",
+          "from_number",
+          "to_number",
+          "direction",
+          "status",
+          "rate",
+          "provider",
+          "source_id",
+          "external_uuid",
+          "business_uid"
         ]
       },
       "UpdateWidgetRequestDto": {
@@ -171,6 +130,21 @@
           }
         }
       },
+      "Response": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
       "MultiWidgetsResponse": {
         "type": "object",
         "properties": {
@@ -185,41 +159,7 @@
           "widgets"
         ]
       },
-      "StaffWidgetsBoardRequestDto": {
-        "type": "object",
-        "properties": {
-          "board_layout": {
-            "type": "string",
-            "description": "The widgets board layout"
-          },
-          "type": {
-            "type": "string",
-            "description": "The board type"
-          },
-          "sections": {
-            "description": "The id of the number the call is from",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/SectionDto"
-              }
-            ]
-          }
-        },
-        "required": [
-          "staff_uid",
-          "client_uid",
-          "from_number",
-          "to_number",
-          "direction",
-          "status",
-          "rate",
-          "provider",
-          "source_id",
-          "external_uuid",
-          "business_uid"
-        ]
-      },
-      "MultiStaffWidgetsBoardResponseDto": {
+      "MultiStaffWidgetsBoardResponse": {
         "type": "object",
         "properties": {
           "staffWidgetsBoards": {
@@ -233,6 +173,102 @@
           "staffWidgetsBoards"
         ]
       },
+      "DisplayNameDto": {
+        "type": "object",
+        "properties": {
+          "en": {
+            "type": "string"
+          },
+          "es": {
+            "type": "string"
+          },
+          "fr": {
+            "type": "string"
+          },
+          "it": {
+            "type": "string"
+          },
+          "pt": {
+            "type": "string"
+          },
+          "de": {
+            "type": "string"
+          },
+          "pl": {
+            "type": "string"
+          },
+          "nl": {
+            "type": "string"
+          },
+          "he": {
+            "type": "string"
+          },
+          "sl": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "en"
+        ]
+      },
+      "WidgetDimensionsDto": {
+        "description": "The widget dimensions including min\\max\\preferred height and width.",
+        "type": "object",
+        "properties": {
+          "max_height": {
+            "type": "integer"
+          },
+          "min_height": {
+            "type": "integer"
+          },
+          "height": {
+            "type": "integer"
+          },
+          "max_width": {
+            "type": "integer"
+          },
+          "min_width": {
+            "type": "integer"
+          },
+          "width": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "max_height,",
+          "min_height,",
+          "height,",
+          "max_width,",
+          "min_width,",
+          "width"
+        ]
+      },
+      "CustomizedWidgetDimensionsDto": {
+        "type": "object",
+        "properties": {
+          "height": {
+            "type": "integer"
+          },
+          "width": {
+            "type": "integer"
+          }
+        }
+      },
+      "ComponentDataDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "config": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "name",
+          "config"
+        ]
+      },
       "SectionDto": {
         "type": "object",
         "properties": {
@@ -242,11 +278,11 @@
           },
           "widgets": {
             "description": "The sections widgets",
-            "allOf": [
+            "type": "array",
+            "items": 
               {
                 "$ref": "#/components/schemas/SectionWidgetDto"
-              }
-            ]
+              }      
           }
         },
         "required": [
@@ -261,11 +297,11 @@
             "type": "string",
             "description": "The widget uid"
           },
-          "dimentions": {
+          "dimensions": {
             "description": "The sections widgets",
             "allOf": [
               {
-                "$ref": "#/components/schemas/CustomizedWidgetDimentionsDto"
+                "$ref": "#/components/schemas/CustomizedWidgetDimensionsDto"
               }
             ]
           }
@@ -287,7 +323,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/WidgetRequestDto"
+                "$ref": "#/components/schemas/CreateWidgetRequestDto"
               }
             }
           }
@@ -314,6 +350,12 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing or invalid."
+          },
+          "403": {
+            "description": "Forbidden. You do not have access to this resource."
           }
         },
         "tags": [
@@ -321,7 +363,7 @@
         ],
         "security": [
           {
-            "bearer": []
+            "Bearer": []
           }
         ]
       },
@@ -364,9 +406,9 @@
             }
           },
           {
-            "description": "Filter by a field. Example: filter[created_at][gt]=2019-01-01",
+            "description": "Filter by module, Example: module=Payment",
+            "name": "module",
             "required": false,
-            "name": "filter",
             "in": "query",
             "schema": {
               "type": "string"
@@ -395,6 +437,12 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing or invalid."
+          },
+          "403": {
+            "description": "Forbidden. You do not have access to this resource."
           }
         },
         "tags": [
@@ -403,9 +451,6 @@
         "security": [
           {
             "Bearer": []
-          },
-          {
-            "bearer": []
           }
         ]
       },
@@ -445,14 +490,20 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing or invalid."
+          },
+          "403": {
+            "description": "Forbidden. You do not have access to this resource."
           }
         },
         "tags": [
-          "Staff Widgets Board"
+          "Widget"
         ],
         "security": [
           {
-            "bearer": []
+            "Bearer": []
           }
         ]
       }
@@ -467,7 +518,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/StaffWidgetsBoardRequestDto"
+                "$ref": "#/components/schemas/CreateStaffWidgetsBoardRequestDto"
               }
             }
           }
@@ -494,6 +545,12 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing or invalid."
+          },
+          "403": {
+            "description": "Forbidden. You do not have access to this resource."
           }
         },
         "tags": [
@@ -501,7 +558,7 @@
         ],
         "security": [
           {
-            "bearer": []
+            "Bearer": []
           }
         ]
       },
@@ -544,9 +601,9 @@
             }
           },
           {
-            "description": "Filter by a field. Example: filter[created_at][gt]=2019-01-01, filter[type]=dashboard",
+            "description": "Filter by type, Example: type=dashboard",
+            "name": "type",
             "required": false,
-            "name": "filter",
             "in": "query",
             "schema": {
               "type": "string"
@@ -567,7 +624,7 @@
                       "properties": {
                         "data": {
                           "type": "object",
-                          "$ref": "#/components/schemas/MultiStaffWidgetsBoardResponseDto"
+                          "$ref": "#/components/schemas/MultiStaffWidgetsBoardResponse"
                         }
                       }
                     }
@@ -575,10 +632,16 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing or invalid."
+          },
+          "403": {
+            "description": "Forbidden. You do not have access to this resource."
           }
         },
         "tags": [
-          "Widgets"
+          "Staff Widgets Board"
         ],
         "security": [
           {
