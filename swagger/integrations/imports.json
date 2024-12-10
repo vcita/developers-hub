@@ -1,0 +1,188 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Integrations",
+    "description": "A set of API endpoints used by the inTandem platform to manage imports and integrations",
+    "version": "1.0.0",
+    "contact": {}
+  },
+  "tags": [
+    {
+      "name": "inspect",
+      "description": "Operations related to inspecting imports"
+    },
+    {
+      "name": "import",
+      "description": "Operations related to processing imports"
+    }
+  ],
+  "servers": [
+    {
+      "url": "https://api.vcita.biz",
+      "description": "API Gateway server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+      }
+    },
+    "schemas": {
+      "Response": {
+        "type": "object",
+        "properties": {
+          "success": { 
+            "type": "boolean",
+            "description": "Indicates if the operation was successful"
+          },
+          "data": { 
+            "type": "object",
+            "description": "The response payload"
+          }
+        },
+        "required": ["success", "data"]
+      },
+      "ValidationResult": {
+        "$ref": "https://vcita.github.io/developers-hub/entities/integrations/validationResult.json"
+      },
+      "ImportProcess": {
+        "$ref": "https://vcita.github.io/developers-hub/entities/integrations/importProcess.json"
+      },
+      "ImportFileUploadDto": {
+        "type": "object",
+        "properties": {
+          "file": { 
+            "type": "string", 
+            "format": "binary",
+            "description": "The file to be imported"
+          },
+          "entityType": { 
+            "type": "string", 
+            "enum": ["product"],
+            "description": "Type of entity to be imported"
+          },
+          "fieldsMapping": {
+            "type": "array",
+            "description": "Mapping between source and target fields",
+            "items": {
+              "type": "object",
+              "properties": {
+                "source": { 
+                  "type": "number",
+                  "description": "Source field index"
+                },
+                "target": { 
+                  "type": "string",
+                  "description": "Target field name"
+                }
+              }
+            }
+          },
+          "context": { 
+            "type": "object",
+            "description": "Additional context for the import"
+          }
+        },
+        "required": ["file", "entityType"]
+      },
+      "ProcessImportDto": {
+        "type": "object",
+        "properties": { "importJobUid": { "type": "string" } },
+        "required": ["importJobUid"]
+      }
+    }
+  },
+  "paths": {
+    "/imports/inspect": {
+      "post": {
+        "operationId": "InspectionController_uploadAndInspect",
+        "summary": "Inspect an import file",
+        "description": "Upload and validate a file for import",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": { "$ref": "#/components/schemas/ImportFileUploadDto" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "File inspection completed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/Response" },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "#/components/schemas/ValidationResult"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": ["inspect"],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/imports/import": {
+      "post": {
+        "operationId": "ImportController_processImport",
+        "summary": "Process an import",
+        "description": "Start processing a validated import job",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ProcessImportDto" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Import process started successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/Response" },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "#/components/schemas/ImportProcess"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": ["import"],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    }
+  }
+}
