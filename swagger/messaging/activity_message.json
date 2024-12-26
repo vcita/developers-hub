@@ -1,0 +1,209 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Activity Message",
+    "description": "A set of API endpoints used by the inTandem platform to manage\n the send a client an activity message",
+    "version": "3.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.vcita.biz/",
+      "description": "API Gateway server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+      }
+    },
+    "schemas": {
+      "Response": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "activityMessage": {
+                "$ref": "https://vcita.github.io/developers-hub/entities/messaging/activityMessage.json"
+              }
+            }
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
+      "RequestDto": {
+        "type": "object",
+        "properties": {
+          "business_uid": {
+            "type": "string",
+            "description": "The business that is sending the message."
+          },
+          "staff_uid": {
+            "type": "string",
+            "description": "The staff that is sending the message."
+          },
+          "client_uid": {
+            "type": "string",
+            "description": "Client to send the message to."
+          },
+          "message_uid": {
+            "type": "string",
+            "description": "The entity's unique identifier."
+          },
+          "activity_type": {
+            "type": "string",
+            "enum": [
+              "invite"
+            ],
+            "description": "Activity category type from a closed list."
+          },
+          "activity_action": {
+            "type": "string",
+            "enum": [
+              "schedule"
+            ],
+            "description": "Action related to the activity type property."
+          },
+          "channels": {
+            "type": "object",
+            "description": "Determines in which communication channel to send the message"
+          },
+          "message_text": {
+            "type": "object",
+            "properties": {
+              "body": {
+                "type": "string",
+                "description": "The main content of the message."
+              },
+              "subject": {
+                "type": "string",
+                "description": "A concise summary of the message content."
+              }
+            }
+          },
+          "cta_button_text": {
+            "type": "string",
+            "description": "The text for the Email action button"
+          },
+          "link_url_params": {
+            "type": "object",
+            "description": "The parameters for the Email action button or SMS link."
+          }
+        },
+        "required": [
+          "client_uid",
+          "activity_type",
+          "activity_action",
+          "channels"
+        ]
+      }
+    }
+  },
+  "paths": {
+    "/v3/messaging/activity_message": {
+      "post": {
+        "operationId": "sendActivityMessage",
+        "summary": "Send activity message api",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error. The request is invalid. (missing required fields, invalid values, etc.)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": "SMS body text Is too long. Maximum length is 550 characters."
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found. The requested resource was not found. (staff, client or business)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": "Client Not Found: The specified client ID does not exist."
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate Limit Reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": "Rate Limit Reached: You have exceeded the maximum number of allowed API calls. Please try again later."
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing, invalid or not allowed to access the requested resource."
+          }
+        },
+        "tags": [
+          "Activity Message"
+        ]
+      }
+    }
+  }
+}
