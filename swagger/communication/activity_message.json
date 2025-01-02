@@ -1,0 +1,243 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Activity Message",
+    "description": "A set of API endpoints used by the inTandem platform to manage\n the send a client an activity message",
+    "version": "3.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.vcita.biz/",
+      "description": "API Gateway server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      }
+    }
+  },
+  "paths": {
+    "/v3/communication/activity_messages": {
+      "post": {
+        "operationId": "sendActivityMessage",
+        "summary": "Send activity message api",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "business_uid": {
+                    "type": "string",
+                    "description": "The unique identifier of the business that is sending the message"
+                  },
+                  "staff_uid": {
+                    "type": "string",
+                    "description": "The unique identifier of the staff that is sending the message"
+                  },
+                  "client_uid": {
+                    "type": "string",
+                    "description": "The unique identifier of the client the message is sent to"
+                  },
+                  "uid": {
+                    "type": "string",
+                    "description": "The entity's unique identifier"
+                  },
+                  "activity_type": {
+                    "type": "string",
+                    "enum": [
+                      "invite"
+                    ],
+                    "description": "Activity category type from a closed list."
+                  },
+                  "activity_action": {
+                    "type": "string",
+                    "enum": [
+                      "schedule"
+                    ],
+                    "description": "Action related to the activity type property."
+                  },
+                  "channels": {
+                    "type": "object",
+                    "description": "Determines in which communication channel to send the message"
+                  },
+                  "message_text": {
+                    "type": "object",
+                    "properties": {
+                      "body": {
+                        "type": "string",
+                        "description": "The main content of the message."
+                      },
+                      "subject": {
+                        "type": "string",
+                        "description": "A summary of the message content (limited to 200 characters)"
+                      }
+                    }
+                  },
+                  "cta_button_text": {
+                    "type": "string",
+                    "description": "In the Email, this text will appear on the button embedded in the email message"
+                  },
+                  "link_url_params": {
+                    "type": "object",
+                    "description": "The parameters for the Email action button or SMS link. for example: {\n\"utm_source\": \"newsletter\",\n\"utm_campaign\": \"summer_sale\"\n}"
+                  }
+                },
+                "required": [
+                  "client_uid",
+                  "activity_type",
+                  "activity_action",
+                  "channels"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "activityMessage": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/activityMessage.json"
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error. The request is invalid. (missing required fields, invalid values, etc.)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "missing_field",
+                      "message": "Missing mandatory field."
+                    },
+                    {
+                      "code": "invalid",
+                      "message": "activity_type value is invalid."
+                    },
+                    {
+                      "code": "too_long",
+                      "message": "Sms body text is too long. Maximum length is 550 characters."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing, invalid or not allowed to access the requested resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "401 Unauthorized"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found. The requested resource was not found. (staff, client or business)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": "Client Not Found: The specified client ID does not exist."
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate Limit Reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "too_many_requests",
+                      "message": "Rate limit exceeded"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Activity Message"
+        ]
+      }
+    }
+  }
+}
