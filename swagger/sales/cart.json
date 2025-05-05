@@ -1,0 +1,708 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Cart Management API",
+    "description": "API endpoints to manage shopping carts and cart items in the inTandem platform",
+    "version": "3.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.vcita.biz",
+      "description": "API Gateway server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+      }
+    },
+    "schemas": {
+      "Response": {
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "Object": {
+        "properties": {}
+      },
+      "CartsList": {
+        "type": "object",
+        "properties": {
+          "carts": {
+            "description": "List of Carts",
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/sales/Cart.json"
+            }
+          }
+        }
+      },
+      "CartItemsList": {
+        "type": "object",
+        "properties": {
+          "cart_items": {
+            "description": "List of Cart Items",
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/sales/CartItem.json"
+            }
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/v3/sales/carts": {
+      "get": {
+        "summary": "Get all Carts",
+        "description": "Get a list of Carts for the authenticated business\n\nAvailable for **Staff Tokens** and **Client Tokens**",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["active", "abandoned", "completed", "processing"]
+            },
+            "description": "Filter parameter for cart status",
+            "required": false
+          },
+          {
+            "name": "client_uid",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by client UID",
+            "required": false
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "Page number of results",
+            "required": false
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 25,
+              "maximum": 100
+            },
+            "description": "How many items to return per page. Max: 100",
+            "required": false
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "updated_at:desc"
+            },
+            "description": "Sort by fields. Example: sort=created_at:asc,updated_at:desc",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved carts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "#/components/schemas/CartsList"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Carts"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "Create a Cart",
+        "description": "Create a new cart for a client\n\nAvailable for **Staff Tokens** and **Client Tokens**",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "client_uid": {
+                    "type": "string",
+                    "description": "The client that owns the cart"
+                  },
+                  "currency": {
+                    "type": "string",
+                    "description": "Currency code for the cart (e.g., USD, EUR)"
+                  },
+                  "notes": {
+                    "type": "string",
+                    "description": "Optional customer notes for the cart"
+                  }
+                },
+                "required": [
+                  "client_uid",
+                  "currency"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Cart successfully created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "https://vcita.github.io/developers-hub/entities/sales/Cart.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Carts"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/sales/carts/{uid}": {
+      "get": {
+        "summary": "Retrieve a Cart",
+        "description": "Retrieve a specific Cart based on its unique identifier (UID)\n\nAvailable for **Staff Tokens** and **Client Tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the Cart",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved cart",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "https://vcita.github.io/developers-hub/entities/sales/Cart.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Carts"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "put": {
+        "summary": "Update a Cart",
+        "description": "Update a specific Cart based on its unique identifier (UID)\n\nAvailable for **Staff Tokens** and **Client Tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the Cart",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": ["active", "abandoned", "completed", "processing"],
+                    "description": "Current status of the cart"
+                  },
+                  "notes": {
+                    "type": "string",
+                    "description": "Optional customer notes for the cart"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cart successfully updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "https://vcita.github.io/developers-hub/entities/sales/Cart.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Carts"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "summary": "Delete a Cart",
+        "description": "Delete a specific Cart based on its unique identifier (UID)\n\nAvailable for **Staff Tokens** and **Client Tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the Cart",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cart successfully deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Carts"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/sales/cart_items": {
+      "get": {
+        "summary": "Get all Cart Items",
+        "description": "Get a list of Cart Items\n\nAvailable for **Staff Tokens** and **Client Tokens**",
+        "parameters": [
+          {
+            "name": "cart_uid",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by cart UID",
+            "required": false
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "Page number of results",
+            "required": false
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "default": 25,
+              "maximum": 100
+            },
+            "description": "How many items to return per page. Max: 100",
+            "required": false
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "created_at:asc"
+            },
+            "description": "Sort by fields. Example: sort=created_at:asc,updated_at:desc",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved cart items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "#/components/schemas/CartItemsList"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Cart Items"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "Create a Cart Item",
+        "description": "Add a new item to a cart\n\nAvailable for **Staff Tokens** and **Client Tokens**",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "cart_uid": {
+                    "type": "string",
+                    "description": "The cart that this item belongs to"
+                  },
+                  "product_uid": {
+                    "type": "string",
+                    "description": "Unique identifier of the product"
+                  },
+                  "quantity": {
+                    "type": "number",
+                    "description": "Quantity of the product in the cart",
+                    "minimum": 1
+                  },
+                  "unit_price": {
+                    "type": "number",
+                    "description": "Price per unit of the product"
+                  },
+                  "product_name": {
+                    "type": "string",
+                    "description": "Name of the product at time of adding to cart"
+                  },
+                  "product_options": {
+                    "type": "object",
+                    "description": "Selected options or variants for this product"
+                  },
+                  "notes": {
+                    "type": "string",
+                    "description": "Optional notes specific to this item"
+                  }
+                },
+                "required": [
+                  "cart_uid",
+                  "product_uid",
+                  "quantity",
+                  "unit_price",
+                  "product_name"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Cart item successfully created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "https://vcita.github.io/developers-hub/entities/sales/CartItem.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Cart Items"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/sales/cart_items/{uid}": {
+      "get": {
+        "summary": "Retrieve a Cart Item",
+        "description": "Retrieve a specific Cart Item based on its unique identifier (UID)\n\nAvailable for **Staff Tokens** and **Client Tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the Cart Item",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved cart item",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "https://vcita.github.io/developers-hub/entities/sales/CartItem.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Cart Items"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "put": {
+        "summary": "Update a Cart Item",
+        "description": "Update a specific Cart Item based on its unique identifier (UID)\n\nAvailable for **Staff Tokens** and **Client Tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the Cart Item",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "quantity": {
+                    "type": "number",
+                    "description": "Quantity of the product in the cart",
+                    "minimum": 1
+                  },
+                  "unit_price": {
+                    "type": "number",
+                    "description": "Price per unit of the product"
+                  },
+                  "product_options": {
+                    "type": "object",
+                    "description": "Selected options or variants for this product"
+                  },
+                  "notes": {
+                    "type": "string",
+                    "description": "Optional notes specific to this item"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cart item successfully updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "https://vcita.github.io/developers-hub/entities/sales/CartItem.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Cart Items"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "summary": "Delete a Cart Item",
+        "description": "Remove a specific Cart Item based on its unique identifier (UID)\n\nAvailable for **Staff Tokens** and **Client Tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the Cart Item",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cart item successfully deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Cart Items"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    }
+  }
+} 
