@@ -9,13 +9,14 @@
       "description": "Unique identifier name for the notification"
     },
     "channel": {
-      "type": "object",
-      "description": "Channels through which the notification can be delivered.",
-      "properties": {
-        "push": { "type": "boolean", "description": "Enable push notification channel." },
-        "pane": { "type": "boolean", "description": "Enable in-app pane notification channel." },
-        "email": { "type": "boolean", "description": "Enable email notification channel." }
-      }
+      "type": "array",
+      "description": "Channels through which the notification can be delivered. Must include one or more of: 'push', 'pane', 'email'.",
+      "items": {
+        "type": "string",
+        "enum": ["push", "pane", "email"]
+      },
+      "minItems": 1,
+      "uniqueItems": true
     },
     "deep_link": {
       "type": "string",
@@ -24,15 +25,31 @@
     },
     "notification_type": {
       "type": "string",
-      "description": "Type/category of the notification."
+      "description": "Type/category of the notification. Must be one of this values",
+      "enum": [
+        "payments",
+        "clients",
+        "calendar",
+        "booking",
+        "marketing",
+        "teamchat",
+        "scheduling",
+        "advertising",
+        "group_events",
+        "documents",
+        "messages",
+        "reviews",
+        "social",
+        "account"
+      ]
     },
     "show_in_settings": {
       "type": "boolean",
-      "description": "Whether this notification is visible in user settings."
+      "description": "Whether this notification is visible in the staff's notification center settings."
     },
     "text": {
       "type": "object",
-      "description": "Localized notification content.",
+      "description": "Localized notification content and email structure. Must include 'en' and may include any of: fr, de, it, pl, pt, es, nl, he, sl, en_gb.",
       "properties": {
         "en": {
           "type": "object",
@@ -40,21 +57,21 @@
           "properties": {
             "display_settings": {
               "type": "object",
-              "description": "Settings for how the notification is displayed in lists or settings screens.",
+              "description": "Settings for how the notification is displayed in the staff's notification center.",
               "properties": {
-                "notification_name": { "type": "string", "description": "Name of the notification." },
-                "notification_description": { "type": "string", "description": "Description of the notification." }
+                "title": { "type": "string", "description": "Name of the notification." },
+                "description": { "type": "string", "description": "Description of the notification." }
               },
-              "required": ["notification_name", "notification_description"]
+              "required": ["title", "description"]
             },
             "in_app_settings": {
               "type": "object",
               "description": "Settings for in-app (push/pane) notifications.",
               "properties": {
-                "in_app_title": { "type": "string", "description": "Title for in-app notification." },
-                "in_app_message": { "type": "string", "description": "Message body for in-app notification." }
+                "title": { "type": "string", "description": "Title for in-app notification." },
+                "message_body": { "type": "string", "description": "Message body for in-app notification." }
               },
-              "required": ["in_app_title", "in_app_message"]
+              "required": ["title", "message_body"]
             },
             "email_settings": {
               "type": "object",
@@ -97,10 +114,16 @@
           },
           "required": ["display_settings", "in_app_settings", "email_settings"]
         },
-        "_lang": {
-          "type": "object",
-          "description": "Placeholder for additional languages (optional)."
-        }
+        "fr": { "$ref": "#/properties/text/properties/en" },
+        "de": { "$ref": "#/properties/text/properties/en" },
+        "it": { "$ref": "#/properties/text/properties/en" },
+        "pl": { "$ref": "#/properties/text/properties/en" },
+        "pt": { "$ref": "#/properties/text/properties/en" },
+        "es": { "$ref": "#/properties/text/properties/en" },
+        "nl": { "$ref": "#/properties/text/properties/en" },
+        "he": { "$ref": "#/properties/text/properties/en" },
+        "sl": { "$ref": "#/properties/text/properties/en" },
+        "en_gb": { "$ref": "#/properties/text/properties/en" }
       },
       "required": ["en"]
     }
@@ -111,5 +134,61 @@
     "show_in_settings",
     "notification_type",
     "text"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "channel": {
+            "contains": { "const": "push" }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "text": {
+            "properties": {
+              "en": { "required": ["in_app_settings"] }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "channel": {
+            "contains": { "const": "pane" }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "text": {
+            "properties": {
+              "en": { "required": ["in_app_settings"] }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "channel": {
+            "contains": { "const": "email" }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "text": {
+            "properties": {
+              "en": { "required": ["email_settings"] }
+            }
+          }
+        }
+      }
+    }
   ]
 } 
