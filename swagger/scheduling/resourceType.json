@@ -1,8 +1,8 @@
 {
   "openapi": "3.0.0",
   "info": {
-    "title": "Resource API",
-    "description": "API for managing resources in the scheduling domain",
+    "title": "ResourceType API",
+    "description": "API for managing resource types in the scheduling domain",
     "version": "1.0.0"
   },
   "servers": [
@@ -11,16 +11,16 @@
     }
   ],
   "paths": {
-    "/scheduling/resources": {
+    "/scheduling/resource_types": {
       "get": {
-        "summary": "Get all Resources",
-        "description": "Get all resources, with pagination and filtering by resource type or service\n\nAvailable for **Staff Tokens**",
+        "summary": "Get all ResourceTypes",
+        "description": "Get a list of resource types for a business, with pagination\n\nAvailable for **Staff Tokens**",
         "parameters": [
           {
             "name": "page",
             "required": false,
             "in": "query",
-            "description": "Page number of results",
+            "description": "Page number of results.",
             "schema": {
               "minimum": 1,
               "maximum": 10000,
@@ -51,28 +51,10 @@
             }
           },
           {
-            "name": "resource_type_uid",
-            "required": false,
-            "in": "query",
-            "description": "Filter resources by resource type UID",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "service_uid",
-            "required": false,
-            "in": "query",
-            "description": "Filter resources by service UID that requires their resource type",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "name": "with_deleted",
             "required": false,
             "in": "query",
-            "description": "Include deleted resources in the response",
+            "description": "Include deleted resource types in the response",
             "schema": {
               "type": "boolean",
               "default": false
@@ -93,7 +75,7 @@
                       "properties": {
                         "data": {
                           "type": "object",
-                          "$ref": "#/components/schemas/ResourcesList"
+                          "$ref": "#/components/schemas/ResourceTypesList"
                         }
                       }
                     }
@@ -113,7 +95,7 @@
           }
         },
         "tags": [
-          "Resource"
+          "Resource Type"
         ],
         "security": [
           {
@@ -122,8 +104,8 @@
         ]
       },
       "post": {
-        "summary": "Create a Resource",
-        "description": "Create a new resource\n\nAvailable for **Staff Tokens**",
+        "summary": "Create a ResourceType",
+        "description": "Create a new resource type\n\nAvailable for **Staff Tokens**",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -134,20 +116,25 @@
                 "properties": {
                   "name": {
                     "type": "string",
-                    "description": "The name of the resource"
+                    "description": "The name of the resource type"
                   },
-                  "resource_type_uid": {
-                    "type": "string",
-                    "description": "The resource type this instance belongs to"
+                  "services": {
+                    "type": "array",
+                    "description": "Array of service UIDs that require this resource type",
+                    "items": {
+                      "type": "string"
+                    }
                   }
                 },
                 "required": [
-                  "name",
-                  "resource_type_uid"
+                  "name"
                 ],
                 "example": {
-                  "name": "Treatment Room 1",
-                  "resource_type_uid": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
+                  "name": "Treatment Room",
+                  "services": [
+                    "service_uid_1",
+                    "service_uid_2"
+                  ]
                 }
               }
             }
@@ -167,7 +154,153 @@
                       "properties": {
                         "data": {
                           "type": "object",
-                          "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/resource.json"
+                          "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/resourceType.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "401": {
+            "description": "Unauthorized - Authentication is required"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions to perform this operation"
+          },
+          "422": {
+            "description": "Unprocessable Entity - Semantic validation failed"
+          }
+        },
+        "tags": [
+          "Resource Type"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/scheduling/resource_types/{uid}": {
+      "get": {
+        "summary": "Retrieve a ResourceType",
+        "description": "Get a specific resource type by UID\n\nAvailable for **Staff Tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the ResourceType",
+            "schema": {
+              "type": "string"
+            },
+            "example": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/resourceType.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid input parameters"
+          },
+          "401": {
+            "description": "Unauthorized - Authentication is required"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions to perform this operation"
+          },
+          "404": {
+            "description": "Not Found - The specified resource type does not exist"
+          }
+        },
+        "tags": [
+          "Resource Type"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "put": {
+        "summary": "Update a ResourceType",
+        "description": "Update a resource type's properties\n\nAvailable for **Staff Tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the ResourceType",
+            "schema": {
+              "type": "string"
+            },
+            "example": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "The name of the resource type"
+                  },
+                  "services": {
+                    "type": "array",
+                    "description": "Array of service UIDs that require this resource type",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/resourceType.json"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/resourceType.json"
                         }
                       }
                     }
@@ -193,142 +326,7 @@
           }
         },
         "tags": [
-          "Resource"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/scheduling/resources/{uid}": {
-      "get": {
-        "summary": "Retrieve a Resource",
-        "description": "Get a specific resource by UID\n\nAvailable for **Staff Tokens**",
-        "parameters": [
-          {
-            "name": "uid",
-            "required": true,
-            "in": "path",
-            "description": "Unique identifier of the Resource",
-            "schema": {
-              "type": "string"
-            },
-            "example": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "type": "object",
-                          "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/resource.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid input parameters"
-          },
-          "401": {
-            "description": "Unauthorized - Authentication is required"
-          },
-          "403": {
-            "description": "Forbidden - Insufficient permissions to perform this operation"
-          },
-          "404": {
-            "description": "Not Found - The specified resource does not exist"
-          }
-        },
-        "tags": [
-          "Resource"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      },
-      "put": {
-        "summary": "Update a Resource",
-        "description": "Update a resource's properties\n\nAvailable for **Staff Tokens**",
-        "parameters": [
-          {
-            "name": "uid",
-            "required": true,
-            "in": "path",
-            "description": "Unique identifier of the Resource",
-            "schema": {
-              "type": "string"
-            },
-            "example": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/resource.json"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "type": "object",
-                          "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/resource.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid input parameters"
-          },
-          "401": {
-            "description": "Unauthorized - Authentication is required"
-          },
-          "403": {
-            "description": "Forbidden - Insufficient permissions to perform this operation"
-          },
-          "404": {
-            "description": "Not Found - The specified resource does not exist"
-          },
-          "422": {
-            "description": "Unprocessable Entity - Semantic validation failed"
-          }
-        },
-        "tags": [
-          "Resource"
+          "Resource Type"
         ],
         "security": [
           {
@@ -337,14 +335,14 @@
         ]
       },
       "delete": {
-        "summary": "Delete a Resource",
-        "description": "Soft-delete a resource\n\nAvailable for **Staff Tokens**",
+        "summary": "Delete a ResourceType",
+        "description": "Soft-delete a resource type\n\nAvailable for **Staff Tokens**",
         "parameters": [
           {
             "name": "uid",
             "required": true,
             "in": "path",
-            "description": "Unique identifier of the Resource",
+            "description": "Unique identifier of the ResourceType",
             "schema": {
               "type": "string"
             },
@@ -376,11 +374,11 @@
             "description": "Forbidden - Insufficient permissions to perform this operation"
           },
           "404": {
-            "description": "Not Found - The specified resource does not exist"
+            "description": "Not Found - The specified resource type does not exist"
           }
         },
         "tags": [
-          "Resource"
+          "Resource Type"
         ],
         "security": [
           {
@@ -389,10 +387,10 @@
         ]
       }
     },
-    "/scheduling/resources/bulk": {
+    "/scheduling/resource_types/bulk": {
       "post": {
-        "summary": "Bulk Create Resources",
-        "description": "Create multiple resources for a business in a single request\n\nAvailable for **Staff Tokens**",
+        "summary": "Bulk Create ResourceTypes",
+        "description": "Create multiple resource types for a business in a single request\n\nAvailable for **Staff Tokens**",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -405,27 +403,29 @@
                   "properties": {
                     "name": {
                       "type": "string",
-                      "description": "The name of the resource"
+                      "description": "The name of the resource type"
                     },
-                    "resource_type_uid": {
-                      "type": "string",
-                      "description": "The resource type this instance belongs to"
+                    "services": {
+                      "type": "array",
+                      "description": "Array of service UIDs that require this resource type",
+                      "items": {
+                        "type": "string"
+                      }
                     }
                   },
                   "required": [
-                    "name",
-                    "resource_type_uid"
+                    "name"
                   ]
                 }
               },
               "example": [
                 {
-                  "name": "Treatment Room 1",
-                  "resource_type_uid": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
+                  "name": "Treatment Room",
+                  "services": ["service_uid_1", "service_uid_2"]
                 },
                 {
-                  "name": "Treatment Room 2",
-                  "resource_type_uid": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
+                  "name": "Massage Table",
+                  "services": ["service_uid_3"]
                 }
               ]
             }
@@ -446,7 +446,7 @@
                         "description": "Status of the creation for the entity"
                       },
                       "entity": {
-                        "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/resource.json"
+                        "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/resourceType.json"
                       },
                       "error": {
                         "type": "string",
@@ -459,17 +459,17 @@
                   {
                     "success": true,
                     "entity": {
-                      "uid": "a4ca2054-3bb0-4788-8e9e-ee2442975e22",
-                      "created_at": "2023-06-15T11:30:00Z",
-                      "updated_at": "2023-06-15T15:45:10Z",
-                      "resource_type_uid": "94ca2054-3bb0-4788-8e9e-ee2442975cdd",
-                      "name": "Treatment Room 1",
-                      "deleted_at": null
+                      "uid": "94ca2054-3bb0-4788-8e9e-ee2442975cdd",
+                      "created_at": "2023-06-15T10:30:00Z",
+                      "updated_at": "2023-06-15T14:45:10Z",
+                      "name": "Treatment Room",
+                      "deleted_at": null,
+                      "services": ["service_uid_1", "service_uid_2"]
                     }
                   },
                   {
                     "success": false,
-                    "error": "Business limit reached for resources of this type"
+                    "error": "Business limit reached for resource types"
                   }
                 ]
               }
@@ -489,7 +489,7 @@
           }
         },
         "tags": [
-          "Resource"
+          "Resource Type"
         ],
         "security": [
           {
@@ -501,14 +501,14 @@
   },
   "components": {
     "schemas": {
-      "ResourcesList": {
+      "ResourceTypesList": {
         "type": "object",
         "properties": {
-          "resources": {
-            "description": "List of Resources",
+          "resource_types": {
+            "description": "List of ResourceTypes",
             "type": "array",
             "items": {
-              "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/resource.json"
+              "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/resourceType.json"
             }
           }
         }
