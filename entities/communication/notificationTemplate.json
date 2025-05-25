@@ -1,289 +1,1164 @@
 {
-  "title": "NotificationTemplate",
-  "description": "Metadata definition for notification templates and delivery settings.",
-  "type": "object",
-  "properties": {
-    "uid": {
-      "type": "string",
-      "description": "Unique identifier for the entity instance."
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Notification Templates",
+    "description": "A set of API endpoints used to manage notification templates and delivery settings in the inTandem platform",
+    "version": "3.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.vcita.biz/",
+      "description": "API Gateway server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {token}'"
+      }
     },
-    "code_name": {
-      "type": "string",
-      "description": "Unique identifier name for the notification"
-    },
-    "title": {
-      "description": "Name of the notification.",
-      "$ref": "#/definitions/localizedTextList",
-      "minItems": 1,
-      "contains": { "type": "object", "properties": { "key": { "const": "en" }, "value": { "type": "string" } }, "required": ["key", "value"] }
-    },
-    "description": {
-      "description": "Description of the notification.",
-      "$ref": "#/definitions/localizedTextList",
-      "minItems": 1,
-      "contains": { "type": "object", "properties": { "key": { "const": "en" }, "value": { "type": "string" } }, "required": ["key", "value"] }
-    },
-    "category": {
-      "type": "string",
-      "description": "Category of the notification. Must be one of this values",
-      "enum": [
-        "payments",
-        "clients",
-        "calendar",
-        "booking",
-        "marketing",
-        "teamchat",
-        "scheduling",
-        "advertising",
-        "group_events",
-        "documents",
-        "messages",
-        "reviews",
-        "social",
-        "account"
-      ]
-    },
-    "configurable_by_staff": {
-      "type": "boolean",
-      "description": "Whether this notification can be configured by a staff member and visible in the notification center"
-    },
-    "content": {
-      "type": "array",
-      "description": "Array containing at most one staff_portal and/or one email object.",
-      "minItems": 1,
-      "maxItems": 2,
-      "uniqueItems": true,
-      "channels": {
-        "oneOf": [
-          {
-            "type": "object",
-            "properties": {
-              "staff_portal": {
-                "type": "object",
-                "description": "Settings for in-app (push/pane) notifications.",
-                "properties": {
-                  "title": {
-                    "description": "Title for in-app notification.",
-                    "$ref": "#/definitions/localizedTextList",
-                    "minItems": 1,
-                    "contains": { "type": "object", "properties": { "key": { "const": "en" }, "value": { "type": "string" } }, "required": ["key", "value"] }
-                  },
-                  "message_body": {
-                    "description": "Message body for in-app notification.",
-                    "$ref": "#/definitions/localizedTextList",
-                    "minItems": 1,
-                    "contains": { "type": "object", "properties": { "key": { "const": "en" }, "value": { "type": "string" } }, "required": ["key", "value"] }
-                  },
-                  "deep_link": {
-                    "type": "string",
-                    "description": "Optional deep link URL for notification action."
-                  }
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
                 },
-                "required": ["title", "message_body"],
-                "additionalProperties": false
+                "message": {
+                  "type": "string"
+                }
               }
-            },
-            "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "success",
+          "errors"
+        ]
+      }
+    }
+  },
+  "paths": {
+    "/v3/communication/notification_templates": {
+      "get": {
+        "operationId": "getNotificationTemplates",
+        "summary": "Get all NotificationTemplates",
+        "description": "Get a list of notification templates available for the current business.\n\nAvailable for **Staff Tokens**",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number of results.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 1,
+              "type": "number"
+            }
           },
           {
-            "type": "object",
-            "properties": {
-              "email": {
+            "name": "per_page",
+            "required": false,
+            "in": "query",
+            "description": "How many items to return per page. Max: 100",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Sort by fields. Example: sort=created_at:asc,updated_at:desc",
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "updated_at:desc",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by category",
+            "name": "category",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "payments",
+                "clients",
+                "calendar",
+                "booking",
+                "marketing",
+                "teamchat",
+                "scheduling",
+                "advertising",
+                "group_events",
+                "documents",
+                "messages",
+                "reviews",
+                "social",
+                "account"
+              ]
+            }
+          },
+          {
+            "description": "Filter by configurable_by_staff status",
+            "name": "configurable_by_staff",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "notification_templates": {
+                              "description": "List of NotificationTemplates",
+                              "type": "array",
+                              "items": {
+                                "$ref": "https://vcita.github.io/developers-hub/entities/communication/notificationTemplate.json"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "401 Unauthorized"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "You do not have permission to access this resource"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Notification Templates"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createNotificationTemplate",
+        "summary": "Create a NotificationTemplate",
+        "description": "Create a new notification template.\n\nAvailable for **Staff Tokens** with admin permissions.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
                 "type": "object",
-                "description": "The content and configurations of the email.",
                 "properties": {
-                  "subject": {
-                    "description": "Email subject line.",
-                    "$ref": "#/definitions/localizedTextList",
-                    "minItems": 1,
-                    "contains": { "type": "object", "properties": { "key": { "const": "en" }, "value": { "type": "string" } }, "required": ["key", "value"] }
+                  "code_name": {
+                    "type": "string",
+                    "description": "Unique identifier name for the notification"
                   },
-                  "top_image": {
-                    "type": "object",
-                    "description": "Image at the top of the email.",
-                    "properties": {
-                      "url": { "type": "string", "description": "Image URL." },
-                      "width": { "type": "integer", "description": "Image width in pixels." },
-                      "alt": { "description": "Alternative text for the image.", "$ref": "#/definitions/localizedTextList" }
+                  "title": {
+                    "type": "array",
+                    "description": "Name of the notification.",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "enum": [
+                            "en", "fr", "de", "it", "pl", "pt", "es", "nl", "he", "sl", "en_gb"
+                          ]
+                        },
+                        "value": { 
+                          "type": "string" 
+                        }
+                      },
+                      "required": ["key", "value"]
                     }
                   },
-                  "main_title": {
-                    "description": "Header or introduction text for the email.",
-                    "$ref": "#/definitions/localizedTextList",
-                    "minItems": 1,
-                    "contains": { "type": "object", "properties": { "key": { "const": "en" }, "value": { "type": "string" } }, "required": ["key", "value"] }
-                  },
-                  "main_text": {
-                    "description": "Main content of the email.",
-                    "$ref": "#/definitions/localizedTextList",
-                    "minItems": 1,
-                    "contains": { "type": "object", "properties": { "key": { "const": "en" }, "value": { "type": "string" } }, "required": ["key", "value"] }
-                  },
-                  "middle_image": {
-                    "type": "object",
-                    "description": "Image in the middle of the email.",
-                    "properties": {
-                      "url": { "type": "string", "description": "Image URL." },
-                      "width": { "type": "integer", "description": "Image width in pixels." },
-                      "alt": { "description": "Alternative text for the image.", "$ref": "#/definitions/localizedTextList" }
+                  "description": {
+                    "type": "array",
+                    "description": "Description of the notification.",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "enum": [
+                            "en", "fr", "de", "it", "pl", "pt", "es", "nl", "he", "sl", "en_gb"
+                          ]
+                        },
+                        "value": { 
+                          "type": "string" 
+                        }
+                      },
+                      "required": ["key", "value"]
                     }
                   },
-                  "middle_text": {
-                    "description": "Middle content of the email.",
-                    "$ref": "#/definitions/localizedTextList"
+                  "category": {
+                    "type": "string",
+                    "description": "Category of the notification.",
+                    "enum": [
+                      "payments",
+                      "clients",
+                      "calendar",
+                      "booking",
+                      "marketing",
+                      "teamchat",
+                      "scheduling",
+                      "advertising",
+                      "group_events",
+                      "documents",
+                      "messages",
+                      "reviews",
+                      "social",
+                      "account"
+                    ]
                   },
-                  "footer_text": {
-                    "description": "Footer or closing text for the email.",
-                    "$ref": "#/definitions/localizedTextList"
+                  "configurable_by_staff": {
+                    "type": "boolean",
+                    "description": "Whether this notification can be configured by a staff member and visible in the notification center"
                   },
-                  "primary_cta_button": {
-                    "type": "object",
-                    "description": "Call-to-action button details.",
-                    "properties": {
-                      "text": { "description": "Button text.", "$ref": "#/definitions/localizedTextList" },
-                      "url": { "type": "string", "description": "Button URL." },
-                      "alt": { "description": "Alternative text for the button.", "$ref": "#/definitions/localizedTextList" }
-                    }
-                  },
-                  "secondary_cta_button": {
-                    "type": "object",
-                    "description": "Secondary call-to-action button details.",
-                    "properties": {
-                      "text": { "description": "Button text.", "$ref": "#/definitions/localizedTextList" },
-                      "url": { "type": "string", "description": "Button URL." },
-                      "alt": { "description": "Alternative text for the button.", "$ref": "#/definitions/localizedTextList" }
+                  "content": {
+                    "type": "array",
+                    "description": "Array containing at most one staff_portal and/or one email object.",
+                    "items": {
+                      "type": "object",
+                      "oneOf": [
+                        {
+                          "properties": {
+                            "staff_portal": {
+                              "type": "object",
+                              "properties": {
+                                "title": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "key": {
+                                        "type": "string"
+                                      },
+                                      "value": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                },
+                                "message_body": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "key": {
+                                        "type": "string"
+                                      },
+                                      "value": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                },
+                                "deep_link": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": ["title", "message_body"]
+                            }
+                          }
+                        },
+                        {
+                          "properties": {
+                            "email": {
+                              "type": "object",
+                              "properties": {
+                                "subject": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "key": {
+                                        "type": "string"
+                                      },
+                                      "value": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                },
+                                "main_title": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "key": {
+                                        "type": "string"
+                                      },
+                                      "value": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                },
+                                "main_text": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "key": {
+                                        "type": "string"
+                                      },
+                                      "value": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "required": ["subject", "main_title", "main_text"]
+                            }
+                          }
+                        }
+                      ]
                     }
                   }
                 },
-                "required": ["subject", "main_title", "main_text"],
-                "additionalProperties": false
+                "required": [
+                  "code_name",
+                  "title",
+                  "description",
+                  "category",
+                  "configurable_by_staff",
+                  "content"
+                ],
+                "example": {
+                  "code_name": "welcome_new_user",
+                  "title": [
+                    { "key": "en", "value": "Welcome Notification" },
+                    { "key": "fr", "value": "Notification de bienvenue" },
+                    { "key": "es", "value": "Notificación de bienvenida" }
+                  ],
+                  "description": [
+                    { "key": "en", "value": "Sent to new users upon registration." },
+                    { "key": "fr", "value": "Envoyé aux nouveaux utilisateurs lors de l'inscription." },
+                    { "key": "es", "value": "Enviado a los nuevos usuarios al registrarse." }
+                  ],
+                  "category": "account",
+                  "configurable_by_staff": true,
+                  "content": [
+                    {
+                      "staff_portal": {
+                        "title": [
+                          { "key": "en", "value": "Welcome!" },
+                          { "key": "fr", "value": "Bienvenue!" },
+                          { "key": "es", "value": "¡Bienvenido!" }
+                        ],
+                        "message_body": [
+                          { "key": "en", "value": "Thanks for joining us!" },
+                          { "key": "fr", "value": "Merci de nous avoir rejoints!" },
+                          { "key": "es", "value": "¡Gracias por unirte a nosotros!" }
+                        ],
+                        "deep_link": "https://example.com/welcome"
+                      }
+                    },
+                    {
+                      "email": {
+                        "subject": [
+                          { "key": "en", "value": "Welcome to Our Service" },
+                          { "key": "fr", "value": "Bienvenue à notre service" },
+                          { "key": "es", "value": "Bienvenido a nuestro servicio" }
+                        ],
+                        "top_image": {
+                          "url": "https://example.com/welcome-banner.png",
+                          "width": 600,
+                          "alt": [
+                            { "key": "en", "value": "Welcome banner" },
+                            { "key": "fr", "value": "Bannière de bienvenue" }
+                          ]
+                        },
+                        "main_title": [
+                          { "key": "en", "value": "Welcome to Our Platform!" },
+                          { "key": "fr", "value": "Bienvenue sur notre plateforme!" },
+                          { "key": "es", "value": "¡Bienvenido a nuestra plataforma!" }
+                        ],
+                        "main_text": [
+                          { "key": "en", "value": "We're excited to have you on board. Here are some tips to get started..." },
+                          { "key": "fr", "value": "Nous sommes ravis de vous avoir à bord. Voici quelques conseils pour commencer..." },
+                          { "key": "es", "value": "Estamos emocionados de tenerte a bordo. Aquí hay algunos consejos para comenzar..." }
+                        ],
+                        "middle_image": {
+                          "url": "https://example.com/getting-started.png",
+                          "width": 400,
+                          "alt": [
+                            { "key": "en", "value": "Getting started guide" }
+                          ]
+                        },
+                        "middle_text": [
+                          { "key": "en", "value": "Check out our quick start guide for more information." }
+                        ],
+                        "footer_text": [
+                          { "key": "en", "value": "If you have any questions, feel free to contact us." }
+                        ],
+                        "primary_cta_button": {
+                          "text": [
+                            { "key": "en", "value": "Get Started" },
+                            { "key": "fr", "value": "Commencer" }
+                          ],
+                          "url": "https://example.com/get-started",
+                          "alt": [
+                            { "key": "en", "value": "Start using our platform" }
+                          ]
+                        },
+                        "secondary_cta_button": {
+                          "text": [
+                            { "key": "en", "value": "Learn More" }
+                          ],
+                          "url": "https://example.com/learn-more",
+                          "alt": [
+                            { "key": "en", "value": "Learn more about our features" }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
               }
-            },
-            "additionalProperties": false
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/notificationTemplate.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "invalid_request",
+                      "message": "Invalid request parameters"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "401 Unauthorized"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "You do not have permission to create notification templates"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Notification Templates"
+        ],
+        "security": [
+          {
+            "Bearer": []
           }
         ]
       }
     },
-    "created_at": {
-      "type": "string",
-      "format": "date-time",
-      "description": "ISO8601 timestamp of when the entity was created."
-    },
-    "updated_at": {
-      "type": "string",
-      "format": "date-time",
-      "description": "ISO8601 timestamp of the last update to the entity."
-    }
-  },
-  "required": [
-    "uid",
-    "code_name",
-    "title",
-    "description",
-    "category",
-    "configurable_by_staff",
-    "content",
-    "created_at",
-    "updated_at"
-  ],
-  "definitions": {
-    "localizedTextList": {
-      "type": "array",
-      "description": "List of localized strings. Each item is a key-value pair: key is a locale (from enum), value is a string. Each language can appear only once.",
-      "uniqueItems": true,
-      "items": {
-        "type": "object",
-        "properties": {
-          "key": {
-            "type": "string",
-            "enum": [
-              "en", "fr", "de", "it", "pl", "pt", "es", "nl", "he", "sl", "en_gb"
-            ]
-          },
-          "value": { "type": "string" }
-        },
-        "required": ["key", "value"],
-        "additionalProperties": false
-      }
-    }
-  },
-  "example": {
-    "uid": "notif-001",
-    "code_name": "welcome_new_user",
-    "title": [
-      { "key": "en", "value": "Welcome Notification" },
-      { "key": "fr", "value": "Notification de bienvenue" },
-      { "key": "de", "value": "Willkommensbenachrichtigung" }
-    ],
-    "description": [
-      { "key": "en", "value": "Sent to new users upon registration." },
-      { "key": "fr", "value": "Envoyé aux nouveaux utilisateurs lors de l'inscription." },
-      { "key": "es", "value": "Enviado a los nuevos usuarios al registrarse." }
-    ],
-    "category": "account",
-    "configurable_by_staff": true,
-    "content": [
-      {
-        "staff_portal": {
-          "title": [
-            { "key": "en", "value": "Welcome!" },
-            { "key": "fr", "value": "Bienvenue!" },
-            { "key": "es", "value": "¡Bienvenido!" }
-          ],
-          "message_body": [
-            { "key": "en", "value": "Thanks for joining us!" },
-            { "key": "fr", "value": "Merci de nous avoir rejoints!" }
-          ],
-          "deep_link": "https://example.com/welcome"
-        }
-      },
-      {
-        "email": {
-          "subject": [
-            { "key": "en", "value": "Welcome to Our Service" },
-            { "key": "fr", "value": "Bienvenue à notre service" },
-            { "key": "de", "value": "Willkommen bei unserem Service" }
-          ],
-          "top_image": {
-            "url": "https://example.com/banner.png",
-            "width": 600,
-            "alt": [ { "key": "en", "value": "Welcome banner" }, { "key": "fr", "value": "Bannière de bienvenue" } ]
-          },
-          "main_title": [
-            { "key": "en", "value": "Hello and Welcome!" },
-            { "key": "fr", "value": "Bonjour et bienvenue!" }
-          ],
-          "main_text": [
-            { "key": "en", "value": "We're excited to have you on board." },
-            { "key": "es", "value": "Estamos emocionados de tenerte con nosotros." }
-          ],
-          "middle_image": {
-            "url": "https://example.com/mid.png",
-            "width": 400,
-            "alt": [ { "key": "en", "value": "Mid section image" }, { "key": "es", "value": "Imagen de la sección media" } ]
-          },
-          "middle_text": [
-            { "key": "en", "value": "Here are some tips to get started." },
-            { "key": "fr", "value": "Voici quelques conseils pour commencer." }
-          ],
-          "footer_text": [
-            { "key": "en", "value": "Best regards, The Team" },
-            { "key": "de", "value": "Mit freundlichen Grüßen, Das Team" }
-          ],
-          "primary_cta_button": {
-            "text": [ { "key": "en", "value": "Get Started" }, { "key": "fr", "value": "Commencer" } ],
-            "url": "https://example.com/start",
-            "alt": [ { "key": "en", "value": "Start now" }, { "key": "fr", "value": "Commencez maintenant" } ]
-          },
-          "secondary_cta_button": {
-            "text": [ { "key": "en", "value": "Contact Support" }, { "key": "es", "value": "Contactar Soporte" } ],
-            "url": "https://example.com/support",
-            "alt": [ { "key": "en", "value": "Support" }, { "key": "es", "value": "Soporte" } ]
+    "/v3/communication/notification_templates/{uid}": {
+      "get": {
+        "operationId": "getNotificationTemplate",
+        "summary": "Retrieve a NotificationTemplate",
+        "description": "Retrieve a specific notification template by its unique identifier.\n\nAvailable for **Staff Tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the notification template",
+            "schema": {
+              "type": "string"
+            },
+            "example": "notif-001"
           }
-        }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/notificationTemplate.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "401 Unauthorized"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Notification template not found"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Notification Templates"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "put": {
+        "operationId": "updateNotificationTemplate",
+        "summary": "Update a NotificationTemplate",
+        "description": "Update a specific notification template by its unique identifier.\n\nAvailable for **Staff Tokens** with admin permissions.",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the notification template",
+            "schema": {
+              "type": "string"
+            },
+            "example": "notif-001"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "array",
+                    "description": "Name of the notification.",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "enum": [
+                            "en", "fr", "de", "it", "pl", "pt", "es", "nl", "he", "sl", "en_gb"
+                          ]
+                        },
+                        "value": { 
+                          "type": "string" 
+                        }
+                      },
+                      "required": ["key", "value"]
+                    }
+                  },
+                  "description": {
+                    "type": "array",
+                    "description": "Description of the notification.",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "enum": [
+                            "en", "fr", "de", "it", "pl", "pt", "es", "nl", "he", "sl", "en_gb"
+                          ]
+                        },
+                        "value": { 
+                          "type": "string" 
+                        }
+                      },
+                      "required": ["key", "value"]
+                    }
+                  },
+                  "category": {
+                    "type": "string",
+                    "description": "Category of the notification.",
+                    "enum": [
+                      "payments",
+                      "clients",
+                      "calendar",
+                      "booking",
+                      "marketing",
+                      "teamchat",
+                      "scheduling",
+                      "advertising",
+                      "group_events",
+                      "documents",
+                      "messages",
+                      "reviews",
+                      "social",
+                      "account"
+                    ]
+                  },
+                  "configurable_by_staff": {
+                    "type": "boolean",
+                    "description": "Whether this notification can be configured by a staff member and visible in the notification center"
+                  },
+                  "content": {
+                    "type": "array",
+                    "description": "Array containing at most one staff_portal and/or one email object.",
+                    "items": {
+                      "type": "object",
+                      "oneOf": [
+                        {
+                          "properties": {
+                            "staff_portal": {
+                              "type": "object",
+                              "properties": {
+                                "title": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "key": {
+                                        "type": "string"
+                                      },
+                                      "value": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                },
+                                "message_body": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "key": {
+                                        "type": "string"
+                                      },
+                                      "value": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                },
+                                "deep_link": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": ["title", "message_body"]
+                            }
+                          }
+                        },
+                        {
+                          "properties": {
+                            "email": {
+                              "type": "object",
+                              "properties": {
+                                "subject": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "key": {
+                                        "type": "string"
+                                      },
+                                      "value": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                },
+                                "main_title": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "key": {
+                                        "type": "string"
+                                      },
+                                      "value": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                },
+                                "main_text": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "key": {
+                                        "type": "string"
+                                      },
+                                      "value": {
+                                        "type": "string"
+                                      }
+                                    }
+                                  }
+                                }
+                              },
+                              "required": ["subject", "main_title", "main_text"]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                "example": {
+                  "title": [
+                    { "key": "en", "value": "Updated Welcome Notification" },
+                    { "key": "fr", "value": "Notification de bienvenue mise à jour" },
+                    { "key": "es", "value": "Notificación de bienvenida actualizada" }
+                  ],
+                  "description": [
+                    { "key": "en", "value": "Updated notification for new users." },
+                    { "key": "fr", "value": "Notification mise à jour pour les nouveaux utilisateurs." },
+                    { "key": "es", "value": "Notificación actualizada para nuevos usuarios." }
+                  ],
+                  "category": "account",
+                  "configurable_by_staff": true,
+                  "content": [
+                    {
+                      "staff_portal": {
+                        "title": [
+                          { "key": "en", "value": "Welcome to Our Platform!" },
+                          { "key": "fr", "value": "Bienvenue sur notre plateforme!" },
+                          { "key": "es", "value": "¡Bienvenido a nuestra plataforma!" }
+                        ],
+                        "message_body": [
+                          { "key": "en", "value": "Thanks for joining us! We've updated our onboarding process." },
+                          { "key": "fr", "value": "Merci de nous avoir rejoints! Nous avons mis à jour notre processus d'intégration." },
+                          { "key": "es", "value": "¡Gracias por unirte a nosotros! Hemos actualizado nuestro proceso de incorporación." }
+                        ],
+                        "deep_link": "https://example.com/welcome/updated"
+                      }
+                    },
+                    {
+                      "email": {
+                        "subject": [
+                          { "key": "en", "value": "Welcome to Our Updated Service" },
+                          { "key": "fr", "value": "Bienvenue à notre service mis à jour" },
+                          { "key": "es", "value": "Bienvenido a nuestro servicio actualizado" }
+                        ],
+                        "top_image": {
+                          "url": "https://example.com/welcome-banner-new.png",
+                          "width": 600,
+                          "alt": [
+                            { "key": "en", "value": "New welcome banner" },
+                            { "key": "fr", "value": "Nouvelle bannière de bienvenue" }
+                          ]
+                        },
+                        "main_title": [
+                          { "key": "en", "value": "Welcome to Our Improved Platform!" },
+                          { "key": "fr", "value": "Bienvenue sur notre plateforme améliorée!" },
+                          { "key": "es", "value": "¡Bienvenido a nuestra plataforma mejorada!" }
+                        ],
+                        "main_text": [
+                          { "key": "en", "value": "We've updated our platform with new features. Here's what you need to know..." },
+                          { "key": "fr", "value": "Nous avons mis à jour notre plateforme avec de nouvelles fonctionnalités. Voici ce que vous devez savoir..." },
+                          { "key": "es", "value": "Hemos actualizado nuestra plataforma con nuevas funciones. Esto es lo que necesitas saber..." }
+                        ],
+                        "middle_image": {
+                          "url": "https://example.com/new-features.png",
+                          "width": 400,
+                          "alt": [
+                            { "key": "en", "value": "New features guide" },
+                            { "key": "fr", "value": "Guide des nouvelles fonctionnalités" }
+                          ]
+                        },
+                        "middle_text": [
+                          { "key": "en", "value": "Check out our new features guide for more information." },
+                          { "key": "fr", "value": "Consultez notre guide des nouvelles fonctionnalités pour plus d'informations." }
+                        ],
+                        "footer_text": [
+                          { "key": "en", "value": "If you have any questions about these updates, feel free to contact our support team." },
+                          { "key": "fr", "value": "Si vous avez des questions sur ces mises à jour, n'hésitez pas à contacter notre équipe d'assistance." }
+                        ],
+                        "primary_cta_button": {
+                          "text": [
+                            { "key": "en", "value": "Explore New Features" },
+                            { "key": "fr", "value": "Découvrir les nouvelles fonctionnalités" }
+                          ],
+                          "url": "https://example.com/explore-features",
+                          "alt": [
+                            { "key": "en", "value": "Explore our new platform features" }
+                          ]
+                        },
+                        "secondary_cta_button": {
+                          "text": [
+                            { "key": "en", "value": "View Tutorial" },
+                            { "key": "fr", "value": "Voir le tutoriel" }
+                          ],
+                          "url": "https://example.com/tutorial",
+                          "alt": [
+                            { "key": "en", "value": "View our platform tutorial" }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/notificationTemplate.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "invalid_request",
+                      "message": "Invalid request parameters"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "401 Unauthorized"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "You do not have permission to update notification templates"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Notification template not found"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Notification Templates"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "deleteNotificationTemplate",
+        "summary": "Delete a NotificationTemplate",
+        "description": "Delete a specific notification template by its unique identifier.\n\nAvailable for **Staff Tokens** with admin permissions.",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the notification template",
+            "schema": {
+              "type": "string"
+            },
+            "example": "notif-001"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "401 Unauthorized"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "You do not have permission to delete notification templates"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Notification template not found"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Notification Templates"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       }
-    ],
-    "created_at": "2024-06-01T12:00:00Z",
-    "updated_at": "2024-06-01T12:00:00Z"
+    }
   }
-}
+} 
