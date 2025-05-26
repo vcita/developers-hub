@@ -1,8 +1,8 @@
 {
-  "openapi": "3.0.1",
+  "openapi": "3.0.0",
   "info": {
     "title": "Notification Template",
-    "description": "API endpoints for managing notification templates and their delivery settings.",
+    "description": "A set of API endpoints used by the inTandem platform to manage notification templates for various communication channels",
     "version": "3.0"
   },
   "servers": [
@@ -15,60 +15,27 @@
     "securitySchemes": {
       "Bearer": {
         "type": "http",
-        "scheme": "bearer"
+        "scheme": "bearer",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {token}'"
       }
     },
     "schemas": {
-      "ErrorResponse": {
-        "type": "object",
-        "properties": {
-          "success": { "type": "boolean" },
-          "errors": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "code": { "type": "string" },
-                "message": { "type": "string" }
-              }
-            }
-          }
-        },
-        "required": ["success", "errors"]
-      },
-      "NotificationTemplateList": {
-        "type": "object",
-        "properties": {
-          "notification_templates": {
-            "type": "array",
-            "items": {
-              "$ref": "https://vcita.github.io/developers-hub/entities/communication/notificationTemplate.json"
-            }
-          }
-        }
-      },
-      "NotificationTemplateCreate": {
-        "type": "object",
-        "properties": {
-          "code_name": { "type": "string", "description": "Unique identifier name for the notification" },
-          "title": { "$ref": "https://vcita.github.io/developers-hub/entities/communication/notificationTemplate.json#/properties/title" },
-          "description": { "$ref": "https://vcita.github.io/developers-hub/entities/communication/notificationTemplate.json#/properties/description" },
-          "category": { "$ref": "https://vcita.github.io/developers-hub/entities/communication/notificationTemplate.json#/properties/category" },
-          "configurable_by_staff": { "$ref": "https://vcita.github.io/developers-hub/entities/communication/notificationTemplate.json#/properties/configurable_by_staff" },
-          "content": { "$ref": "https://vcita.github.io/developers-hub/entities/communication/notificationTemplate.json#/properties/content" }
-        },
-        "required": ["code_name", "title", "description", "category", "configurable_by_staff", "content"]
-      },
-      "NotificationTemplateUpdate": {
-        "type": "object",
-        "minProperties": 1,
-        "properties": {
-          "code_name": { "type": "string", "description": "Unique identifier name for the notification" },
-          "title": { "$ref": "https://vcita.github.io/developers-hub/entities/communication/notificationTemplate.json#/properties/title" },
-          "description": { "$ref": "https://vcita.github.io/developers-hub/entities/communication/notificationTemplate.json#/properties/description" },
-          "category": { "$ref": "https://vcita.github.io/developers-hub/entities/communication/notificationTemplate.json#/properties/category" },
-          "configurable_by_staff": { "$ref": "https://vcita.github.io/developers-hub/entities/communication/notificationTemplate.json#/properties/configurable_by_staff" },
-          "content": { "$ref": "https://vcita.github.io/developers-hub/entities/communication/notificationTemplate.json#/properties/content" }
+      "localizedTextList": {
+        "type": "array",
+        "description": "List of localized strings. Each item is a key-value pair: key is a locale (from enum), value is a string. Each language can appear only once.",
+        "uniqueItems": true,
+        "items": {
+          "type": "object",
+          "properties": {
+            "key": {
+              "type": "string",
+              "enum": [
+                "en", "fr", "de", "it", "pl", "pt", "es", "nl", "he", "sl", "en_gb"
+              ]
+            },
+            "value": { "type": "string" }
+          },
+          "required": ["key", "value"]
         }
       }
     }
@@ -76,30 +43,42 @@
   "paths": {
     "/v3/communication/notification_templates": {
       "get": {
-        "operationId": "NotificationTemplatesController_getAll",
         "summary": "Get all NotificationTemplates",
-        "description": "Retrieve a list of all NotificationTemplates. Available for Directory or App tokens.",
+        "description": "Get a list of NotificationTemplates. Available for Directory and App tokens.",
         "parameters": [
           {
             "name": "page",
-            "in": "query",
             "required": false,
+            "in": "query",
             "description": "Page number of results.",
-            "schema": { "type": "integer", "default": 1, "minimum": 1 }
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 1,
+              "type": "number"
+            }
           },
           {
             "name": "per_page",
-            "in": "query",
             "required": false,
+            "in": "query",
             "description": "How many items to return per page. Max: 100",
-            "schema": { "type": "integer", "default": 25, "minimum": 1, "maximum": 100 }
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "number"
+            }
           },
           {
-            "name": "sort",
-            "in": "query",
-            "required": false,
             "description": "Sort by fields. Example: sort=created_at:asc,updated_at:desc",
-            "schema": { "type": "string", "default": "updated_at:desc" }
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "updated_at:desc",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -109,12 +88,22 @@
               "application/json": {
                 "schema": {
                   "allOf": [
-                    { "$ref": "https://vcita.github.io/developers-hub/entities/response.json" },
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
                     {
                       "properties": {
                         "data": {
                           "type": "object",
-                          "$ref": "#/components/schemas/NotificationTemplateList"
+                          "properties": {
+                            "notification_templates": {
+                              "description": "List of NotificationTemplates",
+                              "type": "array",
+                              "items": {
+                                "$ref": "https://vcita.github.io/developers-hub/entities/communication/notificationTemplate.json"
+                              }
+                            }
+                          }
                         }
                       }
                     }
@@ -124,34 +113,161 @@
             }
           }
         },
-        "tags": ["Notification Template"],
-        "security": [{ "Bearer": [] }]
+        "tags": [
+          "Notification Template"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       },
       "post": {
-        "operationId": "NotificationTemplatesController_create",
         "summary": "Create a NotificationTemplate",
-        "description": "Create a new NotificationTemplate. Available for Directory or App tokens.",
+        "description": "Create a new notification template. Available for Directory and App tokens.",
+        "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/NotificationTemplateCreate"
+                "type": "object",
+                "properties": {
+                  "code_name": {
+                    "$ref": "https://vcita.github.io/developers-hub/entities/communication/notificationTemplate.json#/properties/code_name"
+                  },
+                  "title": {
+                    "$ref": "https://vcita.github.io/developers-hub/entities/communication/notificationTemplate.json#/properties/title"
+                  },
+                  "description": {
+                    "$ref": "https://vcita.github.io/developers-hub/entities/communication/notificationTemplate.json#/properties/description"
+                  },
+                  "category": {
+                    "$ref": "https://vcita.github.io/developers-hub/entities/communication/notificationTemplate.json#/properties/category"
+                  },
+                  "configurable_by_staff": {
+                    "$ref": "https://vcita.github.io/developers-hub/entities/communication/notificationTemplate.json#/properties/configurable_by_staff"
+                  },
+                  "content": {
+                    "$ref": "https://vcita.github.io/developers-hub/entities/communication/notificationTemplate.json#/properties/content"
+                  }
+                },
+                "required": [
+                  "code_name",
+                  "title",
+                  "description",
+                  "category",
+                  "configurable_by_staff",
+                  "content"
+                ],
+                "example": {
+                  "code_name": "welcome_new_user",
+                  "title": [
+                    { "key": "en", "value": "Welcome Notification" },
+                    { "key": "fr", "value": "Notification de bienvenue" }
+                  ],
+                  "description": [
+                    { "key": "en", "value": "Sent to new users upon registration." },
+                    { "key": "fr", "value": "Envoyé aux nouveaux utilisateurs lors de l'inscription." }
+                  ],
+                  "category": "account",
+                  "configurable_by_staff": true,
+                  "content": [
+                    {
+                      "staff_portal": {
+                        "title": [
+                          { "key": "en", "value": "Welcome!" },
+                          { "key": "fr", "value": "Bienvenue!" }
+                        ],
+                        "message_body": [
+                          { "key": "en", "value": "Thanks for joining us!" },
+                          { "key": "fr", "value": "Merci de nous avoir rejoints!" }
+                        ],
+                        "deep_link": "https://example.com/welcome"
+                      }
+                    },
+                    {
+                      "email": {
+                        "subject": [
+                          { "key": "en", "value": "Welcome to Our Service" },
+                          { "key": "fr", "value": "Bienvenue à notre service" }
+                        ],
+                        "top_image": {
+                          "url": "https://example.com/welcome-banner.png",
+                          "width": 600,
+                          "alt": [
+                            { "key": "en", "value": "Welcome banner" },
+                            { "key": "fr", "value": "Bannière de bienvenue" }
+                          ]
+                        },
+                        "main_title": [
+                          { "key": "en", "value": "Hello and Welcome!" },
+                          { "key": "fr", "value": "Bonjour et bienvenue!" }
+                        ],
+                        "main_text": [
+                          { "key": "en", "value": "We're excited to have you on board." },
+                          { "key": "fr", "value": "Nous sommes ravis de vous avoir à bord." }
+                        ],
+                        "middle_image": {
+                          "url": "https://example.com/features.png",
+                          "width": 400,
+                          "alt": [
+                            { "key": "en", "value": "Our features" },
+                            { "key": "fr", "value": "Nos fonctionnalités" }
+                          ]
+                        },
+                        "middle_text": [
+                          { "key": "en", "value": "Discover all our amazing features." },
+                          { "key": "fr", "value": "Découvrez toutes nos fonctionnalités incroyables." }
+                        ],
+                        "footer_text": [
+                          { "key": "en", "value": "Thank you for choosing our service!" },
+                          { "key": "fr", "value": "Merci d'avoir choisi notre service!" }
+                        ],
+                        "primary_cta_button": {
+                          "text": [
+                            { "key": "en", "value": "Get Started" },
+                            { "key": "fr", "value": "Commencer" }
+                          ],
+                          "url": "https://example.com/onboarding",
+                          "alt": [
+                            { "key": "en", "value": "Start using our service" },
+                            { "key": "fr", "value": "Commencez à utiliser notre service" }
+                          ]
+                        },
+                        "secondary_cta_button": {
+                          "text": [
+                            { "key": "en", "value": "Learn More" },
+                            { "key": "fr", "value": "En savoir plus" }
+                          ],
+                          "url": "https://example.com/help",
+                          "alt": [
+                            { "key": "en", "value": "Read our documentation" },
+                            { "key": "fr", "value": "Lisez notre documentation" }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
               }
             }
           }
         },
         "responses": {
           "201": {
-            "description": "Created",
+            "description": "NotificationTemplate created successfully",
             "content": {
               "application/json": {
                 "schema": {
                   "allOf": [
-                    { "$ref": "https://vcita.github.io/developers-hub/entities/response.json" },
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
                     {
                       "properties": {
                         "data": {
+                          "type": "object",
                           "$ref": "https://vcita.github.io/developers-hub/entities/communication/notificationTemplate.json"
                         }
                       }
@@ -165,26 +281,50 @@
             "description": "Invalid request",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    }
+                  ]
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "validation_error",
+                      "message": "The request contains invalid data"
+                    }
+                  ]
+                }
               }
             }
           }
         },
-        "tags": ["Notification Template"],
-        "security": [{ "Bearer": [] }]
+        "tags": [
+          "Notification Template"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       }
     },
     "/v3/communication/notification_templates/{uid}": {
       "get": {
-        "operationId": "NotificationTemplatesController_get",
         "summary": "Retrieve a NotificationTemplate",
-        "description": "Retrieve a specific NotificationTemplate by UID. Available for Directory or App tokens.",
+        "description": "Retrieve a specific NotificationTemplate based on its unique identifier (UID). Available for Directory and App tokens.",
         "parameters": [
           {
             "name": "uid",
-            "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "in": "path",
+            "description": "Unique identifier of the NotificationTemplate",
+            "schema": {
+              "type": "string"
+            },
+            "example": "notif-001"
           }
         ],
         "responses": {
@@ -194,10 +334,13 @@
               "application/json": {
                 "schema": {
                   "allOf": [
-                    { "$ref": "https://vcita.github.io/developers-hub/entities/response.json" },
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
                     {
                       "properties": {
                         "data": {
+                          "type": "object",
                           "$ref": "https://vcita.github.io/developers-hub/entities/communication/notificationTemplate.json"
                         }
                       }
@@ -208,27 +351,51 @@
             }
           },
           "404": {
-            "description": "Not Found",
+            "description": "NotificationTemplate not found",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    }
+                  ]
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Notification template not found"
+                    }
+                  ]
+                }
               }
             }
           }
         },
-        "tags": ["Notification Template"],
-        "security": [{ "Bearer": [] }]
+        "tags": [
+          "Notification Template"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       },
       "put": {
-        "operationId": "NotificationTemplatesController_update",
         "summary": "Update a NotificationTemplate",
-        "description": "Update an existing NotificationTemplate by UID. Available for Directory or App tokens.",
+        "description": "Update an existing notification template. Available for Directory and App tokens.",
         "parameters": [
           {
             "name": "uid",
-            "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "in": "path",
+            "description": "Unique identifier of the NotificationTemplate",
+            "schema": {
+              "type": "string"
+            },
+            "example": "notif-001"
           }
         ],
         "requestBody": {
@@ -236,22 +403,131 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/NotificationTemplateUpdate"
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "$ref": "https://vcita.github.io/developers-hub/entities/communication/notificationTemplate.json#/properties/title"
+                  },
+                  "description": {
+                    "$ref": "https://vcita.github.io/developers-hub/entities/communication/notificationTemplate.json#/properties/description"
+                  },
+                  "category": {
+                    "$ref": "https://vcita.github.io/developers-hub/entities/communication/notificationTemplate.json#/properties/category"
+                  },
+                  "configurable_by_staff": {
+                    "$ref": "https://vcita.github.io/developers-hub/entities/communication/notificationTemplate.json#/properties/configurable_by_staff"
+                  },
+                  "content": {
+                    "$ref": "https://vcita.github.io/developers-hub/entities/communication/notificationTemplate.json#/properties/content"
+                  }
+                },
+                "example": {
+                  "title": [
+                    { "key": "en", "value": "Updated Welcome Notification" },
+                    { "key": "fr", "value": "Notification de bienvenue mise à jour" }
+                  ],
+                  "description": [
+                    { "key": "en", "value": "Updated description for new users registration." },
+                    { "key": "fr", "value": "Description mise à jour pour l'inscription des nouveaux utilisateurs." }
+                  ],
+                  "category": "account",
+                  "configurable_by_staff": true,
+                  "content": [
+                    {
+                      "staff_portal": {
+                        "title": [
+                          { "key": "en", "value": "Welcome Updated!" },
+                          { "key": "fr", "value": "Bienvenue Mise à Jour!" }
+                        ],
+                        "message_body": [
+                          { "key": "en", "value": "Thanks for joining our platform!" },
+                          { "key": "fr", "value": "Merci d'avoir rejoint notre plateforme!" }
+                        ],
+                        "deep_link": "https://example.com/welcome-updated"
+                      }
+                    },
+                    {
+                      "email": {
+                        "subject": [
+                          { "key": "en", "value": "Updated Welcome to Our Service" },
+                          { "key": "fr", "value": "Bienvenue à notre service mise à jour" }
+                        ],
+                        "top_image": {
+                          "url": "https://example.com/welcome-banner-updated.png",
+                          "width": 600,
+                          "alt": [
+                            { "key": "en", "value": "Updated welcome banner" },
+                            { "key": "fr", "value": "Bannière de bienvenue mise à jour" }
+                          ]
+                        },
+                        "main_title": [
+                          { "key": "en", "value": "Hello and Welcome to our Updated Service!" },
+                          { "key": "fr", "value": "Bonjour et bienvenue à notre service mis à jour!" }
+                        ],
+                        "main_text": [
+                          { "key": "en", "value": "We're excited to have you on board with our updated platform." },
+                          { "key": "fr", "value": "Nous sommes ravis de vous avoir à bord de notre plateforme mise à jour." }
+                        ],
+                        "middle_image": {
+                          "url": "https://example.com/features-updated.png",
+                          "width": 400,
+                          "alt": [
+                            { "key": "en", "value": "Our updated features" },
+                            { "key": "fr", "value": "Nos fonctionnalités mises à jour" }
+                          ]
+                        },
+                        "middle_text": [
+                          { "key": "en", "value": "Discover all our amazing updated features." },
+                          { "key": "fr", "value": "Découvrez toutes nos fonctionnalités incroyables mises à jour." }
+                        ],
+                        "footer_text": [
+                          { "key": "en", "value": "Thank you for choosing our updated service!" },
+                          { "key": "fr", "value": "Merci d'avoir choisi notre service mis à jour!" }
+                        ],
+                        "primary_cta_button": {
+                          "text": [
+                            { "key": "en", "value": "Get Started Now" },
+                            { "key": "fr", "value": "Commencer maintenant" }
+                          ],
+                          "url": "https://example.com/onboarding-updated",
+                          "alt": [
+                            { "key": "en", "value": "Start using our updated service" },
+                            { "key": "fr", "value": "Commencez à utiliser notre service mis à jour" }
+                          ]
+                        },
+                        "secondary_cta_button": {
+                          "text": [
+                            { "key": "en", "value": "Learn More About Updates" },
+                            { "key": "fr", "value": "En savoir plus sur les mises à jour" }
+                          ],
+                          "url": "https://example.com/help-updated",
+                          "alt": [
+                            { "key": "en", "value": "Read our updated documentation" },
+                            { "key": "fr", "value": "Lisez notre documentation mise à jour" }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Success",
+            "description": "NotificationTemplate updated successfully",
             "content": {
               "application/json": {
                 "schema": {
                   "allOf": [
-                    { "$ref": "https://vcita.github.io/developers-hub/entities/response.json" },
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
                     {
                       "properties": {
                         "data": {
+                          "type": "object",
                           "$ref": "https://vcita.github.io/developers-hub/entities/communication/notificationTemplate.json"
                         }
                       }
@@ -265,46 +541,19 @@
             "description": "Invalid request",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
-              }
-            }
-          }
-        },
-        "tags": ["Notification Template"],
-        "security": [{ "Bearer": [] }]
-      },
-      "delete": {
-        "operationId": "NotificationTemplatesController_delete",
-        "summary": "Delete a NotificationTemplate",
-        "description": "Delete a NotificationTemplate by UID. Available for Directory or App tokens.",
-        "parameters": [
-          {
-            "name": "uid",
-            "in": "path",
-            "required": true,
-            "schema": { "type": "string" }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Deleted",
-            "content": {
-              "application/json": {
                 "schema": {
                   "allOf": [
-                    { "$ref": "https://vcita.github.io/developers-hub/entities/response.json" },
                     {
-                      "properties": {
-                        "data": { "type": "object", "description": "Always empty object for delete" }
-                      }
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    }
+                  ]
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "validation_error",
+                      "message": "The request contains invalid data"
                     }
                   ]
                 }
@@ -312,16 +561,104 @@
             }
           },
           "404": {
-            "description": "Not Found",
+            "description": "NotificationTemplate not found",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    }
+                  ]
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Notification template not found"
+                    }
+                  ]
+                }
               }
             }
           }
         },
-        "tags": ["Notification Template"],
-        "security": [{ "Bearer": [] }]
+        "tags": [
+          "Notification Template"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "summary": "Delete a NotificationTemplate",
+        "description": "Delete a specific NotificationTemplate based on its unique identifier (UID). Available for Directory and App tokens.",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the NotificationTemplate",
+            "schema": {
+              "type": "string"
+            },
+            "example": "notif-001"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "NotificationTemplate deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "Notification template deleted successfully"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NotificationTemplate not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    }
+                  ]
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Notification template not found"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Notification Template"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       }
     }
   }
