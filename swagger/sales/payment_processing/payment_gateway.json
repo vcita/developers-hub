@@ -41,9 +41,9 @@
                 "description": "Retrieve all available payment gateways - Available for **Directory and Business Tokens**",
                 "parameters": [
                     {
-                        "name": "directory",
+                        "name": "directory_uid",
                         "in": "query",
-                        "description": "Filter by directory",
+                        "description": "fitter by directory unique identifier",
                         "schema": {
                             "type": "string"
                         },
@@ -52,7 +52,7 @@
                     {
                         "name": "country",
                         "in": "query",
-                        "description": "Filter by country",
+                        "description": "Filter by country, represented using ISO 3166-1 alpha-2 country codes. For example: ['US', 'CA', 'GB']",
                         "schema": {
                             "type": "string"
                         },
@@ -61,7 +61,7 @@
                     {
                         "name": "currency",
                         "in": "query",
-                        "description": "Filter by supported currency",
+                        "description": "Filter by supported currency, represented using ISO 4217 format. For example: ['USD', 'EUR', 'GBP']",
                         "schema": {
                             "type": "string"
                         },
@@ -127,9 +127,9 @@
                                         "type": "string",
                                         "description": "The URL or path to the logo of the gateway"
                                     },
-                                    "default_language": {
+                                    "default_locale": {
                                         "type": "string",
-                                        "description": "Specifies the fallback language for the gateway's textual content. If a translation or string is missing, this language will be used by default."
+                                        "description": "Specifies the fallback locale for the gateway's textual content. If a translation or string is missing, this locale will be used by default."
                                     },
                                     "gateway_type": {
                                         "type": "string",
@@ -143,42 +143,50 @@
                                     },
                                     "main_gateway_benefits": {
                                         "type": "array",
-                                        "description": "A clear 3-4 bullet list highlighting the unique features and value of the gateway, aimed at encouraging merchants to connect with it. This information is stored per language.",
+                                        "description": "A clear 3-4 bullet list highlighting the unique features and value of the gateway, aimed at encouraging merchants to connect with it. This information is stored per locale.",
+                                        "minItems": 1,
+                                        "uniqueItems": true,
                                         "items": {
                                             "type": "object",
                                             "properties": {
-                                                "language": {
+                                                "locale": {
                                                     "type": "string",
-                                                    "description": "The language code (e.g., en, fr, es)."
+                                                    "enum": ["en", "fr", "de", "it", "pl", "pt", "es", "nl", "he", "en_gb"],
+                                                    "description": "The locale code (e.g., en, fr, es)."
                                                 },
                                                 "benefits": {
                                                     "type": "array",
-                                                    "description": "A list of benefits in the specified language.",
+                                                    "description": "A list of benefits in the specified locale.",
                                                     "items": {
                                                         "type": "string"
                                                     }
                                                 }
-                                            }
+                                            },
+                                            "required": ["locale", "benefits"]
                                         }
                                     },
                                     "brief_benefit_highlights": {
                                         "type": "array",
-                                        "description": "A brief, 2-4 word version of the gateway benefits, tailored for compact displays or mobile interfaces. This information is stored per language.",
+                                        "description": "A brief, 2-4 word version of the gateway benefits, tailored for compact displays or mobile interfaces. This information is stored per locale.",
+                                        "minItems": 1,
+                                        "uniqueItems": true,
                                         "items": {
                                             "type": "object",
                                             "properties": {
-                                                "language": {
+                                                "locale": {
                                                     "type": "string",
-                                                    "description": "The language code (e.g., en, fr, es)."
+                                                    "enum": ["en", "fr", "de", "it", "pl", "pt", "es", "nl", "he", "en_gb"],
+                                                    "description": "The locale code (e.g., en, fr, es)."
                                                 },
                                                 "highlights": {
                                                     "type": "array",
-                                                    "description": "A list of short benefit highlights in the specified language.",
+                                                    "description": "A list of short benefit highlights in the specified locale.",
                                                     "items": {
                                                         "type": "string"
                                                     }
                                                 }
-                                            }
+                                            },
+                                            "required": ["locale", "highlights"]
                                         }
                                     },
                                     "supported_countries": {
@@ -239,7 +247,7 @@
                                             },
                                             "checkout": {
                                                 "type": "boolean",
-                                                "description": "Indicates whether the payment gateway supports a checkout option initiated from the client portal."
+                                                "description": "Indicates whether the payment gateway supports a checkout option initiated from the client portal. This value must always be set to true, as client portal checkout is a core feature."
                                             },
                                             "refund": {
                                                 "type": "boolean",
@@ -261,13 +269,23 @@
                                                 "type": "boolean",
                                                 "description": "Indicates if the gateway supports saving cards on file from the business side."
                                             }
-                                        }
+                                        },
+                                        "required": [
+                                            "multi_currency",
+                                            "back_office_charge",
+                                            "checkout",
+                                            "refund",
+                                            "partial_refund",
+                                            "client_save_card_on_checkout",
+                                            "client_save_card_standalone",
+                                            "save_card_by_business"
+                                        ]
                                     }
                                 },
                                 "required": [
                                     "app_code_name",
                                     "gateway_logo_url",
-                                    "default_language",
+                                    "default_locale",
                                     "gateway_type",
                                     "status",
                                     "main_gateway_benefits",
@@ -315,13 +333,13 @@
                 ]
             }
         },
-        "/v3/sales/payment_processing/payment_gateways/{payment_gateway_uid}": {
+        "/v3/sales/payment_processing/payment_gateways/{uid}": {
             "get": {
                 "summary": "Retrieve Payment gateway",
                 "description": "Get details of a specific payment gateway - Available for **Directory, Business, and Application Tokens**. Note: Application tokens can only access their own gateway.",
                 "parameters": [
                     {
-                        "name": "payment_gateway_uid",
+                        "name": "uid",
                         "required": true,
                         "in": "path",
                         "description": "Unique identifier of the Payment Gateway",
@@ -369,7 +387,7 @@
                 "description": "Update an existing payment gateway - Available for **Application Tokens**",
                 "parameters": [
                     {
-                        "name": "payment_gateway_uid",
+                        "name": "uid",
                         "required": true,
                         "in": "path",
                         "description": "Unique identifier of the Payment Gateway",
@@ -392,11 +410,11 @@
                                     },
                                     "gateway_logo_url": {
                                         "type": "string",
-                                        "description": "The URL or path to the logo of the gateway"
+                                        "description": "The URL to the logo of the gateway"
                                     },
-                                    "default_language": {
+                                    "default_locale": {
                                         "type": "string",
-                                        "description": "Specifies the fallback language for the gateway's textual content. If a translation or string is missing, this language will be used by default."
+                                        "description": "Specifies the fallback locale for the gateway's textual content. If a translation or string is missing, this locale will be used by default."
                                     },
                                     "gateway_type": {
                                         "type": "string",
@@ -410,42 +428,50 @@
                                     },
                                     "main_gateway_benefits": {
                                         "type": "array",
-                                        "description": "A clear 3-4 bullet list highlighting the unique features and value of the gateway, aimed at encouraging merchants to connect with it. This information is stored per language.",
+                                        "description": "A clear 3-4 bullet list highlighting the unique features and value of the gateway, aimed at encouraging merchants to connect with it. This information is stored per locale.",
+                                        "minItems": 1,
+                                        "uniqueItems": true,
                                         "items": {
                                             "type": "object",
                                             "properties": {
-                                                "language": {
+                                                "locale": {
                                                     "type": "string",
-                                                    "description": "The language code (e.g., en, fr, es)."
+                                                    "enum": ["en", "fr", "de", "it", "pl", "pt", "es", "nl", "he", "en_gb"],
+                                                    "description": "The locale code (e.g., en, fr, es)."
                                                 },
                                                 "benefits": {
                                                     "type": "array",
-                                                    "description": "A list of benefits in the specified language.",
+                                                    "description": "A list of benefits in the specified locale.",
                                                     "items": {
                                                         "type": "string"
                                                     }
                                                 }
-                                            }
+                                            },
+                                            "required": ["locale", "benefits"]
                                         }
                                     },
                                     "brief_benefit_highlights": {
                                         "type": "array",
-                                        "description": "A brief, 2-4 word version of the gateway benefits, tailored for compact displays or mobile interfaces. This information is stored per language.",
+                                        "description": "A brief, 2-4 word version of the gateway benefits, tailored for compact displays or mobile interfaces. This information is stored per locale.",
+                                        "minItems": 1,
+                                        "uniqueItems": true,
                                         "items": {
                                             "type": "object",
                                             "properties": {
-                                                "language": {
+                                                "locale": {
                                                     "type": "string",
-                                                    "description": "The language code (e.g., en, fr, es)."
+                                                    "enum": ["en", "fr", "de", "it", "pl", "pt", "es", "nl", "he", "en_gb"],
+                                                    "description": "The locale code (e.g., en, fr, es)."
                                                 },
                                                 "highlights": {
                                                     "type": "array",
-                                                    "description": "A list of short benefit highlights in the specified language.",
+                                                    "description": "A list of short benefit highlights in the specified locale.",
                                                     "items": {
                                                         "type": "string"
                                                     }
                                                 }
-                                            }
+                                            },
+                                            "required": ["locale", "highlights"]
                                         }
                                     },
                                     "supported_countries": {
@@ -506,7 +532,7 @@
                                             },
                                             "checkout": {
                                                 "type": "boolean",
-                                                "description": "Indicates whether the payment gateway supports a checkout option initiated from the client portal."
+                                                "description": "Indicates whether the payment gateway supports a checkout option initiated from the client portal. This value must always be set to true, as client portal checkout is a core feature."
                                             },
                                             "refund": {
                                                 "type": "boolean",
@@ -528,7 +554,17 @@
                                                 "type": "boolean",
                                                 "description": "Indicates if the gateway supports saving cards on file from the business side."
                                             }
-                                        }
+                                        },
+                                        "required": [
+                                            "multi_currency",
+                                            "back_office_charge",
+                                            "checkout",
+                                            "refund",
+                                            "partial_refund",
+                                            "client_save_card_on_checkout",
+                                            "client_save_card_standalone",
+                                            "save_card_by_business"
+                                        ]
                                     }
                                 }
                             }
@@ -573,7 +609,7 @@
                 "description": "Delete an existing payment gateway - Available for **Application Tokens**",
                 "parameters": [
                     {
-                        "name": "payment_gateway_uid",
+                        "name": "uid",
                         "required": true,
                         "in": "path",
                         "description": "Unique identifier of the Payment Gateway",
