@@ -124,7 +124,7 @@
             },
             "post": {
                 "summary": "Create a ResourceType",
-                "description": "Create a new resource type\n\nAvailable for **Staff Tokens**",
+                "description": "Create a new resource type. Optionally create initial resources automatically by providing `initial_resource_count`. When specified, resources will be named sequentially (e.g., 'Meeting Room 1', 'Meeting Room 2', etc.)\n\nAvailable for **Staff Tokens**",
                 "parameters": [],
                 "requestBody": {
                     "required": true,
@@ -143,25 +143,32 @@
                                         "items": {
                                             "type": "string"
                                         }
+                                    },
+                                    "initial_resource_count": {
+                                        "type": "integer",
+                                        "description": "Number of initial resources to automatically create when the resource type is created. Resources will be named sequentially (e.g., 'Meeting Room 1', 'Meeting Room 2', etc.)",
+                                        "minimum": 1,
+                                        "maximum": 10
                                     }
                                 },
                                 "required": [
                                     "name"
                                 ],
                                 "example": {
-                                    "name": "Treatment Room",
+                                    "name": "Meeting Room",
                                     "services": [
-                                        "service_uid_1",
-                                        "service_uid_2"
-                                    ]
+                                        "meeting-service-uid",
+                                        "video-conference-service-uid"
+                                    ],
+                                    "initial_resource_count": 3
                                 }
                             }
                         }
                     }
                 },
                 "responses": {
-                    "200": {
-                        "description": "",
+                    "201": {
+                        "description": "ResourceType created successfully",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -279,8 +286,8 @@
                                 "example": {
                                     "name": "Treatment Room",
                                     "services": [
-                                        "service_uid_1",
-                                        "service_uid_2"
+                                        "service-uid-1",
+                                        "service-uid-2"
                                     ]
                                 }
                             }
@@ -337,15 +344,17 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "",
+                        "description": "Resource type deleted successfully. **Note:** All associated resources are automatically deleted (cascade deletion)",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "allOf": [
-                                        {
-                                            "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Resource type deleted successfully"
                                         }
-                                    ]
+                                    }
                                 }
                             }
                         }
@@ -495,8 +504,8 @@
                     }
                 },
                 "responses": {
-                    "200": {
-                        "description": "",
+                    "201": {
+                        "description": "Resource created successfully",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -542,6 +551,15 @@
                             "type": "string"
                         },
                         "example": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
+                    },
+                    {
+                        "name": "with_deleted",
+                        "required": false,
+                        "in": "query",
+                        "description": "Include deleted resources",
+                        "schema": {
+                            "type": "boolean"
+                        }
                     }
                 ],
                 "responses": {
@@ -727,50 +745,64 @@
                     }
                 },
                 "responses": {
-                    "200": {
-                        "description": "Bulk creation results",
+                    "201": {
+                        "description": "Resources created successfully",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "array",
-                                    "items": {
-                                        "type": "object",
-                                        "properties": {
-                                            "success": {
-                                                "type": "boolean",
-                                                "description": "Status of the creation for the entity"
-                                            },
-                                            "entity": {
-                                                "description": "The entity that was attempted to be created, including any provided data, or null if not applicable",
-                                                "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/resource.json"
-                                            },
-                                            "error": {
-                                                "type": "string",
-                                                "description": "Error message if the creation of the entity failed"
+                                    "allOf": [
+                                        {
+                                            "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                                        },
+                                        {
+                                            "properties": {
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "success": {
+                                                                "type": "boolean",
+                                                                "description": "Status of the creation for the entity"
+                                                            },
+                                                            "entity": {
+                                                                "description": "The entity that was attempted to be created",
+                                                                "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/resource.json"
+                                                            },
+                                                            "error": {
+                                                                "type": "string",
+                                                                "description": "Error message if creation failed"
+                                                            }
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
-                                    }
+                                    ]
                                 },
-                                "example": [
-                                    {
-                                        "success": true,
-                                        "entity": {
-                                            "uid": "a4ca2054-3bb0-4788-8e9e-ee2442975e22",
-                                            "created_at": "2023-06-15T11:30:00Z",
-                                            "updated_at": "2023-06-15T15:45:10Z",
-                                            "resource_type_uid": "94ca2054-3bb0-4788-8e9e-ee2442975cdd",
-                                            "name": "Treatment Room 1",
-                                            "deleted_at": null
-                                        }
-                                    },
-                                    {
-                                        "success": false,
-                                        "entity": {
-                                            "resource_type_uid": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
+                                "example": {
+                                    "data": [
+                                        {
+                                            "success": true,
+                                            "entity": {
+                                                "uid": "a4ca2054-3bb0-4788-8e9e-ee2442975e22",
+                                                "created_at": "2023-06-15T11:30:00Z",
+                                                "updated_at": "2023-06-15T15:45:10Z",
+                                                "resource_type_uid": "94ca2054-3bb0-4788-8e9e-ee2442975cdd",
+                                                "name": "Treatment Room 1",
+                                                "deleted_at": null
+                                            }
                                         },
-                                        "error": "Validation failed: name is required"
-                                    }
-                                ]
+                                        {
+                                            "success": false,
+                                            "entity": {
+                                                "resource_type_uid": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
+                                            },
+                                            "error": "Validation failed: name is required"
+                                        }
+                                    ],
+                                    "success": true
+                                }
                             }
                         }
                     }
