@@ -1,0 +1,424 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Phone Numbers",
+    "description": "API endpoints for managing business phone numbers. Allows businesses to purchase, view, and manage their dedicated phone numbers.",
+    "version": "3.0",
+    "contact": {}
+  },
+  "tags": [
+    {
+      "name": "Business Phone Numbers",
+      "description": "Operations for managing business phone numbers"
+    }
+  ],
+  "servers": [
+    {
+      "url": "https://api.vcita.biz/",
+      "description": "API Gateway server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "schemas": {
+      "Response": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "MultiAvailablePhoneNumberResponse": {
+        "type": "object",
+        "properties": {
+          "available_phone_numbers": {
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/communication/availablePhoneNumber.json"
+            }
+          }
+        },
+        "required": [
+          "available_phone_numbers"
+        ]
+      },
+      "CreateBusinessPhoneNumberRequest": {
+        "type": "object",
+        "properties": {
+          "phone_number": {
+            "type": "string",
+            "description": "The complete phone number in E.164 format without formatting (e.g., \"12127654321\"). This is the actual phone number to be purchased from the telecom provider."
+          },
+          "country_code": {
+            "type": "string",
+            "description": "ISO 3166-1 alpha-2 country code indicating the country where the phone number is registered (e.g., \"US\" for United States, \"CA\" for Canada)."
+          },
+          "area_code": {
+            "type": "string",
+            "description": "The area code portion of the phone number. For North American numbers, this is typically a 3-digit code that identifies the geographic region (e.g., 302 for Delaware)."
+          },
+          "features": {
+            "type": "array",
+            "description": "List of telephony features to enable for this phone number, (e.g., [\"VOICE\", \"SMS\"]).",
+            "items": {
+              "type": "string",
+              "enum": [
+                "VOICE",
+                "SMS"
+              ]
+            }
+          }
+        },
+        "required": [
+          "phone_number",
+          "country_code",
+          "features"
+        ]
+      },
+      "MultiBusinessPhoneNumberResponse": {
+        "type": "object",
+        "properties": {
+          "business_phone_numbers": {
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/communication/businessPhoneNumber.json"
+            }
+          }
+        },
+        "required": [
+          "business_phone_numbers"
+        ]
+      }
+    }
+  },
+  "paths": {
+    "/v3/communication/available_phone_numbers": {
+      "get": {
+        "operationId": "AvailablePhoneNumbersController_findAll",
+        "summary": "Retrieve All AvailablePhoneNumbers",
+        "description": "Retrieves a list of phone numbers available for purchase from telecom providers.\nAvailable for Directory tokens",
+        "parameters": [
+          {
+            "name": "country_code",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by ISO 3166-1 alpha-2 country code (e.g., \"US\", \"CA\", \"GB\", \"AU\")"
+          },
+          {
+            "name": "area_code",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by area code (e.g., \"302\"). Required if country_code is \"US\"."
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number of results.",
+            "schema": {
+                "minimum": 1,
+                "maximum": 10000,
+                "default": 1,
+                "type": "number"
+            }
+          },
+          {
+            "name": "per_page",
+            "required": false,
+            "in": "query",
+            "description": "How many items to return per page. Max: 100",
+            "schema": {
+                "minimum": 1,
+                "maximum": 100,
+                "default": 25,
+                "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Available phone numbers retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "#/components/schemas/MultiAvailablePhoneNumberResponse"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Invalid query parameters"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions"
+          }
+        },
+        "tags": [
+          "Available Phone Numbers"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/communication/business_phone_numbers": {
+      "post": {
+        "operationId": "BusinessPhoneNumbersController_create",
+        "summary": "Create a BusinessPhoneNumber",
+        "description": "Purchase a phone number from a telecom provider and assign it to a business account. \nAvailable for Directory tokens",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBusinessPhoneNumberRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Business phone number created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/businessPhoneNumber.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Invalid input data"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions"
+          },
+          "409": {
+            "description": "Conflict - Phone number already exists or is not available"
+          }
+        },
+        "tags": [
+          "Business Phone Numbers"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "get": {
+        "operationId": "BusinessPhoneNumbersController_findAll",
+        "summary": "Retrieve all BusinessPhoneNumbers",
+        "description": "Retrieves a list of all business phone numbers associated with a business account.\nAvailable for Directory tokens",
+        "responses": {
+          "200": {
+            "description": "List of business phone numbers retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "#/components/schemas/MultiBusinessPhoneNumberResponse"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions"
+          }
+        },
+        "tags": [
+          "Business Phone Numbers"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/communication/business_phone_numbers/{uid}": {
+      "get": {
+        "operationId": "BusinessPhoneNumbersController_findOne",
+        "summary": "Retrieve a BusinessPhoneNumber",
+        "description": "Fetches detailed information about a single business phone number using its unique identifier.\nAvailable for Directory tokens",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unique identifier of the business phone number"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Business phone number retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/businessPhoneNumber.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions"
+          },
+          "404": {
+            "description": "Not found - Business phone number not found"
+          }
+        },
+        "tags": [
+          "Business Phone Numbers"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "BusinessPhoneNumbersController_remove",
+        "summary": "Delete a BusinessPhoneNumber",
+        "description": "Removes a business phone number from a business account and releases it back to the telecom provider. This action is irreversible.\nAvailable for Directory tokens",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unique identifier of the business phone number to delete"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Business phone number deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/businessPhoneNumber.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions"
+          },
+          "404": {
+            "description": "Not found - Business phone number not found"
+          },
+          "409": {
+            "description": "Conflict - Cannot delete phone number (e.g., still in use)"
+          }
+        },
+        "tags": [
+          "Business Phone Numbers"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    }
+  }
+} 
