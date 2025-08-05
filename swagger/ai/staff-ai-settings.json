@@ -1,0 +1,242 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Staff AI Settings API",
+    "version": "1.0.0",
+    "description": "API for managing AI settings for staff members"
+  },
+  "servers": [
+    {
+        "url": "https://api.vcita.biz",
+        "description": "API Gateway server"
+    }
+  ],
+  "paths": {
+    "/v3/ai/staff_ai_settings/{staff_uid}": {
+      "get": {
+        "tags": ["Staff AI Settings"],
+        "summary": "Retrieve a StaffAiSettings",
+        "description": "Retrieve a specific StaffAiSettings based on staff unique identifier.\n\n**Available for Staff tokens only** - Users can only access their own settings.",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "staff_uid",
+            "in": "path",
+            "required": true,
+            "schema": { 
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The unique identifier of the staff member",
+            "example": "f390f1ee-6c54-4b01-90e6-d701748f0852"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Staff AI settings retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/staffAiSettings.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - You can only access your own settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Staff member not found",
+            "content": {
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["Staff AI Settings"],
+        "summary": "Update a StaffAiSettings",
+        "description": "Update AI settings for a specific staff member based on their unique identifier.\n\n**Available for Staff tokens only** - Users can only update their own settings.",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "staff_uid",
+            "in": "path",
+            "required": true,
+            "schema": { 
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The unique identifier of the staff member",
+            "example": "f390f1ee-6c54-4b01-90e6-d701748f0852"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffAiSettingsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Staff AI settings updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/staffAiSettings.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Invalid setting key or malformed request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - You can only update your own settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Staff member not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Authentication method using a Bearer token. Include the token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+      }
+    },
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "success",
+          "errors"
+        ]
+      },
+      "StaffAiSettingsRequest": {
+        "type": "object",
+        "properties": {
+          "ai_recommendations": {
+            "type": "object",
+            "description": "AI recommendations settings configuration for a staff member",
+            "properties": {
+              "enable": {
+                "type": "boolean",
+                "description": "Whether AI recommendations are enabled for this staff member"
+              },
+              "sub_options": {
+                "type": "object",
+                "description": "Specific AI recommendation sub-options that can be enabled or disabled individually",
+                "properties": {
+                  "next_best_action": {
+                    "type": "boolean",
+                    "description": "Whether next best action recommendations are enabled"
+                  },
+                  "estimate": {
+                    "type": "boolean",
+                    "description": "Whether estimate recommendations are enabled"
+                  },
+                  "scheduling": {
+                    "type": "boolean",
+                    "description": "Whether scheduling recommendations are enabled"
+                  }
+                },
+                "required": ["next_best_action", "estimate", "scheduling"]
+              }
+            },
+            "required": ["enable", "sub_options"]
+          }
+        },
+        "required": ["ai_recommendations"],
+        "example": {
+          "ai_recommendations": {
+            "enable": true,
+            "sub_options": {
+              "next_best_action": true,
+              "estimate": false,
+              "scheduling": true
+            }
+          }
+        }
+      }
+    }
+  }
+}
