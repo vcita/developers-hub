@@ -654,16 +654,21 @@ async function processDomain(domainPath, domainName) {
   
   let fixedSpec = JSON.parse(specJson);
   
-  // Recursively remove invalid OpenAPI 3.0 properties from the entire spec
+  // Recursively remove invalid OpenAPI 3.1 properties from the entire spec
   function cleanOpenAPISpec(obj) {
     if (Array.isArray(obj)) {
       return obj.map(cleanOpenAPISpec);
     } else if (obj && typeof obj === 'object') {
       const cleaned = {};
       for (const [key, value] of Object.entries(obj)) {
-        // Skip invalid OpenAPI 3.0 properties
+        // Skip invalid OpenAPI 3.1 properties
         if (key === 'definitions') {
-          log.verbose(`Removing invalid OpenAPI 3.0 property: ${key}`);
+          log.verbose(`Removing invalid OpenAPI 3.1 property: ${key}`);
+          continue;
+        }
+        // Remove 'type' when '$ref' is present (invalid in OpenAPI 3.1)
+        if (key === 'type' && obj['$ref']) {
+          log.verbose(`Removing 'type' property alongside '$ref'`);
           continue;
         }
         cleaned[key] = cleanOpenAPISpec(value);
