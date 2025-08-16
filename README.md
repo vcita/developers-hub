@@ -68,9 +68,9 @@ mcp_swagger/
 
 The script handles different base path formats seamlessly:
 
-### 📚 Automatic Swagger 2.0 to OpenAPI 3.0 Conversion
+### 📚 Automatic Swagger 2.0 to OpenAPI 3.1 Conversion
 
-When processing Swagger 2.0 files, the script automatically converts them to proper OpenAPI 3.0 format:
+When processing Swagger 2.0 files, the script automatically converts them to modern OpenAPI 3.1 format:
 
 **Converted Properties:**
 - `consumes` → `requestBody.content`
@@ -83,14 +83,14 @@ When processing Swagger 2.0 files, the script automatically converts them to pro
 
 **Preserved Valid Properties:**
 - `contains` - Valid JSON Schema Draft 7 keyword for array validation
-- All other valid OpenAPI 3.0/JSON Schema properties
+- All other valid OpenAPI 3.1/JSON Schema properties
 
 **Security Enhancement:**
 - **Bearer Authentication** automatically added to all endpoints
 - JWT token support with proper `securitySchemes` definition
 - Consistent authentication across all unified APIs
 
-This ensures all generated files are valid OpenAPI 3.0 specifications.
+This ensures all generated files are valid OpenAPI 3.1 specifications.
 
 **Swagger 2.0 Files:**
 ```json
@@ -103,7 +103,7 @@ This ensures all generated files are valid OpenAPI 3.0 specifications.
 ```
 → Results in: `/platform/v1/clients`
 
-**OpenAPI 3.0 Files:**
+**OpenAPI 3.1 Files:**
 ```json
 {
   "servers": [{"url": "https://api.vcita.biz/v3"}],
@@ -198,8 +198,8 @@ Domain breakdown:
 ## 🔧 Configuration
 
 ### Supported File Types
-- **OpenAPI 3.0+** (`openapi` field) - Used as-is
-- **Swagger 2.0** (`swagger` field) - **Auto-converted to OpenAPI 3.0**
+- **OpenAPI 3.0+** (`openapi` field) - Upgraded to OpenAPI 3.1
+- **Swagger 2.0** (`swagger` field) - **Auto-converted to OpenAPI 3.1**
 - **JSON format only** (`.json` extensions)
 
 ### Automatic File Detection
@@ -259,7 +259,7 @@ Each unified file follows this structure:
 - Verify server URLs and basePath values in source files
 
 **Swagger 2.0 conversion issues:**
-- The script automatically converts Swagger 2.0 to OpenAPI 3.0
+- The script automatically converts Swagger 2.0 to OpenAPI 3.1
 - Check for `requestBody` instead of `consumes` in generated files
 - Parameters now use `schema: {type: "string"}` format
 - Use `--verbose` to see conversion debug messages
