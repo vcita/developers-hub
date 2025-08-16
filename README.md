@@ -81,6 +81,11 @@ When processing Swagger 2.0 files, the script automatically converts them to pro
 - `collectionFormat: "multi"` → `style: "form", explode: true`
 - `examples` → `example` (in responses)
 
+**Security Enhancement:**
+- **Bearer Authentication** automatically added to all endpoints
+- JWT token support with proper `securitySchemes` definition
+- Consistent authentication across all unified APIs
+
 This ensures all generated files are valid OpenAPI 3.0 specifications.
 
 **Swagger 2.0 Files:**

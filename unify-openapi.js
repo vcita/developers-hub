@@ -563,6 +563,29 @@ async function processDomain(domainPath, domainName) {
     // Merge tags
     mergedTags = mergeTags(mergedTags, file.content.tags);
   }
+
+  // Ensure Bearer security scheme is added to components
+  if (!mergedComponents.securitySchemes) {
+    mergedComponents.securitySchemes = {};
+  }
+  mergedComponents.securitySchemes.Bearer = {
+    type: 'http',
+    scheme: 'bearer',
+    bearerFormat: 'JWT',
+    description: 'JWT Bearer token authentication'
+  };
+
+  // Add Bearer security to all paths
+  const pathsWithSecurity = {};
+  for (const [pathKey, pathMethods] of Object.entries(allPaths)) {
+    pathsWithSecurity[pathKey] = {};
+    for (const [method, operation] of Object.entries(pathMethods)) {
+      pathsWithSecurity[pathKey][method] = {
+        ...operation,
+        security: [{ Bearer: [] }]
+      };
+    }
+  }
   
   // Create unified specification
   const unifiedSpec = {
@@ -587,7 +610,7 @@ async function processDomain(domainPath, domainName) {
         description: "Unified API Gateway server"
       }
     ],
-    paths: allPaths,
+    paths: pathsWithSecurity,
     components: mergedComponents,
     tags: mergedTags
   };
