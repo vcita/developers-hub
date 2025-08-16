@@ -74,12 +74,16 @@ When processing Swagger 2.0 files, the script automatically converts them to pro
 
 **Converted Properties:**
 - `consumes` → `requestBody.content`
-- `produces` → `responses[status].content` 
+- `produces` → `responses[status].content`
 - `definitions` → `components.schemas`
 - Parameter `type: "string"` → `schema: {type: "string"}`
 - Body parameters (`in: "body"`) → `requestBody`
 - `collectionFormat: "multi"` → `style: "form", explode: true`
 - `examples` → `example` (in responses)
+
+**Preserved Valid Properties:**
+- `contains` - Valid JSON Schema Draft 7 keyword for array validation
+- All other valid OpenAPI 3.0/JSON Schema properties
 
 **Security Enhancement:**
 - **Bearer Authentication** automatically added to all endpoints

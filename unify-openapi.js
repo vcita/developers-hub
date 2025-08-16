@@ -247,11 +247,34 @@ function convertSwaggerToOpenAPI(operation, fileName) {
     });
   }
   
-  // Convert $ref paths from Swagger 2.0 to OpenAPI 3.0 format
-  const convertedJson = JSON.stringify(converted);
-  const updatedJson = convertedJson.replace(/#\/definitions\//g, '#/components/schemas/');
+  // Convert $ref paths and clean up invalid OpenAPI 3.0 properties
+  let convertedJson = JSON.stringify(converted);
   
-  return JSON.parse(updatedJson);
+  // Fix $ref paths from Swagger 2.0 to OpenAPI 3.0 format
+  convertedJson = convertedJson.replace(/#\/definitions\//g, '#/components/schemas/');
+  
+  // Remove invalid OpenAPI 3.0 properties
+  let cleanedJson = JSON.parse(convertedJson);
+  
+  // Recursively remove invalid properties
+  function removeInvalidProperties(obj) {
+    if (Array.isArray(obj)) {
+      return obj.map(removeInvalidProperties);
+    } else if (obj && typeof obj === 'object') {
+      const cleaned = {};
+      for (const [key, value] of Object.entries(obj)) {
+        // Skip invalid OpenAPI 3.0 properties
+        if (key === 'definitions') {
+          continue;
+        }
+        cleaned[key] = removeInvalidProperties(value);
+      }
+      return cleaned;
+    }
+    return obj;
+  }
+  
+  return removeInvalidProperties(cleanedJson);
 }
 
 // Normalize paths by combining base path with endpoint paths
@@ -625,9 +648,32 @@ async function processDomain(domainPath, domainName) {
     log.warn(`Domain ${domainName}: Resolved ${componentConflicts.length} component conflicts`);
   }
   
-  // Convert ALL remaining $ref paths from Swagger 2.0 to OpenAPI 3.0 format
-  const specJson = JSON.stringify(unifiedSpec);
-  const fixedSpec = JSON.parse(specJson.replace(/#\/definitions\//g, '#/components/schemas/'));
+  // Convert ALL remaining $ref paths and clean up invalid OpenAPI 3.0 properties
+  let specJson = JSON.stringify(unifiedSpec);
+  specJson = specJson.replace(/#\/definitions\//g, '#/components/schemas/');
+  
+  let fixedSpec = JSON.parse(specJson);
+  
+  // Recursively remove invalid OpenAPI 3.0 properties from the entire spec
+  function cleanOpenAPISpec(obj) {
+    if (Array.isArray(obj)) {
+      return obj.map(cleanOpenAPISpec);
+    } else if (obj && typeof obj === 'object') {
+      const cleaned = {};
+      for (const [key, value] of Object.entries(obj)) {
+        // Skip invalid OpenAPI 3.0 properties
+        if (key === 'definitions') {
+          log.verbose(`Removing invalid OpenAPI 3.0 property: ${key}`);
+          continue;
+        }
+        cleaned[key] = cleanOpenAPISpec(value);
+      }
+      return cleaned;
+    }
+    return obj;
+  }
+  
+  fixedSpec = cleanOpenAPISpec(fixedSpec);
   
   return {
     domain: domainName,
