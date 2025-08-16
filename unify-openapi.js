@@ -554,7 +554,7 @@ async function processDomain(domainPath, domainName) {
   const unifiedSpec = {
     openapi: "3.0.0",
     info: {
-      title: `Unified ${domainName.charAt(0).toUpperCase() + domainName.slice(1)} API`,
+      title: `${domainName.charAt(0).toUpperCase() + domainName.slice(1)}`,
       description: `Unified OpenAPI specification for ${domainName} domain`,
       version: "3.0",
       "x-generated": {
