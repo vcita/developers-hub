@@ -268,7 +268,20 @@ function normalizeEndpoints(fileContent, fileName) {
   const isSwagger2 = !!fileContent.swagger;
 
   for (const [originalPath, methods] of Object.entries(fileContent.paths)) {
-    const fullPath = basePath + originalPath;
+    // Smart path normalization - avoid double prefixes and versioned API conflicts
+    let fullPath;
+    if (basePath && !originalPath.startsWith(basePath)) {
+      // Don't add basePath if the original path looks like a complete versioned API path
+      const isVersionedPath = /^\/v\d+\//.test(originalPath);
+      if (isVersionedPath) {
+        fullPath = originalPath;  // Use as-is for versioned paths
+        log.verbose(`Skipping basePath for versioned API path: "${originalPath}"`);
+      } else {
+        fullPath = basePath + originalPath;
+      }
+    } else {
+      fullPath = originalPath;
+    }
     
     // Convert Swagger 2.0 operations to OpenAPI 3.0 if needed
     const convertedMethods = {};
@@ -306,7 +319,8 @@ function normalizeEndpoints(fileContent, fileName) {
     
     normalizedPaths[fullPath] = convertedMethods;
     
-    if (basePath) {
+    // Only log transformation if the path was actually changed
+    if (basePath && fullPath !== originalPath) {
       transformationLog.push({
         original: originalPath,
         normalized: fullPath,
