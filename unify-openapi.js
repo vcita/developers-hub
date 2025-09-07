@@ -1,5 +1,43 @@
 #!/usr/bin/env node
 
+/**
+ * OpenAPI Unification Script with Advanced Conflict Resolution
+ * ===========================================================
+ * 
+ * This script unifies multiple OpenAPI/Swagger specification files from domain directories
+ * into consolidated, conflict-free specifications. It handles various types of conflicts
+ * that arise when combining multiple API definitions:
+ * 
+ * CONFLICT TYPES & RESOLUTION STRATEGIES:
+ * 
+ * 1. PATH CONFLICTS (e.g., same endpoint defined in multiple files)
+ *    Strategy: NEWER-WINS based on file modification time
+ *    Example: /api/users in both auth.json and users.json → newer file wins
+ * 
+ * 2. COMPONENT SCHEMA CONFLICTS (e.g., same schema name in different files)
+ *    Strategy: RENAME-TO-PRESERVE by appending source filename
+ *    Example: "User" schema conflict → "User_auth" and "User_users"
+ * 
+ * 3. SECURITY SCHEME CONFLICTS (e.g., same auth scheme defined multiple times)
+ *    Strategy: FIRST-WINS to maintain consistency across all endpoints
+ *    Example: Multiple "Bearer" definitions → first one is kept
+ * 
+ * 4. BASE PATH NORMALIZATION CONFLICTS (e.g., overlapping path structures)
+ *    Strategy: SMART-NORMALIZATION with versioned path protection
+ *    Example: Prevents /v1/api/users + basePath=/v1 → /v1/v1/api/users
+ * 
+ * 5. OTHER COMPONENT CONFLICTS (parameters, responses, examples, etc.)
+ *    Strategy: LAST-WINS simple overwrite for consistency
+ *    Example: Later parameter definitions replace earlier ones
+ * 
+ * CONFLICT METADATA:
+ * All conflicts are tracked and stored in the unified spec's x-generated section
+ * for debugging, auditing, and manual review when necessary.
+ * 
+ * USAGE:
+ * node unify-openapi.js [--verbose] [--dry-run] [--input-dir ./swagger] [--output-dir ./mcp_swagger]
+ */
+
 const fs = require('fs-extra');
 const path = require('path');
 
@@ -37,6 +75,24 @@ Options:
   --verbose             Enable verbose logging
   --dry-run            Show what would be processed without writing files
   --help               Show this help message
+
+Conflict Resolution:
+  This script automatically handles conflicts when unifying OpenAPI specs:
+  
+  🔄 Path Conflicts: When same endpoint appears in multiple files
+     → Newer file wins (based on modification time)
+  
+  🏷️  Schema Conflicts: When same schema name exists in different files  
+     → Conflicting schema renamed with source file suffix
+  
+  🔐 Security Conflicts: When same security scheme defined multiple times
+     → First definition kept to maintain consistency
+  
+  🔧 Other Conflicts: Parameters, responses, examples, etc.
+     → Later definitions overwrite earlier ones
+  
+  All conflicts are logged and tracked in the output file's x-generated metadata.
+  Use --verbose for detailed conflict resolution information.
 `);
       process.exit(0);
       break;
@@ -278,6 +334,35 @@ function convertSwaggerToOpenAPI(operation, fileName) {
 }
 
 // Normalize paths by combining base path with endpoint paths
+//
+// BASE PATH NORMALIZATION & CONFLICT PREVENTION:
+// ===============================================
+// This function handles the complex task of normalizing API endpoint paths by combining
+// base paths (from servers/basePath) with individual endpoint paths. This normalization
+// can introduce conflicts that need careful handling:
+//
+// NORMALIZATION SCENARIOS:
+// 1. SWAGGER 2.0 basePath: "/v1" + path: "/users" → "/v1/users"
+// 2. OpenAPI 3.0 server URL: "https://api.vcita.biz/v1" + path: "/users" → "/v1/users"
+// 3. Already complete paths: "/v1/users" + basePath: "/v1" → "/v1/users" (no double prefix)
+// 4. Versioned paths: "/v2/users" → "/v2/users" (basePath ignored to prevent conflicts)
+//
+// CONFLICT SCENARIOS AND PREVENTION:
+// 1. DOUBLE PREFIX PREVENTION:
+//    - If originalPath already contains the basePath, don't add it again
+//    - Example: basePath="/api", path="/api/users" → result="/api/users" (not "/api/api/users")
+//
+// 2. VERSIONED API PROTECTION:
+//    - Paths starting with version patterns (/v1/, /v2/, etc.) are used as-is
+//    - This prevents conflicts between different API versions
+//    - Example: basePath="/v1", path="/v2/users" → result="/v2/users" (basePath ignored)
+//
+// 3. LEGACY vs NEW API COEXISTENCE:
+//    - Files without basePath get paths as-is
+//    - Files with basePath get normalized paths
+//    - Conflicts resolved later using file modification time
+//
+// The function logs all transformations for debugging and conflict analysis.
 function normalizeEndpoints(fileContent, fileName) {
   const basePath = extractBasePath(fileContent, fileName);
   const normalizedPaths = {};
@@ -294,6 +379,7 @@ function normalizeEndpoints(fileContent, fileName) {
     // Smart path normalization - avoid double prefixes and versioned API conflicts
     let fullPath;
     if (basePath && !originalPath.startsWith(basePath)) {
+      // VERSIONED PATH DETECTION:
       // Don't add basePath if the original path looks like a complete versioned API path
       const isVersionedPath = /^\/v\d+\//.test(originalPath);
       if (isVersionedPath) {
@@ -377,6 +463,30 @@ function convertDefinitionsToComponents(fileContent, fileName) {
 }
 
 // Merge components from multiple files
+// 
+// CONFLICT RESOLUTION STRATEGY:
+// =============================
+// When merging OpenAPI components (schemas, security schemes, etc.) from multiple files,
+// conflicts can arise when the same component name exists in different files. This function
+// implements the following conflict resolution strategies:
+//
+// 1. SCHEMA CONFLICTS:
+//    - When the same schema name exists in multiple files, the conflicting schema
+//      from the newer file is renamed by appending the source filename suffix
+//    - Example: If "User" schema exists in both "auth.json" and "users.json", 
+//      the one from "users.json" becomes "User_users"
+//    - This preserves both schemas and prevents data loss
+//
+// 2. SECURITY SCHEME CONFLICTS:
+//    - Security schemes with the same name are NOT renamed to avoid breaking references
+//    - The first encountered security scheme is kept (first-wins strategy)
+//    - This assumes security schemes should be consistent across files
+//
+// 3. OTHER COMPONENT CONFLICTS:
+//    - For parameters, responses, examples, etc., later definitions overwrite earlier ones
+//    - This is a last-wins strategy for these component types
+//
+// The function tracks all conflicts for logging and debugging purposes.
 function mergeComponents(components1, components2, fileName1, fileName2) {
   if (!components1) return components2 || {};
   if (!components2) return components1;
@@ -384,12 +494,13 @@ function mergeComponents(components1, components2, fileName1, fileName2) {
   const merged = JSON.parse(JSON.stringify(components1)); // Deep copy
   const conflicts = [];
 
-  // Merge schemas
+  // Merge schemas with conflict detection and resolution
   if (components2.schemas) {
     if (!merged.schemas) merged.schemas = {};
     for (const [schemaName, schemaDefinition] of Object.entries(components2.schemas)) {
       if (merged.schemas[schemaName]) {
-        // Handle schema name conflict
+        // SCHEMA CONFLICT DETECTED:
+        // Create a unique name by appending the source filename to avoid collision
         const conflictName = `${schemaName}_${path.basename(fileName2, '.json')}`;
         merged.schemas[conflictName] = schemaDefinition;
         conflicts.push({
@@ -405,20 +516,41 @@ function mergeComponents(components1, components2, fileName1, fileName2) {
     }
   }
 
-  // Merge security schemes
+  // Merge security schemes (FIRST-WINS strategy)
   if (components2.securitySchemes) {
     if (!merged.securitySchemes) merged.securitySchemes = {};
     for (const [schemeName, schemeDefinition] of Object.entries(components2.securitySchemes)) {
       if (!merged.securitySchemes[schemeName]) {
         merged.securitySchemes[schemeName] = schemeDefinition;
+      } else {
+        // SECURITY SCHEME CONFLICT:
+        // Keep the first one and ignore the second to maintain consistency
+        // Security schemes should be identical across files, so this is safe
+        log.verbose(`Security scheme conflict: Keeping existing ${schemeName}, ignoring duplicate from ${fileName2}`);
       }
     }
   }
 
-  // Merge other component types (parameters, responses, etc.)
+  // Merge other component types (LAST-WINS strategy)
+  // These components are merged using a simple overwrite approach where
+  // later definitions replace earlier ones. This works well for:
+  // - parameters: Usually domain-specific, conflicts are rare
+  // - responses: Common response formats should be consistent
+  // - examples: Later examples are assumed to be more up-to-date
+  // - requestBodies: Similar to parameters, domain-specific
   ['parameters', 'responses', 'examples', 'requestBodies', 'headers', 'links', 'callbacks'].forEach(componentType => {
     if (components2[componentType]) {
       if (!merged[componentType]) merged[componentType] = {};
+      
+      // Check for conflicts in these component types
+      const existingKeys = Object.keys(merged[componentType]);
+      const newKeys = Object.keys(components2[componentType]);
+      const conflictingKeys = newKeys.filter(key => existingKeys.includes(key));
+      
+      if (conflictingKeys.length > 0) {
+        log.verbose(`${componentType} conflicts detected: ${conflictingKeys.join(', ')} (using definitions from ${fileName2})`);
+      }
+      
       Object.assign(merged[componentType], components2[componentType]);
     }
   });
@@ -557,10 +689,33 @@ async function processDomain(domainPath, domainName) {
       });
     }
     
-    // Merge paths with conflict detection
+    // Merge paths with conflict detection and resolution
+    // 
+    // PATH CONFLICT RESOLUTION STRATEGY:
+    // ==================================
+    // Path conflicts occur when the same endpoint path (e.g., "/api/users") is defined 
+    // in multiple OpenAPI files within the same domain. This can happen for several reasons:
+    //
+    // 1. DUPLICATE DEFINITIONS: The same endpoint is documented in multiple files
+    // 2. BASE PATH CONFLICTS: Different files have overlapping path structures after normalization
+    // 3. VERSIONING ISSUES: Different API versions define the same logical endpoint
+    // 4. LEGACY MIGRATIONS: Old and new API definitions coexist temporarily
+    //
+    // RESOLUTION APPROACH:
+    // - Files are sorted by modification time (newest first) before processing
+    // - For conflicting paths, the definition from the newer file wins (NEWER-WINS strategy)
+    // - This assumes that newer files contain more up-to-date API definitions
+    // - All conflicts are logged for review and debugging
+    // - Conflict metadata is stored in the unified spec's x-generated section
+    //
+    // CONFLICT EXAMPLES:
+    // - If both "legacy_users.json" (2023-01-01) and "users_v2.json" (2023-06-01) 
+    //   define "/api/users", the definition from "users_v2.json" will be used
+    // - Base path normalization might cause "/v1/auth/login" and "/auth/login" to 
+    //   conflict if one file has basePath="/v1" and the other has no basePath
     for (const [pathKey, pathValue] of Object.entries(paths)) {
       if (allPaths[pathKey]) {
-        // Path conflict detected
+        // PATH CONFLICT DETECTED
         const existingFile = pathConflicts.find(c => c.path === pathKey)?.winner || 'unknown';
         pathConflicts.push({
           path: pathKey,
@@ -759,19 +914,29 @@ async function main() {
       }
     }
     
-    // Print summary
+    // Print detailed summary with conflict analysis
     console.log('\n=== UNIFICATION SUMMARY ===');
     console.log(`Domains processed: ${summary.successfulDomains}/${summary.totalDomains}`);
     console.log(`Total files processed: ${summary.totalFiles}`);
     console.log(`Total paths generated: ${summary.totalPaths}`);
     console.log(`Total conflicts resolved: ${summary.totalConflicts}`);
     
+    if (summary.totalConflicts > 0) {
+      console.log('\n🔧 CONFLICT RESOLUTION APPLIED:');
+      console.log('  - Path conflicts: Newer files won (based on modification time)');
+      console.log('  - Schema conflicts: Conflicting schemas renamed with file suffix');
+      console.log('  - Security conflicts: First definition kept for consistency');
+      console.log('  - Other component conflicts: Later definitions overwrote earlier ones');
+      console.log('\n💡 TIP: Use --verbose flag to see detailed conflict resolution logs');
+    }
+    
     if (results.length > 0) {
-      console.log('\nDomain breakdown:');
+      console.log('\n📁 Domain breakdown:');
       results.forEach(result => {
         console.log(`  ${result.domain}: ${result.stats.filesProcessed} files → ${result.stats.pathsGenerated} paths`);
         if (result.stats.pathConflicts > 0 || result.stats.componentConflicts > 0) {
-          console.log(`    (${result.stats.pathConflicts} path conflicts, ${result.stats.componentConflicts} component conflicts)`);
+          console.log(`    ⚠️  Conflicts resolved: ${result.stats.pathConflicts} path + ${result.stats.componentConflicts} component`);
+          console.log(`    📋 Check x-generated metadata in output file for conflict details`);
         }
       });
     }

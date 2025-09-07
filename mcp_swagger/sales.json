@@ -5,8 +5,9 @@
     "description": "Unified OpenAPI specification for sales domain",
     "version": "3.0",
     "x-generated": {
-      "timestamp": "2025-08-31T14:30:30.565Z",
+      "timestamp": "2025-09-07T11:02:23.124Z",
       "sourceFiles": [
+        "client_card.json",
         "legacy_v1_sales.json",
         "payments.json",
         "payment_gateway.json",
@@ -130,7 +131,7 @@
           ],
           "winner": "sales_reports.json",
           "resolution": "Used sales_reports.json (newer modification date)",
-          "timestamp": "2025-08-31T14:30:30.564Z"
+          "timestamp": "2025-09-07T11:02:23.124Z"
         },
         {
           "path": "/v3/sales/coupons",
@@ -140,12 +141,12 @@
           ],
           "winner": "coupon.json",
           "resolution": "Used coupon.json (newer modification date)",
-          "timestamp": "2025-08-31T14:30:30.564Z"
+          "timestamp": "2025-09-07T11:02:23.124Z"
         }
       ],
       "componentConflicts": [],
-      "totalPaths": 63,
-      "totalComponents": 7
+      "totalPaths": 64,
+      "totalComponents": 9
     }
   },
   "servers": [
@@ -155,6 +156,139 @@
     }
   ],
   "paths": {
+    "/platform/v1/clients/payment/cards": {
+      "get": {
+        "summary": "Get Client Payment Cards",
+        "description": "Retrieve all payment cards for a client. The business context is derived from the client JWT token.",
+        "tags": [
+          "Cards"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^Bearer .+$"
+            },
+            "description": "Client JWT Token. Format: 'Bearer CLIENT_JWT_TOKEN'",
+            "example": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbnRpdHlfdWlkIjoiQ0xJRU5UX1VJRCIsImV4dHJhIjp7ImJ1c2luZXNzX3VpZCI6IkJVU0lORVNTX1VJRCJ9LCJ0eXBlIjoiY2xpZW50IiwiZXhwIjoxNjMwMDAwMDAwfQ.SIGNATURE"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved client payment cards",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "OK"
+                      ],
+                      "example": "OK"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "cards": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/PaymentCard"
+                          }
+                        }
+                      },
+                      "required": [
+                        "cards"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "data"
+                  ]
+                },
+                "example": {
+                  "status": "OK",
+                  "data": {
+                    "cards": [
+                      {
+                        "id": "card_123456",
+                        "client_id": "client_789012",
+                        "default": true,
+                        "active": true,
+                        "card_brand": "visa",
+                        "last_4": "4242",
+                        "exp_month": 12,
+                        "exp_year": 2025,
+                        "cardholder_name": "John Doe",
+                        "staff_id": null,
+                        "staff_name": "",
+                        "business_id": "business_345678",
+                        "payment_provider": "stripe",
+                        "created_at": "2023-01-15T10:30:00.000Z",
+                        "initiator": "client",
+                        "usage_permission": "client"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing JWT token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "status": "Error",
+                  "error": "Unauthorized"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Request cannot be processed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "status": "Error",
+                  "error": "Invalid request parameters"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "status": "Error",
+                  "error": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/platform/v1/leadgen": {
       "post": {
         "parameters": [
@@ -11976,6 +12110,161 @@
   },
   "components": {
     "schemas": {
+      "PaymentCard": {
+        "type": "object",
+        "description": "Payment card object containing card details and metadata",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier for the payment card",
+            "example": "card_123456"
+          },
+          "client_id": {
+            "type": "string",
+            "description": "UID of the client who owns this card",
+            "example": "client_789012"
+          },
+          "default": {
+            "type": "boolean",
+            "description": "Whether this is the default card for the client",
+            "example": true
+          },
+          "active": {
+            "type": "boolean",
+            "description": "Whether the card is currently active",
+            "example": true
+          },
+          "card_brand": {
+            "type": "string",
+            "description": "Card brand (visa, mastercard, amex, etc.)",
+            "enum": [
+              "visa",
+              "mastercard",
+              "amex",
+              "discover",
+              "diners",
+              "jcb",
+              "unionpay"
+            ],
+            "example": "visa"
+          },
+          "last_4": {
+            "type": "string",
+            "description": "Last 4 digits of the card number",
+            "pattern": "^[0-9]{4}$",
+            "example": "4242"
+          },
+          "exp_month": {
+            "type": "integer",
+            "description": "Card expiration month (1-12)",
+            "minimum": 1,
+            "maximum": 12,
+            "example": 12
+          },
+          "exp_year": {
+            "type": "integer",
+            "description": "Card expiration year",
+            "minimum": 2023,
+            "example": 2025
+          },
+          "cardholder_name": {
+            "type": "string",
+            "description": "Name on the card",
+            "example": "John Doe"
+          },
+          "staff_id": {
+            "type": "string",
+            "nullable": true,
+            "description": "UID of the staff member who added this card (if applicable)",
+            "example": null
+          },
+          "staff_name": {
+            "type": "string",
+            "description": "Display name of the staff member who added this card",
+            "example": ""
+          },
+          "business_id": {
+            "type": "string",
+            "description": "UID of the business this card belongs to",
+            "example": "business_345678"
+          },
+          "payment_provider": {
+            "type": "string",
+            "description": "Payment provider handling this card",
+            "enum": [
+              "stripe",
+              "square",
+              "squarepaymentgateway"
+            ],
+            "example": "stripe"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the card was created",
+            "example": "2023-01-15T10:30:00.000Z"
+          },
+          "initiator": {
+            "type": "string",
+            "description": "Who added this card (client or staff)",
+            "enum": [
+              "client",
+              "staff"
+            ],
+            "example": "client"
+          },
+          "usage_permission": {
+            "type": "string",
+            "description": "Usage permission scope for the card",
+            "enum": [
+              "client",
+              "staff",
+              "all"
+            ],
+            "example": "client"
+          }
+        },
+        "required": [
+          "id",
+          "client_id",
+          "default",
+          "active",
+          "card_brand",
+          "last_4",
+          "exp_month",
+          "exp_year",
+          "cardholder_name",
+          "staff_id",
+          "staff_name",
+          "business_id",
+          "payment_provider",
+          "created_at",
+          "initiator",
+          "usage_permission"
+        ]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "description": "Standard error response format",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "Error"
+            ],
+            "example": "Error"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message describing what went wrong",
+            "example": "Unauthorized"
+          }
+        },
+        "required": [
+          "status",
+          "error"
+        ]
+      },
       "PaymentGatewayList": {
         "type": "object",
         "properties": {
@@ -12128,6 +12417,12 @@
       }
     },
     "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Client JWT token containing entity_uid, business_uid, and type='client'"
+      },
       "Bearer": {
         "type": "http",
         "scheme": "bearer",
