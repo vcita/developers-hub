@@ -193,22 +193,25 @@
       "get": {
         "tags": ["AI Recommended Actions"],
         "summary": "Get AI Recommended Actions",
-        "description": "Retrieve a list of AI Recommended Actions filtered by business UID and matter UID. **Available for Staff tokens**",
+        "description": "Retrieve a list of AI Recommended Actions filtered by context. **Available for Staff tokens**",
         "security": [{ "Bearer": [] }],
         "parameters": [
           {
-            "name": "business_uid",
+            "name": "context_uid",
             "in": "query",
             "required": true,
             "schema": { "type": "string" },
-            "description": "UID of the business (required)"
+            "description": "UID of the context (matter, client, or business)"
           },
           {
-            "name": "matter_uid",
+            "name": "context_type",
             "in": "query",
             "required": true,
-            "schema": { "type": "string" },
-            "description": "UID of the matter (required)"
+            "schema": { 
+              "type": "string",
+              "enum": ["matter", "client", "business"]
+            },
+            "description": "Type of context"
           }
         ],
         "responses": {
@@ -259,12 +262,28 @@
                     "enum": ["reply", "estimate", "schedule"],
                     "description": "The type of action recommended"
                   },
-                    "payload": {
-                      "type": "object",
-                      "description": "Action-specific data. Structure depends on action type.\n\nFor 'reply' action:\n- reply_variant_id (required): ID of the reply variant to use\n- business_uid (required): UID of the business\n- matter_uid (required): UID of the matter\n- custom_instructions (optional): Additional custom instructions for the reply"
-                    }
+                  "payload": {
+                    "type": "object",
+                    "description": "Action-specific data. Structure depends on action type.\n\nFor 'reply' action:\n- reply_variant_id (required): ID of the reply variant to use\n- custom_instructions (optional): Additional custom instructions for the reply"
+                  },
+                  "context": {
+                    "type": "object",
+                    "description": "The context in which the action is being created",
+                    "properties": {
+                      "context_uid": {
+                        "type": "string",
+                        "description": "UID of the context (matter, client, or business)"
+                      },
+                      "context_type": {
+                        "type": "string",
+                        "enum": ["matter", "client", "business"],
+                        "description": "Type of context"
+                      }
+                    },
+                    "required": ["context_uid", "context_type"]
+                  }
                 },
-                "required": ["action", "payload"]
+                "required": ["action", "payload", "context"]
               }
             }
           }
@@ -480,6 +499,21 @@
                   "description": "A list of supporting statements or facts justifying the recommendation.",
                   "items": {
                     "type": "string"
+                  }
+                },
+                "context": {
+                  "type": "object",
+                  "description": "The context in which the recommendation was generated.",
+                  "properties": {
+                    "context_uid": {
+                      "type": "string",
+                      "description": "A unique identifier for the context associated with this recommendation."
+                    },
+                    "context_type": {
+                      "type": "string",
+                      "description": "The type of context (e.g., 'matter','client', 'business').",
+                      "enum": ["matter","client", "business"]
+                    }
                   }
                 }
             }
