@@ -1,330 +1,330 @@
-# OpenAPI Unification Script
+# vCita AI-Powered Partner Recommendation System (MCP Server)
 
-A Node.js script that unifies multiple OpenAPI/Swagger JSON files within domain folders into single, consolidated specifications with intelligent path normalization and conflict resolution.
+## Overview
 
-## 🎯 Purpose
+This MCP (Model Context Protocol) server implements an AI-driven recommendation system that matches vCita SMB businesses with relevant partner offerings. The system enables marketing teams to create intelligent offering campaigns and provides sales teams with ranked lists of qualified prospects.
 
-This script solves the problem of managing multiple OpenAPI specification files across different domains by:
-- **Consolidating** multiple API specs into single domain files
-- **Normalizing paths** by resolving different base paths and server URLs
-- **Resolving conflicts** intelligently when duplicate paths or schemas exist
-- **Maintaining traceability** with detailed generation metadata
+## 🎯 Core Features
 
-## 🚀 Quick Start
+### 1. Offering Ingestion Tool (Marketing)
+**MCP Tool:** `create_offering`
 
-### Prerequisites
-- Node.js (version 14 or higher)
-- npm
+**Purpose:** Enable marketing teams to create new partner offerings with AI-generated targeting rules
 
-### Installation
-```bash
-# Install dependencies
-npm install
+**Input Methods:**
+- **PDF Processing**: Upload partner materials, product sheets, case studies
+- **Interactive Chat**: Guided conversation to extract offering details and target criteria
+
+**Output:**
+- Structured offering definition with:
+  - Targeting triggers and business rules
+  - SMB qualification criteria  
+  - Reasoning and value proposition
+
+### 2. Sales Prospect Tool (Sales)
+**MCP Tool:** `get_prospects_to_call`
+
+**Purpose:** Provide sales teams with ranked, qualified prospect lists for specific offerings
+
+**Output:**
+- Ranked list of SMBs with:
+  - Top 3 matched offerings per business
+  - AI-generated reasoning for each match
+  - Call status tracking (new/contacted/follow-up)
+  - Contact priority scoring
+
+## 🏗️ System Architecture
+
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   Marketing     │    │   MCP Server     │    │   Sales Team    │
+│   (Offering     │───▶│   AI Engine      │───▶│   (Prospect     │
+│    Creation)    │    │                  │    │    Calling)     │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+                              │
+                              ▼
+                    ┌──────────────────┐
+                    │  Static File DB  │
+                    │  (JSON Storage)  │
+                    │                  │
+                    │  • SMBs          │
+                    │  • Offerings     │
+                    │  • Match Results │
+                    │  • Call Status   │
+                    └──────────────────┘
 ```
 
-### Basic Usage
-```bash
-# Run the unification script
-node unify-openapi.js
+## 📋 MCP Tools Specification
 
-# With verbose logging
-node unify-openapi.js --verbose
-
-# Preview what will be processed (dry run)
-node unify-openapi.js --dry-run --verbose
-```
-
-## 📁 Directory Structure
-
-### Input Structure
-```
-swagger/
-├── ai/
-│   ├── bizai.json
-│   ├── recommendations.json
-│   └── ...
-├── clients/
-│   ├── client_settings.json
-│   ├── legacy/
-│   │   ├── legacy_v1_clients.json
-│   │   └── ...
-│   └── ...
-└── ...
-```
-
-### Output Structure
-```
-mcp_swagger/
-├── ai.json                    # Unified AI domain API
-├── clients.json               # Unified Clients domain API
-├── communication.json         # Unified Communication domain API
-├── platform_administration.json
-└── ...
-```
-
-## ⚙️ Features
-
-### 🔄 Smart Path Normalization
-
-The script handles different base path formats seamlessly:
-
-### 📚 Automatic Swagger 2.0 to OpenAPI 3.1 Conversion
-
-When processing Swagger 2.0 files, the script automatically converts them to modern OpenAPI 3.1 format:
-
-**Converted Properties:**
-- `consumes` → `requestBody.content`
-- `produces` → `responses[status].content`
-- `definitions` → `components.schemas`
-- Parameter `type: "string"` → `schema: {type: "string"}`
-- Body parameters (`in: "body"`) → `requestBody`
-- `collectionFormat: "multi"` → `style: "form", explode: true`
-- `examples` → `example` (in responses)
-
-**Preserved Valid Properties:**
-- `contains` - Valid JSON Schema Draft 7 keyword for array validation
-- All other valid OpenAPI 3.1/JSON Schema properties
-
-**Security Enhancement:**
-- **Bearer Authentication** automatically added to all endpoints
-- JWT token support with proper `securitySchemes` definition
-- Consistent authentication across all unified APIs
-
-This ensures all generated files are valid OpenAPI 3.1 specifications.
-
-**Swagger 2.0 Files:**
+### Tool 1: `create_offering`
 ```json
 {
-  "basePath": "/platform/v1",
-  "paths": {
-    "/clients": { ... }
-  }
-}
-```
-→ Results in: `/platform/v1/clients`
-
-**OpenAPI 3.1 Files:**
-```json
-{
-  "servers": [{"url": "https://api.vcita.biz/v3"}],
-  "paths": {
-    "/auth/token": { ... }
-  }
-}
-```
-→ Results in: `/v3/auth/token`
-
-### 🛡️ Intelligent Conflict Resolution
-
-When conflicts occur, the script:
-- **Path Conflicts**: Uses the file with the most recent modification date
-- **Schema Conflicts**: Renames conflicting schemas with file suffixes
-- **Logs all resolutions** for transparency and debugging
-
-### 📊 Comprehensive Metadata
-
-Each generated file includes:
-```json
-{
-  "info": {
-    "x-generated": {
-      "timestamp": "2024-01-20T10:30:00Z",
-      "sourceFiles": ["apps.json", "legacy_v1_apps.json"],
-      "pathNormalizations": [...],
-      "pathConflicts": [...],
-      "componentConflicts": [...],
-      "totalPaths": 16,
-      "totalComponents": 8
+  "name": "create_offering",
+  "description": "Create a new partner offering with AI-generated targeting rules",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "offering_name": {"type": "string"},
+      "partner_name": {"type": "string"},
+      "input_method": {"enum": ["pdf", "interactive"]},
+      "content": {"type": "string"},
+      "target_business_size": {"type": "string"},
+      "industry_focus": {"type": "array"}
     }
   }
 }
 ```
 
-## 🖥️ Command Line Options
-
+**Usage Examples:**
 ```bash
-node unify-openapi.js [options]
+# PDF-based offering creation
+create_offering --name "SmartSlots Pro" --partner "ScheduleAI" --method pdf --content "path/to/product_sheet.pdf"
 
-Options:
-  --input-dir <dir>     Input directory (default: ./swagger)
-  --output-dir <dir>    Output directory (default: ./mcp_swagger)
-  --verbose             Enable detailed logging
-  --dry-run            Preview processing without writing files
-  --help               Show help message
+# Interactive offering creation  
+create_offering --name "PickMyCall AI" --partner "VoiceBot" --method interactive
 ```
 
-### Examples
-
-```bash
-# Custom directories
-node unify-openapi.js --input-dir ./api-specs --output-dir ./unified-apis
-
-# Verbose dry run to see what would happen
-node unify-openapi.js --dry-run --verbose
-
-# Custom output directory with verbose logging
-node unify-openapi.js --output-dir ./dist/apis --verbose
-```
-
-## 📈 Script Output
-
-### Successful Execution Example
-```
-[INFO] Starting OpenAPI unification process...
-[INFO] Found domains: ai, apps, clients, communication, ...
-[INFO] Processing domain: clients
-[INFO] Domain clients: Unified 5 files into 46 paths
-[INFO] Created unified file: mcp_swagger/clients.json
-
-=== UNIFICATION SUMMARY ===
-Domains processed: 10/10
-Total files processed: 49
-Total paths generated: 254
-Total conflicts resolved: 8
-
-Domain breakdown:
-  ai: 5 files → 9 paths
-  clients: 5 files → 46 paths
-  sales: 5 files → 50 paths
-  ...
-```
-
-### Conflict Resolution Logging
-```
-[WARN] Path conflict: /v3/license/business_carts - using license_internal.json over existing
-[WARN] Schema conflict: Response renamed to Response_widgets_and_boards (from widgets_and_boards.json)
-```
-
-## 🔧 Configuration
-
-### Supported File Types
-- **OpenAPI 3.0+** (`openapi` field) - Upgraded to OpenAPI 3.1
-- **Swagger 2.0** (`swagger` field) - **Auto-converted to OpenAPI 3.1**
-- **JSON format only** (`.json` extensions)
-
-### Automatic File Detection
-The script automatically:
-- Recursively scans all subdirectories
-- Validates OpenAPI/Swagger specifications
-- Skips invalid or backup files (`.bak`, `~`, etc.)
-- Sorts files by modification time for conflict resolution
-
-## 🎯 Path Normalization Examples
-
-| Source File | Base Path/Server | Original Path | Final Unified Path |
-|-------------|------------------|---------------|-------------------|
-| `legacy_v1_clients.json` | `/platform/v1` | `/clients` | `/platform/v1/clients` |
-| `clients_payments.json` | `/client/payments` | `/v1/cards` | `/client/payments/v1/cards` |
-| `authbridge.json` | `https://api.vcita.biz/v3/` | `/auth/token` | `/v3/auth/token` |
-| `bizai.json` | `https://api.vcita.biz` | `/ai/chat` | `/ai/chat` |
-
-## 📋 Generated File Structure
-
-Each unified file follows this structure:
+### Tool 2: `get_prospects_to_call`
 ```json
 {
-  "openapi": "3.0.0",
-  "info": {
-    "title": "Unified Domain API",
-    "description": "Unified OpenAPI specification for domain",
-    "version": "3.0",
-    "x-generated": { ... }
+  "name": "get_prospects_to_call",
+  "description": "Get ranked list of SMBs to call for specific offerings",
+  "inputSchema": {
+    "type": "object", 
+    "properties": {
+      "offering_ids": {"type": "array"},
+      "max_results": {"type": "integer", "default": 20},
+      "exclude_called": {"type": "boolean", "default": false},
+      "priority_filter": {"enum": ["high", "medium", "low", "all"]}
+    }
+  }
+}
+```
+
+**Usage Examples:**
+```bash
+# Get prospects for specific offerings
+get_prospects_to_call --offerings ["smartslots", "pickmycall"] --max 10
+
+# Get high-priority prospects only
+get_prospects_to_call --offerings ["all"] --priority high --max 15
+```
+
+### Tool 3: `update_call_status`
+```json
+{
+  "name": "update_call_status",
+  "description": "Update call results and prospect status",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "business_id": {"type": "string"},
+      "offering_id": {"type": "string"}, 
+      "call_result": {"enum": ["interested", "not_interested", "callback", "no_answer"]},
+      "notes": {"type": "string"},
+      "next_action": {"type": "string"}
+    }
+  }
+}
+```
+
+## 🗂️ Data Structure (Static File DB)
+
+### SMB Business Record
+```json
+{
+  "business_id": "biz_12345",
+  "name": "Dental Care Plus",
+  "category": "healthcare", 
+  "staff_count": 5,
+  "booking_patterns": {
+    "monthly_appointments": 150,
+    "cancellation_rate": 0.28,
+    "no_show_rate": 0.12
   },
-  "servers": [
+  "communication_data": {
+    "monthly_calls": 85,
+    "missed_call_rate": 0.35,
+    "peak_hours": ["9-11", "14-16"]
+  },
+  "financial_indicators": {
+    "revenue_trend": "declining",
+    "overdue_payments": 2500.00
+  },
+  "offerings": [
     {
-      "url": "https://api.vcita.biz",
-      "description": "Unified API Gateway server"
+      "offering_id": "smartslots_pro",
+      "match_score": 0.87,
+      "reasoning": "High cancellation rate (28%) and irregular booking patterns indicate need for intelligent scheduling optimization",
+      "status": "new",
+      "last_contacted": null
     }
-  ],
-  "paths": { ... },
-  "components": { ... },
-  "tags": [ ... ]
+  ]
 }
 ```
 
-## 🐛 Troubleshooting
-
-### Common Issues
-
-**No files processed in a domain:**
-- Ensure JSON files contain valid OpenAPI/Swagger specifications
-- Check that files have `openapi`/`swagger`, `info`, and `paths` fields
-
-**Schema conflicts:**
-- Review the `x-generated.componentConflicts` metadata in output files
-- Conflicting schemas are automatically renamed with file suffixes
-
-**Path normalization issues:**
-- Check the `x-generated.pathNormalizations` metadata
-- Verify server URLs and basePath values in source files
-
-**Swagger 2.0 conversion issues:**
-- The script automatically converts Swagger 2.0 to OpenAPI 3.1
-- Check for `requestBody` instead of `consumes` in generated files
-- Parameters now use `schema: {type: "string"}` format
-- Use `--verbose` to see conversion debug messages
-
-### Verbose Logging
-Use `--verbose` flag to see detailed processing information:
-```bash
-node unify-openapi.js --verbose
+### Offering Definition
+```json
+{
+  "offering_id": "smartslots_pro",
+  "name": "SmartSlots Pro",
+  "partner": "ScheduleAI",
+  "description": "AI-powered scheduling optimization for high-cancellation businesses",
+  "targeting_rules": {
+    "cancellation_rate": {"min": 0.20},
+    "appointment_volume": {"min": 50},
+    "business_categories": ["healthcare", "beauty", "consulting"],
+    "staff_size": {"min": 2, "max": 20}
+  },
+  "value_proposition": "Reduce cancellation impact by 40% with intelligent slot management",
+  "created_at": "2024-01-15T10:30:00Z",
+  "created_by": "marketing_user_123"
+}
 ```
 
-## 📝 NPM Scripts
+## 🚀 Implementation Approach (Hackathon Mode)
 
-Available package scripts:
-```bash
-# Standard run
-npm run unify
+### Phase 1: Core Infrastructure
+- [x] MCP server setup with tool definitions
+- [ ] Static JSON file database structure
+- [ ] Basic matching engine implementation
+- [ ] Simple offering creation workflow
 
-# With verbose logging
-npm run unify:verbose
+### Phase 2: AI Integration  
+- [ ] PDF processing for offering extraction
+- [ ] Interactive chat flow for offering creation
+- [ ] Business-to-offering matching algorithms
+- [ ] Reasoning generation for matches
 
-# Dry run with verbose output
-npm run unify:dry-run
+### Phase 3: Sales Tools
+- [ ] Prospect ranking and scoring
+- [ ] Call status tracking
+- [ ] Performance analytics dashboard
+
+## 📝 Usage Workflows
+
+### Marketing Workflow: Create New Offering
+```
+1. Marketing receives partner materials (PDF/docs)
+2. Run: create_offering --method pdf --content "partner_materials.pdf"
+3. AI extracts offering details and generates targeting rules
+4. System creates offering record and runs initial matching
+5. Marketing reviews and approves generated rules
 ```
 
-## 🔄 Re-running the Script
+### Sales Workflow: Daily Prospecting
+```
+1. Sales person starts daily calling session
+2. Run: get_prospects_to_call --offerings ["smartslots"] --max 10
+3. System returns ranked list with reasoning
+4. Sales person makes calls and updates status
+5. Run: update_call_status for each call result
+6. System learns and improves future rankings
+```
 
-The script can be run multiple times safely:
-- **Overwrites existing files** in the output directory
-- **Uses latest file modification times** for conflict resolution
-- **Updates generation timestamps** automatically
+### Sample Conversation Flow
+```
+Sales Person: "Who should I call today?"
+MCP Response: 
+"Top 3 prospects for SmartSlots Pro:
 
-## 📊 Performance
+1. Dental Care Plus (Score: 87%)
+   - 28% cancellation rate (target: >20%)
+   - 150 monthly appointments (good volume)
+   - Healthcare category (perfect fit)
+   - Status: New prospect
 
-Typical performance metrics:
-- **49 files processed** in ~2-3 seconds
-- **254 paths generated** with full validation
-- **Memory usage**: ~50MB peak for large API collections
+2. Beauty Studio Elite (Score: 82%) 
+   - 31% cancellation rate (high need)
+   - Irregular booking patterns detected
+   - 3 staff members (right size)
+   - Status: Follow-up needed
+
+3. Legal Consultants LLC (Score: 78%)
+   - 22% cancellation rate (above threshold)  
+   - Professional services (good fit)
+   - Growing team (recently added staff)
+   - Status: New prospect"
+```
+
+## 🔧 Technical Implementation
+
+### File Structure
+```
+mcp-server/
+├── src/
+│   ├── tools/
+│   │   ├── create_offering.py
+│   │   ├── get_prospects.py
+│   │   └── update_status.py
+│   ├── matching/
+│   │   ├── engine.py
+│   │   └── rules.py
+│   ├── data/
+│   │   ├── smbs.json
+│   │   ├── offerings.json
+│   │   └── matches.json
+│   └── main.py
+├── README.md
+└── requirements.txt
+```
+
+### Key Dependencies
+```
+mcp>=0.1.0
+openai>=1.0.0
+pdfplumber>=0.7.0
+pandas>=2.0.0
+scikit-learn>=1.3.0
+```
+
+## 📊 Success Metrics
+
+### For Marketing
+- **Offering Creation Speed**: Time from partner materials to active targeting rules
+- **Rule Accuracy**: % of generated rules that marketing approves without changes
+- **Coverage**: % of partner offerings successfully converted to targetable campaigns
+
+### For Sales  
+- **Prospect Quality**: Conversion rate of recommended prospects
+- **Time Efficiency**: Reduction in research time per prospect
+- **Call Success**: % of calls resulting in meaningful conversations
+
+### For System
+- **Match Accuracy**: % of high-scored prospects that show genuine interest
+- **Learning Rate**: Improvement in match quality over time
+- **Data Coverage**: % of SMBs with sufficient data for accurate scoring
+
+## 🎯 Next Steps
+
+1. **MVP Development** (Week 1-2)
+   - Implement basic MCP tools
+   - Create static file database
+   - Build simple matching engine
+
+2. **AI Integration** (Week 3-4)  
+   - Add PDF processing capabilities
+   - Implement interactive offering creation
+   - Enhance matching algorithms
+
+3. **Pilot Testing** (Week 5-6)
+   - Test with select partner offerings
+   - Gather feedback from sales teams
+   - Iterate based on results
+
+4. **Production Readiness** (Week 7-8)
+   - Add error handling and validation
+   - Implement logging and monitoring
+   - Prepare for scale testing
 
 ## 🤝 Contributing
 
-### Adding New Features
-The script is modular with separate functions for:
-- `extractBasePath()` - Base path extraction logic
-- `normalizeEndpoints()` - Path normalization
-- `mergeComponents()` - Component merging with conflict resolution
-- `processDomain()` - Domain-level processing
-
-### Testing
-```bash
-# Test with dry run
-node unify-openapi.js --dry-run --verbose
-
-# Test specific directory
-node unify-openapi.js --input-dir ./test-swagger --dry-run
-```
-
-## 📄 License
-
-ISC License - See package.json for details.
+This is a hackathon project focused on rapid prototyping. Key principles:
+- **Speed over perfection**: Get working functionality first
+- **Static data**: Use JSON files instead of databases initially  
+- **Manual processes**: Some workflows can be manual for MVP
+- **Iterative improvement**: Build, test, learn, repeat
 
 ---
 
-**Generated unified APIs are ready for use with tools like:**
-- Swagger UI
-- Postman
-- API documentation generators
-- Code generation tools
-- API testing frameworks
+**Note**: This is a prototype system designed to validate the AI-powered partner recommendation concept. Production implementation would require integration with vCita's live APIs, proper database infrastructure, and enhanced security measures.
