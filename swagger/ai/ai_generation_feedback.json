@@ -23,7 +23,7 @@
       "Bearer": {
         "type": "http",
         "scheme": "bearer",
-        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+        "description": "Authentication method using a Bearer token. Include the token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
       }
     },
     "schemas": {
@@ -48,36 +48,34 @@
           "type": {
             "type": "string",
             "description": "The type of feedback provided",
-            "enum": ["score", "boolean", "client_message_sent", "text_feedback", "correction", "dismissal"]
+            "enum": ["int", "decimal", "text", "boolean"]
           },
           "value": {
             "type": "string",
-            "description": "The feedback value - stored as string regardless of feedback type (e.g., '4.5' for score, 'true' for boolean)"
+            "description": "The feedback value - stored as string regardless of feedback type (e.g., '4.5' for decimal, 'true' for boolean)"
           },
           "entity_type": {
             "type": "string",
-            "description": "The type of entity this feedback is related to (e.g., 'recommendation', 'chat_message')"
+            "description": "The type of entity this feedback is related to",
+            "enum": ["AISmartReply", "AIRecommendation", "AIRecommendedAction"]
           },
           "entity_uid": {
             "type": "string",
             "description": "The unique identifier of the related entity"
+          },
+          "name": {
+            "type": "string",
+            "description": "The specific name/identifier for the feedback type",
+            "enum": ["[AISmartReply] Business Sent Message UID", "[AISmartReply] Business Dismiss Reason"]
           }
         },
         "required": [
           "type",
           "value",
           "entity_type",
-          "entity_uid"
+          "entity_uid",
+          "name"
         ]
-      },
-      "AiGenerationFeedbackUpdateRequest": {
-        "type": "object",
-        "properties": {
-          "value": {
-            "type": "string",
-            "description": "The updated feedback value"
-          }
-        }
       },
       "AiGenerationFeedbackListResponse": {
         "type": "object",
@@ -101,7 +99,7 @@
       "post": {
         "tags": ["AI Generation Feedback"],
         "summary": "Create new AI generation feedback",
-        "description": "Submit feedback for AI-generated content",
+        "description": "Submit feedback for AI-generated content. **Available for Staff tokens**",
         "operationId": "createAiGenerationFeedback",
         "security": [
           {
@@ -151,7 +149,7 @@
       "get": {
         "tags": ["AI Generation Feedback"],
         "summary": "List AI generation feedback",
-        "description": "Retrieve a list of AI generation feedback with optional filtering",
+        "description": "Retrieve a list of AI generation feedback with optional filtering. **Available for Staff tokens**",
         "operationId": "listAiGenerationFeedback",
         "security": [
           {
@@ -165,7 +163,18 @@
             "description": "Filter by entity type",
             "required": false,
             "schema": {
-              "type": "string"
+              "type": "string",
+              "enum": ["AISmartReply", "AIRecommendation", "AIRecommendedAction"]
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "description": "Filter by feedback name",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["[AISmartReply] Business Sent Message UID", "[AISmartReply] Business Dismiss Reason"]
             }
           },
           {
@@ -184,7 +193,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": ["score", "boolean", "client_message_sent", "text_feedback", "correction", "dismissal"]
+              "enum": ["int", "decimal", "text", "boolean"]
             }
           },
           {
@@ -258,7 +267,7 @@
       "get": {
         "tags": ["AI Generation Feedback"],
         "summary": "Get AI generation feedback by UID",
-        "description": "Retrieve a specific AI generation feedback entry by its unique identifier",
+        "description": "Retrieve a specific AI generation feedback entry by its unique identifier. **Available for Staff tokens**",
         "operationId": "getAiGenerationFeedback",
         "security": [
           {
@@ -294,100 +303,6 @@
                 }
               }
             }
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "404": {
-            "description": "Feedback not found"
-          }
-        }
-      },
-      "put": {
-        "tags": ["AI Generation Feedback"],
-        "summary": "Update AI generation feedback",
-        "description": "Update an existing AI generation feedback value",
-        "operationId": "updateAiGenerationFeedback",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "uid",
-            "in": "path",
-            "description": "The unique identifier of the feedback",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AiGenerationFeedbackUpdateRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Feedback updated successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    },
-                    "data": {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/ai/AiGenerationFeedback.json"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request parameters"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "404": {
-            "description": "Feedback not found"
-          }
-        }
-      },
-      "delete": {
-        "tags": ["AI Generation Feedback"],
-        "summary": "Delete AI generation feedback",
-        "description": "Delete a specific AI generation feedback entry by its unique identifier",
-        "operationId": "deleteAiGenerationFeedback",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "uid",
-            "in": "path",
-            "description": "The unique identifier of the feedback",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Feedback deleted successfully"
           },
           "401": {
             "description": "Unauthorized"
