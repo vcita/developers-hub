@@ -23,7 +23,7 @@
     "/platform/v1/clients/payment/cards": {
       "get": {
         "summary": "Get Client Payment Cards",
-        "description": "Retrieve all payment cards for a client. The business context is derived from the client JWT token.",
+        "description": "Retrieve all payment cards for a client - Available for **Client Tokens**",
         "tags": ["Cards"],
         "security": [
           {
@@ -59,6 +59,11 @@
                     "data": {
                       "type": "object",
                       "properties": {
+                        "max_limit_reached": {
+                          "type": "boolean",
+                          "description": "Whether the maximum card limit has been reached",
+                          "example": false
+                        },
                         "cards": {
                           "type": "array",
                           "items": {
@@ -66,7 +71,7 @@
                           }
                         }
                       },
-                      "required": ["cards"]
+                      "required": ["max_limit_reached", "cards"]
                     }
                   },
                   "required": ["status", "data"]
@@ -74,6 +79,7 @@
                 "example": {
                   "status": "OK",
                   "data": {
+                    "max_limit_reached": false,
                     "cards": [
                       {
                         "id": "card_123456",
@@ -123,6 +129,133 @@
                 "example": {
                   "status": "Error",
                   "error": "Invalid request parameters"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "status": "Error",
+                  "error": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/v1/clients/{client_id}/payment/cards": {
+      "get": {
+        "summary": "Get Client Payment Cards (Staff Access)",
+        "description": "Retrieve all payment cards for a specific client - Available for **Staff & Internal tokens**",
+        "tags": ["Staff Payment Cards"],
+        "operationId": "getClientPaymentCards",
+        "parameters": [
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the client",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9]{16}$"
+            },
+            "example": "m729844bwakz8jf6"
+          },
+          {
+            "name": "filter[usage_permission]",
+            "in": "query",
+            "required": false,
+            "description": "Filter cards by usage permission scope",
+            "schema": {
+              "type": "string",
+              "enum": ["all", "staff", "client"],
+              "default": "staff"
+            },
+            "example": "all"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved client payment cards",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentCardsResponse"
+                },
+                "example": {
+                  "status": "OK",
+                  "data": {
+                    "max_limit_reached": false,
+                    "cards": [
+                      {
+                        "id": "card_123456",
+                        "client_id": "client_789012", 
+                        "default": true,
+                        "active": true,
+                        "card_brand": "visa",
+                        "last_4": "4242",
+                        "exp_month": 11,
+                        "exp_year": 2025,
+                        "cardholder_name": "John Doe",
+                        "staff_id": null,
+                        "staff_name": "Jane Smith", 
+                        "business_id": "business_345678",
+                        "payment_provider": "stripe",
+                        "created_at": "2021-02-18T11:09:54.000Z",
+                        "initiator": "staff",
+                        "usage_permission": "all"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "status": "Failure",
+                  "error": "401 Unauthorized"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - Client not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"  
+                },
+                "example": {
+                  "status": "Error",
+                  "error": "Record not found"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Request cannot be processed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "status": "Error",
+                  "error": "Unable to retrieve cards"
                 }
               }
             }
