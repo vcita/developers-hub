@@ -28,7 +28,11 @@ Update swagger "<SWAGGER_NAME>.json". Do everything end-to-end without asking fo
   - Only use **Internal** when there is clear evidence of admin/internal-only access (e.g., admin/internal namespaces, controllers, or specs requiring internal/admin tokens).
 - For mutating operations (create/update/delete) scoped to a specific business, default to **Staff** unless strong evidence indicates otherwise.
 - Require at least one concrete code location (controller or component) AND one auxiliary source (routes, authentication, or specs) when selecting **Internal** or **App**.
-- If evidence is ambiguous or conflicting, prefer least-privileged access (e.g., Staff over Internal) and note the ambiguity in the output evidence.
+- Completely disregard every information in the swagger except the path structure. it is misleading. 
+- end points with /business/ in the pass are usually available for staff token (but can be available for directory tokens too)
+- end point with /clients/ in the pass are usually available for client token (but not alway)
+- 
+- End points can work for more than one context, don't force a single selection if its not implicit in the code context
 
 2) Apply edits to swagger descriptions
 - For each operation (GET/POST/PUT/PATCH/DELETE) in each legacy swagger file:
