@@ -5,11 +5,10 @@
     "description": "Unified OpenAPI specification for sales domain",
     "version": "3.0",
     "x-generated": {
-      "timestamp": "2025-09-16T06:44:25.020Z",
       "sourceFiles": [
+        "client_cards.json",
         "payment_gateway.json",
         "payments.json",
-        "client_cards.json",
         "legacy_v1_sales.json",
         "sales_reports.json",
         "coupon.json"
@@ -124,8 +123,8 @@
       ],
       "pathConflicts": [],
       "componentConflicts": [],
-      "totalPaths": 64,
-      "totalComponents": 9
+      "totalPaths": 65,
+      "totalComponents": 10
     }
   },
   "servers": [
@@ -135,6 +134,284 @@
     }
   ],
   "paths": {
+    "/platform/v1/clients/payment/cards": {
+      "get": {
+        "summary": "Get Client Payment Cards",
+        "description": "Retrieve all payment cards for a client - Available for **Client Tokens**",
+        "tags": [
+          "Client Payment Cards"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^Bearer .+$"
+            },
+            "description": "Client JWT Token. Format: 'Bearer CLIENT_JWT_TOKEN'",
+            "example": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbnRpdHlfdWlkIjoiQ0xJRU5UX1VJRCIsImV4dHJhIjp7ImJ1c2luZXNzX3VpZCI6IkJVU0lORVNTX1VJRCJ9LCJ0eXBlIjoiY2xpZW50IiwiZXhwIjoxNjMwMDAwMDAwfQ.SIGNATURE"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved client payment cards",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "OK"
+                      ],
+                      "example": "OK"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "max_limit_reached": {
+                          "type": "boolean",
+                          "description": "Whether the maximum card limit has been reached",
+                          "example": false
+                        },
+                        "cards": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/PaymentCard"
+                          }
+                        }
+                      },
+                      "required": [
+                        "max_limit_reached",
+                        "cards"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "data"
+                  ]
+                },
+                "example": {
+                  "status": "OK",
+                  "data": {
+                    "max_limit_reached": false,
+                    "cards": [
+                      {
+                        "id": "card_123456",
+                        "client_id": "client_789012",
+                        "default": true,
+                        "active": true,
+                        "card_brand": "visa",
+                        "last_4": "4242",
+                        "exp_month": 12,
+                        "exp_year": 2025,
+                        "cardholder_name": "John Doe",
+                        "staff_id": null,
+                        "staff_name": "",
+                        "business_id": "business_345678",
+                        "payment_provider": "stripe",
+                        "created_at": "2023-01-15T10:30:00.000Z",
+                        "initiator": "client",
+                        "usage_permission": "client"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing JWT token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "status": "Error",
+                  "error": "Unauthorized"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Request cannot be processed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "status": "Error",
+                  "error": "Invalid request parameters"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "status": "Error",
+                  "error": "Internal server error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/v1/clients/{client_id}/payment/cards": {
+      "get": {
+        "summary": "Get Client Payment Cards (Staff Access)",
+        "description": "Retrieve all payment cards for a specific client - Available for **Staff & Internal tokens**",
+        "tags": [
+          "Client Payment Cards"
+        ],
+        "operationId": "getClientPaymentCards",
+        "parameters": [
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the client",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9]{16}$"
+            },
+            "example": "m729844bwakz8jf6"
+          },
+          {
+            "name": "filter[usage_permission]",
+            "in": "query",
+            "required": false,
+            "description": "Filter cards by usage permission scope",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "staff",
+                "client"
+              ],
+              "default": "staff"
+            },
+            "example": "all"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved client payment cards",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentCardsResponse"
+                },
+                "example": {
+                  "status": "OK",
+                  "data": {
+                    "max_limit_reached": false,
+                    "cards": [
+                      {
+                        "id": "card_123456",
+                        "client_id": "client_789012",
+                        "default": true,
+                        "active": true,
+                        "card_brand": "visa",
+                        "last_4": "4242",
+                        "exp_month": 11,
+                        "exp_year": 2025,
+                        "cardholder_name": "John Doe",
+                        "staff_id": null,
+                        "staff_name": "Jane Smith",
+                        "business_id": "business_345678",
+                        "payment_provider": "stripe",
+                        "created_at": "2021-02-18T11:09:54.000Z",
+                        "initiator": "staff",
+                        "usage_permission": "all"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "status": "Failure",
+                  "error": "401 Unauthorized"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - Client not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "status": "Error",
+                  "error": "Record not found"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Request cannot be processed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "status": "Error",
+                  "error": "Unable to retrieve cards"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "status": "Error",
+                  "error": "Internal server error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v3/payment_processing/payment_gateways": {
       "get": {
         "summary": "Get all PaymentGateways",
@@ -8565,139 +8842,6 @@
         }
       }
     },
-    "/platform/v1/clients/payment/cards": {
-      "get": {
-        "summary": "Get Client Payment Cards",
-        "description": "Retrieve all payment cards for a client. The business context is derived from the client JWT token.",
-        "tags": [
-          "Cards"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "Authorization",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^Bearer .+$"
-            },
-            "description": "Client JWT Token. Format: 'Bearer CLIENT_JWT_TOKEN'",
-            "example": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbnRpdHlfdWlkIjoiQ0xJRU5UX1VJRCIsImV4dHJhIjp7ImJ1c2luZXNzX3VpZCI6IkJVU0lORVNTX1VJRCJ9LCJ0eXBlIjoiY2xpZW50IiwiZXhwIjoxNjMwMDAwMDAwfQ.SIGNATURE"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successfully retrieved client payment cards",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "status": {
-                      "type": "string",
-                      "enum": [
-                        "OK"
-                      ],
-                      "example": "OK"
-                    },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "cards": {
-                          "type": "array",
-                          "items": {
-                            "$ref": "#/components/schemas/PaymentCard"
-                          }
-                        }
-                      },
-                      "required": [
-                        "cards"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "status",
-                    "data"
-                  ]
-                },
-                "example": {
-                  "status": "OK",
-                  "data": {
-                    "cards": [
-                      {
-                        "id": "card_123456",
-                        "client_id": "client_789012",
-                        "default": true,
-                        "active": true,
-                        "card_brand": "visa",
-                        "last_4": "4242",
-                        "exp_month": 12,
-                        "exp_year": 2025,
-                        "cardholder_name": "John Doe",
-                        "staff_id": null,
-                        "staff_name": "",
-                        "business_id": "business_345678",
-                        "payment_provider": "stripe",
-                        "created_at": "2023-01-15T10:30:00.000Z",
-                        "initiator": "client",
-                        "usage_permission": "client"
-                      }
-                    ]
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing JWT token",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "status": "Error",
-                  "error": "Unauthorized"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Unprocessable Entity - Request cannot be processed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "status": "Error",
-                  "error": "Invalid request parameters"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "status": "Error",
-                  "error": "Internal server error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/platform/v1/leadgen": {
       "post": {
         "parameters": [
@@ -12089,35 +12233,6 @@
   },
   "components": {
     "schemas": {
-      "PaymentGatewayList": {
-        "type": "object",
-        "properties": {
-          "payment_gateways": {
-            "description": "List of Payment Gateways",
-            "type": "array",
-            "items": {
-              "$ref": "https://vcita.github.io/developers-hub/entities/payment_processing/payment_gateway.json"
-            }
-          }
-        }
-      },
-      "CreatePaymentGatewayAssignmentRequestDto": {
-        "type": "object",
-        "properties": {
-          "gateway_uid": {
-            "type": "string",
-            "description": "The unique identifier of the payment gateway to assign"
-          },
-          "directory_uid": {
-            "type": "string",
-            "description": "The unique identifier of the directory to assign the payment gateway to"
-          }
-        },
-        "required": [
-          "gateway_uid",
-          "directory_uid"
-        ]
-      },
       "PaymentCard": {
         "type": "object",
         "description": "Payment card object containing card details and metadata",
@@ -12251,6 +12366,43 @@
           "usage_permission"
         ]
       },
+      "PaymentCardsResponse": {
+        "type": "object",
+        "description": "Response containing payment cards data",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "OK"
+            ],
+            "example": "OK"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "max_limit_reached": {
+                "type": "boolean",
+                "description": "Whether the maximum card limit has been reached",
+                "example": false
+              },
+              "cards": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PaymentCard"
+                }
+              }
+            },
+            "required": [
+              "max_limit_reached",
+              "cards"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "data"
+        ]
+      },
       "ErrorResponse": {
         "type": "object",
         "description": "Standard error response format",
@@ -12271,6 +12423,35 @@
         "required": [
           "status",
           "error"
+        ]
+      },
+      "PaymentGatewayList": {
+        "type": "object",
+        "properties": {
+          "payment_gateways": {
+            "description": "List of Payment Gateways",
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/payment_processing/payment_gateway.json"
+            }
+          }
+        }
+      },
+      "CreatePaymentGatewayAssignmentRequestDto": {
+        "type": "object",
+        "properties": {
+          "gateway_uid": {
+            "type": "string",
+            "description": "The unique identifier of the payment gateway to assign"
+          },
+          "directory_uid": {
+            "type": "string",
+            "description": "The unique identifier of the directory to assign the payment gateway to"
+          }
+        },
+        "required": [
+          "gateway_uid",
+          "directory_uid"
         ]
       },
       "PaymentsWidget": {
@@ -12396,17 +12577,17 @@
       }
     },
     "securitySchemes": {
-      "Bearer": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT",
-        "description": "JWT Bearer token authentication"
-      },
       "BearerAuth": {
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "JWT",
         "description": "Client JWT token containing entity_uid, business_uid, and type='client'"
+      },
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT Bearer token authentication"
       }
     }
   },

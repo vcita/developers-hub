@@ -773,7 +773,6 @@ async function processDomain(domainPath, domainName) {
       description: `Unified OpenAPI specification for ${domainName} domain`,
       version: "3.0",
       "x-generated": {
-        timestamp: new Date().toISOString(),
         sourceFiles: validFiles.map(f => f.name),
         pathNormalizations: allPathTransformations,
         pathConflicts: pathConflicts,
