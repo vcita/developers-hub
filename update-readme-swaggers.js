@@ -23,6 +23,7 @@
 
 const fs = require('fs-extra');
 const path = require('path');
+const OpenAPIParser = require('@readme/openapi-parser');
 const { execSync } = require('child_process');
 
 // Configuration
@@ -33,7 +34,9 @@ const config = {
   readme_version: 'v3.1',
   dry_run: false,
   force: false,
-  verbose: false
+  verbose: false,
+  // When true, uploads specs via multipart/form-data (schema=@file). When false, uploads raw JSON via --data-binary.
+  upload_multipart: true
 };
 
 // Parse command line arguments
@@ -155,10 +158,15 @@ function executeReadmeApiCall(method, endpoint, description, data = null, isWrit
   
   if (data) {
     if (typeof data === 'string' && data.startsWith('@')) {
-      // File upload - use multipart/form-data with the correct field name 'schema'
-      command += ` --form "schema=${data}"`;
+      if (config.upload_multipart) {
+        // Multipart upload: schema=@file
+        command += ` --form "schema=${data}"`;
+      } else {
+        // Raw JSON upload using file contents
+        command += ` --header "content-type: application/json" --data-binary ${data}`;
+      }
     } else {
-      // JSON data
+      // JSON data object
       command += ` --header "content-type: application/json" --data '${JSON.stringify(data)}'`;
     }
   }
@@ -273,21 +281,39 @@ function createCategory(categoryName) {
   return result.success;
 }
 
-// Update swagger specification
-function updateSwagger(filePath, categoryName) {
+// Bundle an OpenAPI file to flatten external $refs
+async function bundleOpenAPISpec(inputPath) {
+  const bundledDir = path.join(config.mcp_swagger_dir, '.bundled');
+  await fs.ensureDir(bundledDir);
+  const outputPath = path.join(bundledDir, path.basename(inputPath));
+  try {
+    const bundled = await OpenAPIParser.bundle(inputPath);
+    await fs.writeJson(outputPath, bundled, { spaces: 2 });
+    return outputPath;
+  } catch (err) {
+    log.warn(`Bundling failed for ${path.basename(inputPath)}: ${err.message}. Falling back to original file.`);
+    return inputPath;
+  }
+}
+
+// Update swagger specification (bundles first to flatten refs)
+async function updateSwagger(filePath, categoryName) {
   if (config.dry_run) {
     log.info(`[DRY RUN] Updating swagger: ${categoryName} from ${path.basename(filePath)}`);
   } else {
     log.info(`Updating swagger: ${categoryName} from ${path.basename(filePath)}`);
   }
   
+  // Bundle spec to flatten external refs
+  const bundledPath = await bundleOpenAPISpec(filePath);
+
   // Use PUT to update existing API definition (filename is the identifier)
-  const fileName = path.basename(filePath);
+  const fileName = path.basename(bundledPath);
   const result = executeReadmeApiCall(
     'PUT',
     `/branches/${config.readme_version}/apis/${fileName}`,
     `Update swagger: ${categoryName}`,
-    `@${filePath}`,
+    `@${bundledPath}`,
     true  // This is a write operation
   );
   
@@ -440,7 +466,7 @@ async function main() {
     }
     
     // Update swagger
-    if (updateSwagger(file.path, file.category)) {
+    if (await updateSwagger(file.path, file.category)) {
       log.info(`Successfully updated: ${file.category}`);
       summary.updated++;
       
