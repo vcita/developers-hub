@@ -107,7 +107,7 @@ The scripts maintain state in `mcp_swagger/.update-state.json` to track:
 
 Both scripts support the same command line options:
 
-- `--dry-run`: Show what would be updated without making changes
+- `--dry-run`: Run all operations except creating categories and updating swaggers (reads existing data from README API)
 - `--force`: Force update all files regardless of modification time  
 - `--verbose`: Enable detailed logging
 - `--help`: Show help message

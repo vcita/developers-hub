@@ -1,19 +1,21 @@
 #!/usr/bin/env node
 
 /**
- * README Swagger Update Script
- * ============================
+ * README Swagger Update Script (API v2 + Curl)
+ * ==============================================
  * 
- * This script updates README.io with swagger files from the mcp_swagger directory.
+ * This script updates README.io with swagger files from the mcp_swagger directory
+ * using direct README API v2 calls via curl instead of the rdme CLI tool.
  * It handles incremental updates by tracking file modification times and only
  * updates changed specifications.
  * 
  * Features:
+ * - Uses README API v2 with Bearer authentication (more reliable than CLI)
  * - Reads API token from .dev file
  * - Tracks last update times to avoid unnecessary uploads
  * - Validates all categories have corresponding swagger files
  * - Creates missing categories automatically
- * - Supports dry-run mode for testing
+ * - Supports dry-run mode (runs all operations except actual modifications)
  * 
  * Usage:
  * node update-readme-swaggers.js [--dry-run] [--force] [--verbose]
@@ -52,13 +54,21 @@ for (let i = 0; i < args.length; i++) {
 Usage: node update-readme-swaggers.js [options]
 
 Options:
-  --dry-run     Show what would be updated without making changes
+  --dry-run     Run all operations except creating categories and updating swaggers
   --force       Force update all swagger files regardless of modification time
   --verbose     Enable detailed logging
   --help        Show this help message
 
-The script reads the README API token from mcp_swagger/.dev file and updates
-swagger specifications on README.io for version ${config.readme_version}.
+The script uses README API v2 with Bearer authentication for reliable operations.
+API token is read from mcp_swagger/.dev file and updates are made to version ${config.readme_version}.
+
+Dry-run behavior:
+  - Executes all operations including API calls to read existing data
+  - Skips only the modification operations: creating categories and updating swaggers
+  - Does not save state changes
+  - Shows exactly what would be created/updated
+
+Note: Uses README API v2 (https://api.readme.com/v2) with Bearer authentication.
 
 State tracking:
   - Last update times are stored in mcp_swagger/.update-state.json
@@ -138,23 +148,62 @@ async function getFileModTime(filePath) {
   }
 }
 
-// Execute rdme command
-function executeRdmeCommand(command, description) {
-  if (config.dry_run) {
-    log.info(`[DRY RUN] Would execute: ${command}`);
+// Execute curl command to README API v2
+function executeReadmeApiCall(method, endpoint, description, data = null, isWriteOperation = false) {
+  const apiKey = loadReadmeToken();
+  let command = `curl -s --request ${method} --url "https://api.readme.com/v2${endpoint}" --header "accept: application/json" --header "authorization: Bearer ${apiKey}"`;
+  
+  if (data) {
+    if (typeof data === 'string' && data.startsWith('@')) {
+      // File upload - use multipart/form-data with the correct field name 'schema'
+      command += ` --form "schema=${data}"`;
+    } else {
+      // JSON data
+      command += ` --header "content-type: application/json" --data '${JSON.stringify(data)}'`;
+    }
+  }
+
+  if (config.dry_run && isWriteOperation) {
+    log.info(`[DRY RUN] Would execute: ${command.replace(apiKey, 'xxx')}`);
     return { stdout: 'dry-run-output', success: true };
   }
 
   try {
-    log.verbose(`Executing: ${command}`);
+    log.verbose(`Executing: ${command.replace(apiKey, 'xxx')}`); // Hide API key in logs
     const stdout = execSync(command, { 
-      encoding: 'utf8',
-      env: { ...process.env, README_API_KEY: loadReadmeToken() }
+      encoding: 'utf8'
     });
+    
+    // Check if the response indicates an error (README API returns JSON error responses)
+    try {
+      const response = JSON.parse(stdout);
+      if (response.status && response.status >= 400) {
+        log.error(`${description} - API Error ${response.status}: ${response.title || response.message}`);
+        log.error(`Error detail: ${response.detail || 'No additional details'}`);
+        
+        // Log detailed validation errors if available
+        if (response.errors && Array.isArray(response.errors)) {
+          log.error(`Validation errors:`);
+          response.errors.forEach((error, index) => {
+            log.error(`  ${index + 1}. ${JSON.stringify(error)}`);
+          });
+        }
+        
+        // Log the full response for debugging
+        log.debug(`Full API error response: ${JSON.stringify(response, null, 2)}`);
+        return { stdout, success: false };
+      }
+    } catch (parseError) {
+      // If response isn't JSON, assume it's successful (could be plain text or empty)
+    }
+    
     log.debug(`${description} - Success`);
+    log.debug(`Response: ${stdout}`);  // Log the actual API response
     return { stdout, success: true };
   } catch (error) {
     log.error(`${description} - Failed: ${error.message}`);
+    log.error(`Error stdout: ${error.stdout || 'none'}`);
+    log.error(`Error stderr: ${error.stderr || 'none'}`);
     return { stdout: error.stdout || '', stderr: error.stderr || '', success: false };
   }
 }
@@ -163,44 +212,62 @@ function executeRdmeCommand(command, description) {
 function getExistingCategories() {
   log.verbose('Fetching existing categories from README');
   
-  const result = executeRdmeCommand(
-    `npx rdme categories --version=${config.readme_version}`,
-    'Get categories'
+  const result = executeReadmeApiCall(
+    'GET',
+    `/branches/${config.readme_version}/categories/reference`,
+    'Get reference categories',
+    null,
+    false  // This is a read operation
   );
   
   if (!result.success) {
-    log.error('Failed to fetch existing categories');
-    return [];
+    log.warn('Failed to fetch existing categories - assuming all categories may already exist');
+    log.debug('Category fetch error details:', result.stderr);
+    // Return null to indicate we couldn't fetch categories, rather than empty array
+    return null;
   }
   
   try {
-    // Parse the category list output
+    // Parse the JSON response from README API v2
+    const response = JSON.parse(result.stdout);
     const categories = [];
-    const lines = result.stdout.split('\n');
     
-    for (const line of lines) {
-      // Look for category names (usually in format "- CategoryName" or similar)
-      const match = line.match(/^\s*[-*]\s+(.+?)(?:\s+\(|$)/);
-      if (match) {
-        categories.push(match[1].trim());
-      }
+    // README API v2 format: {"total": N, "data": [...]}
+    if (response.data && Array.isArray(response.data)) {
+      categories.push(...response.data.map(cat => cat.title));
+    } else if (Array.isArray(response)) {
+      // Fallback for direct array format
+      categories.push(...response.map(cat => cat.title || cat.name || cat));
     }
     
-    log.debug(`Found existing categories: ${categories.join(', ')}`);
+    log.debug(`Found existing reference categories: ${categories.join(', ')}`);
     return categories;
   } catch (error) {
-    log.warn(`Failed to parse categories: ${error.message}`);
-    return [];
+    log.warn(`Failed to parse categories response: ${error.message}`);
+    log.debug('Raw response:', result.stdout);
+    return null;
   }
 }
 
 // Create category if it doesn't exist
 function createCategory(categoryName) {
-  log.info(`Creating category: ${categoryName}`);
+  if (config.dry_run) {
+    log.info(`[DRY RUN] Creating category: ${categoryName}`);
+  } else {
+    log.info(`Creating category: ${categoryName}`);
+  }
   
-  const result = executeRdmeCommand(
-    `npx rdme categories create "${categoryName}" --version=${config.readme_version}`,
-    `Create category: ${categoryName}`
+  const categoryData = {
+    title: categoryName,
+    type: 'guide' // Default type for categories
+  };
+  
+  const result = executeReadmeApiCall(
+    'POST',
+    `/branches/${config.readme_version}/categories`,
+    `Create category: ${categoryName}`,
+    categoryData,
+    true  // This is a write operation
   );
   
   return result.success;
@@ -208,11 +275,20 @@ function createCategory(categoryName) {
 
 // Update swagger specification
 function updateSwagger(filePath, categoryName) {
-  log.info(`Updating swagger: ${categoryName} from ${path.basename(filePath)}`);
+  if (config.dry_run) {
+    log.info(`[DRY RUN] Updating swagger: ${categoryName} from ${path.basename(filePath)}`);
+  } else {
+    log.info(`Updating swagger: ${categoryName} from ${path.basename(filePath)}`);
+  }
   
-  const result = executeRdmeCommand(
-    `npx rdme openapi "${filePath}" --version=${config.readme_version} --create --update`,
-    `Update swagger: ${categoryName}`
+  // Use PUT to update existing API definition (filename is the identifier)
+  const fileName = path.basename(filePath);
+  const result = executeReadmeApiCall(
+    'PUT',
+    `/branches/${config.readme_version}/apis/${fileName}`,
+    `Update swagger: ${categoryName}`,
+    `@${filePath}`,
+    true  // This is a write operation
   );
   
   return result.success;
@@ -303,6 +379,11 @@ async function main() {
   
   // Get existing categories
   const existingCategories = getExistingCategories();
+  const canCheckCategories = Array.isArray(existingCategories);
+  
+  if (!canCheckCategories) {
+    log.warn('Unable to fetch existing categories - will attempt to update all files without category validation');
+  }
   
   const summary = {
     total: swaggerFiles.length,
@@ -335,23 +416,27 @@ async function main() {
     
     log.info(`File needs update: ${file.name} (modified: ${new Date(file.modTime).toISOString()})`);
     
-    // Check if category exists
-    const categoryExists = existingCategories.some(cat => 
-      cat.toLowerCase() === file.category.toLowerCase()
-    );
-    
-    if (!categoryExists) {
-      log.warn(`Category does not exist: ${file.category}`);
+    // Check if category exists (only if we can check categories)
+    if (canCheckCategories) {
+      const categoryExists = existingCategories.some(cat => 
+        cat.toLowerCase() === file.category.toLowerCase()
+      );
       
-      if (createCategory(file.category)) {
-        log.info(`Created category: ${file.category}`);
-        summary.categoriesCreated++;
-        existingCategories.push(file.category);
-      } else {
-        log.error(`Failed to create category: ${file.category}`);
-        summary.failed++;
-        continue;
+      if (!categoryExists) {
+        log.warn(`Category does not exist: ${file.category}`);
+        
+        if (createCategory(file.category)) {
+          log.info(`Created category: ${file.category}`);
+          summary.categoriesCreated++;
+          existingCategories.push(file.category);
+        } else {
+          log.error(`Failed to create category: ${file.category}`);
+          summary.failed++;
+          continue;
+        }
       }
+    } else {
+      log.verbose(`Skipping category check for ${file.category} - unable to fetch existing categories`);
     }
     
     // Update swagger
@@ -383,6 +468,10 @@ async function main() {
   console.log(`Failed: ${summary.failed}`);
   console.log(`Categories created: ${summary.categoriesCreated}`);
   
+  if (!canCheckCategories) {
+    console.log('\n⚠️  Note: Could not verify existing categories - some files may have been updated without category validation');
+  }
+  
   if (summary.failed > 0) {
     console.log('\n⚠️  Some updates failed. Check the logs above for details.');
     process.exit(1);
@@ -390,6 +479,9 @@ async function main() {
   
   if (summary.updated > 0 || summary.categoriesCreated > 0) {
     console.log(`\n✅ Successfully updated ${summary.updated} swagger files for README version ${config.readme_version}`);
+    if (summary.categoriesCreated > 0) {
+      console.log(`📁 Created ${summary.categoriesCreated} new categories`);
+    }
   } else {
     console.log('\n📄 All swagger files are up to date');
   }
