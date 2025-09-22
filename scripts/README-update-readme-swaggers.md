@@ -12,7 +12,7 @@ The update process ensures that:
 
 ## Scripts
 
-### 1. `update-readme-swaggers.js` (CLI Version)
+### 1. `scripts/update-readme-swaggers.js` (CLI Version)
 
 Uses the README CLI tool (`rdme`) directly for updates.
 
@@ -196,8 +196,10 @@ mcp_swagger/
 ├── clients.json
 └── ...
 
-update-readme-swaggers.js   # CLI-based update script
-update-readme-mcp.js        # MCP-based update script  
+scripts/
+├── update-readme-swaggers.js   # CLI-based update script
+├── unify-openapi.js            # Unify swagger files by domain
+└── generate-entity-md.js       # Generate entity markdown docs
 ```
 
 ## Dependencies

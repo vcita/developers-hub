@@ -25,13 +25,13 @@ npm install
 ### Basic Usage
 ```bash
 # Run the unification script
-node unify-openapi.js
+node scripts/unify-openapi.js
 
 # With verbose logging
-node unify-openapi.js --verbose
+node scripts/unify-openapi.js --verbose
 
 # Preview what will be processed (dry run)
-node unify-openapi.js --dry-run --verbose
+node scripts/unify-openapi.js --dry-run --verbose
 ```
 
 ## 📁 Directory Structure
@@ -143,7 +143,7 @@ Each generated file includes:
 ## 🖥️ Command Line Options
 
 ```bash
-node unify-openapi.js [options]
+node scripts/unify-openapi.js [options]
 
 Options:
   --input-dir <dir>     Input directory (default: ./swagger)
@@ -157,13 +157,13 @@ Options:
 
 ```bash
 # Custom directories
-node unify-openapi.js --input-dir ./api-specs --output-dir ./unified-apis
+node scripts/unify-openapi.js --input-dir ./api-specs --output-dir ./unified-apis
 
 # Verbose dry run to see what would happen
-node unify-openapi.js --dry-run --verbose
+node scripts/unify-openapi.js --dry-run --verbose
 
 # Custom output directory with verbose logging
-node unify-openapi.js --output-dir ./dist/apis --verbose
+node scripts/unify-openapi.js --output-dir ./dist/apis --verbose
 ```
 
 ## 📈 Script Output
@@ -267,7 +267,7 @@ Each unified file follows this structure:
 ### Verbose Logging
 Use `--verbose` flag to see detailed processing information:
 ```bash
-node unify-openapi.js --verbose
+node scripts/unify-openapi.js --verbose
 ```
 
 ## 📝 NPM Scripts

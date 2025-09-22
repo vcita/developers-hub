@@ -25,6 +25,7 @@ const fs = require('fs-extra');
 const path = require('path');
 const OpenAPIParser = require('@readme/openapi-parser');
 const { execSync } = require('child_process');
+const crypto = require('crypto');
 
 // Configuration
 const config = {
@@ -92,6 +93,34 @@ const log = {
   debug: (msg) => config.verbose && console.log(`[DEBUG] ${msg}`)
 };
 
+// Stable stringify (sorts object keys) for deterministic hashing
+function stableStringify(value) {
+  if (Array.isArray(value)) {
+    return '[' + value.map(v => stableStringify(v)).join(',') + ']';
+  }
+  if (value && typeof value === 'object') {
+    const keys = Object.keys(value).sort();
+    return '{' + keys.map(k => JSON.stringify(k) + ':' + stableStringify(value[k])).join(',') + '}';
+  }
+  return JSON.stringify(value);
+}
+
+// Compute a content hash for a bundled OpenAPI file, ignoring info["x-generated"]
+async function computeSpecHash(bundledPath) {
+  try {
+    const obj = await fs.readJson(bundledPath);
+    if (obj && obj.info && obj.info['x-generated']) {
+      delete obj.info['x-generated'];
+    }
+    const normalized = stableStringify(obj);
+    return crypto.createHash('sha256').update(normalized).digest('hex');
+  } catch (_) {
+    // Fallback to raw file bytes hash
+    const buf = await fs.readFile(bundledPath);
+    return crypto.createHash('sha256').update(buf).digest('hex');
+  }
+}
+
 // Load README API token from .dev file
 function loadReadmeToken() {
   try {
@@ -157,7 +186,19 @@ function executeReadmeApiCall(method, endpoint, description, data = null, isWrit
   let command = `curl -s --request ${method} --url "https://api.readme.com/v2${endpoint}" --header "accept: application/json" --header "authorization: Bearer ${apiKey}"`;
   
   if (data) {
-    if (typeof data === 'string' && data.startsWith('@')) {
+    // Multipart support: data = { __multipart: true, fields: {k:v}, files: {key: '@path'} }
+    if (typeof data === 'object' && data.__multipart) {
+      if (data.fields && typeof data.fields === 'object') {
+        Object.entries(data.fields).forEach(([k, v]) => {
+          command += ` --form "${k}=${String(v)}"`;
+        });
+      }
+      if (data.files && typeof data.files === 'object') {
+        Object.entries(data.files).forEach(([k, v]) => {
+          command += ` --form "${k}=${String(v)}"`;
+        });
+      }
+    } else if (typeof data === 'string' && data.startsWith('@')) {
       if (config.upload_multipart) {
         // Multipart upload: schema=@file
         command += ` --form "schema=${data}"`;
@@ -166,8 +207,18 @@ function executeReadmeApiCall(method, endpoint, description, data = null, isWrit
         command += ` --header "content-type: application/json" --data-binary ${data}`;
       }
     } else {
-      // JSON data object
-      command += ` --header "content-type: application/json" --data '${JSON.stringify(data)}'`;
+      // JSON data object - write to temp file to avoid shell quoting issues
+      try {
+        const tmpDir = path.join(config.mcp_swagger_dir, '.tmp');
+        fs.ensureDirSync(tmpDir);
+        const tmpFile = path.join(tmpDir, `payload_${Date.now()}_${Math.random().toString(36).slice(2)}.json`);
+        fs.writeFileSync(tmpFile, JSON.stringify(data));
+        command += ` --header "content-type: application/json" --data-binary @${tmpFile}`;
+        // Attach temp file path for later cleanup by adding a marker
+        command += `; rm -f ${tmpFile}`;
+      } catch (e) {
+        log.error(`Failed to prepare JSON payload: ${e.message}`);
+      }
     }
   }
 
@@ -267,18 +318,72 @@ function createCategory(categoryName) {
   
   const categoryData = {
     title: categoryName,
-    type: 'guide' // Default type for categories
+    section: 'reference'
   };
-  
+
+  // Retry up to 3 times due to occasional 500s from ReadMe
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const result = executeReadmeApiCall(
+      'POST',
+      `/branches/${config.readme_version}/categories`,
+      `Create category: ${categoryName} (attempt ${attempt})`,
+      categoryData,
+      true
+    );
+    if (result.success) return true;
+  }
+
+  return false;
+}
+
+// Get existing API definitions for a branch (slugs)
+function getExistingApis() {
+  log.verbose('Fetching existing API definitions from README');
   const result = executeReadmeApiCall(
-    'POST',
-    `/branches/${config.readme_version}/categories`,
-    `Create category: ${categoryName}`,
-    categoryData,
-    true  // This is a write operation
+    'GET',
+    `/branches/${config.readme_version}/apis`,
+    'Get API definitions',
+    null,
+    false
   );
-  
-  return result.success;
+
+  if (!result.success) {
+    log.warn('Failed to fetch existing API definitions; will attempt create/update blindly');
+    return null;
+  }
+
+  try {
+    const response = JSON.parse(result.stdout || '{}');
+    const slugs = [];
+    if (Array.isArray(response?.data)) {
+      response.data.forEach(api => {
+        if (api?.filename) slugs.push(api.filename);
+        else if (api?.uri) slugs.push(String(api.uri).split('/').pop());
+      });
+    }
+    log.debug(`Existing API slugs: ${slugs.join(', ')}`);
+    return slugs;
+  } catch (e) {
+    log.warn(`Failed to parse API definitions response: ${e.message}`);
+    return null;
+  }
+}
+
+// Create API definition
+async function createApiDefinition(slug, title, bundledPath) {
+  try {
+    // multipart create
+    const payload = {
+      __multipart: true,
+      fields: { slug, title: title || slug },
+      files: { schema: `@${bundledPath}` }
+    };
+    const result = executeReadmeApiCall('POST', `/branches/${config.readme_version}/apis`, `Create API definition: ${slug}`, payload, true);
+    return result.success;
+  } catch (e) {
+    log.error(`Create API definition failed (${slug}): ${e.message}`);
+    return false;
+  }
 }
 
 // Bundle an OpenAPI file to flatten external $refs
@@ -297,7 +402,7 @@ async function bundleOpenAPISpec(inputPath) {
 }
 
 // Update swagger specification (bundles first to flatten refs)
-async function updateSwagger(filePath, categoryName) {
+async function updateSwagger(filePath, categoryName, existingApiSlugs, previousHash) {
   if (config.dry_run) {
     log.info(`[DRY RUN] Updating swagger: ${categoryName} from ${path.basename(filePath)}`);
   } else {
@@ -306,18 +411,48 @@ async function updateSwagger(filePath, categoryName) {
   
   // Bundle spec to flatten external refs
   const bundledPath = await bundleOpenAPISpec(filePath);
+  const currentHash = await computeSpecHash(bundledPath);
 
   // Use PUT to update existing API definition (filename is the identifier)
   const fileName = path.basename(bundledPath);
+  const slug = fileName;
+
+  // Skip if content unchanged and slug exists
+  if (!config.force && Array.isArray(existingApiSlugs) && existingApiSlugs.includes(slug) && previousHash && previousHash === currentHash) {
+    log.verbose(`No content change for ${slug} (hash match). Skipping update.`);
+    return { success: true, hash: currentHash, skipped: true };
+  }
+
+  // If we know the APIs list and slug isn't present, create first
+  if (Array.isArray(existingApiSlugs) && !existingApiSlugs.includes(slug)) {
+    log.warn(`API definition not found (slug: ${slug}). Creating it.`);
+    const created = await createApiDefinition(slug, categoryName, bundledPath);
+    if (!created) return { success: false };
+    // Created successfully; no need to update again in the same run
+    return { success: true, hash: currentHash };
+  }
+
+  // Update the API definition using multipart (works for updates)
   const result = executeReadmeApiCall(
     'PUT',
-    `/branches/${config.readme_version}/apis/${fileName}`,
+    `/branches/${config.readme_version}/apis/${slug}`,
     `Update swagger: ${categoryName}`,
     `@${bundledPath}`,
-    true  // This is a write operation
+    true
   );
-  
-  return result.success;
+  if (result.success) return { success: true, hash: currentHash };
+
+  // If update still fails with 404 (race or listing failed), try create via JSON payload
+  try {
+    const parsed = JSON.parse(result.stdout || '{}');
+    if (parsed && parsed.status === 404) {
+      log.warn(`Update returned 404 for ${slug}. Creating via JSON payload.`);
+      const created = await createApiDefinition(slug, categoryName, bundledPath);
+      return { success: created, hash: created ? currentHash : undefined };
+    }
+  } catch (_) {}
+
+  return { success: false };
 }
 
 // Get swagger files from mcp_swagger directory
@@ -406,6 +541,9 @@ async function main() {
   // Get existing categories
   const existingCategories = getExistingCategories();
   const canCheckCategories = Array.isArray(existingCategories);
+
+  // Get existing API definitions
+  const existingApiSlugs = getExistingApis();
   
   if (!canCheckCategories) {
     log.warn('Unable to fetch existing categories - will attempt to update all files without category validation');
@@ -419,6 +557,26 @@ async function main() {
     categoriesCreated: 0
   };
   
+  // If possible, ensure categories exist up-front, even if files won't be updated
+  if (canCheckCategories) {
+    for (const file of swaggerFiles) {
+      const categoryExists = existingCategories.some(cat => 
+        cat.toLowerCase() === file.category.toLowerCase()
+      );
+      if (!categoryExists) {
+        if (createCategory(file.category)) {
+          log.info(`Created category: ${file.category}`);
+          summary.categoriesCreated++;
+          existingCategories.push(file.category);
+        } else {
+          log.error(`Failed to create category: ${file.category}`);
+        }
+      }
+    }
+  } else {
+    log.warn('Unable to fetch existing categories - skipping proactive category creation');
+  }
+
   // Process each swagger file
   for (const file of swaggerFiles) {
     log.verbose(`Processing: ${file.name}`);
@@ -432,7 +590,8 @@ async function main() {
     
     // Check if file needs update
     const lastUpdateTime = state.files[file.name]?.lastUpdate || 0;
-    const needsUpdate = config.force || file.modTime > lastUpdateTime;
+    const prevHash = state.files[file.name]?.lastHash;
+    const needsUpdate = config.force || file.modTime > lastUpdateTime || !prevHash; // final decision made inside updateSwagger using hash
     
     if (!needsUpdate) {
       log.verbose(`Skipping ${file.name}: No changes since last update`);
@@ -442,39 +601,27 @@ async function main() {
     
     log.info(`File needs update: ${file.name} (modified: ${new Date(file.modTime).toISOString()})`);
     
-    // Check if category exists (only if we can check categories)
-    if (canCheckCategories) {
-      const categoryExists = existingCategories.some(cat => 
-        cat.toLowerCase() === file.category.toLowerCase()
-      );
-      
-      if (!categoryExists) {
-        log.warn(`Category does not exist: ${file.category}`);
-        
-        if (createCategory(file.category)) {
-          log.info(`Created category: ${file.category}`);
-          summary.categoriesCreated++;
-          existingCategories.push(file.category);
-        } else {
-          log.error(`Failed to create category: ${file.category}`);
-          summary.failed++;
-          continue;
-        }
-      }
-    } else {
+    // Category existence already ensured above; if we couldn't check categories, log and continue
+    if (!canCheckCategories) {
       log.verbose(`Skipping category check for ${file.category} - unable to fetch existing categories`);
     }
     
     // Update swagger
-    if (await updateSwagger(file.path, file.category)) {
-      log.info(`Successfully updated: ${file.category}`);
-      summary.updated++;
+    const result = await updateSwagger(file.path, file.category, existingApiSlugs, prevHash);
+    if (result.success) {
+      if (result.skipped) {
+        summary.skipped++;
+      } else {
+        log.info(`Successfully updated: ${file.category}`);
+        summary.updated++;
+      }
       
       // Update state
       state.files[file.name] = {
         lastUpdate: Date.now(),
         category: file.category,
-        lastModTime: file.modTime
+        lastModTime: file.modTime,
+        lastHash: result.hash || prevHash
       };
     } else {
       log.error(`Failed to update: ${file.category}`);

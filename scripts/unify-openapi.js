@@ -67,7 +67,7 @@ for (let i = 0; i < args.length; i++) {
       break;
     case '--help':
       console.log(`
-Usage: node unify-openapi.js [options]
+Usage: node scripts/unify-openapi.js [options]
 
 Options:
   --input-dir <dir>     Input directory (default: ./swagger)
@@ -424,6 +424,8 @@ function normalizeEndpoints(fileContent, fileName) {
       } else {
         convertedMethods[httpMethod] = operation;
       }
+
+      // Preserve existing operationId values without generating new ones
     }
     
     normalizedPaths[fullPath] = convertedMethods;
@@ -765,7 +767,7 @@ async function processDomain(domainPath, domainName) {
     }
   }
   
-  // Create unified specification
+  // Create unified specification (preserve original tags and path ordering)
   const unifiedSpec = {
     openapi: "3.1.0",
     info: {
