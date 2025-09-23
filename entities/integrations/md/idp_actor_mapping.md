@@ -2,7 +2,7 @@
 
 Maps an external IDP user to an inTandem platform actor (staff or operator).
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -13,9 +13,7 @@ Maps an external IDP user to an inTandem platform actor (staff or operator).
 | created_at | Creation timestamp | string | Yes |
 | updated_at | Last update timestamp | string | Yes |
 
-**Required fields**: `uid`, `idp_user_reference_id`, `actor_type`, `actor_uid`, `created_at`, `updated_at`
-
-### Example
+## Example
 
 JSON
 

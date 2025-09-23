@@ -2,7 +2,7 @@
 
 Captures feedback on AI-generated outputs linked to specific entities.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -14,8 +14,6 @@ Captures feedback on AI-generated outputs linked to specific entities.
 | entity_type | The type of entity this feedback is related to | string (enum: `AISmartReply`, `AIRecommendation`, `AIRecommendedAction`) | Yes |
 | name | The specific name/identifier for the feedback type | string (enum: `[AISmartReply] Business Sent Message UID`, `[AISmartReply] Business Dismiss Reason`) | Yes |
 | entity_uid | The unique identifier of the related entity | string | Yes |
-
-**Required fields**: `uid`, `created_at`, `updated_at`, `type`, `value`, `entity_type`, `entity_uid`, `name`
 
 ### Examples
 

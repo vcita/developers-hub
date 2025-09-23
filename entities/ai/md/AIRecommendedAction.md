@@ -2,7 +2,7 @@
 
 Represents a recommended action based on AI analysis.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -14,10 +14,8 @@ Represents a recommended action based on AI analysis.
 | display | Contains display-related information for the recommendation. | object |  |
 | reason | The reason why this action is recommended, providing context for decision-making. | string | Yes |
 | payload | Additional data related to the recommended action. The structure depends on the action type. | object |  |
-| evidence | A list of supporting statements or facts justifying the recommendation. | array<string> | Yes |
+| evidence | A list of supporting statements or facts justifying the recommendation. | array of strings | Yes |
 | context | The context in which the recommendation was generated. | object |  |
-
-**Required fields**: `uid`, `action`, `reason`, `evidence`, `confidence`
 
 ### Display Properties
 
@@ -32,7 +30,7 @@ Represents a recommended action based on AI analysis.
 | context_uid | A unique identifier for the context associated with this recommendation. | string |  |
 | context_type | The type of context (e.g., 'matter','client', 'business'). | string (enum: `matter`, `client`, `business`) |  |
 
-### Example
+## Example
 
 JSON
 

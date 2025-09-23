@@ -2,7 +2,7 @@
 
 Metadata for a payment gateway integration, including locales, supported regions, methods, and processing features.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -15,15 +15,13 @@ Metadata for a payment gateway integration, including locales, supported regions
 | status | Indicates the current status of the payment gateway: 'active' (available for use), 'disabled' (not available for use), or 'deprecated' (still available but not recommended for new integrations) | string (enum: `active`, `disabled`, `deprecated`) | Yes |
 | created_at | The date and time the payment gateway was created. | string |  |
 | updated_at | The date and time the payment gateway was last updated. | string |  |
-| main_gateway_benefits | A clear 3-4 bullet list highlighting the unique features and value of the gateway, aimed at encouraging merchants to connect with it. This information is stored per locale. | array<object> | Yes |
-| brief_benefit_highlights | A brief, 2-4 word version of the gateway benefits, tailored for compact displays or mobile interfaces. This information is stored per locale. | array<object> | Yes |
-| supported_countries | A list of countries supported by the payment gateway, represented using ISO 3166-1 alpha-2 country codes. | array<string> | Yes |
-| supported_currencies | A list of currencies supported by the payment gateway, represented using ISO 4217 format. | array<string> | Yes |
+| main_gateway_benefits | A clear 3-4 bullet list highlighting the unique features and value of the gateway, aimed at encouraging merchants to connect with it. This information is stored per locale. | array of objects | Yes |
+| brief_benefit_highlights | A brief, 2-4 word version of the gateway benefits, tailored for compact displays or mobile interfaces. This information is stored per locale. | array of objects | Yes |
+| supported_countries | A list of countries supported by the payment gateway, represented using ISO 3166-1 alpha-2 country codes. | array of strings | Yes |
+| supported_currencies | A list of currencies supported by the payment gateway, represented using ISO 4217 format. | array of strings | Yes |
 | minimum_charge_amount | The minimum value that can be charged using the payment gateway. | number |  |
 | payment_methods | The payment methods supported by the gateway. | object | Yes |
 | processing_features | The features the payment gateway supports and their current state (enabled/disabled). | object | Yes |
-
-**Required fields**: `app_code_name`, `gateway_logo_url`, `default_locale`, `gateway_type`, `status`, `main_gateway_benefits`, `brief_benefit_highlights`, `supported_countries`, `supported_currencies`, `payment_methods`, `processing_features`
 
 ### Payment Methods Properties
 
@@ -48,7 +46,7 @@ Metadata for a payment gateway integration, including locales, supported regions
 | client_save_card_standalone | Indicates if clients can save cards on file through a standalone flow. | boolean | Yes |
 | save_card_by_business | Indicates if the gateway supports saving cards on file from the business side. | boolean | Yes |
 
-### Example
+## Example
 
 JSON
 

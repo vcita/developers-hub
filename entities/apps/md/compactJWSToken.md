@@ -2,7 +2,7 @@
 
 A compact JWS token object that is used to authenticate a staff member to an inTandem app using a JWKS process. The token is signed by the app's private key and can be verified by the inTandem platform's public key
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -11,7 +11,7 @@ A compact JWS token object that is used to authenticate a staff member to an inT
 | expiry_date | The date and time the token will expire | string |  |
 | app_code_name | The code name of the app that the token is generated for | string |  |
 
-### Example
+## Example
 
 JSON
 

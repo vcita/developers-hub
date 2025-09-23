@@ -2,7 +2,7 @@
 
 An access to capability that can be granted to a Staff member
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -14,9 +14,7 @@ An access to capability that can be granted to a Staff member
 | created_at | Date the BusinessRole was created | string | Yes |
 | updated_at | Date the BuinsessRole was last updated | string | Yes |
 
-**Required fields**: `unique_code`, `name`, `description`, `created_at`, `updated_at`
-
-### Example
+## Example
 
 JSON
 

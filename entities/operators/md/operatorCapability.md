@@ -2,7 +2,7 @@
 
 An ability in the system that can be granted to an operator (internal and external)
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -12,9 +12,7 @@ An ability in the system that can be granted to an operator (internal and extern
 | name | The name of the permission shown to the user in English  | string | Yes |
 | description | The description of the permission shown to the user in English | string | Yes |
 
-**Required fields**: `unique_code`, `name`, `description`, `created_at`, `updated_at`
-
-### Example
+## Example
 
 JSON
 

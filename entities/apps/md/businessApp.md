@@ -2,7 +2,7 @@
 
 Represents an app installed for a business, including installation state.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -13,9 +13,7 @@ Represents an app installed for a business, including installation state.
 | app_id | The unique identifier of the app. | number | Yes |
 | installed | Indicates whether or not the app is installed for the business. | boolean | Yes |
 
-**Required fields**: `business_uid`, `app_id`, `installed`
-
-### Example
+## Example
 
 JSON
 

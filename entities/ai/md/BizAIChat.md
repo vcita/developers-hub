@@ -2,7 +2,7 @@
 
 Represents a business AI chat session, including agent, metadata, and audit timestamps.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -13,9 +13,7 @@ Represents a business AI chat session, including agent, metadata, and audit time
 | created_at | Date the chat was created | string | Yes |
 | updated_at | Date the chat was last updated | string | Yes |
 
-**Required fields**: `uid`, `actor_uid`, `agent`, `metadata`, `created_at`, `updated_at`
-
-### Example
+## Example
 
 JSON
 

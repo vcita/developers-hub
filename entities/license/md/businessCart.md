@@ -1,8 +1,8 @@
 ## BusinessCart
 
-Represents a business cart containing offerings to be purchased and calculated totals.
+A businessCart object represents a temporary collection of products, organized as cart items, that a business plans to purchase.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -10,7 +10,5 @@ Represents a business cart containing offerings to be purchased and calculated t
 | created_at | Timestamp when the entity was created | string | Yes |
 | updated_at | Timestamp when the entity was last updated | string | Yes |
 | business_uid | Unique identifier of the business | string | Yes |
-| business_cart_items |  | array<ref to businessCartItem.json> | Yes |
+| business_cart_items |  | array of ref to businessCartItem.jsons | Yes |
 | cart_total | Calculated field | number |  |
-
-**Required fields**: `uid`, `business_uid`, `created_at`, `updated_at`, `business_cart_items`

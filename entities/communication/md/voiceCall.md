@@ -2,7 +2,7 @@
 
 Represents a phone call record, including participants, status, recording and audit timestamps.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -25,7 +25,7 @@ Represents a phone call record, including participants, status, recording and au
 | handled_at | The date and time when the call was handled | string |  |
 | deleted_at | Time the call was deleted - is null if the call is not deleted | string |  |
 
-### Example
+## Example
 
 JSON
 

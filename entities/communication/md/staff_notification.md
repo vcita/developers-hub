@@ -2,7 +2,7 @@
 
 An instance of a notification sent to a staff member, including delivery content and statuses.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -10,16 +10,14 @@ An instance of a notification sent to a staff member, including delivery content
 | staff_uid | The unique identifier of the staff member associated with this notification. | string | Yes |
 | notification_template_code_name | The code name identifying the notification template to be used. | string | Yes |
 | locale | The language locale for the notification content. | string (enum: `en`, `fr`, `de`, `it`, `pl`, `pt`, `es`, `nl`, `he`, `sl`, `en_gb`) | Yes |
-| params | Additional parameters for populating notification templates. | array<object> |  |
+| params | Additional parameters for populating notification templates. | array of objects |  |
 | staff_portal_content | Settings for pane notifications | object |  |
 | email_content | Settings for email notifications | object |  |
 | push_status | The current delivery status of the push notification. | string (enum: `sent`, `failed`) |  |
 | pane_status | The current delivery status of the pane notification. | string (enum: `sent`, `read`, `failed`) |  |
-| email_status | History of delivery statuses for the email notification. Each entry represents a status the notification has passed through, in chronological order. | array<string> |  |
+| email_status | History of delivery statuses for the email notification. Each entry represents a status the notification has passed through, in chronological order. | array of strings |  |
 | created_at | The date and time when the staff notification was created, in ISO 8601 format. | string | Yes |
 | updated_at | The date and time when the staff notification was last updated, in ISO 8601 format. | string | Yes |
-
-**Required fields**: `uid`, `staff_uid`, `notification_template_code_name`, `locale`, `created_at`, `updated_at`
 
 ### Staff Portal Content Properties
 
@@ -43,7 +41,7 @@ An instance of a notification sent to a staff member, including delivery content
 | primary_cta_button | Call-to-action button details. | object |  |
 | secondary_cta_button | Secondary call-to-action button details. | object |  |
 
-### Example
+## Example
 
 JSON
 

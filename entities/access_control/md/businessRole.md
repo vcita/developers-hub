@@ -2,7 +2,7 @@
 
 A role is a named set of default permissions for a business account. For example, admin, manager etc.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -11,14 +11,12 @@ A role is a named set of default permissions for a business account. For example
 | code | A unique readable code for the role | string |  |
 | name | The role name as it's presented in the UI. By default, it will be assigned from the original permission, but can be overridden for a specific business | string | Yes |
 | description | The role description as it’s presented in the UI. By default, it will be assigned from the original permission, but can be overridden for a specific business | string | Yes |
-| permissions | A list of permissions that are assigned to the role by default | array<object> | Yes |
+| permissions | A list of permissions that are assigned to the role by default | array of objects | Yes |
 | is_editable | A flag to indicate if the role can be edited by the business. By default, system roles are not editable | boolean |  |
 | created_at | Date the BusinessRole was created | string | Yes |
 | updated_at | Date the BusinessRole was last updated | string | Yes |
 
-**Required fields**: `uid`, `business_uid`, `name`, `description`, `permissions`, `created_at`, `updated_at`
-
-### Example
+## Example
 
 JSON
 

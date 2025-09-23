@@ -2,7 +2,7 @@
 
 Defines voice call settings for a staff member/business, including forwarding, policies, and scripts.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -33,9 +33,7 @@ method: the HTTP method that should be used (GET/POST) | object |  |
 | updated_at | The date and time when the VoiceCallSetting entity was updated | string |  |
 | deleted_at | The date and time when the VoiceCallSetting entity was deleted | string |  |
 
-**Required fields**: `forward_call`, `forwarding_enabled`
-
-### Example
+## Example
 
 JSON
 

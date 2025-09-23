@@ -2,7 +2,7 @@
 
 The Directory entity.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -16,8 +16,6 @@ The Directory entity.
 | created_at | Timestamp when the directory was created. | string | Yes |
 | updated_at | Timestamp when the directory was last updated. | string | Yes |
 | urls | Collection of setup URLs related to the directory. | object |  |
-
-**Required fields**: `uid`, `name`, `created_at`, `updated_at`
 
 ### Urls Properties
 
@@ -33,7 +31,7 @@ The Directory entity.
 | login_url | Login URL for the directory. When user is directed to login, the platform will redirect to this URL | string |  |
 | backoffice_url | Operator Portal Backoffice URL for the directory. | string |  |
 
-### Example
+## Example
 
 JSON
 

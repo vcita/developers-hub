@@ -2,7 +2,7 @@
 
 Metadata definition for notification templates and delivery settings.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -12,13 +12,11 @@ Metadata definition for notification templates and delivery settings.
 | description | A brief explanation that appears in the staff portal notification settings to help them understand what this notification is for and when it will be triggered. | ref to localizedTextList | Yes |
 | category | The functional category this notification belongs to (e.g., "payments", "booking", "documents"). | string (enum: `payments`, `clients`, `calendar`, `booking`, `marketing`, `teamchat`, `scheduling`, `advertising`, `group_events`, `documents`, `messages`, `reviews`, `social`, `account`) | Yes |
 | configurable_by_staff | Boolean flag that determines whether staff members can customize or modify this notification template through the staff portal. | boolean | Yes |
-| delivery_channel | List of delivery channels for the notification. | array<string> | Yes |
+| delivery_channel | List of delivery channels for the notification. | array of strings | Yes |
 | trigger_type | Type of trigger for the notification. | string (enum: `system`, `client`) | Yes |
 | content | Notification content for 'email' and/or 'staff_portal'. | object | Yes |
 | created_at | ISO8601 timestamp of when the entity was created. | string | Yes |
 | updated_at | ISO8601 timestamp of the last update to the entity. | string | Yes |
-
-**Required fields**: `uid`, `code_name`, `title`, `description`, `category`, `configurable_by_staff`, `delivery_channel`, `trigger_type`, `content`, `created_at`, `updated_at`
 
 ### Content Properties
 
@@ -27,7 +25,7 @@ Metadata definition for notification templates and delivery settings.
 | staff_portal |  | object |  |
 | email |  | object |  |
 
-### Example
+## Example
 
 JSON
 

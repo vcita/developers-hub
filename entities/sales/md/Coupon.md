@@ -2,7 +2,7 @@
 
 Represents a discount coupon with validity window, scope, and redemption limits.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -13,8 +13,8 @@ Represents a discount coupon with validity window, scope, and redemption limits.
 | discount_value | The discount amount (decimal) given by applying the coupon. If the coupon type is "fixed" then the amount is the discount given, keeping the same currency as the item ($5.5). If the type is "percent" then the amount is the discount percent from the original price (5.3%) | number | Yes |
 | coupon_code | A unique identifier or code for the coupon | string | Yes |
 | status | The status of the coupon | string (enum: `active`, `scheduled`, `expired`) |  |
-| valid_for_services | A list of services (UIDs) where the coupon can be applied | array<string> |  |
-| valid_for_staff | A list of staff (UIDs) where the coupon can be applied | array<string> |  |
+| valid_for_services | A list of services (UIDs) where the coupon can be applied | array of strings |  |
+| valid_for_staff | A list of staff (UIDs) where the coupon can be applied | array of strings |  |
 | start_date | The start date when the coupon becomes active, in ISO 8601 format | string | Yes |
 | expiration_date | The expiry date when the coupon is no longer valid, in ISO 8601 format | string | Yes |
 | max_redemptions | The maximum number of times the coupon can be used | number |  |
@@ -23,9 +23,7 @@ Represents a discount coupon with validity window, scope, and redemption limits.
 | created_at | The creation date and time of the coupon, in ISO 8601 format | string |  |
 | updated_at | Updated date and time of the coupon, in ISO 8601 format | string |  |
 
-**Required fields**: `uid`, `coupon_name`, `discount_type`, `discount_value`, `coupon_code`, `start_date`, `expiration_date`
-
-### Example
+## Example
 
 JSON
 

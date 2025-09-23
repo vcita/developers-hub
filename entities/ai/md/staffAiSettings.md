@@ -2,7 +2,7 @@
 
 AI settings configuration for a staff member, controlling which AI features and recommendations are enabled
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -11,8 +11,6 @@ AI settings configuration for a staff member, controlling which AI features and 
 | created_at | The timestamp when the settings were created, in ISO 8601 format | string |  |
 | updated_at | The timestamp when the settings were last updated, in ISO 8601 format | string |  |
 
-**Required fields**: `staff_uid`, `ai_recommendations`
-
 ### Ai Recommendations Properties
 
 | Name | Description | Type | Required |
@@ -20,7 +18,7 @@ AI settings configuration for a staff member, controlling which AI features and 
 | enable | Whether AI recommendations are enabled for this staff member | boolean | Yes |
 | sub_options | Specific AI recommendation sub-options that can be enabled or disabled individually | object | Yes |
 
-### Example
+## Example
 
 JSON
 

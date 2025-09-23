@@ -2,7 +2,7 @@
 
 Configures external review sharing settings for a business by platform.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -14,9 +14,7 @@ Configures external review sharing settings for a business by platform.
 | platform_name | The name of the external review platform | string (enum: `Google`, `Facebook`) |  |
 | platform_params | Platform-specific parameters needed to properly route the review | object |  |
 
-**Required fields**: `business_uid`
-
-### Example
+## Example
 
 JSON
 

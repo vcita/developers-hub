@@ -2,7 +2,7 @@
 
 A payment gateway assignment entity that defines the relationship between a payment gateway and a directory.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -12,9 +12,7 @@ A payment gateway assignment entity that defines the relationship between a paym
 | created_at | The date and time when the payment gateway assignment was created. | string |  |
 | updated_at | The date and time when the payment gateway assignment was last updated. | string |  |
 
-**Required fields**: `gateway_uid`, `directory_uid`
-
-### Example
+## Example
 
 JSON
 

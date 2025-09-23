@@ -2,7 +2,7 @@
 
 A schedulable resource instance (e.g., room, equipment) belonging to a resource type.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -13,9 +13,7 @@ A schedulable resource instance (e.g., room, equipment) belonging to a resource 
 | name | The name of the resource | string | Yes |
 | deleted_at | Soft delete timestamp. Null for active resources | string |  |
 
-**Required fields**: `name`, `resource_type_uid`
-
-### Example
+## Example
 
 JSON
 

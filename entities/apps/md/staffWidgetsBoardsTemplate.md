@@ -2,7 +2,7 @@
 
 Defines the default widget board template for all members within a directory
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -13,7 +13,7 @@ Defines the default widget board template for all members within a directory
 | created_at | The timestamp indicating when the template was created, in ISO 8601 format | string |  |
 | updated_at | The timestamp indicating the last time the template was updated, in ISO 8601 format | string |  |
 
-### Example
+## Example
 
 JSON
 

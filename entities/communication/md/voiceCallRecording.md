@@ -2,7 +2,7 @@
 
 Metadata for an external call recording, including storage and lifecycle fields.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -16,9 +16,7 @@ Metadata for an external call recording, including storage and lifecycle fields.
 | updated_at | The date and time when the recording entity was last updated | string |  |
 | deleted_at | The date and time when the recording was deleted | string |  |
 
-**Required fields**: `external_uid`, `size`, `duration`, `started_at`
-
-### Example
+## Example
 
 JSON
 

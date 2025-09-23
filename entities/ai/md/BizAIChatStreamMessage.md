@@ -2,7 +2,7 @@
 
 Represents a streamed token chunk for a BizAI chat message, with finish state.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -10,9 +10,7 @@ Represents a streamed token chunk for a BizAI chat message, with finish state.
 | delta | Token that is part of the content of the message | string | Yes |
 | finish_reason | The reason the stream has finished. If null, the stream is did not finish yet | string | Yes |
 
-**Required fields**: `uid`, `delta`, `finish_reason`
-
-### Example
+## Example
 
 JSON
 

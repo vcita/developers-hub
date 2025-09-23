@@ -2,7 +2,7 @@
 
 Defines a plan package's quotas, settings, and included features.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -14,9 +14,7 @@ Defines a plan package's quotas, settings, and included features.
 | free | Indicates if this is a free plan package. | boolean | Yes |
 | created_at | Timestamp when the plan package was created. | string | Yes |
 | updated_at | Timestamp when the plan package was last updated. | string | Yes |
-| features | List of features included in the plan package. | array<object> | Yes |
-
-**Required fields**: `id`, `name`, `display_name`, `staff_slots`, `free`, `created_at`, `updated_at`, `features`
+| features | List of features included in the plan package. | array of objects | Yes |
 
 ### Quotas Properties
 
@@ -39,7 +37,7 @@ Defines a plan package's quotas, settings, and included features.
 | disable_staff_slots | Whether staff slots are disabled. | boolean |  |
 | disable_sms_purchase_button | Whether the SMS purchase button is disabled. | boolean |  |
 
-### Example
+## Example
 
 JSON
 

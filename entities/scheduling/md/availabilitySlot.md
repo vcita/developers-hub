@@ -2,17 +2,15 @@
 
 Represents a time window and the entities available for booking within it.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
 | start | Start date and time of the availability slot | string | Yes |
 | end | End date and time of the availability slot | string | Yes |
-| available_entities | List of available entities for this time slot | array<object> | Yes |
+| available_entities | List of available entities for this time slot | array of objects | Yes |
 
-**Required fields**: `start`, `end`, `available_entities`
-
-### Example
+## Example
 
 JSON
 

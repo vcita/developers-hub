@@ -1,17 +1,15 @@
 ## BusinessAvailability
 
-Represents a business's available booking time slots.
+A BusinessBookingSlots entity represents the available booking time slots for a business. It includes an array of available time slots in ISO 8601 format and a unique identifier for the business account.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
-| booking_slots | Array of available booking time slots in ISO format | array<string> | Yes |
+| booking_slots | Array of available booking time slots in ISO format | array of strings | Yes |
 | business_uid | Unique identifier for a business account | string | Yes |
 
-**Required fields**: `booking_slots`, `business_uid`
-
-### Example
+## Example
 
 JSON
 

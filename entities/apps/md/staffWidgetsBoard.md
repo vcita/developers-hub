@@ -2,18 +2,18 @@
 
 Defines a staff member's dashboard board layout and its widget sections.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
 | uid | Unique identifier of the staffWidgetsBoard object | string |  |
 | board_layout_code_name | A string representing the board layout | string (enum: `MainAndSideBar2Columns`) |  |
 | type | the grid frame of the layout, determines the layout frame containing the board | string (enum: `home`) |  |
-| sections | An array of dashboard sections. Each section contains a set of properties defining it and a list of widgets that will be populated into the section once it is displayed | array<object> |  |
+| sections | An array of dashboard sections. Each section contains a set of properties defining it and a list of widgets that will be populated into the section once it is displayed | array of objects |  |
 | created_at | The time the staffWidgetsBoard was created | string |  |
 | updated_at | The time the staffWidgetsBoard was last updated | string |  |
 
-### Example
+## Example
 
 JSON
 

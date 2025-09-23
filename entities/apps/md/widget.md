@@ -2,14 +2,14 @@
 
 A widget that can be added to the dashboard to display information or functionality
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
 | uid | Unique identifier of the dashboardWidget object | string |  |
 | app_code_name | The code name of the app that owns the widget | string |  |
 | display_name | The widget display name in different languages | object |  |
-| permissions | The permissions required for the widget to show up for a staff member. If it is **null**, no restrictions will be enforced | array<unknown> |  |
+| permissions | The permissions required for the widget to show up for a staff member. If it is **null**, no restrictions will be enforced | array of unknowns |  |
 | module | The module (FF) requeired for the widget to show up for a staff member | string |  |
 | component_data | a configuration object that is passed to the widget to initialize it. Can vary based on the widget class | object |  |
 | dimensions | The dimensions of the widget in grid units | object |  |
@@ -27,7 +27,7 @@ A widget that can be added to the dashboard to display information or functional
 | max_width | the maximum width of the widget in grid units | integer | Yes |
 | max_height | the maximum height of the widget in grid units | integer | Yes |
 
-### Example
+## Example
 
 JSON
 

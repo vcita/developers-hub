@@ -2,7 +2,7 @@
 
 Represents a scheduled appointment, including timing, participants, pricing, and state.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -31,7 +31,7 @@ Represents a scheduled appointment, including timing, participants, pricing, and
 | initiator | Entity that initiated the appointment | string |  |
 | interaction_details | Details regarding the interaction for the appointment | string |  |
 | interaction_type | Type of interaction for the appointment | string (enum: `client_location`, `business_location`, `virtual`) |  |
-| invoices | List of invoices associated with the appointment | array<object> |  |
+| invoices | List of invoices associated with the appointment | array of objects |  |
 | is_recurring | Indicates whether the appointment is recurring | boolean |  |
 | last_action_message | Message associated with the last action taken | string |  |
 | linked_booking_uid | UID of a linked booking, if applicable | string |  |
@@ -40,7 +40,7 @@ Represents a scheduled appointment, including timing, participants, pricing, and
 | min_hours_before_meeting | Minimum number of hours before the meeting can be booked | integer |  |
 | no_show | Indicates whether the client did not show up | boolean |  |
 | notes | Additional notes for the appointment | string |  |
-| optional_times | Array of optional times available for rescheduling | array<string> |  |
+| optional_times | Array of optional times available for rescheduling | array of strings |  |
 | payment_uid | Identifier for the payment, if applicable | string |  |
 | payment_status | Status of the payment | string |  |
 | price | Price of the appointment | string |  |

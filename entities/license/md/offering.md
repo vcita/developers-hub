@@ -1,8 +1,8 @@
 ## Offering
 
-Defines a sellable offering backed by a single SKU, pricing, and payment terms.
+An Offering represents a commercial agreement in the inTandem platform, describing the various attributes of the commercial terms, including pricing, type, and additional metadata.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -16,15 +16,13 @@ Defines a sellable offering backed by a single SKU, pricing, and payment terms.
 | payment_type | The payment type field defines the payment options available for an offering,**external**: Payment is not done by the platform (typically an API call from the partner), **free**: No payment is required; **single_charge**: A single, one-time payment is required to obtain the offering; **monthly**: A recurring payment made on a monthly basis; **annual**: A recurring payment made on a yearly basis; **bundle**: A subscription bundled with another subscription | string (enum: `monthly`, `annualy`, `free`, `single_charge`, `external`, `bundle`) | Yes |
 | is_active | Current status of the directory offering | boolean |  |
 | vendor | The business entity or vendor that offers this SKU. | string (enum: `partner`, `inTandem`) |  |
-| prices |  | array<object> | Yes |
+| prices |  | array of objects | Yes |
 | enable_trial | Whether or not this offering supports trial period | boolean |  |
 | trial_type | Specifies how the trial option is managed. Currently, only expired is supported. Future values are - Automatic charge - when the trial period ends, automatically start charging as set in the pricing; Manually charge - when the trial ends, the subscription stays active without charging; Expire - when the trial ends, expire the subscription. | string (enum: `expire`) |  |
 | trial_period | Number of days for the trial period. If not specified or set to 0, it indicates no trial period is offered. | number |  |
-| reporting_tags | A list of tags to be used for reporting purposes | array<string> |  |
+| reporting_tags | A list of tags to be used for reporting purposes | array of strings |  |
 
-**Required fields**: `type`, `SKU`, `display_name`, `quantity`, `payment_type`, `prices`
-
-### Example
+## Example
 
 JSON
 

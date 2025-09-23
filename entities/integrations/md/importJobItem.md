@@ -2,7 +2,7 @@
 
 Represents a single record processed by an import job, with action and status.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -16,9 +16,7 @@ Represents a single record processed by an import job, with action and status.
 | created_at | Creation timestamp | string | Yes |
 | updated_at | Last update timestamp | string | Yes |
 
-**Required fields**: `uid`, `import_job_uid`, `action`, `line_number`, `status`, `created_at`, `updated_at`
-
-### Example
+## Example
 
 JSON
 

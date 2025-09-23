@@ -2,7 +2,7 @@
 
 The OperatorBusinessToken entity.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -13,9 +13,7 @@ The OperatorBusinessToken entity.
 | acting_as | The type of the actor, operator - acting as the operator; staff - acting on behlaf of a staff member | string (enum: `operator`, `staff`) |  |
 | jwt_token |  | string | Yes |
 
-**Required fields**: `uid`, `created_at`, `expire_at`, `actor_type`, `actor_uid`, `jwt_token`
-
-### Example
+## Example
 
 JSON
 

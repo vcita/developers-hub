@@ -23,7 +23,7 @@ function renderType(schema) {
     return `ref to ${name}`;
   }
   if (schema.type === 'array') {
-    return `array<${renderType(schema.items)}>`;
+    return `array of ${renderType(schema.items)}s`;
   }
   if (schema.type) return schema.type;
   return 'object';
@@ -79,7 +79,7 @@ function generateMarkdown(entityName, schema) {
   let sections = [header];
 
   if (propsTable) {
-    sections.push('\n\n### Properties\n\n' + propsTable + requiredList);
+    sections.push('\n\n## Properties\n\n' + propsTable);
   }
 
   // Render nested known objects as subsections for one level (display/context/target/status etc.)
@@ -95,7 +95,7 @@ function generateMarkdown(entityName, schema) {
   }
 
   if (schema.example) {
-    sections.push('\n\n### Example\n\n' + renderExample(schema.example));
+    sections.push('\n\n## Example\n\n' + renderExample(schema.example));
   }
 
   // Support OpenAPI-style examples array as well

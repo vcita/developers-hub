@@ -2,7 +2,7 @@
 
 Represents an available phone number that can be purchased, including country and area code.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -10,9 +10,7 @@ Represents an available phone number that can be purchased, including country an
 | area_code | The area code portion of the phone number. For North American numbers, this is typically a 3-digit code that identifies the geographic region (e.g., 302 for Delaware). | string | Yes |
 | phone_number | The complete phone number in E.164 format without formatting (e.g., "12127654321"). This is the actual phone number available for purchase from the telecom provider. | string | Yes |
 
-**Required fields**: `country_code`, `area_code`, `phone_number`
-
-### Example
+## Example
 
 JSON
 

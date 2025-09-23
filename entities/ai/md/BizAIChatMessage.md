@@ -2,7 +2,7 @@
 
 Represents a single message within a BizAI chat, including author role and timestamps.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -12,9 +12,7 @@ Represents a single message within a BizAI chat, including author role and times
 | created_at | The date the message was created | string | Yes |
 | updated_at | The date the message was last updated | string | Yes |
 
-**Required fields**: `uid`, `content`, `author_role`, `created_at`, `updated_at`
-
-### Example
+## Example
 
 JSON
 

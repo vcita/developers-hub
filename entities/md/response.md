@@ -2,11 +2,9 @@
 
 Generic wrapper object for API responses, containing a success flag and a data payload.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
 | success |  | boolean | Yes |
 | data |  | object | Yes |
-
-**Required fields**: `success`, `data`

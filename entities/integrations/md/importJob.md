@@ -2,7 +2,7 @@
 
 Defines an import job for validating or executing bulk data imports, with progress and metadata.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -17,8 +17,6 @@ Defines an import job for validating or executing bulk data imports, with progre
 | created_at | Creation timestamp | string | Yes |
 | updated_at | Last update timestamp | string | Yes |
 | metadata | Additional metadata for the import job | object |  |
-
-**Required fields**: `uid`, `provider_type`, `provider_data`, `job_type`, `status`, `error_message`, `progress`, `created_at`, `updated_at`
 
 ### Progress Properties
 
@@ -37,7 +35,7 @@ Defines an import job for validating or executing bulk data imports, with progre
 | locale | Locale setting for the import job | string |  |
 | shared_entity_data | Shared entity data for the import job, this data is shared between all the import job items | object |  |
 
-### Example
+## Example
 
 JSON
 

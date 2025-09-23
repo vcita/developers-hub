@@ -1,8 +1,8 @@
 ## DirectoryOffering
 
-Grants a directory permission to sell a specific offering.
+The directoryOffering represents the association of a directory with an offering, allowing the directory to provide the underlying product to its businesses under a specific commercial agreement.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -12,9 +12,7 @@ Grants a directory permission to sell a specific offering.
 | directory_uid | Unique identifier for a directory. Defines which directory is authorized to sell this offering. | string | Yes |
 | offering_uid | Unique identifier for an offering. Defines an offering the directory is authorized to sell. | string | Yes |
 
-**Required fields**: `uid`, `directory_uid`, `offering_uid`
-
-### Example
+## Example
 
 JSON
 

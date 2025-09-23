@@ -2,7 +2,7 @@
 
 The BusinessCartItem entity.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |

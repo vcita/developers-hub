@@ -2,7 +2,7 @@
 
 Associates an operator with a role, granting them the capabilities defined for that role.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -11,9 +11,7 @@ Associates an operator with a role, granting them the capabilities defined for t
 | operator_uid | The unique identifier (UID) of the Operator | string |  |
 | operators_role_uid | A unique identifier (UID) of the associated OperatorsRole | string | Yes |
 
-**Required fields**: `staff_uid`, `operators_role_uid`, `created_at`, `updated_at`
-
-### Example
+## Example
 
 JSON
 

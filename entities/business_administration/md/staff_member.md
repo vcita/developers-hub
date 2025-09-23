@@ -2,7 +2,7 @@
 
 Represents a staff member profile within a business, including identity and settings.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -26,9 +26,7 @@ Represents a staff member profile within a business, including identity and sett
 | created_at | The date and time when the staff member was created, in ISO 8601 format. | string |  |
 | updated_at | The date and time when the staff member was last updated, in ISO 8601 format. | string |  |
 
-**Required fields**: `business_uid`, `first_name`, `last_name`, `email`, `role`
-
-### Example
+## Example
 
 JSON
 

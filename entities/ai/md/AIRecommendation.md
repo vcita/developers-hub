@@ -2,21 +2,19 @@
 
 The AIRecommendation entity.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
 | uid | A unique identifier for the recommendation. | string | Yes |
 | created_at | The timestamp when the recommendation was created, in ISO 8601 format. | string |  |
 | updated_at | The timestamp when the recommendation was last updated, in ISO 8601 format. | string |  |
-| actions | A list of recommended actions related to this entity. | array<ref to AIRecommendedAction.json> | Yes |
+| actions | A list of recommended actions related to this entity. | array of ref to AIRecommendedAction.jsons | Yes |
 | display | Contains display-related information for the recommendation. | object | Yes |
 | reason | A brief explanation of why the recommendation was generated. | string |  |
 | context | The context in which the recommendation was generated. | object | Yes |
 | target | The target entity for this recommendation, typically representing the user or business involved. | object | Yes |
 | status |  | object | Yes |
-
-**Required fields**: `uid`, `actions`, `display`, `context`, `target`, `status`
 
 ### Display Properties
 
@@ -45,7 +43,7 @@ The AIRecommendation entity.
 | dismissed | Indicates whether the recommendation has been dismissed. | boolean |  |
 | dismissed_source_type |  | string (enum: `user`, `system`) |  |
 
-### Example
+## Example
 
 JSON
 

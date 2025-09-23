@@ -2,7 +2,7 @@
 
 A role is a named set of capabilities for operators. For example, admin, manager etc.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -12,11 +12,9 @@ A role is a named set of capabilities for operators. For example, admin, manager
 | code | A unique readable code for the role | string | Yes |
 | name | The role name | string | Yes |
 | description | The role description | string | Yes |
-| capabilities | A list of permissions that are assigned to the role | array<string> | Yes |
+| capabilities | A list of permissions that are assigned to the role | array of strings | Yes |
 
-**Required fields**: `uid`, `created_at`, `updated_at`, `code`, `name`, `description`, `capabilities`
-
-### Example
+## Example
 
 JSON
 

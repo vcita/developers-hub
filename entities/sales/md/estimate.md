@@ -1,8 +1,8 @@
 ## Estimate
 
-The Estimate entity.
+A sales estimate document with items, totals, client details, and status.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -19,13 +19,11 @@ The Estimate entity.
 | amount | Total amount of the estimate | number | Yes |
 | currency | Currency used for the estimate | string (enum: `USD`, `EUR`, `GBP`) | Yes |
 | status | The current status of the estimate | string (enum: `draft`, `issued`, `approved`, `rejected`, `invoiced`) | Yes |
-| items |  | array<object> | Yes |
+| items |  | array of objects | Yes |
 | note | Additional note regarding the estimate | string |  |
 | source_data |  | object |  |
 | staff_uid | Identifier for the staff member handling the estimate | string |  |
 | title | Title of the estimate | string |  |
-
-**Required fields**: `estimate_number`, `estimate_date`, `due_date`, `client_id`, `client_name`, `amount`, `currency`, `status`, `items`
 
 ### Source Data Properties
 
@@ -36,7 +34,7 @@ The Estimate entity.
 | name | Source name | string |  |
 | website_url | Website URL related to the estimate | string |  |
 
-### Example
+## Example
 
 JSON
 

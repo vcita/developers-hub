@@ -2,7 +2,7 @@
 
 A business-owned phone number with enabled features and lifecycle metadata.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -10,12 +10,12 @@ A business-owned phone number with enabled features and lifecycle metadata.
 | business_uid | Unique identifier of the business that owns this phone number. | string |  |
 | phone_number | The complete phone number in E.164 format without formatting (e.g., "12127654321"). This is the actual phone number that was purchased from the telecom provider. | string |  |
 | country_code | ISO 3166-1 alpha-2 country code indicating the country where the phone number is registered (e.g., "US" for United States, "CA" for Canada). | string |  |
-| features | List of telephony features to enable for this phone number, (e.g., ["VOICE", "SMS"]). | array<string> |  |
+| features | List of telephony features to enable for this phone number, (e.g., ["VOICE", "SMS"]). | array of strings |  |
 | status | Current operational status of the phone number. | string (enum: `active`, `inactive`, `suspended`) |  |
 | created_at | The creation date and time of the phone number record. | string |  |
 | updated_at | Updated date and time of the phone number record. | string |  |
 
-### Example
+## Example
 
 JSON
 

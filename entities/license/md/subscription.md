@@ -1,8 +1,8 @@
 ## Subscription
 
-Represents an active or historical subscription purchased by a business for an offering/SKU.
+A subscription represents a purchased offering related to a business. It includes details such as the buyer, pricing, trial period, and the subscription's lifecycle state.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -29,9 +29,7 @@ Represents an active or historical subscription purchased by a business for an o
 | can_purchase_additional_seats | Indicates if a business can purchase additional seats beyond the bundled subscription (default: True); if False, only the bundled seats are available. | boolean |  |
 | sku | The SKU (app/packageaddon unique code name) related to this subscription | string | Yes |
 
-**Required fields**: `uid`, `created_at`, `updated_at`, `display_name`, `offering_uid`, `buyer_uid`, `business_uid`, `purchase_price`, `purchase_currency`, `payment_type`, `charged_by`, `sku`
-
-### Example
+## Example
 
 JSON
 

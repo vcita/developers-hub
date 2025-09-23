@@ -2,7 +2,7 @@
 
 Defines a type/category of resource required by services (e.g., room type).
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -10,11 +10,9 @@ Defines a type/category of resource required by services (e.g., room type).
 | created_at | Creation date and time | string |  |
 | updated_at | Last update date and time | string |  |
 | name | The name of the resource type | string | Yes |
-| services | Array of service UIDs that require this resource type | array<string> |  |
+| services | Array of service UIDs that require this resource type | array of strings |  |
 
-**Required fields**: `name`
-
-### Example
+## Example
 
 JSON
 

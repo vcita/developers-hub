@@ -2,7 +2,7 @@
 
 Legacy/temp directory schema with extended operational fields for migration/testing.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -80,8 +80,6 @@ Legacy/temp directory schema with extended operational fields for migration/test
 | user_identity_manager_enable | Indicates if user identity manager is enabled. | boolean |  |
 | urls | Collection of URLs related to the directory. | object |  |
 
-**Required fields**: `id`, `name`, `created_at`, `updated_at`
-
 ### Urls Properties
 
 | Name | Description | Type | Required |
@@ -96,7 +94,7 @@ Legacy/temp directory schema with extended operational fields for migration/test
 | login_url | Login URL for the directory. | string |  |
 | backoffice_url | Backoffice URL for the directory. | string |  |
 
-### Example
+## Example
 
 JSON
 

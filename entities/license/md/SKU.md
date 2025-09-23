@@ -2,7 +2,7 @@
 
 The SKU represents a service or a features set that can be offered by inTandem/partners to their users.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -12,9 +12,7 @@ The SKU represents a service or a features set that can be offered by inTandem/p
 | created_at | Timestamp indicating when the entity was created. In some types, this date is hard coded and should not be relyed upon for business logic. | string | Yes |
 | updated_at | Timestamp of the entity's most recent update. In some types, this date is hard coded and should not be relyed upon for business logic. | string | Yes |
 
-**Required fields**: `uid`, `created_at`, `updated_at`, `type`, `code_name`, `display_name`
-
-### Example
+## Example
 
 JSON
 

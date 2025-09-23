@@ -2,16 +2,14 @@
 
 an assiged permission to a staff member
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
 | key | The unique identifier (key) of the StaffPermission | string | Yes |
 | allow | A flag indicating if this permission is allowed or denied from this staff member | boolean |  |
 
-**Required fields**: `staff_uid`, `key`
-
-### Example
+## Example
 
 JSON
 

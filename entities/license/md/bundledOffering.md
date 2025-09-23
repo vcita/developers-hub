@@ -2,7 +2,7 @@
 
 A bundled offering is an offering that is sold together with another offering. When the parent offering is purchased, the bundled offering is also included in the purchase. This list does not include bundled staff seats
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -12,9 +12,7 @@ A bundled offering is an offering that is sold together with another offering. W
 | offering_uid | Unique identifier for the parent bundled of items | string | Yes |
 | bundled_offering_uid | Unique identifier for the bundled item | string | Yes |
 
-**Required fields**: `uid`, `offering_uid`, `bundled_offering_uid`
-
-### Example
+## Example
 
 JSON
 

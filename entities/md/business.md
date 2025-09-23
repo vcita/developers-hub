@@ -2,7 +2,7 @@
 
 Represents a business account profile, including identity, contact, and web presence.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -21,9 +21,7 @@ Represents a business account profile, including identity, contact, and web pres
 | time_zone | The time zone in which the business operates. | string |  |
 | website_url | The URL of the business's website. | string |  |
 
-**Required fields**: `business_uid`, `name`
-
-### Example
+## Example
 
 JSON
 

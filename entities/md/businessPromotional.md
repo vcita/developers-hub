@@ -2,7 +2,7 @@
 
 Information related to the blocking of promotional content for the business.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |

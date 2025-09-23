@@ -2,16 +2,14 @@
 
 Client-level settings such as communication preferences and opt-outs.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
 | client_uid | The unique identifier (UID) of the chat | string | Yes |
 | opt_out_transactional_sms | The opt out status of the client for transactional SMS messages | boolean |  |
 
-**Required fields**: `client_uid`, `created_at`, `updated_at`
-
-### Example
+## Example
 
 JSON
 

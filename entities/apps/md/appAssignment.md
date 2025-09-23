@@ -2,7 +2,7 @@
 
 Defines assignment of an app to a business, package, or directory, including settings.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -14,8 +14,6 @@ Defines assignment of an app to a business, package, or directory, including set
 | app_code_name | The unique identifier of the app | string | Yes |
 | settings | Settings for the app assignment | object | Yes |
 
-**Required fields**: `assignee_type`, `assignee_uid`, `app_code_name`, `settings`
-
 ### Settings Properties
 
 | Name | Description | Type | Required |
@@ -24,7 +22,7 @@ Defines assignment of an app to a business, package, or directory, including set
  'internal' - App does not show in the app market but still available to use in all relevant integration points;
  'pre_installed' - Define the app as pre-installed for all new accounts, app shows in app market as installed on first appearance. The user will be able to uninstall it later if they wish to. This is relevant only to account with platform app market | string (enum: `internal`, `pre_installed`) | Yes |
 
-### Example
+## Example
 
 JSON
 

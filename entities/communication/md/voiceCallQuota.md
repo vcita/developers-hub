@@ -2,7 +2,7 @@
 
 Tracks remaining voice call minutes for a business.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -12,7 +12,7 @@ Tracks remaining voice call minutes for a business.
 | created_at | The time the quota was created. | string |  |
 | updated_at | The time the quota was last updated. | string |  |
 
-### Example
+## Example
 
 JSON
 

@@ -1,8 +1,8 @@
 ## StaffBusinessRole
 
-A role is a named set of default permissions for a business account. For example, admin, manager etc.
+A StaffBusinessRole is an assignment of a BusinessRole to a staff member, defining their permissions within a business account. For example, admin, manager etc.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -11,9 +11,7 @@ A role is a named set of default permissions for a business account. For example
 | created_at | Date the StaffBusinessRole was created | string | Yes |
 | updated_at | Date the StaffBuinsessRole was last updated | string | Yes |
 
-**Required fields**: `staff_uid`, `business_role_uid`, `created_at`, `updated_at`
-
-### Example
+## Example
 
 JSON
 

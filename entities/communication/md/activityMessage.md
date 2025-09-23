@@ -2,7 +2,7 @@
 
 Represents a business-initiated activity message sent to a client over email/SMS.
 
-### Properties
+## Properties
 
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
@@ -12,14 +12,12 @@ Represents a business-initiated activity message sent to a client over email/SMS
 | uid | The entity's unique identifier. | string |  |
 | activity_type | Activity category type from a closed list. | string (enum: `invite`) | Yes |
 | activity_action | Action related to the activity type property. | string (enum: `schedule`) | Yes |
-| channels | Determines if the message should be sent via email or/and SMS. | array<string> | Yes |
+| channels | Determines if the message should be sent via email or/and SMS. | array of strings | Yes |
 | message_text |  | object |  |
 | cta_button_text | The text for the Email action button | string |  |
 | link_url_params |  | object |  |
 | created_at | The creation date and time of the message. | string |  |
 | updated_at | Updated date and time of the message. | string |  |
-
-**Required fields**: `client_uid`, `activity_type`, `activity_action`, `channels`
 
 ### Message Text Properties
 
@@ -35,7 +33,7 @@ Represents a business-initiated activity message sent to a client over email/SMS
 | utm_source | Identifies the source of traffic (e.g., website, search_engine, social_media) | string |  |
 | utm_campaign | Identifies the specific marketing campaign (e.g., spring_sale, product_launch) | string |  |
 
-### Example
+## Example
 
 JSON
 
