@@ -12,7 +12,6 @@ A business-owned phone number with enabled features and lifecycle metadata.
 | country_code | ISO 3166-1 alpha-2 country code indicating the country where the phone number is registered (e.g., "US" for United States, "CA" for Canada). | string |  |
 | features | List of telephony features to enable for this phone number, (e.g., ["VOICE", "SMS"]). | array of strings |  |
 | status | Current operational status of the phone number. | string (enum: `active`, `inactive`, `suspended`) |  |
-| verification_status | Verification status for compliance. Applies to US phone numbers. | string (enum: `pending`, `verified`, `failed`) |  |
 | created_at | The creation date and time of the phone number record. | string |  |
 | updated_at | Updated date and time of the phone number record. | string |  |
 
@@ -31,7 +30,6 @@ JSON
     "SMS"
   ],
   "status": "active",
-  "verification_status": "verified",
   "created_at": "2024-01-01T09:00:00Z",
   "updated_at": "2024-03-20T12:34:56Z"
 }
