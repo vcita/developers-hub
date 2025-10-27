@@ -64,11 +64,14 @@
           },
           "country_code": {
             "type": "string",
-            "description": "ISO 3166-1 alpha-2 country code indicating the country where the phone number is registered (e.g., \"US\" for United States, \"CA\" for Canada)."
+            "pattern": "^[A-Z]{2}$",
+            "description": "ISO 3166-1 alpha-2 country code (e.g., \"US\" for United States, \"CA\" for Canada)."
           },
           "features": {
             "type": "array",
             "description": "List of telephony features to enable for this phone number, (e.g., [\"VOICE\", \"SMS\"]).",
+            "minItems": 1,
+            "uniqueItems": true,
             "items": {
               "type": "string",
               "enum": [
@@ -76,13 +79,52 @@
                 "SMS"
               ]
             }
+          },
+          "verification_request_data": {
+            "description": "Business verification information required for text messaging compliance in the United States and Canada. This data registers your business with mobile carriers to enable SMS messaging capabilities. The verification process helps prevent spam and ensures your business messages are delivered reliably to customers.",
+            "$ref": "https://vcita.github.io/developers-hub/entities/communication/verificationRequestData.json"
           }
         },
         "required": [
           "phone_number",
           "country_code",
           "features"
-        ]
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "country_code": { "const": "US" }
+              }
+            },
+            "then": {
+              "required": ["verification_request_data"]
+            }
+          }
+        ],
+        "example": {
+          "phone_number": "12025551234",
+          "country_code": "US",
+          "features": ["VOICE", "SMS"],
+          "verification_request_data": {
+            "entity_type": "PRIVATE_PROFIT",
+            "brand_name": "Acme Corporation",
+            "legal_company_name": "Acme Corporation Inc.",
+            "contact_first_name": "John",
+            "contact_last_name": "Doe",
+            "tax_number": "123456789",
+            "website_url": "https://www.acmecorp.com",
+            "country_code": "US",
+            "postal_code": "10001",
+            "street": "123 Business Ave",
+            "full_address": "123 Business Ave, New York, NY 10001, USA",
+            "city": "New York",
+            "state": "NY",
+            "contact_email": "john.doe@acmecorp.com",
+            "contact_phone": "12125551234",
+            "mobile_phone": "19175551234"
+          }
+        }
       },
       "MultiBusinessPhoneNumberResponse": {
         "type": "object",
@@ -97,6 +139,100 @@
         "required": [
           "business_phone_numbers"
         ]
+      },
+      "UpdateBusinessPhoneNumberRequest": {
+        "type": "object",
+        "properties": {
+          "phone_number": {
+            "type": "string",
+            "description": "The complete phone number in E.164 format without formatting (e.g., \"12127654321\"). This is the actual phone number to be purchased from the telecom provider."
+          },
+          "country_code": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$",
+            "description": "ISO 3166-1 alpha-2 country code (e.g., \"US\" for United States, \"CA\" for Canada)."
+          },
+          "features": {
+            "type": "array",
+            "description": "List of telephony features to enable for this phone number, (e.g., [\"VOICE\", \"SMS\"]).",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": ["VOICE", "SMS"]
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "inactive", "suspended"],
+            "description": "Operational status of the phone number"
+          },
+          "verification_request_data": {
+            "$ref": "https://vcita.github.io/developers-hub/entities/communication/verificationRequestData.json"
+          }
+        },
+        "example": {
+          "status": "active",
+          "verification_request_data": {
+            "entity_type": "SOLE_PROPRIETOR",
+            "brand_name": "Smith Consulting",
+            "contact_first_name": "Robert",
+            "contact_last_name": "Smith",
+            "website_url": "https://www.smithconsulting.com",
+            "country_code": "US",
+            "postal_code": "60601",
+            "street": "789 State Street",
+            "full_address": "789 State Street, Chicago, IL 60601, USA",
+            "city": "Chicago",
+            "state": "IL",
+            "contact_email": "robert@smithconsulting.com",
+            "contact_phone": "13125551234",
+            "mobile_phone": "13125555678"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "The field that caused the error (for validation errors)"
+                },
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": ["code", "message"]
+            }
+          }
+        },
+        "required": ["success", "errors"],
+        "example": {
+          "success": false,
+          "errors": [
+            {
+              "field": "verification_request_data.postal_code",
+              "code": "INVALID_FORMAT",
+              "message": "Must be exactly 5 digits for US addresses"
+            },
+            {
+              "field": "verification_request_data.state",
+              "code": "INVALID_FORMAT", 
+              "message": "Must be a valid 2-letter state code"
+            }
+          ]
+        }
       }
     }
   },
@@ -105,7 +241,7 @@
       "get": {
         "operationId": "AvailablePhoneNumbersController_findAll",
         "summary": "Retrieve All AvailablePhoneNumbers",
-        "description": "Retrieves a list of phone numbers available for purchase from telecom providers.\nAvailable for Directory tokens",
+        "description": "Retrieves a list of phone numbers available for purchase from telecom providers.\nAvailable for **Staff and Directory tokens**",
         "parameters": [
           {
             "name": "country_code",
@@ -210,7 +346,7 @@
       "post": {
         "operationId": "BusinessPhoneNumbersController_create",
         "summary": "Create a BusinessPhoneNumber",
-        "description": "Purchase a phone number from a telecom provider and assign it to a business account. \nAvailable for Directory tokens",
+        "description": "Purchase a phone number from a telecom provider and assign it to a business account.\n\nFor US and Canadian phone numbers with text messaging, verification_request_data is required to register your business with mobile carriers and ensure reliable message delivery.\n\nAvailable for **Staff and Directory tokens**",
         "requestBody": {
           "required": true,
           "content": {
@@ -255,6 +391,16 @@
           },
           "409": {
             "description": "Conflict - Phone number already exists or is not available"
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error in request data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -269,7 +415,7 @@
       "get": {
         "operationId": "BusinessPhoneNumbersController_findAll",
         "summary": "Retrieve all BusinessPhoneNumbers",
-        "description": "Retrieves a list of all business phone numbers associated with a business account.\nAvailable for Directory tokens",
+        "description": "Retrieves a list of all business phone numbers associated with a business account.\nAvailable for **Staff and Directory tokens**",
         "responses": {
           "200": {
             "description": "List of business phone numbers retrieved successfully",
@@ -314,7 +460,7 @@
       "get": {
         "operationId": "BusinessPhoneNumbersController_findOne",
         "summary": "Retrieve a BusinessPhoneNumber",
-        "description": "Fetches detailed information about a single business phone number using its unique identifier.\nAvailable for Directory tokens",
+        "description": "Fetches detailed information about a single business phone number using its unique identifier.\nAvailable for **Staff and Directory tokens**",
         "parameters": [
           {
             "name": "uid",
@@ -357,6 +503,87 @@
           },
           "404": {
             "description": "Not found - Business phone number not found"
+          }
+        },
+        "tags": [
+          "Business Phone Numbers"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "put": {
+        "operationId": "BusinessPhoneNumbersController_update",
+        "summary": "Update a BusinessPhoneNumber",
+        "description": "Update an existing business phone number. Can be used to update verification data for compliance.\nAvailable for **Staff and Directory tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unique identifier of the business phone number",
+            "example": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBusinessPhoneNumberRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Business phone number updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/businessPhoneNumber.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Invalid input data"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions"
+          },
+          "404": {
+            "description": "Not found - Business phone number not found"
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error in request data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         },
         "tags": [
