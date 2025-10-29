@@ -1,0 +1,166 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Client Payment Gateways",
+    "description": "API endpoint to retrieve payment gateway information to display available payment methods, currencies, and features to clients based on the business's connected gateway.",
+    "version": "3.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.vcita.biz",
+      "description": "API Gateway server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {client_token}'"
+      }
+    },
+    "schemas": {
+      "Response": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Indicates if the request was successful"
+          },
+          "data": {
+            "type": "object",
+            "description": "The response data"
+          }
+        }
+      },
+      "ClientPaymentGatewayList": {
+        "type": "object",
+        "properties": {
+          "payment_gateways": {
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/payment_processing/clientPaymentGateway.json"
+            }
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/v3/clients/payment_gateways": {
+      "get": {
+        "summary": "Get Payment Gateway by Name",
+        "description": "Retrieve payment gateway details by gateway name - Available for **Client Tokens**",
+        "parameters": [
+          {
+            "name": "gateway_name",
+            "in": "query",
+            "required": true,
+            "description": "Filter by gateway name to retrieve a specific payment gateway",
+            "schema": {
+              "type": "string"
+            },
+            "example": "stripe"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response. Returns an array with the payment gateway if found, or an empty array if not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/ClientPaymentGatewayList"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "examples": {
+                  "gatewayFound": {
+                    "summary": "Gateway found",
+                    "value": {
+                      "success": true,
+                      "data": {
+                        "payment_gateways": [
+                          {
+                            "uid": "pgw_abc123def456",
+                            "gateway_name": "stripe_payments_v2",
+                            "supported_countries": ["US", "CA", "GB", "AU", "DE", "FR", "ES", "IT"],
+                            "supported_currencies": ["USD", "EUR", "GBP", "CAD", "AUD"],
+                            "status": "active",
+                            "payment_methods": {
+                              "credit_card": true,
+                              "ach": true,
+                              "ideal": true,
+                              "bancontact": false,
+                              "twint": false
+                            },
+                            "processing_features": {
+                              "multi_currency": true,
+                              "back_office_charge": true,
+                              "checkout": true,
+                              "refund": true,
+                              "partial_refund": true,
+                              "client_save_card_on_checkout": true,
+                              "client_save_card_standalone": true,
+                              "save_card_by_business": true
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "gatewayNotFound": {
+                    "summary": "Gateway not found",
+                    "value": {
+                      "success": true,
+                      "data": {
+                        "payment_gateways": []
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - gateway_name parameter is missing or invalid"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing client token"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "tags": [
+          "Client Payment Gateways"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "GET",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///v3/clients/payment_gateways"
+        },
+        "x-auth-type": "Application & Application User"
+      }
+    }
+  }
+}
+
