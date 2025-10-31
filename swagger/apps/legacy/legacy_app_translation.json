@@ -1,11 +1,15 @@
 {
-    "host": "api.vcita.biz",
-    "basePath": "/platform/v1",
-    "swagger": "2.0",
+    "openapi": "3.0.0",
     "info": {
       "title": "Platform API",
       "version": "v2.0"
     },
+    "servers": [
+      {
+        "url": "https://api.vcita.biz/platform/v1",
+        "description": "Production server"
+      }
+    ],
     "paths": {
       "/apps/translations/{app_code_name}": {
         "put": {
@@ -14,36 +18,47 @@
           "tags": [
             "Applications"
           ],
-          "consumes": [
-            "multipart/form-data"
-          ],
-          "produces": [
-            "application/json"
-          ],
           "parameters": [
             {
               "name": "Authorization",
               "in": "header",
-              "type": "string",
+              "schema": {
+                "type": "string"
+              },
               "required": true,
               "description": "The format of the API authorization header should be: 'Authorization': \"Bearer API_TOKEN\"",
-              "x-example": "Bearer abc...123"
+              "example": "Bearer abc...123"
             },
             {
               "name": "app_code_name",
               "in": "path",
-              "type": "string",
+              "schema": {
+                "type": "string"
+              },
               "description": "The app's code name identifier",
               "required": true
-            },
-            {
-              "name": "translations_csv",
-              "in": "formData",
-              "type": "file",
-              "required": true,
-              "description": "CSV file with translations. Format: First row contains headers (Key, Context, Character Limit, en, es, fr, it, pt, de, pl, nl, en-GB, he, sl). Following rows: Name, Short description, App features (semicolon-separated), Long description. All English (en) fields are mandatory. Download a sample CSV file here: https://vcita.github.io/developers-hub/downloads/app_translations_sample.csv"
             }
           ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "multipart/form-data": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "translations_csv": {
+                      "type": "string",
+                      "format": "binary",
+                      "description": "CSV file with translations. Format: First row contains headers (Key, Context, Character Limit, en, es, fr, it, pt, de, pl, nl, en-GB, he, sl). Following rows: Name, Short description, App features (semicolon-separated), Long description. All English (en) fields are mandatory. Download a sample CSV file here: https://vcita.github.io/developers-hub/downloads/app_translations_sample.csv"
+                    }
+                  },
+                  "required": [
+                    "translations_csv"
+                  ]
+                }
+              }
+            }
+          },
           "security": [
             {
               "default": [
@@ -54,8 +69,14 @@
           "responses": {
             "200": {
               "description": "Success",
-              "examples": {
+              "content": {
                 "application/json": {
+                  "schema": {
+                    "type": "object"
+                  },
+                  "examples": {
+                    "success_example": {
+                      "value": {
                   "status": "OK",
                   "success": true,
                   "translations": {
@@ -170,22 +191,34 @@
                       ]
                     }
                   }
+                      }
+                    }
+                  }
                 }
               }
             },
             "422": {
               "description": "Failure",
-              "examples": {
+              "content": {
                 "application/json": {
-                  "status": "Error",
-                  "success": false,
-                  "errors": [
-                    {
-                      "message": "App with given app code name not found",
-                      "code": "not_found",
-                      "field": "app_code_name"
+                  "schema": {
+                    "type": "object"
+                  },
+                  "examples": {
+                    "error_example": {
+                      "value": {
+                        "status": "Error",
+                        "success": false,
+                        "errors": [
+                          {
+                            "message": "App with given app code name not found",
+                            "code": "not_found",
+                            "field": "app_code_name"
+                          }
+                        ]
+                      }
                     }
-                  ]
+                  }
                 }
               }
             }
@@ -208,24 +241,29 @@
       }
     },
     "x-throttling-tier": "8ReqPerSec",
-    "securityDefinitions": {
-      "default": {
-        "type": "oauth2",
-        "authorizationUrl": "https://ignore.myclients.io",
-        "flow": "implicit",
-        "scopes": {
-          "platform": "All platform related operations",
-          "platform_read": "platform read scope",
-          "platform_delete": "platform delete scope",
-          "platform_update": "platform update scope",
-          "platform_create": "platform create scope"
-        },
-        "x-scopes-bindings": {
-          "platform": "",
-          "platform_read": "",
-          "platform_delete": "",
-          "platform_update": "",
-          "platform_create": ""
+    "components": {
+      "securitySchemes": {
+        "default": {
+          "type": "oauth2",
+          "flows": {
+            "implicit": {
+              "authorizationUrl": "https://ignore.myclients.io",
+              "scopes": {
+                "platform": "All platform related operations",
+                "platform_read": "platform read scope",
+                "platform_delete": "platform delete scope",
+                "platform_update": "platform update scope",
+                "platform_create": "platform create scope"
+              }
+            }
+          },
+          "x-scopes-bindings": {
+            "platform": "",
+            "platform_read": "",
+            "platform_delete": "",
+            "platform_update": "",
+            "platform_create": ""
+          }
         }
       }
     }
