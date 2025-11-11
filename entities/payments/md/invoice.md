@@ -24,12 +24,12 @@ Invoice entity representing a bill or invoice document with line items, payment 
 | note | Invoice notes/comments | string |  |
 | terms_and_conditions | Payment terms and conditions. Appears in the invoice document | string |  |
 | additional_recipients | CC email recipients (array of email strings) | array of strings |  |
-| item_headers | Array of invoice item headers. Item header allows to group invoice items under a header within the invoice's line items. Used when add_item_header feature flag is enabled | array of objects |  |
+| item_headers | Array of invoice item headers. Item header allows to group invoice items under a header within the invoice's line items. Used when add_item_header feature flag is enabled. At least one of line_items or item_headers must be provided. | array of objects |  |
 | display_item_headers_total | Display item_headers total | boolean |  |
 | display_items_total | Display items total | boolean |  |
 | from_estimate_uid | UID of estimate from which invoice was created | string |  |
 | source_name | Source tracking name. Default: "initiated_by_staff" | string |  |
-| line_items | Array of invoice items. Items that are not part of the item_headers | array of objects |  |
+| line_items | Array of invoice items. Items that are not part of the item_headers. At least one of line_items or item_headers must be provided. | array of objects |  |
 
 ### Line Item Properties
 
