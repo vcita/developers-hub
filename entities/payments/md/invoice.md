@@ -13,7 +13,7 @@ Invoice entity representing a bill or invoice document with line items, payment 
 | issue_date | Invoice issuance date. Must be >= today. | string | Yes |
 | due_date | Invoice due date. Expected date for payment. Must be >= issue_date | string | Yes |
 | currency | Three-letter ISO currency code (e.g., "USD", "ILS") | string | Yes |
-| status | Invoice status | string (enum: `DRAFT`, `ISSUED`) |  |
+| status | Invoice status | string (enum: `DRAFT`, `ISSUED`, `CANCELLED`) |  |
 | unique_number | Invoice unique, sequential number. Two types of numbering: 1. Unique sequence of numbers (1,2,3….) 2. A yearly repeated numbering including a year's prefix (2025-0001, 2025-0002…). Within each year start - rounding the count (2026-0001, 2026-0002,…) | string |  |
 | document_title | Invoice title. A document title to appear on top of the PDF. Default: "INVOICE" | string |  |
 | billing_address | Business billing address | string |  |
