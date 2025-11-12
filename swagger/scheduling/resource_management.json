@@ -87,6 +87,16 @@
                             "default": "updated_at:desc",
                             "type": "string"
                         }
+                    },
+                    {
+                        "name": "with_deleted",
+                        "required": false,
+                        "in": "query",
+                        "description": "Include deleted resource types in the response",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
                     }
                 ],
                 "responses": {
@@ -111,6 +121,15 @@
                                 }
                             }
                         }
+                    },
+                    "302": {
+                        "description": "OAuth redirect when no authentication token provided"
+                    },
+                    "401": {
+                        "description": "Valid business context is required"
+                    },
+                    "408": {
+                        "description": "Request exceeded timeout limit"
                     }
                 },
                 "tags": [
@@ -124,7 +143,7 @@
             },
             "post": {
                 "summary": "Create a ResourceType",
-                "description": "Create a new resource type\n\nAvailable for **Staff Tokens**",
+                "description": "Create a new resource type.\n\nAvailable for **Staff Tokens**",
                 "parameters": [],
                 "requestBody": {
                     "required": true,
@@ -144,24 +163,18 @@
                                             "type": "string"
                                         }
                                     }
+
                                 },
                                 "required": [
                                     "name"
-                                ],
-                                "example": {
-                                    "name": "Treatment Room",
-                                    "services": [
-                                        "service_uid_1",
-                                        "service_uid_2"
-                                    ]
-                                }
+                                ]
                             }
                         }
                     }
                 },
                 "responses": {
-                    "200": {
-                        "description": "",
+                    "201": {
+                        "description": "ResourceType created successfully",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -181,6 +194,24 @@
                                 }
                             }
                         }
+                    },
+                    "302": {
+                        "description": "OAuth redirect when no authentication token provided"
+                    },
+                    "400": {
+                        "description": "Invalid input data"
+                    },
+                    "401": {
+                        "description": "Valid business context is required"
+                    },
+                    "403": {
+                        "description": "Forbidden: Resources feature is not enabled or not authorized to create resource types (requires account.settings.manage permission)"
+                    },
+                    "408": {
+                        "description": "Request exceeded timeout limit"
+                    },
+                    "422": {
+                        "description": "Request data failed validation"
                     }
                 },
                 "tags": [
@@ -231,6 +262,21 @@
                                 }
                             }
                         }
+                    },
+                    "302": {
+                        "description": "OAuth redirect when no authentication token provided"
+                    },
+                    "401": {
+                        "description": "Valid business context is required"
+                    },
+                    "403": {
+                        "description": "Not authorized to access this resource type"
+                    },
+                    "404": {
+                        "description": "ResourceType not found"
+                    },
+                    "408": {
+                        "description": "Request exceeded timeout limit"
                     }
                 },
                 "tags": [
@@ -275,13 +321,6 @@
                                             "type": "string"
                                         }
                                     }
-                                },
-                                "example": {
-                                    "name": "Treatment Room",
-                                    "services": [
-                                        "service_uid_1",
-                                        "service_uid_2"
-                                    ]
                                 }
                             }
                         }
@@ -309,6 +348,27 @@
                                 }
                             }
                         }
+                    },
+                    "302": {
+                        "description": "OAuth redirect when no authentication token provided"
+                    },
+                    "400": {
+                        "description": "Invalid input data"
+                    },
+                    "401": {
+                        "description": "Valid business context is required"
+                    },
+                    "403": {
+                        "description": "Forbidden: Resources feature is not enabled or not authorized to update this resource type (requires account.settings.manage permission)"
+                    },
+                    "404": {
+                        "description": "ResourceType not found"
+                    },
+                    "408": {
+                        "description": "Request exceeded timeout limit"
+                    },
+                    "422": {
+                        "description": "Request data failed validation"
                     }
                 },
                 "tags": [
@@ -322,7 +382,7 @@
             },
             "delete": {
                 "summary": "Delete a ResourceType",
-                "description": "Delete a resource type\n\nAvailable for **Staff Tokens**",
+                "description": "Delete a resource type. Deletes all associated resources.\n\nAvailable for **Staff Tokens**",
                 "parameters": [
                     {
                         "name": "uid",
@@ -337,7 +397,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "",
+                        "description": "Resource type deleted successfully. **Note:** All associated resources are automatically deleted (cascade deletion)",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -349,6 +409,21 @@
                                 }
                             }
                         }
+                    },
+                    "302": {
+                        "description": "OAuth redirect when no authentication token provided"
+                    },
+                    "401": {
+                        "description": "Valid business context is required"
+                    },
+                    "403": {
+                        "description": "Forbidden: Resources feature is not enabled or not authorized to delete this resource type (requires account.settings.manage permission)"
+                    },
+                    "404": {
+                        "description": "ResourceType not found"
+                    },
+                    "408": {
+                        "description": "Request exceeded timeout limit"
                     }
                 },
                 "tags": [
@@ -404,10 +479,15 @@
                         "name": "resource_type_uid",
                         "required": false,
                         "in": "query",
-                        "description": "Filter resources by resource type UID",
+                        "description": "Filter by resource type UID(s). Accepts single value or array of values. Example: ?resource_type_uid=abc123 or ?resource_type_uid=abc123&resource_type_uid=def456",
                         "schema": {
-                            "type": "string"
-                        }
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "style": "form",
+                        "explode": true
                     },
                     {
                         "name": "service_uid",
@@ -427,6 +507,20 @@
                             "type": "boolean",
                             "default": false
                         }
+                    },
+                    {
+                        "name": "uid",
+                        "required": false,
+                        "in": "query",
+                        "description": "Filter by resource UID(s). Accepts single value or array of values. Example: ?uid=abc123 or ?uid=abc123&uid=def456",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "style": "form",
+                        "explode": true
                     }
                 ],
                 "responses": {
@@ -451,6 +545,15 @@
                                 }
                             }
                         }
+                    },
+                    "302": {
+                        "description": "OAuth redirect when no authentication token provided"
+                    },
+                    "401": {
+                        "description": "Valid business context is required"
+                    },
+                    "408": {
+                        "description": "Request exceeded timeout limit"
                     }
                 },
                 "tags": [
@@ -485,18 +588,14 @@
                                 "required": [
                                     "name",
                                     "resource_type_uid"
-                                ],
-                                "example": {
-                                    "name": "Treatment Room 1",
-                                    "resource_type_uid": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
-                                }
+                                ]
                             }
                         }
                     }
                 },
                 "responses": {
-                    "200": {
-                        "description": "",
+                    "201": {
+                        "description": "Resource created successfully",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -516,6 +615,24 @@
                                 }
                             }
                         }
+                    },
+                    "302": {
+                        "description": "OAuth redirect when no authentication token provided"
+                    },
+                    "400": {
+                        "description": "Invalid input data"
+                    },
+                    "401": {
+                        "description": "Valid business context is required"
+                    },
+                    "403": {
+                        "description": "Forbidden: Resources feature is not enabled or not authorized to create resources (requires account.settings.manage permission)"
+                    },
+                    "408": {
+                        "description": "Request exceeded timeout limit"
+                    },
+                    "422": {
+                        "description": "Request data failed validation"
                     }
                 },
                 "tags": [
@@ -542,6 +659,15 @@
                             "type": "string"
                         },
                         "example": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
+                    },
+                    {
+                        "name": "with_deleted",
+                        "required": false,
+                        "in": "query",
+                        "description": "Include deleted resources",
+                        "schema": {
+                            "type": "boolean"
+                        }
                     }
                 ],
                 "responses": {
@@ -566,6 +692,21 @@
                                 }
                             }
                         }
+                    },
+                    "302": {
+                        "description": "OAuth redirect when no authentication token provided"
+                    },
+                    "401": {
+                        "description": "Valid business context is required"
+                    },
+                    "403": {
+                        "description": "Not authorized to access this resource"
+                    },
+                    "404": {
+                        "description": "Resource not found"
+                    },
+                    "408": {
+                        "description": "Request exceeded timeout limit"
                     }
                 },
                 "tags": [
@@ -602,10 +743,11 @@
                                     "name": {
                                         "type": "string",
                                         "description": "The name of the resource"
+                                    },
+                                    "resource_type_uid": {
+                                        "type": "string",
+                                        "description": "The resource type this instance belongs to"
                                     }
-                                },
-                                "example": {
-                                    "name": "Treatment Room 1"
                                 }
                             }
                         }
@@ -633,6 +775,27 @@
                                 }
                             }
                         }
+                    },
+                    "302": {
+                        "description": "OAuth redirect when no authentication token provided"
+                    },
+                    "400": {
+                        "description": "Invalid input data"
+                    },
+                    "401": {
+                        "description": "Valid business context is required"
+                    },
+                    "403": {
+                        "description": "Forbidden: Resources feature is not enabled or not authorized to update this resource (requires account.settings.manage permission)"
+                    },
+                    "404": {
+                        "description": "Resource not found"
+                    },
+                    "408": {
+                        "description": "Request exceeded timeout limit"
+                    },
+                    "422": {
+                        "description": "Request data failed validation"
                     }
                 },
                 "tags": [
@@ -661,7 +824,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "",
+                        "description": "Resource deleted successfully",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -673,106 +836,21 @@
                                 }
                             }
                         }
-                    }
-                },
-                "tags": [
-                    "Resource"
-                ],
-                "security": [
-                  {
-                    "Bearer": []
-                  }
-                ]
-            }
-        },
-        "/v3/scheduling/resources/bulk": {
-            "post": {
-                "summary": "Bulk Create Resources",
-                "description": "Create multiple resources for a business in a single request\n\nAvailable for **Staff Tokens**",
-                "parameters": [],
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "name": {
-                                            "type": "string",
-                                            "description": "The name of the resource"
-                                        },
-                                        "resource_type_uid": {
-                                            "type": "string",
-                                            "description": "The resource type this instance belongs to"
-                                        }
-                                    },
-                                    "required": [
-                                        "name",
-                                        "resource_type_uid"
-                                    ]
-                                }
-                            },
-                            "example": [
-                                {
-                                    "name": "Treatment Room 1",
-                                    "resource_type_uid": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
-                                },
-                                {
-                                    "resource_type_uid": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
-                                }
-                            ]
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "Bulk creation results",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "array",
-                                    "items": {
-                                        "type": "object",
-                                        "properties": {
-                                            "success": {
-                                                "type": "boolean",
-                                                "description": "Status of the creation for the entity"
-                                            },
-                                            "entity": {
-                                                "description": "The entity that was attempted to be created, including any provided data, or null if not applicable",
-                                                "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/resource.json"
-                                            },
-                                            "error": {
-                                                "type": "string",
-                                                "description": "Error message if the creation of the entity failed"
-                                            }
-                                        }
-                                    }
-                                },
-                                "example": [
-                                    {
-                                        "success": true,
-                                        "entity": {
-                                            "uid": "a4ca2054-3bb0-4788-8e9e-ee2442975e22",
-                                            "created_at": "2023-06-15T11:30:00Z",
-                                            "updated_at": "2023-06-15T15:45:10Z",
-                                            "resource_type_uid": "94ca2054-3bb0-4788-8e9e-ee2442975cdd",
-                                            "name": "Treatment Room 1",
-                                            "deleted_at": null
-                                        }
-                                    },
-                                    {
-                                        "success": false,
-                                        "entity": {
-                                            "resource_type_uid": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
-                                        },
-                                        "error": "Validation failed: name is required"
-                                    }
-                                ]
-                            }
-                        }
+                    },
+                    "302": {
+                        "description": "OAuth redirect when no authentication token provided"
+                    },
+                    "401": {
+                        "description": "Valid business context is required"
+                    },
+                    "403": {
+                        "description": "Forbidden: Resources feature is not enabled or not authorized to delete this resource (requires account.settings.manage permission)"
+                    },
+                    "404": {
+                        "description": "Resource not found"
+                    },
+                    "408": {
+                        "description": "Request exceeded timeout limit"
                     }
                 },
                 "tags": [
