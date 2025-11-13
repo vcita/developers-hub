@@ -13,7 +13,7 @@ Invoice entity representing a bill or invoice document with line items, payment 
 | issue_date | The date the invoice was issued. Issue_date >=Today() | string | Yes |
 | due_date | Invoice due date. Expected date for payment. Must be >= issue_date | string | Yes |
 | currency | Three-letter ISO currency code (e.g., "USD", "ILS") | string | Yes |
-| status | Invoice status. Optional: "DRAFT" or "ISSUED" (default: "ISSUED") | string (enum: `DRAFT`, `ISSUED`, `CANCELLED`) |  |
+| status | Invoice statuses (Draft, Issued, Cancelled). Draft: refers to the initial editable stage of the invoice. Issued: Invoice was issued. (in Strict mode: Invoice is immune and cannot be edited. Cancelled: Cancelled invoices: In strict mode: Can be performed only from "Draft" state. In Flex mode: Issued to Cancelled is allowed. Required field: "DRAFT" or "ISSUED" or "CANCELLED" (default: "ISSUED") | string (enum: `DRAFT`, `ISSUED`, `CANCELLED`) |  |
 | unique_number | Invoice unique, sequential number. Two types of numbering: 1. Unique sequence of numbers (1,2,3….) 2. A yearly repeated numbering including a year's prefix (2025-0001, 2025-0002…). Within each year start - rounding the count (2026-0001, 2026-0002,…). Optional, auto-generated if not provided | string |  |
 | invoice_title | Invoice title. A document title to appear on top of the PDF. Optional. Default: "INVOICE" | string |  |
 | billing_address | Full business billing address, including street, city, state, country, and zipcode | string |  |
@@ -21,7 +21,7 @@ Invoice entity representing a bill or invoice document with line items, payment 
 | allow_online_payment | Enable online payment for this specific invoice (allow the client to pay directly from the client portal) | boolean |  |
 | allow_partial_payment | Enable partial payment for this specific invoice (allow the client to pay a portion of the invoice amount rather than its full due price) | boolean |  |
 | enable_late_fee | Enable late fee on invoice for this specific invoice. (late fee will be added to the invoice automatically when the invoice will become overdue. Not applicable in strict mode where an invoice is a legal binding document and cannot be edited) | boolean |  |
-| note | Invoice notes/comments | string |  |
+| note | Invoice notes/comments appears in the invoice document | string |  |
 | terms_and_conditions | Payment terms and conditions. appears in the invoice document | string |  |
 | additional_recipients | CC email recipients (array of email strings). comma separated | array of strings |  |
 | line_item_groups | Array of invoice line item groups. Line item groups allows to group invoice line items per need, while each line item group will have at least a single line item set in it. Optional, used when `add_item_header` feature flag is enabled | array of objects |  |
@@ -29,6 +29,10 @@ Invoice entity representing a bill or invoice document with line items, payment 
 | display_line_item_total | Display nested under a group line item price | boolean |  |
 | estimate_uid | The unique identifier of the estimate from which invoice was created | string |  |
 | line_items | Array of invoice line items. Line items that are not part of the line item groups. Required if line_item_groups not provided, at least one line item required | array of objects |  |
+| payment_status_uid | The identified number of the payment request that is associated with the invoice | string |  |
+| net_total | The invoice total amount exclude taxes | number |  |
+| grand_total | The invoice total amount including taxes | number |  |
+| taxes | The total taxes amount as calculated per the invoice line items amount | number |  |
 
 ### Line Item Properties
 
