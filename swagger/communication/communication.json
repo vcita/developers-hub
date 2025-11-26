@@ -240,127 +240,7 @@
             "voice_call_settings"
           ]
         },
-        "ResponseDto": {
-          "type": "object",
-          "properties": {}
-        },
-        "VoiceCallResponseDto": {
-          "type": "object",
-          "properties": {
-            "uid": {
-              "type": "string",
-              "description": "The entity uid"
-            },
-            "deleted_at": {
-              "type": "boolean",
-              "description": "Whether or not a voice call is deleted"
-            },
-            "staff_uid": {
-              "type": "string",
-              "description": "The uid belonging to the staff who gets/performs the call"
-            },
-            "client_uid": {
-              "type": "string",
-              "description": "The uid belonging to the client who gets/performs the call"
-            },
-            "duration": {
-              "type": "number",
-              "description": "The duration of the call"
-            },
-            "from_number": {
-              "type": "string",
-              "description": "The id of the number the call is from"
-            },
-            "to_number": {
-              "type": "string",
-              "description": "The id of the number the call is to"
-            },
-            "direction": {
-              "type": "string",
-              "description": "The direction of the call",
-              "enum": [
-                "INBOUND",
-                "OUTBOUND"
-              ]
-            },
-            "status": {
-              "type": "string",
-              "description": "The status of the call",
-              "enum": [
-                "INCOMING_CALL",
-                "ANSWERED_BY_STAFF",
-                "MISSED",
-                "ANSWERED_BY_CALLS_PROVIDER"
-              ]
-            },
-            "call_summary": {
-              "type": "string",
-              "description": "The call summary"
-            },
-            "external_app_url": {
-              "type": "string",
-              "description": "The external app link"
-            },
-            "external_app_name": {
-              "type": "string",
-              "description": "The external app name"
-            },
-            "recording": {
-              "description": "The call recording details",
-              "allOf": [
-                {
-                  "$ref": "#/components/schemas/ResponseDto"
-                }
-              ]
-            },
-            "handled_by_staff_uid": {
-              "type": "string",
-              "description": "The unique identifier of the staff who handled the call"
-            },
-            "handled_at": {
-              "type": "string",
-              "description": "The date and time when the call was handled"
-            },
-            "created_at": {
-              "format": "date-time",
-              "type": "string",
-              "description": "The creation date and time of the call"
-            },
-            "updated_at": {
-              "format": "date-time",
-              "type": "string",
-              "description": "The last updated date and time of the call"
-            },
-            "source_id": {
-              "type": "string",
-              "description": "The call source id"
-            },
-            "external_uuid": {
-              "type": "string",
-              "description": "The external call conversation uuid"
-            }
-          },
-          "required": [
-            "uid",
-            "deleted_at",
-            "staff_uid",
-            "client_uid",
-            "duration",
-            "from_number",
-            "to_number",
-            "direction",
-            "status",
-            "call_summary",
-            "external_app_url",
-            "external_app_name",
-            "recording",
-            "created_at",
-            "updated_at",
-            "source_id",
-            "external_uuid"
-          ]
-        },
-        "MultiVoiceCallResponseDto": {
+        "MultiVoiceCallResponse": {
           "type": "object",
           "properties": {
             "voice_calls": {
@@ -407,7 +287,9 @@
                 "INCOMING_CALL",
                 "ANSWERED_BY_STAFF",
                 "MISSED",
-                "ANSWERED_BY_CALLS_PROVIDER"
+                "ANSWERED_BY_CALLS_PROVIDER",
+                "MISSED_CALL_HANDLED",
+                "VOICEMAIL_RECEIVED"
               ],
               "description": "The status of the call"
             },
@@ -478,6 +360,15 @@
             "external_uuid"
           ]
         },
+        "UpdateVoiceCallRecording": {
+          "type": "object",
+          "properties": {
+            "record_played": {
+              "type": "boolean",
+              "description": "Whether the call recording has been played"
+            }
+          }
+        },
         "CreateVoiceCall": {
           "type": "object",
           "properties": {
@@ -511,7 +402,9 @@
                 "INCOMING_CALL",
                 "ANSWERED_BY_STAFF",
                 "MISSED",
-                "ANSWERED_BY_CALLS_PROVIDER"
+                "ANSWERED_BY_CALLS_PROVIDER",
+                "MISSED_CALL_HANDLED",
+                "VOICEMAIL_RECEIVED"
               ],
               "description": "The status of the call"
             },
@@ -605,7 +498,8 @@
                 "ANSWERED_BY_STAFF",
                 "MISSED",
                 "ANSWERED_BY_CALLS_PROVIDER",
-                "MISSED_CALL_HANDLED"
+                "MISSED_CALL_HANDLED",
+                "VOICEMAIL_RECEIVED"
               ]
             },
             "count": {
@@ -859,7 +753,7 @@
                         "properties": {
                           "data": {
                             "type": "object",
-                            "$ref": "#/components/schemas/MultiVoiceCallResponseDto"
+                            "$ref": "#/components/schemas/MultiVoiceCallResponse"
                           }
                         }
                       }
@@ -1043,6 +937,62 @@
         }
       },
       "/v3/communication/voice_call_recordings/{uid}": {
+        "put": {
+          "operationId": "RecordingsController_updateVoiceCallRecording",
+          "summary": "Update a VoiceCallRecording",
+          "parameters": [
+            {
+              "name": "uid",
+              "required": true,
+              "in": "path",
+              "schema": {
+                "type": "string"
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateVoiceCallRecording"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Returns a voiceCall entity",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/Response"
+                      },
+                      {
+                        "properties": {
+                          "data": {
+                            "type": "object",
+                            "$ref": "https://vcita.github.io/developers-hub/entities/communication/voiceCall.json"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "tags": [
+            "Voice Call Recordings"
+          ],
+          "security": [
+            {
+              "Bearer": []
+            }
+          ]
+        },
         "delete": {
           "operationId": "RecordingsController_deleteVoiceCallRecording",
           "summary": "Delete a VoiceCallRecording",
@@ -1132,8 +1082,7 @@
             }
           ]
         }
-      }
-      ,
+      },
       "/v3/communication/voice_calls/reports/voice_call_stats": {
         "get": {
           "operationId": "ReportsController_getVoiceCallStats",
@@ -1172,7 +1121,8 @@
                   "ANSWERED_BY_STAFF",
                   "MISSED",
                   "ANSWERED_BY_CALLS_PROVIDER",
-                  "MISSED_CALL_HANDLED"
+                  "MISSED_CALL_HANDLED",
+                  "VOICEMAIL_RECEIVED"
                 ]
               }
             }
