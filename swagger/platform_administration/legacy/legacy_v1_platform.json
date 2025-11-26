@@ -284,9 +284,10 @@
         
         "responses": {
           "200": {
-            "description": "Business Created",
+            "description": "Business Created\n\n**Synchronized Field:**\nThe response includes a `synchronized` field indicating whether the business creation was processed synchronously or asynchronously:\n- `synchronized: true` - Business was created synchronously and is immediately available. All operations completed successfully in the request.\n- `synchronized: false` - Business creation was processed asynchronously. The business may still be in the process of being set up. For asynchronous workflows, subscribe to webhook events (e.g., `account/rejected`) to receive notifications about the creation status.",
                 "examples": {
-                    "response": {
+                    "synchronous": {
+                        "summary": "Synchronous business creation",
                         "value": {
                             "data": {
                                 "admin_account": {
@@ -333,7 +334,62 @@
                                         "plan_name": "Essential"
                                     },
                                     "tags": "Client tag1, Client tag2"
-                                }
+                                },
+                                "synchronized": true
+                            },
+                            "status": "OK"
+                        }
+                    },
+                    "asynchronous": {
+                        "summary": "Asynchronous business creation",
+                        "value": {
+                            "data": {
+                                "admin_account": {
+                                    "country_name": "United States",
+                                    "display_name": "DName",
+                                    "email": "adminemail@email.com",
+                                    "first_name": "FName",
+                                    "language": "en",
+                                    "last_name": "LName",
+                                    "phone": "+154863488",
+                                    "staff_uid": "aaa1234567890abcdef",
+                                    "user_id": "11111"
+                                },
+                                "business": {
+                                    "business_category": "aeroclub",
+                                    "business_maturity_in_years": "0.5",
+                                    "country_name": "United States",
+                                    "id": "1a123b456c789",
+                                    "landing_page": "Homepage",
+                                    "name": "Business name",
+                                    "short_description": "My business description"
+                                },
+                                "integrations": {},
+                                "meta": {
+                                    "auth_token": "a1a1a1a1a1",
+                                    "external_id": "1213444",
+                                    "external_reference_id": "id123",
+                                    "identities": [
+                                        "aaa123",
+                                        "bbb345",
+                                        "1a3c4f4h"
+                                    ],
+                                    "in_setup": "false",
+                                    "intents": [
+                                        "accept_payments_tile",
+                                        "documents_and_forms"
+                                    ],
+                                    "is_template": "true",
+                                    "marketing_channel": "Client Channel",
+                                    "note": "Client Note",
+                                    "plan": {
+                                        "expires_on": "2022-06-14T09:31:21.000Z",
+                                        "external_subscription_params": "***",
+                                        "plan_name": "Essential"
+                                    },
+                                    "tags": "Client tag1, Client tag2"
+                                },
+                                "synchronized": false
                             },
                             "status": "OK"
                         }
@@ -1138,7 +1194,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Subscribe to webhook",
+        "description": "Subscribe to receive webhook notifications for specific events.\n\n**Available Event Types:**\n- Standard events: `created`, `updated`, `deleted` (triggered for most entities)\n- `account/rejected`: Triggered when business creation fails. This webhook is sent when a business account creation request is rejected due to validation errors or other issues.\n\n**Account/Rejected Event:**\nWhen subscribing with `entity: \"account\"` and `event_type: \"account/rejected\"`, you will receive webhook notifications for business creation failures. The webhook payload includes:\n- `email`: The email address from the failed request\n- `external_reference_id`: The unique identifier provided by the client\n- `errors`: Array of validation errors by field\n\n**Use Case:** Required for asynchronous business creation workflows (e.g., LocalSearch) to receive notifications when business creation fails.",
         "parameters": [
           {
             "in": "body",
@@ -1146,7 +1202,7 @@
             "schema": {
               "properties": {
                 "entity": {
-                  "description": "Object / Event name to subscribe to (e.g. client, appointment)",
+                  "description": "Object / Event name to subscribe to (e.g. client, appointment, account). For business creation failure notifications, use 'account' entity with 'account/rejected' event_type. See description for details on account/rejected webhook.",
                   "type": "string",
                   "enum": [
                     "account",
@@ -1193,9 +1249,10 @@
                   "example": "client"
                 },
                 "event_type": {
-                  "description": "Type of event that triggers the webhook (e.g. created, updated, deleted)",
+                  "description": "Type of event that triggers the webhook (e.g. created, updated, deleted, account/rejected). The 'account/rejected' event type is triggered when business creation fails. See description for details on account/rejected webhook payload structure.",
                   "type": "string",
                   "enum": [
+                    "account/rejected",
                     "approved",
                     "business_sent_message",
                     "cancelled",
@@ -1362,10 +1419,10 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Get webhooks list",
+        "description": "Get list of webhook subscriptions.\n\n**Filtering:**\nUse the filter parameter to filter by entity and event_type. For example:\n- `?filter[entity]=account&filter[event_type]=account/rejected` - Get subscriptions for account/rejected events\n- `?filter[entity]=client&filter[event_type]=create` - Get subscriptions for client creation events\n\n**Account/Rejected Event:**\nThe `account/rejected` event type is triggered when business creation fails. Webhook payload includes email, external_reference_id, and validation errors. See webhook subscribe endpoint description for details.",
         "parameters": [
           {
-            "description": "Filtering the list of webhooks.\nFilter is a 'deepObject' works with:\n  1. 'entity' - object which listen to event (example: client)\n  2. 'event_type' - type of event to triger hoom (example: created)\n\nExample:\n  <url>?filter[entity]=client&filter[event_type]=created\n",
+            "description": "Filtering the list of webhooks.\nFilter is a 'deepObject' works with:\n  1. 'entity' - object which listen to event (example: client, account)\n  2. 'event_type' - type of event to trigger webhook (example: created, account/rejected)\n\nExample:\n  <url>?filter[entity]=client&filter[event_type]=created\n  <url>?filter[entity]=account&filter[event_type]=account/rejected\n",
             "in": "query",
             "name": "filter",
             "required": false,
@@ -1387,6 +1444,12 @@
                     "event_type": "create",
                     "uid": 32,
                     "url": "https://my.domain.com/path/of/webhook/call"
+                  },
+                  {
+                    "entity": "account",
+                    "event_type": "account/rejected",
+                    "uid": 33,
+                    "url": "https://my.domain.com/webhooks/account-rejected"
                   }
                 ]
               }
@@ -1400,13 +1463,14 @@
                   "items": {
                     "properties": {
                       "entity": {
-                        "description": "Object / Event name that the webhook is subscribed to (e.g. client, appointment)",
+                        "description": "Object / Event name that the webhook is subscribed to (e.g. client, appointment, account)",
                         "type": "string"
                       },
                       "event_type": {
-                        "description": "Type of event that triggers the webhook (e.g. created, updated, deleted)",
+                        "description": "Type of event that triggers the webhook (e.g. created, updated, deleted, account/rejected). The 'account/rejected' event type is triggered when business creation fails. See webhook subscribe endpoint description for details on account/rejected webhook payload structure.",
                         "type": "string",
                         "enum": [
+                          "account/rejected",
                           "approved",
                           "business_sent_message",
                           "cancelled",
