@@ -351,11 +351,11 @@
         "x-auth-type": "Application & Application User"
       },
       "post": {
-        "description": "Creates a Business.",
+        "description": "Creates a Business. By default, business creation is synchronous. To create a business asynchronously, set the 'synchronized' parameter to false in the 'meta' object. When set to false, the request returns immediately after input parameters validation and an async job is created to handle the business account creation.\n\n**Asynchronous Creation Webhooks:** When 'synchronized' is set to false, webhooks will be sent to notify about the business creation outcome:\n\n- **Success Webhook:** Subscribe to the 'business' entity with event_type 'create' to receive notifications when business creation succeeds. The webhook will be triggered after the business account and its default subscription have been created, and will include the complete business data.\n\n- **Failure Webhook:** Subscribe to the 'account' entity with event_type 'rejected' to receive notifications when business creation fails. The webhook payload includes the email, external_reference_id (if provided), and an errors array containing validation error details.\n\nExample request for asynchronous creation:\n```json\n{\n  \"admin_account\": {\n    \"email\": \"admin@test.com\",\n    \"password\": \"password123\"\n  },\n  \"business\": {\n    \"name\": \"Admin Test\"\n  },\n  \"meta\": {\n    \"synchronized\": false\n  }\n}\n```\n\nExample failure webhook payload:\n```json\n{\n  \"email\": \"admin@test.com\",\n  \"external_reference_id\": \"unique_id\",\n  \"errors\": [\n    {\n      \"business_name\": [\n        \"contains invalid term\"\n      ]\n    }\n  ]\n}\n```",
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Business Created",
+            "description": "Business Created. When 'synchronized' is true (default), the response includes the complete business data. When 'synchronized' is false, the response is returned immediately after validation and the business creation is processed asynchronously. In the asynchronous case, the final result will be delivered via webhook: success notifications are sent to subscribers of the 'business' entity with event_type 'create', and failure notifications are sent to subscribers of the 'account' entity with event_type 'rejected'.",
             "content": {
               "application/json": {}
             }
@@ -544,6 +544,11 @@
                       "is_template": {
                         "default": false,
                         "description": "Whether this account can be used as a template for creating more businesses",
+                        "type": "boolean"
+                      },
+                      "synchronized": {
+                        "default": true,
+                        "description": "When set to true, the business account is created synchronously. When set to false, the business account is created asynchronously - the request returns immediately after input parameters validation and an async job is created to handle the business account creation",
                         "type": "boolean"
                       },
                       "note": {
