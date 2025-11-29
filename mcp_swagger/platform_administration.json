@@ -6,6 +6,7 @@
     "version": "3.0",
     "x-generated": {
       "sourceFiles": [
+        "oauth.json",
         "legacy_v1_platform.json",
         "operatorCapabilities.json",
         "operatorTokens.json",
@@ -13,11 +14,26 @@
         "staff_member.json",
         "access_control.json",
         "accounts.json",
-        "oauth.json",
         "staff.json",
         "license.json"
       ],
       "pathNormalizations": [
+        {
+          "file": "oauth.json",
+          "basePath": "/oauth",
+          "transformations": [
+            {
+              "original": "/token",
+              "normalized": "/oauth/token",
+              "basePath": "/oauth"
+            },
+            {
+              "original": "/userinfo",
+              "normalized": "/oauth/userinfo",
+              "basePath": "/oauth"
+            }
+          ]
+        },
         {
           "file": "legacy_v1_platform.json",
           "basePath": "/platform/v1",
@@ -151,22 +167,6 @@
           ]
         },
         {
-          "file": "oauth.json",
-          "basePath": "/oauth",
-          "transformations": [
-            {
-              "original": "/token",
-              "normalized": "/oauth/token",
-              "basePath": "/oauth"
-            },
-            {
-              "original": "/userinfo",
-              "normalized": "/oauth/userinfo",
-              "basePath": "/oauth"
-            }
-          ]
-        },
-        {
           "file": "staff.json",
           "basePath": "/business/staffs",
           "transformations": [
@@ -277,6 +277,145 @@
     }
   ],
   "paths": {
+    "/oauth/token": {
+      "post": {
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Code Exchanged For Access Token",
+            "content": {
+              "application/json": {
+                "example": {
+                  "access_token": "eade05e0ee958ed139b7431b1a630bff95260178699ddf88cbd86a32d2ac708c",
+                  "created_at": 1754377015,
+                  "expires_in": 631139040,
+                  "token_type": "Bearer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Exchanges an OAuth Code for an Access Token",
+        "tags": [
+          "Tokens"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///oauth/token"
+        },
+        "x-auth-type": "None",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "client_id": {
+                    "description": "The Client ID for the Developer App",
+                    "type": "string"
+                  },
+                  "client_secret": {
+                    "description": "The Client Secret for the Developer App",
+                    "type": "string"
+                  },
+                  "code": {
+                    "description": "A code that was generated as part of the OAuth Code Authorization Flow",
+                    "type": "string"
+                  },
+                  "grant_type": {
+                    "description": "Currently \"authorization_code\" is the only supported value",
+                    "type": "string"
+                  },
+                  "redirect_uri": {
+                    "description": "The Redirect URI used when generating the code",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/oauth/userinfo": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Got user info",
+            "content": {
+              "application/json": {
+                "example": {
+                  "brand_host": "695b14b22b8483c6.myclients.me",
+                  "brand_theme": {
+                    "colors": {
+                      "primary": "#131a46",
+                      "secondary": "#d1b050",
+                      "text": "#ffffff"
+                    },
+                    "locale": "en",
+                    "logo": null,
+                    "name": null,
+                    "powered_by": {
+                      "intandem_goto_url": null,
+                      "intandem_logo_bright": null,
+                      "intandem_logo_dark": null,
+                      "parent_goto_url": null,
+                      "parent_logo_bright": null,
+                      "parent_logo_dark": null
+                    }
+                  },
+                  "business_id": "ed469f8764326a66",
+                  "business_name": "business79043ef98e0f7e43",
+                  "business_uid": "ed469f8764326a66",
+                  "directory_uid": "u6g6s4q3386zs6j2",
+                  "email": "tiara.bradtke@kautzer-considine.biz",
+                  "role": "owner",
+                  "sub": "a383717599bf1893",
+                  "type": "staff"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get authenticated user info",
+        "tags": [
+          "OpenID"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "GET",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///oauth/userinfo"
+        },
+        "x-auth-type": "None",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/platform/v1/businesses": {
       "get": {
         "description": "Search for a business by external_reference_id or email. A filter is required for the API to return a result.",
@@ -1234,7 +1373,7 @@
         ],
         "summary": "Creates a token",
         "tags": [
-          "Token Management"
+          "Tokens"
         ],
         "x-amazon-apigateway-auth": {
           "type": "NONE"
@@ -5213,145 +5352,6 @@
           "uri": "https:///business/accounts/v1/usage/last_3_months_activity"
         },
         "x-auth-type": "Application & Application User"
-      }
-    },
-    "/oauth/token": {
-      "post": {
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Code Exchanged For Access Token",
-            "content": {
-              "application/json": {
-                "example": {
-                  "access_token": "eade05e0ee958ed139b7431b1a630bff95260178699ddf88cbd86a32d2ac708c",
-                  "created_at": 1754377015,
-                  "expires_in": 631139040,
-                  "token_type": "Bearer"
-                }
-              }
-            }
-          }
-        },
-        "summary": "Exchanges a OAuth Code for an Access Token",
-        "tags": [
-          "Token Management"
-        ],
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-amazon-apigateway-integration": {
-          "httpMethod": "POST",
-          "responses": {
-            "default": {
-              "statusCode": "200"
-            }
-          },
-          "type": "http_proxy",
-          "uri": "https:///oauth/token"
-        },
-        "x-auth-type": "None",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "properties": {
-                  "client_id": {
-                    "description": "The Client ID for the Developer App",
-                    "type": "string"
-                  },
-                  "client_secret": {
-                    "description": "The Client Secret for the Developer App",
-                    "type": "string"
-                  },
-                  "code": {
-                    "description": "A code that was generated as part of the OAuth Code Authorization Flow",
-                    "type": "string"
-                  },
-                  "grant_type": {
-                    "description": "Currently \"authorization_code\" is the only supported value",
-                    "type": "string"
-                  },
-                  "redirect_uri": {
-                    "description": "The Redirect URI used when generating the code",
-                    "type": "string"
-                  }
-                },
-                "type": "object"
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/oauth/userinfo": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "Got user info",
-            "content": {
-              "application/json": {
-                "example": {
-                  "brand_host": "695b14b22b8483c6.myclients.me",
-                  "brand_theme": {
-                    "colors": {
-                      "primary": "#131a46",
-                      "secondary": "#d1b050",
-                      "text": "#ffffff"
-                    },
-                    "locale": "en",
-                    "logo": null,
-                    "name": null,
-                    "powered_by": {
-                      "intandem_goto_url": null,
-                      "intandem_logo_bright": null,
-                      "intandem_logo_dark": null,
-                      "parent_goto_url": null,
-                      "parent_logo_bright": null,
-                      "parent_logo_dark": null
-                    }
-                  },
-                  "business_id": "ed469f8764326a66",
-                  "business_name": "business79043ef98e0f7e43",
-                  "business_uid": "ed469f8764326a66",
-                  "directory_uid": "u6g6s4q3386zs6j2",
-                  "email": "tiara.bradtke@kautzer-considine.biz",
-                  "role": "owner",
-                  "sub": "a383717599bf1893",
-                  "type": "staff"
-                }
-              }
-            }
-          }
-        },
-        "summary": "Get authenticated user info",
-        "tags": [
-          "OpenID"
-        ],
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-amazon-apigateway-integration": {
-          "httpMethod": "GET",
-          "responses": {
-            "default": {
-              "statusCode": "200"
-            }
-          },
-          "type": "http_proxy",
-          "uri": "https:///oauth/userinfo"
-        },
-        "x-auth-type": "None",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
       }
     },
     "/business/staffs/v1/daily_staff_sign_ins": {
