@@ -102,8 +102,9 @@
                                                 "type": "string"
                                             },
                                             "email": {
-                                                "description": "Owner’s email, also used as the business’s main email",
-                                                "type": "string"
+                                                "description": "Owner's email, also used as the business's main email",
+                                                "type": "string",
+                                                "format": "email"
                                             },
                                             "first_name": {
                                                 "description": "Owner’s first name. Up to 255 characters, no HTML tags, no new lines",
@@ -161,7 +162,8 @@
                                             },
                                             "logo_url": {
                                                 "description": "Business logo URL - A valid image URL. Supporting formats: jpg, jpeg, gif, png, SVG. Make sure the URL includes one of these extensions",
-                                                "type": "string"
+                                                "type": "string",
+                                                "format": "uri"
                                             },
                                             "name": {
                                                 "description": "Business name. Up to 100 characters, no HTML tags, no new lines",
@@ -181,8 +183,9 @@
                                                 "type": "string"
                                             },
                                             "website_url": {
-                                                "description": "Business’s website URL. Must be a valid URL address including http/https.",
-                                                "type": "string"
+                                                "description": "Business's website URL. Must be a valid URL address including http/https.",
+                                                "type": "string",
+                                                "format": "uri"
                                             }
                                         },
                                         "required": [
@@ -356,7 +359,47 @@
                         }
                     }
                 }        
-        }
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters provided. The request contains invalid or missing required fields, validation errors, or business name contains invalid terms.",
+            "examples": {
+              "application/json": {
+                "message": "Invalid parameters",
+                "status": "Error",
+                "errors": {
+                  "business_name": ["contains invalid term"],
+                  "email": ["invalid email format"]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token.",
+            "examples": {
+              "application/json": {
+                "message": "Unauthorized",
+                "status": "Error"
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict - A business with the provided email or external_reference_id already exists.",
+            "examples": {
+              "application/json": {
+                "message": "Business already exists",
+                "status": "Error"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error - An unexpected error occurred while processing the request.",
+            "examples": {
+              "application/json": {
+                "message": "Internal server error",
+                "status": "Error"
+              }
+            }
+          }
         },
         "security": [
           {
@@ -393,14 +436,14 @@
         "description": "Validates username/password credentials for login. The API will be blocked for the username after 5 failed attempts.",
         "parameters": [
           {
-            "description": "Email",
+            "description": "Email address of the business owner (used as username for login)",
             "in": "query",
             "name": "username",
             "required": true,
             "type": "string"
           },
           {
-            "description": "Password",
+            "description": "Password for the business owner account",
             "in": "query",
             "name": "password",
             "required": true,
@@ -412,7 +455,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Login Validated",
+            "description": "Login credentials validated successfully. Returns authentication status indicating whether the provided username and password are valid.",
             "examples": {
               "application/json": {
                 "data": {
@@ -453,7 +496,7 @@
             "schema": {
               "properties": {
                 "unique_validation_identifier": {
-                  "description": "The future business' unique validation identifier",
+                  "description": "The future business' unique validation identifier. This is an object containing validation criteria specific to the partner's requirements. The structure depends on the partner's configuration.",
                   "type": "object"
                 }
               },
@@ -469,7 +512,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Claim validated",
+            "description": "Audience claim validated successfully. Returns true if the business meets the necessary criteria to qualify for partnership enrollment with the specified partner.",
             "examples": {
               "application/json": {
                 "data": true,
@@ -489,6 +532,7 @@
         "consumes": [
           "application/json"
         ],
+        "description": "Retrieves detailed information about a specific business by its ID, including admin account details and business information.",
         "parameters": [
           {
             "description": "Business ID",
@@ -503,7 +547,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Business Retrieved",
+            "description": "Business details retrieved successfully. Returns complete business information including admin account details and business data.",
             "examples": {
               "application/json": {
                 "data": {
@@ -562,6 +606,7 @@
         "consumes": [
           "application/json"
         ],
+        "description": "Updates an existing business. This endpoint allows updating business information, admin account details, integrations, and subscription plan. Only provided fields will be updated.",
         "parameters": [
           {
             "description": "Business ID",
@@ -589,7 +634,8 @@
                         },
                         "email": {
                           "description": "Owner\u2019s email, also used as the business\u2019s main email",
-                          "type": "string"
+                          "type": "string",
+                          "format": "email"
                         },
                         "first_name": {
                           "description": "Owner\u2019s first name. Up to 255 characters, no HTML tags, no new lines",
@@ -631,7 +677,7 @@
                         },
                         "hide_address": {
                           "default": true,
-                          "description": "true",
+                          "description": "Whether to show the business address to clients",
                           "type": "boolean"
                         },
                         "landing_page": {
@@ -640,7 +686,8 @@
                         },
                         "logo_url": {
                           "description": "Business logo URL - A valid image URL. Supporting formats: jpg, jpeg, gif, png, SVG. Make sure the URL includes one of these extensions",
-                          "type": "string"
+                          "type": "string",
+                          "format": "uri"
                         },
                         "name": {
                           "description": "Business name. Up to 100 characters, no HTML tags, no new lines",
@@ -770,7 +817,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Business Updated",
+            "description": "Business updated successfully. Returns the updated business information including admin account, business details, integrations, and subscription plan.",
             "examples": {
               "application/json": {
                 "data": {
@@ -844,10 +891,28 @@
             }
           },
           "400": {
-            "description": "Business Updated",
+            "description": "Bad Request - Invalid parameters provided for business update. The request contains invalid or missing required fields, or validation errors occurred.",
             "examples": {
               "application/json": {
                 "message": "Incorrect parameters for update",
+                "status": "Error"
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - The specified business ID does not exist or you do not have permission to access it.",
+            "examples": {
+              "application/json": {
+                "message": "Business not found",
+                "status": "Error"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error - An unexpected error occurred while processing the request.",
+            "examples": {
+              "application/json": {
+                "message": "Internal server error",
                 "status": "Error"
               }
             }
@@ -903,7 +968,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Success",
+            "description": "Successfully retrieved directory branding information. Returns logo URL, color scheme (primary, secondary, text colors), directory name, and unique identifier.",
             "examples": {
               "application/json": {
                 "data": {
@@ -917,6 +982,24 @@
                   "uid": "aaaabbbb"
                 },
                 "success": true
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token.",
+            "examples": {
+              "application/json": {
+                "message": "Unauthorized",
+                "status": "Error"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error - An unexpected error occurred while processing the request.",
+            "examples": {
+              "application/json": {
+                "message": "Internal server error",
+                "status": "Error"
               }
             }
           }
@@ -954,7 +1037,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Get tokens list",
+        "description": "Get tokens list. Tokens can be filtered by app_id, user_id, or directory_id.",
         "parameters": [
           {
             "description": "Filter by app_id",
@@ -983,13 +1066,31 @@
         ],
         "responses": {
           "201": {
-            "description": "Success",
+            "description": "Tokens list retrieved successfully. Returns an array of tokens matching the specified filters (app_id, user_id, or directory_id).",
             "examples": {
               "application/json": {
                 "data": {
                   "tokens": []
                 },
                 "status": "OK"
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token.",
+            "examples": {
+              "application/json": {
+                "message": "Unauthorized",
+                "status": "Error"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error - An unexpected error occurred while processing the request.",
+            "examples": {
+              "application/json": {
+                "message": "Internal server error",
+                "status": "Error"
               }
             }
           }
@@ -1024,6 +1125,7 @@
         "consumes": [
           "application/json"
         ],
+        "description": "Creates a token for authentication. Tokens can be created for applications (app_id), businesses (business_id), or directories (directory_id). At least one identifier must be provided.",
         "parameters": [
           {
             "in": "body",
@@ -1031,7 +1133,7 @@
             "schema": {
               "properties": {
                 "app_id": {
-                  "description": "A unique identifier for a 3rd party application. ",
+                  "description": "A unique identifier for a 3rd party application.",
                   "type": "string"
                 },
                 "business_id": {
@@ -1052,13 +1154,49 @@
         ],
         "responses": {
           "201": {
-            "description": "Token Created",
+            "description": "Token created successfully. Returns the generated authentication token that can be used for API access.",
             "examples": {
               "application/json": {
                 "data": {
                   "token": "some_token"
                 },
                 "status": "OK"
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters provided. At least one identifier (app_id, business_id, or directory_id) must be provided.",
+            "examples": {
+              "application/json": {
+                "message": "At least one identifier must be provided",
+                "status": "Error"
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token.",
+            "examples": {
+              "application/json": {
+                "message": "Unauthorized",
+                "status": "Error"
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - The specified app_id, business_id, or directory_id does not exist.",
+            "examples": {
+              "application/json": {
+                "message": "Resource not found",
+                "status": "Error"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error - An unexpected error occurred while processing the request.",
+            "examples": {
+              "application/json": {
+                "message": "Internal server error",
+                "status": "Error"
               }
             }
           }
@@ -1116,13 +1254,40 @@
         ],
         "responses": {
           "201": {
-            "description": "Success",
+            "description": "Token revoked successfully. Returns confirmation that the specified token has been revoked and is no longer valid.",
             "examples": {
               "application/json": {
                 "data": {
                   "revoked": true
                 },
                 "status": "OK"
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid token provided or token is already revoked.",
+            "examples": {
+              "application/json": {
+                "message": "Invalid token",
+                "status": "Error"
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token.",
+            "examples": {
+              "application/json": {
+                "message": "Unauthorized",
+                "status": "Error"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error - An unexpected error occurred while processing the request.",
+            "examples": {
+              "application/json": {
+                "message": "Internal server error",
+                "status": "Error"
               }
             }
           }
@@ -1159,7 +1324,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Subscribe to webhook",
+        "description": "Subscribe to webhook notifications. Webhooks allow you to receive real-time notifications when specific events occur in the system. You must specify the entity (what object to monitor) and the event_type (what action triggers the notification).\n\n**Common Entity and Event Type Combinations:**\n- `business` + `create` - Notify when a business is created\n- `account` + `rejected` - Notify when business creation fails (for asynchronous creation)\n- `client` + `create` - Notify when a client is created\n- `appointment` + `scheduled` - Notify when an appointment is scheduled\n- `payment` + `recorded` - Notify when a payment is recorded\n- `invoice` + `issued` - Notify when an invoice is issued\n\n**Available Entities (40 total):**\n- **Business Management:** `business`, `account`, `staff`, `location`, `service`\n- **Client Management:** `client`, `lead`, `engagement`, `tag`\n- **Scheduling:** `appointment`, `booking`, `meeting`, `event`, `event_attendance`, `cancellation`, `reschedule`, `confirmation`\n- **Financial:** `payment`, `invoice`, `estimate`, `deposit`, `subscription`, `purchasable_subscription`\n- **Communication:** `message`, `conversation`, `conversation_item`, `voice_call`, `notification`, `reminder`\n- **Content:** `document`, `review`, `contact_form`\n- **Integrations:** `application`, `app_subscription`, `payment_gateways_settings`, `voice_calls_settings`, `channel`\n- **Other:** `bulk_import`, `matter`, `pivot`\n\n**Available Event Types (35 total):**\n- **Lifecycle Events:** `create`, `update`, `delete`\n- **Status Changes:** `approved`, `rejected`, `closed`, `completed`, `done`, `deactivated`, `reactivated`\n- **Scheduling Events:** `scheduled`, `cancelled`, `rescheduled`, `no_show`\n- **Financial Events:** `paid`, `refunded`, `recorded`, `issued`\n- **Communication Events:** `sent`, `read`, `business_sent_message`, `client_sent_message`, `reminder_sent`\n- **Integration Events:** `installed`, `uninstalled`, `connected`, `disconnected`, `changed_primary_payment_gateway`\n- **Other Events:** `event`, `status`, `submitted`, `matched`, `requested`, `recover`, `promotional_blocked`\n\nNote: Not all entity/event_type combinations are valid. Refer to the webhook documentation for valid combinations.",
         "parameters": [
           {
             "in": "body",
@@ -1167,7 +1332,7 @@
             "schema": {
               "properties": {
                 "entity": {
-                  "description": "Object / Event name to subscribe to (e.g. client, appointment)",
+                  "description": "The entity (object type) to monitor for webhook events. This determines what type of object the webhook will track. Available entities include: 'business' (business accounts), 'client' (client records), 'appointment' (scheduled appointments), 'payment' (payment transactions), 'invoice' (invoices), 'account' (account-related events like business creation failures), and 34 other entity types. See the enum list below for all available entities.",
                   "type": "string",
                   "enum": [
                     "account",
@@ -1214,7 +1379,7 @@
                   "example": "client"
                 },
                 "event_type": {
-                  "description": "Type of event that triggers the webhook (e.g. created, updated, deleted)",
+                  "description": "The type of event that triggers the webhook notification. This specifies what action or state change should trigger the webhook. Common event types include: 'create' (object created), 'update' (object updated), 'delete' (object deleted), 'scheduled' (appointment/event scheduled), 'cancelled' (appointment/event cancelled), 'rejected' (request rejected, e.g., business creation failure), 'paid' (payment received), 'recorded' (payment recorded), 'issued' (invoice/estimate issued), 'sent' (message sent), and 25 other event types. See the enum list below for all available event types.",
                   "type": "string",
                   "enum": [
                     "approved",
@@ -1255,8 +1420,9 @@
                   ]
                 },
                 "url": {
-                  "description": "Where to send the webhook response to (e.g. https://my.domain.com/path/of/webhook/call)",
-                  "type": "string"
+                  "description": "Where to send the webhook response to (e.g. https://my.domain.com/path/of/webhook/call). Must be a valid HTTPS URL.",
+                  "type": "string",
+                  "format": "uri"
                 }
               },
               "required": [
@@ -1264,7 +1430,12 @@
                 "event_type",
                 "url"
               ],
-              "type": "object"
+              "type": "object",
+              "x-example": {
+                "entity": "business",
+                "event_type": "create",
+                "url": "https://my.domain.com/webhooks/business-created"
+              }
             }
           }
         ],
@@ -1273,13 +1444,40 @@
         ],
         "responses": {
           "201": {
-            "description": "Success",
+            "description": "Webhook subscription created successfully. Returns a subscription_id that can be used to identify this subscription.",
             "examples": {
               "application/json": {
                 "data": {
                   "subscription_id": "12345"
                 },
                 "status": "OK"
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters provided. The entity/event_type combination may be invalid, the URL format is incorrect, or required fields are missing.",
+            "examples": {
+              "application/json": {
+                "message": "Invalid entity/event_type combination",
+                "status": "Error"
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token.",
+            "examples": {
+              "application/json": {
+                "message": "Unauthorized",
+                "status": "Error"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error - An unexpected error occurred while processing the request.",
+            "examples": {
+              "application/json": {
+                "message": "Internal server error",
+                "status": "Error"
               }
             }
           }
@@ -1316,7 +1514,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Unsubscribe from webhook",
+        "description": "Unsubscribe from webhook. Note: This endpoint uses legacy parameter names ('event' and 'target_url'). The 'target_url' must match exactly the URL used when subscribing. The 'event' parameter is optional and can be used to unsubscribe from a specific event type.",
        "parameters": [
 
           {
@@ -1325,11 +1523,11 @@
             "schema": {
               "properties": {
                 "event": {
-                  "description": "Object / Event name to unsubscribe from",
+                  "description": "Object / Event name to unsubscribe from (optional). If not provided, all subscriptions for the target_url will be removed.",
                   "type": "string"
                 },
                 "target_url": {
-                  "description": "Where to send the webhook",
+                  "description": "The webhook URL that was used when subscribing. Must match exactly the URL used during subscription.",
                   "type": "string"
                 }
               },
@@ -1391,7 +1589,7 @@
         "description": "Get webhooks list",
         "parameters": [
           {
-            "description": "Filtering the list of webhooks.\nFilter is a 'deepObject' works with:\n  1. 'entity' - object which listen to event (example: client)\n  2. 'event_type' - type of event to triger hoom (example: created)\n\nExample:\n  <url>?filter[entity]=client&filter[event_type]=created\n",
+            "description": "Filtering the list of webhooks.\nFilter is a 'deepObject' works with:\n  1. 'entity' - object which listen to event (example: client)\n  2. 'event_type' - type of event to trigger webhook (example: created)\n\nExample:\n  <url>?filter[entity]=client&filter[event_type]=created\n",
             "in": "query",
             "name": "filter",
             "required": false,
@@ -1426,11 +1624,53 @@
                   "items": {
                     "properties": {
                       "entity": {
-                        "description": "Object / Event name that the webhook is subscribed to (e.g. client, appointment)",
-                        "type": "string"
+                        "description": "Object / Event name that the webhook is subscribed to. This is the entity type being monitored. Available entities include: 'business' (business accounts), 'client' (client records), 'appointment' (scheduled appointments), 'payment' (payment transactions), 'invoice' (invoices), 'account' (account-related events), and 34 other entity types. See the enum list below for all available entities.",
+                        "type": "string",
+                        "enum": [
+                          "account",
+                          "app_subscription",
+                          "application",
+                          "appointment",
+                          "booking",
+                          "bulk_import",
+                          "business",
+                          "cancellation",
+                          "channel",
+                          "client",
+                          "confirmation",
+                          "contact_form",
+                          "conversation",
+                          "conversation_item",
+                          "deposit",
+                          "document",
+                          "engagement",
+                          "estimate",
+                          "event",
+                          "event_attendance",
+                          "invoice",
+                          "lead",
+                          "location",
+                          "matter",
+                          "meeting",
+                          "message",
+                          "notification",
+                          "payment",
+                          "payment_gateways_settings",
+                          "pivot",
+                          "purchasable_subscription",
+                          "reminder",
+                          "reschedule",
+                          "review",
+                          "service",
+                          "staff",
+                          "subscription",
+                          "tag",
+                          "voice_call",
+                          "voice_calls_settings"
+                        ]
                       },
                       "event_type": {
-                        "description": "Type of event that triggers the webhook (e.g. created, updated, deleted)",
+                        "description": "The type of event that triggers the webhook notification. This specifies what action or state change triggers the webhook. Common event types include: 'create' (object created), 'update' (object updated), 'delete' (object deleted), 'scheduled' (appointment/event scheduled), 'cancelled' (appointment/event cancelled), 'rejected' (request rejected), 'paid' (payment received), 'recorded' (payment recorded), 'issued' (invoice/estimate issued), 'sent' (message sent), and 25 other event types. See the enum list below for all available event types.",
                         "type": "string",
                         "enum": [
                           "approved",
@@ -1522,6 +1762,7 @@
         "consumes": [
           "application/json"
         ],
+        "description": "Retrieves a list of features enabled for a specific business. Features represent capabilities and modules available to the business.",
         "parameters": [
           {
             "description": "Business ID",
@@ -1599,18 +1840,18 @@
                   "description": "Purchased Items data",
                   "properties": {
                     "bundled": {
-                      "description": "Bundled Items",
+                      "description": "Bundled items count or identifier. Represents items that are included as part of a bundle package.",
                       "type": "string"
                     },
                     "purchased": {
-                      "description": "Purchased Items",
+                      "description": "Purchased items count or identifier. Represents items that have been individually purchased.",
                       "type": "string"
                     }
                   },
                   "type": "object"
                 },
                 "type": {
-                  "description": "Type of a Purchased Items",
+                  "description": "Type of purchased items being updated. This categorizes the items (e.g., 'features', 'modules', 'addons').",
                   "type": "string"
                 }
               },
@@ -1660,6 +1901,7 @@
         "consumes": [
           "application/json"
         ],
+        "description": "Retrieves Recurly subscription data for a business, including account codes and subscription parameters used for billing integration.",
         "parameters": [
           {
             "description": "Business ID",
@@ -1719,10 +1961,14 @@
             "type": "string"
           },
           {
-            "description": "Optional fetch status active/all",
+            "description": "Optional fetch status. Valid values: 'active' (only active staff) or 'all' (all staff including inactive)",
             "in": "query",
             "name": "status",
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "active",
+              "all"
+            ]
           }
         ],
         "produces": [
@@ -1730,7 +1976,7 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Operation completed successfully.",
             "examples": {
               "application/json": {
                 "data": {
@@ -1840,7 +2086,8 @@
                     },
                     "email": {
                       "description": "Email Address",
-                      "type": "string"
+                      "type": "string",
+                      "format": "email"
                     },
                     "first_name": {
                       "description": "First Name",
@@ -1874,7 +2121,7 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Operation completed successfully.",
             "examples": {
               "application/json": {
                 "data": {
@@ -1958,7 +2205,7 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Operation completed successfully.",
             "examples": {
               "application/json": {
                 "status": "OK"
@@ -2022,7 +2269,7 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Operation completed successfully.",
             "examples": {
               "application/json": {
                 "data": {
@@ -2107,7 +2354,7 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Operation completed successfully.",
             "examples": {
               "application/json": {
                 "data": {
@@ -2385,11 +2632,15 @@
             "type": "string"
           },
           {
-            "description": "Filter only active services or all",
+            "description": "Filter only active services or all. Valid values: 'true' (only active services) or 'false' (all services)",
             "in": "query",
             "name": "only_active_services",
             "required": true,
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "true",
+              "false"
+            ]
           },
           {
             "description": "Filter by service id",
@@ -2472,11 +2723,15 @@
             "type": "string"
           },
           {
-            "description": "Filter only active services or all",
+            "description": "Filter only active services or all. Valid values: 'true' (only active services) or 'false' (all services)",
             "in": "query",
             "name": "only_active_services",
             "required": true,
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "true",
+              "false"
+            ]
           }
         ],
         "produces": [
