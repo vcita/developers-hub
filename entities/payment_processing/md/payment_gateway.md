@@ -45,6 +45,7 @@ Metadata for a payment gateway integration, including locales, supported regions
 | client_save_card_on_checkout | Indicates if clients can save cards on file during a payment flow. | boolean | Yes |
 | client_save_card_standalone | Indicates if clients can save cards on file through a standalone flow. | boolean | Yes |
 | save_card_by_business | Indicates if the gateway supports saving cards on file from the business side. | boolean | Yes |
+| offset_fees | Indicates whether the gateway supports offsetting processing fees, as surcharges, convenience fees, or both, while each SMB can enable only one fee type or none. | boolean | Yes |
 
 ## Example
 
@@ -132,7 +133,8 @@ JSON
     "partial_refund": true,
     "client_save_card_on_checkout": true,
     "client_save_card_standalone": true,
-    "save_card_by_business": true
+    "save_card_by_business": true,
+    "offset_fees": false
   }
 }
 ```
