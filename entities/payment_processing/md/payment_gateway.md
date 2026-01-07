@@ -134,7 +134,7 @@ JSON
     "client_save_card_on_checkout": true,
     "client_save_card_standalone": true,
     "save_card_by_business": true,
-    "offset_fees": false
+    "offset_fees": true
   }
 }
 ```
