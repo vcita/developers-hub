@@ -4,7 +4,7 @@
   "info": {
     "title": "Scheduling Legacy API v1",
     "version": "v1.0",
-    "description": "Legacy v1 Platform API endpoints for scheduling domain including appointments, bookings, services, and availability"
+    "description": "Legacy v1 Platform API endpoints for scheduling domain including appointments, bookings, services, and availability.\n\n## Rate Limiting\n\nSeveral endpoints in this API are rate-limited:\n- **GET /scheduling/appointments**: Rate limited per business. Returns 429 with error_code `APPOINTMENTS_LIMIT_EXCEEDED` when exceeded.\n- **POST /scheduling/bookings**: Rate limited per business. Returns 429 with error_code `BOOKING_LIMIT_EXCEEDED` when exceeded.\n\n## Pagination\n\n- **Appointments**: Default page size is 25, maximum is 25. Page numbers start at 1.\n- **Bookings**: Uses offset-based pagination with `offset` and `per_page` parameters.\n\n## Error Codes\n\nCommon error codes returned by these endpoints:\n- `PARAMETER_MISSING`: Required parameter not provided\n- `TIMESLOT_UNAVAILABLE`: Requested time slot is not available\n- `ALREADY_REGISTERED`: Client already registered for this event\n- `BOOKING_VIOLATION`: Client not allowed to register for this service\n- `RESCHEDULE_VIOLATION`: Rescheduling not allowed or time limit exceeded\n- `MATTER_DELETED`: Associated matter has been deleted"
   },
   "paths": {
     "/scheduling/appointments": {
@@ -12,31 +12,80 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Get appointments list",
+        "description": "Get appointments list for a business. This endpoint is rate-limited per business.\n\n**Rate Limit:** Returns 429 with `APPOINTMENTS_LIMIT_EXCEEDED` when rate limit is exceeded.",
         "parameters": [
           {
-            "description": "Business ID (optional)",
+            "description": "Business ID. If not provided, uses the business associated with the authenticated user.",
             "in": "query",
             "name": "business_id",
             "required": false,
             "type": "string"
           },
           {
-            "description": "Client ID Filter",
+            "description": "Filter by client ID",
             "in": "query",
             "name": "client_id",
             "required": false,
             "type": "string"
           },
           {
-            "description": "State Filter - rejected/scheduled/done/cancelled/pending_reschedule/reschedule e.g state=done,rejected",
+            "description": "Filter by staff ID",
+            "in": "query",
+            "name": "staff_id",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "description": "Filter by appointment state(s). Multiple states can be comma-separated. Valid values: rejected, scheduled, done, cancelled, pending_reschedule, reschedule. Example: state=done,rejected",
             "in": "query",
             "name": "state",
             "required": false,
             "type": "string"
           },
           {
-            "description": "Multiple order by option - updated:DESC,start_at:ASC,created:DESC",
+            "description": "Filter appointments starting from this time (ISO 8601 format)",
+            "in": "query",
+            "name": "start_time",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "description": "Filter appointments ending before this time (ISO 8601 format)",
+            "in": "query",
+            "name": "end_time",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "description": "Filter appointments created on or after this date (ISO 8601 format)",
+            "in": "query",
+            "name": "from_created_date",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "description": "Filter by specific appointment UIDs (comma-separated)",
+            "in": "query",
+            "name": "uids",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "description": "Filter by initiator. Set to true to only show staff-initiated appointments",
+            "in": "query",
+            "name": "initiate_by_staff",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "description": "Group results by a field",
+            "in": "query",
+            "name": "group_by",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "description": "Sort order. Format: field:direction. Multiple sort fields can be comma-separated. Example: updated:DESC,start_at:ASC,created:DESC",
             "in": "query",
             "name": "sort",
             "required": false,
@@ -47,14 +96,25 @@
             "in": "query",
             "name": "page",
             "required": false,
-            "type": "integer"
+            "type": "integer",
+            "default": 1,
+            "minimum": 1
           },
           {
-            "description": "How many items to return per page. Default: 25. Max: 100",
+            "description": "How many items to return per page. Default: 25. **Maximum: 25** (requests for more will be capped)",
             "in": "query",
             "name": "per_page",
             "required": false,
-            "type": "integer"
+            "type": "integer",
+            "default": 25,
+            "maximum": 25
+          },
+          {
+            "description": "Comma-separated list of fields to include in the response",
+            "in": "query",
+            "name": "fields",
+            "required": false,
+            "type": "string"
           }
         ],
         "produces": [
@@ -112,6 +172,15 @@
                 "status": "OK"
               }
             }
+          },
+          "404": {
+            "description": "Record not found"
+          },
+          "422": {
+            "description": "Unprocessable entity - validation failed"
+          },
+          "429": {
+            "description": "Rate limit exceeded. Error code: APPOINTMENTS_LIMIT_EXCEEDED"
           }
         },
         "security": [
@@ -191,6 +260,18 @@
                 "status": "OK"
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "404": {
+            "description": "Not Found - Appointment not found"
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation failed"
+          },
+          "500": {
+            "description": "Internal Server Error"
           }
         },
         "security": [
@@ -225,21 +306,21 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Get bookings of client",
+        "description": "Get bookings for a client. Returns appointments and event attendances associated with the authenticated client.\n\n**Note:** If `matter_uid` is provided, returns bookings for that conversation/matter. Otherwise, returns bookings for the authenticated client.",
         "parameters": [
           {
-            "description": "Maximum number of records which are returned for the request",
+            "description": "Maximum number of records to return per page",
             "in": "query",
             "name": "per_page",
             "required": true,
-            "type": "string"
+            "type": "integer"
           },
           {
-            "description": "First record's index in the returned list (e.g. per_page = 10, offset = 1, reords 11 to 20 are returned)",
+            "description": "Page offset (0-based). Combined with per_page for pagination. Example: per_page=10, offset=1 returns records 11-20",
             "in": "query",
             "name": "offset",
             "required": true,
-            "type": "string"
+            "type": "integer"
           },
           {
             "description": "Business UID",
@@ -249,32 +330,53 @@
             "type": "string"
           },
           {
-            "description": "Matter UID",
+            "description": "Matter/Conversation UID. When provided, returns bookings for this specific matter instead of the client",
             "in": "query",
             "name": "matter_uid",
             "required": false,
             "type": "string"
           },
           {
-            "description": "If equals to true, returns records from the past only. Otherwise, returns future bookings as well.",
+            "description": "Filter by specific booking UIDs (comma-separated)",
             "in": "query",
-            "name": "passed",
+            "name": "uids",
             "required": false,
             "type": "string"
           },
           {
-            "description": "Relevant to recurring appointment/event, returns appointment/event attendance which their start_time is bigger than this parameter",
+            "description": "If true, returns only past bookings. If false (default), includes future bookings and virtual recurring instances",
+            "in": "query",
+            "name": "passed",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "description": "Filter bookings starting after this time (ISO 8601 format). Defaults to current time if not specified",
             "in": "query",
             "name": "start_time",
             "required": false,
             "type": "string"
           },
           {
-            "description": "Relevant to recurring appointment/event, returns appointment/event attendance which their start_time is smaller than this parameter",
+            "description": "Filter bookings starting before this time (ISO 8601 format). Defaults to 2 years from start_time if not specified",
             "in": "query",
             "name": "end_time",
             "required": false,
             "type": "string"
+          },
+          {
+            "description": "Client's browser timezone for proper time display",
+            "in": "query",
+            "name": "browser_time_zone",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "description": "Include waitlist entries in results. Default: false",
+            "in": "query",
+            "name": "include_waitlists",
+            "required": false,
+            "type": "boolean"
           }
         ],
         "produces": [
@@ -310,6 +412,42 @@
                 "status": "OK"
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token",
+            "examples": {
+              "application/json": {
+                "message": "401 Unauthorized",
+                "status": "Failure"
+              }
+            }
+          },
+          "404": {
+            "description": "Record not found",
+            "examples": {
+              "application/json": {
+                "status": "Error",
+                "error": "Record not found"
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable entity - validation failed",
+            "examples": {
+              "application/json": {
+                "status": "Error",
+                "error": "Validation error message"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "examples": {
+              "application/json": {
+                "status": "Error",
+                "error": "An unexpected error occurred"
+              }
+            }
           }
         },
         "security": [
@@ -319,7 +457,7 @@
             ]
           }
         ],
-        "summary": "Get Bookings [Alpha] ",
+        "summary": "Get Bookings",
         "tags": [
           "Bookings"
         ],
@@ -342,7 +480,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Create Booking",
+        "description": "Create a new booking (appointment or event registration).\n\n**Rate Limit:** This endpoint is rate-limited per business. Returns 429 with `BOOKING_LIMIT_EXCEEDED` when exceeded.\n\n**Booking Types:**\n- **Appointment**: Requires `service_id`, `staff_id`, and either `start_time` or `optional_times`\n- **Event**: Requires `event_instance_id`\n- **Multi-booking**: Requires `service_id` as an array with multiple services\n\n**Validation:**\n- Client restrictions are checked - some services may not allow certain clients to book\n- Deleted matters will return `MATTER_DELETED` error",
         "parameters": [
           {
             "in": "body",
@@ -350,59 +488,83 @@
             "schema": {
               "properties": {
                 "business_id": {
-                  "description": "Business uid",
+                  "description": "Business UID (required)",
                   "type": "string"
                 },
-                "campaign": {
-                  "description": "Source campaign",
-                  "type": "string"
-                },
-                "channel": {
-                  "description": "Source channel",
-                  "type": "string"
-                },
-                "client_id": {
-                  "description": "Client uid",
-                  "type": "string"
-                },
-                "event_instance_id": {
-                  "description": "Event instance uid. Required for event.",
-                  "type": "string"
-                },
-                "form_data": {
-                  "description": "When specifying a service location as either \"Client will set the address at booking\" or \"you will call the client,\" it is required to include the form_data with meeting_interaction_details inside meeting_details",
-                  "type": "object"
-                },
-                "matter_uid": {
-                  "description": "Matter uid",
-                  "type": "string"
-                },
-                "portal_id": {
-                  "description": "Business uid",
-                  "type": "string"
+                "booking_type": {
+                  "description": "Type of booking: 'appointment', 'event', or 'multi_booking'. Auto-detected based on parameters if not provided",
+                  "type": "string",
+                  "enum": ["appointment", "event", "multi_booking"]
                 },
                 "service_id": {
-                  "description": "Service uid. Required for appointment.",
-                  "type": "string"
-                },
-                "source_name": {
-                  "description": "Source name",
-                  "type": "string"
-                },
-                "source_url": {
-                  "description": "Source URL",
+                  "description": "Service UID. Required for appointments. Can be an array for multi-bookings (comma-separated or array)",
                   "type": "string"
                 },
                 "staff_id": {
-                  "description": "Staff uid. Required for appointment.",
+                  "description": "Staff UID. Required for appointments",
                   "type": "string"
                 },
                 "start_time": {
-                  "description": "ISO 8601 format. Required for appointment.",
+                  "description": "Booking start time in ISO 8601 format. Required for immediate approval appointments. Either start_time or optional_times must be provided",
+                  "type": "string"
+                },
+                "optional_times": {
+                  "description": "Array of proposed times for single-choice approval mode. Either start_time or optional_times must be provided",
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "event_instance_id": {
+                  "description": "Event instance UID. Required for event bookings",
+                  "type": "string"
+                },
+                "client_id": {
+                  "description": "Client UID. If not provided, uses authenticated client",
+                  "type": "string"
+                },
+                "matter_uid": {
+                  "description": "Matter/Conversation UID to associate the booking with",
+                  "type": "string"
+                },
+                "waitlist_uid": {
+                  "description": "Waitlist UID if converting from waitlist to booking",
                   "type": "string"
                 },
                 "time_zone": {
-                  "description": "Default is set to UTC if not provided",
+                  "description": "Timezone for the booking. Default: UTC",
+                  "type": "string"
+                },
+                "preferred_language": {
+                  "description": "Preferred language for new client creation",
+                  "type": "string"
+                },
+                "form_data": {
+                  "description": "Additional form data. Required when service location is 'Client will set the address at booking' - include meeting_interaction_details in meeting_details",
+                  "type": "object"
+                },
+                "source_name": {
+                  "description": "Source name for tracking (e.g., 'client_portal', 'website')",
+                  "type": "string"
+                },
+                "source_url": {
+                  "description": "Source URL for tracking",
+                  "type": "string"
+                },
+                "channel": {
+                  "description": "Source channel for tracking",
+                  "type": "string"
+                },
+                "campaign": {
+                  "description": "Source campaign for tracking",
+                  "type": "string"
+                },
+                "campaign_recipient_id": {
+                  "description": "Campaign recipient ID for tracking",
+                  "type": "string"
+                },
+                "portal_id": {
+                  "description": "Alias for business_id",
                   "type": "string"
                 }
               },
@@ -418,43 +580,76 @@
         ],
         "responses": {
           "201": {
-            "description": "Success",
+            "description": "Booking created successfully",
             "examples": {
               "application/json": {
                 "data": {
                   "booking": {
-                    "business_id": "e62db14aa58c7675",
+                    "id": "v8mvcenb8y3wej2n",
+                    "title": "Imm + free",
+                    "status": "scheduled",
+                    "start_time": "2020-01-22T13:00:00Z",
+                    "duration": 60,
                     "client_id": "1kfvtps4a4wlh3lc",
+                    "staff_id": "mg9d91uh92bclwzg",
+                    "business_id": "e62db14aa58c7675",
                     "conversation_id": "ugd2qqidl75wrto6",
                     "created_at": "2020-01-19T07:44:21Z",
-                    "duration": 60,
-                    "event_instance_id": "a8ma2ephjfvwnvy7 (only for event)",
-                    "id": "v8mvcenb8y3wej2n",
                     "service_id": "mxmuh2mewjxe9vip",
+                    "type": "appointment",
+                    "time_zone": "UTC",
+                    "payment_status": null,
+                    "auto_reply_message": null,
                     "source_data": {
                       "campaign": null,
                       "channel": "",
                       "name": "client_portal",
                       "website_url": null
                     },
-                    "staff_id": "mg9d91uh92bclwzg",
-                    "start_time": "2020-01-22T13:00:00Z",
-                    "status": "scheduled",
-                    "time_zone": "UTC",
-                    "title": "Imm + free",
-                    "type": "appointment/event"
+                    "arrival_window_value": null,
+                    "linked_booking_uid": null
                   }
                 },
                 "status": "OK"
               }
             }
           },
+          "400": {
+            "description": "Missing required parameter",
+            "examples": {
+              "application/json": {
+                "error": "Mandatory parameter service_id is missing",
+                "error_code": "PARAMETER_MISSING",
+                "status": "Error"
+              }
+            }
+          },
+          "412": {
+            "description": "Precondition failed - booking violation or deleted matter",
+            "examples": {
+              "application/json": {
+                "error": "Not allowed to register to this service",
+                "error_code": "BOOKING_VIOLATION",
+                "status": "Error"
+              }
+            }
+          },
           "422": {
-            "description": "Failure",
+            "description": "Validation failed - timeslot unavailable or already registered",
             "examples": {
               "application/json": {
                 "error": "error text",
-                "error_code": "TIMESLOT_UNAVAILABLE/ALREADY_REGISTERED",
+                "error_code": "TIMESLOT_UNAVAILABLE",
+                "status": "Error"
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "examples": {
+              "application/json": {
+                "error": "Rate limit exceeded",
+                "error_code": "BOOKING_LIMIT_EXCEEDED",
                 "status": "Error"
               }
             }
@@ -467,7 +662,7 @@
             ]
           }
         ],
-        "summary": "Create New Booking [Alpha]",
+        "summary": "Create New Booking",
         "tags": [
           "Bookings"
         ],
@@ -492,7 +687,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "cancel booking",
+        "description": "Cancel a booking (appointment or event attendance).\n\n**Booking Type Detection:**\n- If `event_instance_id` is provided, treated as event cancellation\n- Otherwise, treated as appointment cancellation",
         "parameters": [
           {
             "in": "body",
@@ -500,15 +695,19 @@
             "schema": {
               "properties": {
                 "booking_id": {
-                  "description": "Booking (appointment/event) uid",
+                  "description": "Booking (appointment or event attendance) UID to cancel",
                   "type": "string"
                 },
                 "business_id": {
-                  "description": "Business uid",
+                  "description": "Business UID",
                   "type": "string"
                 },
                 "event_instance_id": {
-                  "description": "Event instance uid. Required for event.",
+                  "description": "Event instance UID. Include this for event cancellations",
+                  "type": "string"
+                },
+                "message": {
+                  "description": "Optional cancellation message to send to the business",
                   "type": "string"
                 }
               },
@@ -554,6 +753,28 @@
                 "status": "OK"
               }
             }
+          },
+          "400": {
+            "description": "Bad Request - Missing required parameters",
+            "examples": {
+              "application/json": {
+                "status": "Error",
+                "error": "Mandatory parameter booking_id is missing",
+                "error_code": "PARAMETER_MISSING"
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "403": {
+            "description": "Forbidden - Not authorized to cancel this booking"
+          },
+          "404": {
+            "description": "Not Found - Booking not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
           }
         },
         "security": [
@@ -563,7 +784,7 @@
             ]
           }
         ],
-        "summary": "Cancel a Booking [Alpha]",
+        "summary": "Cancel a Booking",
         "tags": [
           "Bookings"
         ],
@@ -588,21 +809,22 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Update RSVP state",
+        "description": "Update the RSVP state of a booking. This is used for confirming attendance.\n\n**Important:** Only `confirmed` is a valid RSVP state. Any other value will return a 403 Forbidden error.",
         "parameters": [
           {
-            "description": "Booking UID",
+            "description": "Booking UID (appointment, event_instance, or event_attendance)",
             "in": "path",
             "name": "booking_uid",
             "required": true,
             "type": "string"
           },
           {
-            "description": "New RSVP State. 'confirmed' is the only valid option. any other state is forbidden (return 403)",
+            "description": "New RSVP state. **Only 'confirmed' is valid.** Any other value returns 403 Forbidden",
             "in": "query",
             "name": "new_rsvp_state",
             "required": true,
-            "type": "string"
+            "type": "string",
+            "enum": ["confirmed"]
           },
           {
             "in": "body",
@@ -610,16 +832,20 @@
             "schema": {
               "properties": {
                 "appointment_type": {
-                  "description": "Three types are valid. 'appointment', 'event_instance' or 'event_attendance'",
-                  "type": "string"
+                  "description": "Type of booking being updated",
+                  "type": "string",
+                  "enum": ["appointment", "event_instance", "event_attendance"]
                 },
                 "business_id": {
-                  "description": "Business UID",
+                  "description": "Business UID. Either business_id or portal_id is required",
+                  "type": "string"
+                },
+                "portal_id": {
+                  "description": "Alias for business_id",
                   "type": "string"
                 }
               },
               "required": [
-                "business_id",
                 "appointment_type"
               ],
               "type": "object"
@@ -701,6 +927,28 @@
                 "status": "OK"
               }
             }
+          },
+          "400": {
+            "description": "Bad Request - Missing required parameters",
+            "examples": {
+              "application/json": {
+                "status": "Error",
+                "error": "Mandatory parameter appointment_type is missing",
+                "error_code": "PARAMETER_MISSING"
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "403": {
+            "description": "Forbidden - Invalid RSVP state (only 'confirmed' is allowed) or not authorized"
+          },
+          "404": {
+            "description": "Not Found - Booking not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
           }
         },
         "security": [
@@ -840,6 +1088,18 @@
                 "status": "OK"
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "404": {
+            "description": "Not Found - Event attendance not found"
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation failed"
+          },
+          "500": {
+            "description": "Internal Server Error"
           }
         },
         "security": [
@@ -912,6 +1172,18 @@
                 "status": "OK"
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "404": {
+            "description": "Not Found - Event instance not found"
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation failed"
+          },
+          "500": {
+            "description": "Internal Server Error"
           }
         },
         "security": [
@@ -946,7 +1218,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Create event Waitlist",
+        "description": "Register for an event waitlist. When the event has available spots, waitlisted clients can be converted to attendees.\n\n**Use Case:** When an event is full, clients can join the waitlist to be notified when spots become available.",
         "parameters": [
           {
             "in": "body",
@@ -954,35 +1226,35 @@
             "schema": {
               "properties": {
                 "business_id": {
-                  "description": "Business Uid",
-                  "type": "string"
-                },
-                "channel": {
-                  "description": "Source Channel",
-                  "type": "string"
-                },
-                "client_id": {
-                  "description": "Client Uid",
+                  "description": "Business UID (required)",
                   "type": "string"
                 },
                 "event_instance_id": {
-                  "description": "Event instance uid. Required for event.",
+                  "description": "Event instance UID to join waitlist for",
+                  "type": "string"
+                },
+                "client_id": {
+                  "description": "Client UID. If not provided, uses authenticated client",
                   "type": "string"
                 },
                 "matter_uid": {
-                  "description": "Matter Uid",
-                  "type": "string"
-                },
-                "source_name": {
-                  "description": "Source Name",
-                  "type": "string"
-                },
-                "source_url": {
-                  "description": "Source URL",
+                  "description": "Matter/Conversation UID to associate the waitlist entry with",
                   "type": "string"
                 },
                 "time_zone": {
-                  "description": "translation missing: en.waitlist-controller.parameters.time_zone.description",
+                  "description": "Client's timezone for proper time display",
+                  "type": "string"
+                },
+                "source_name": {
+                  "description": "Source name for tracking",
+                  "type": "string"
+                },
+                "source_url": {
+                  "description": "Source URL for tracking",
+                  "type": "string"
+                },
+                "channel": {
+                  "description": "Source channel for tracking",
                   "type": "string"
                 }
               },
@@ -998,7 +1270,7 @@
         ],
         "responses": {
           "201": {
-            "description": "Success",
+            "description": "Waitlist entry created successfully",
             "examples": {
               "application/json": {
                 "data": {
@@ -1032,14 +1304,30 @@
               }
             }
           },
+          "400": {
+            "description": "Bad Request - Missing required parameters",
+            "examples": {
+              "application/json": {
+                "status": "Error",
+                "error": "Mandatory parameter business_id is missing",
+                "error_code": "PARAMETER_MISSING"
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
           "422": {
-            "description": "Failure",
+            "description": "Unprocessable Entity - Validation failed",
             "examples": {
               "application/json": {
                 "error": "Invalid staff",
                 "status": "Error"
               }
             }
+          },
+          "500": {
+            "description": "Internal Server Error"
           }
         },
         "security": [
@@ -1074,7 +1362,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Cancel a Waitlist registration",
+        "description": "Cancel a waitlist registration. Removes the client from the event waitlist.",
         "parameters": [
           {
             "in": "body",
@@ -1082,19 +1370,23 @@
             "schema": {
               "properties": {
                 "business_uid": {
-                  "description": "Business Uid",
-                  "type": "string"
-                },
-                "client_uid": {
-                  "description": "Client Uid",
+                  "description": "Business UID (required)",
                   "type": "string"
                 },
                 "event_instance_uid": {
-                  "description": "Event instance uid. Required for event.",
+                  "description": "Event instance UID to cancel waitlist for",
+                  "type": "string"
+                },
+                "client_uid": {
+                  "description": "Client UID. If not provided, uses authenticated client",
                   "type": "string"
                 },
                 "matter_uid": {
-                  "description": "Matter Uid",
+                  "description": "Matter/Conversation UID associated with the waitlist entry",
+                  "type": "string"
+                },
+                "message": {
+                  "description": "Optional cancellation message",
                   "type": "string"
                 }
               },
@@ -1110,7 +1402,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Success",
+            "description": "Waitlist entry cancelled successfully",
             "examples": {
               "application/json": {
                 "data": {
@@ -1143,6 +1435,18 @@
                 "status": "OK"
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "403": {
+            "description": "Forbidden - Not authorized to cancel this waitlist entry"
+          },
+          "404": {
+            "description": "Not Found - Waitlist entry not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
           }
         },
         "security": [

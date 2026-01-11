@@ -8,10 +8,10 @@
       "sourceFiles": [
         "legacy_v1_sales.json",
         "payment_gateway.json",
-        "payments.json",
         "sales_reports.json",
-        "coupon.json",
-        "client_cards.json"
+        "payments.json",
+        "client_cards.json",
+        "coupon.json"
       ],
       "pathNormalizations": [
         {
@@ -3569,8 +3569,17 @@
     },
     "/platform/v1/services": {
       "get": {
-        "description": "Get services list",
+        "description": "Get services list for a business. Returns both appointment services and event services.\n\n**Filtering:** Supports filtering by category, staff, charge type, and more.",
         "parameters": [
+          {
+            "description": "The business's unique identifier (required)",
+            "in": "query",
+            "name": "business_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "description": "Page number of results. Default: 1",
             "in": "query",
@@ -3590,10 +3599,130 @@
             }
           },
           {
-            "description": "The business's unique identifier",
+            "description": "Filter by category ID",
             "in": "query",
-            "name": "business_id",
-            "required": true,
+            "name": "category_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by staff members (array)",
+            "in": "query",
+            "name": "staff_array",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "description": "Filter by specific service UIDs",
+            "in": "query",
+            "name": "services_uids",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by service name (partial match)",
+            "in": "query",
+            "name": "name",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by charge type",
+            "in": "query",
+            "name": "charge_type",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Include hidden services. Default: false",
+            "in": "query",
+            "name": "include_hidden",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Filter to services with future event instances only",
+            "in": "query",
+            "name": "has_future_instance",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Filter to services with active staff only",
+            "in": "query",
+            "name": "active_staff_only",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Filter by booking restriction UIDs",
+            "in": "query",
+            "name": "booking_restriction_uids",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by client package ID",
+            "in": "query",
+            "name": "client_package_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Matter UID for context-specific filtering",
+            "in": "query",
+            "name": "matter_uid",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Include category information in response",
+            "in": "query",
+            "name": "include_category_info",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Include extra decorator fields in response",
+            "in": "query",
+            "name": "extra_decorator_fields",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Sort order. Example: order_by=name:asc",
+            "in": "query",
+            "name": "order_by",
+            "required": false,
             "schema": {
               "type": "string"
             }
@@ -3618,12 +3747,30 @@
                         "interaction_type": "skype",
                         "image_path": "",
                         "photo_path": null,
-                        "description": "Experience personalized design solutions with our Phone/Online Web Design Consultation service! Our expert designers will provide tailored advice and guidance to elevate your brand's online presence. Benefit from cost-effective consultations that align with your design vision. Book your consultation today at here.",
+                        "description": "Experience personalized design solutions...",
                         "approval_mode": "immediate",
                         "staff_settings": {
                           "random_selection": false,
                           "joint_availability": null
-                        }
+                        },
+                        "color_id": 1,
+                        "display": true,
+                        "service_type": "appointment",
+                        "max_attendance": null,
+                        "display_missing_error": null,
+                        "business_enabled": true,
+                        "meeting_interaction_details": null,
+                        "event_display_remaining_spots": false,
+                        "created_at": "2025-01-01T10:00:00.000Z",
+                        "updated_at": "2025-01-05T14:30:00.000Z",
+                        "business_uid": "abc123def456",
+                        "booking_restriction": null,
+                        "taxes": [],
+                        "arrival_window_value": null,
+                        "providers_staff": [],
+                        "padding": 0,
+                        "weekly_availability_attributes": null,
+                        "category_id": "cat123"
                       }
                     ]
                   },
@@ -3631,6 +3778,27 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad Request - Missing required business_id parameter",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "Error",
+                  "error": "Mandatory parameter business_id is missing",
+                  "error_code": "PARAMETER_MISSING"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation failed"
+          },
+          "500": {
+            "description": "Internal Server Error"
           }
         },
         "security": [
@@ -3660,24 +3828,99 @@
     },
     "/platform/v1/services/availability": {
       "get": {
-        "description": "Get services availability",
+        "description": "Get availability time slots for one or more services. Returns available booking times based on staff availability and existing bookings.\n\n**Note:** Either `service_ids` or `id` parameter must be provided.",
         "parameters": [
           {
-            "description": "Service ID filter",
+            "description": "Service ID(s) to check availability for. Multiple IDs can be comma-separated. Either this or `id` is required",
             "in": "query",
-            "name": "service_id",
+            "name": "service_ids",
             "required": false,
             "schema": {
               "type": "string"
             }
           },
           {
-            "description": "Staff ID filter",
+            "description": "Single service ID. Either this or `service_ids` is required",
             "in": "query",
-            "name": "staff_id",
+            "name": "id",
             "required": false,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "description": "Start date for availability search (required). Format: YYYY-MM-DD",
+            "in": "query",
+            "name": "start_date",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "End date for availability search (required). Format: YYYY-MM-DD",
+            "in": "query",
+            "name": "end_date",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Timezone for availability display. Example: America/New_York",
+            "in": "query",
+            "name": "time_zone",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by specific staff member UIDs (array)",
+            "in": "query",
+            "name": "staff_ids_array",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "description": "Booking instance ID to exclude from availability calculation (for rescheduling)",
+            "in": "query",
+            "name": "booking_instance_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Include DST (Daylight Saving Time) adjustments",
+            "in": "query",
+            "name": "include_dst",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Show past availabilities (normally filtered out)",
+            "in": "query",
+            "name": "show_past_availabilities",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Ignore minimum scheduling time restrictions",
+            "in": "query",
+            "name": "ignore_min_schedule",
+            "required": false,
+            "schema": {
+              "type": "boolean"
             }
           }
         ],
@@ -3694,6 +3937,26 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad Request - Missing required parameters (start_date, end_date, and either service_ids or id)",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "Error",
+                  "message": "Either service_ids or id must be provided"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation failed"
+          },
+          "500": {
+            "description": "Internal Server Error"
           }
         },
         "security": [
@@ -3748,6 +4011,18 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "404": {
+            "description": "Not Found - Service not found"
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation failed"
+          },
+          "500": {
+            "description": "Internal Server Error"
           }
         },
         "security": [
@@ -3777,7 +4052,7 @@
     },
     "/platform/v1/services/{service_id}/availability": {
       "get": {
-        "description": "Get specific service availability",
+        "description": "Get availability time slots for a specific service. Returns available booking times based on staff availability and existing bookings.",
         "parameters": [
           {
             "description": "Service ID",
@@ -3789,12 +4064,78 @@
             }
           },
           {
-            "description": "Staff ID filter",
+            "description": "Start date for availability search (required). Format: YYYY-MM-DD",
             "in": "query",
-            "name": "staff_id",
+            "name": "start_date",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "End date for availability search (required). Format: YYYY-MM-DD",
+            "in": "query",
+            "name": "end_date",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Timezone for availability display. Example: America/New_York",
+            "in": "query",
+            "name": "time_zone",
             "required": false,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "description": "Filter by specific staff member UIDs (array)",
+            "in": "query",
+            "name": "staff_ids_array",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "description": "Booking instance ID to exclude from availability calculation (for rescheduling)",
+            "in": "query",
+            "name": "booking_instance_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Include DST (Daylight Saving Time) adjustments",
+            "in": "query",
+            "name": "include_dst",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Show past availabilities (normally filtered out)",
+            "in": "query",
+            "name": "show_past_availabilities",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Ignore minimum scheduling time restrictions",
+            "in": "query",
+            "name": "ignore_min_schedule",
+            "required": false,
+            "schema": {
+              "type": "boolean"
             }
           }
         ],
@@ -3811,6 +4152,30 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad Request - Missing required parameters (start_date, end_date)",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "Error",
+                  "error": "Mandatory parameter start_date is missing",
+                  "error_code": "PARAMETER_MISSING"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "404": {
+            "description": "Not Found - Service not found"
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation failed"
+          },
+          "500": {
+            "description": "Internal Server Error"
           }
         },
         "security": [
@@ -4687,6 +5052,80 @@
         },
         "tags": [
           "Payment Gateways"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/sales/reports/payments_widget": {
+      "get": {
+        "summary": "Retrieve Payments Widget Data",
+        "description": "Fetch summarized data for the Payments widget, including total payments, overdue payments, and pending estimates. This endpoint is accessible with **Staff Tokens** only.",
+        "responses": {
+          "200": {
+            "description": "Successful response containing Payments widget data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/PaymentsWidget"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Sales Reports"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/sales/reports/forecast_payments": {
+      "get": {
+        "summary": "Retrieve Payments Forecast Data",
+        "description": "Fetch detailed data for the Payments forecast widget, providing predictions of future payments on a month-by-month basis. This endpoint is accessible with **Staff Tokens** only.",
+        "responses": {
+          "200": {
+            "description": "Successful response containing Payments forecast data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/PaymentsForecast"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Sales Reports"
         ],
         "security": [
           {
@@ -12426,173 +12865,6 @@
         }
       }
     },
-    "/v3/sales/reports/payments_widget": {
-      "get": {
-        "summary": "Retrieve Payments Widget Data",
-        "description": "Fetch summarized data for the Payments widget, including total payments, overdue payments, and pending estimates. This endpoint is accessible with **Staff Tokens** only.",
-        "responses": {
-          "200": {
-            "description": "Successful response containing Payments widget data.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/PaymentsWidget"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Sales Reports"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/sales/reports/forecast_payments": {
-      "get": {
-        "summary": "Retrieve Payments Forecast Data",
-        "description": "Fetch detailed data for the Payments forecast widget, providing predictions of future payments on a month-by-month basis. This endpoint is accessible with **Staff Tokens** only.",
-        "responses": {
-          "200": {
-            "description": "Successful response containing Payments forecast data.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/PaymentsForecast"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Sales Reports"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/sales/coupons": {
-      "get": {
-        "summary": "Get all Coupons",
-        "description": "Get a list of Coupons - Available for **Staff Tokens**",
-        "parameters": [
-          {
-            "name": "status",
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "active",
-                "expiered",
-                "scheduled",
-                "still_available"
-              ]
-            },
-            "description": "Filter parameter coupon status, optional values = [active / expiered / scheduled / still_available]",
-            "required": false
-          },
-          {
-            "name": "uid_list",
-            "in": "query",
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            "description": "Filter the coupon list based on an array of coupon unique identifiers (UIDs)",
-            "required": false
-          },
-          {
-            "name": "page",
-            "in": "query",
-            "schema": {
-              "type": "integer"
-            },
-            "description": "Page number of results. Default: 1",
-            "required": false
-          },
-          {
-            "name": "per_page",
-            "in": "query",
-            "schema": {
-              "type": "integer"
-            },
-            "description": "How many items to return per page. Default: 25. Max: 100",
-            "required": false
-          },
-          {
-            "name": "sort",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            },
-            "description": "Sort by fields. Example: sort=created_at:asc,updated_at:desc",
-            "required": false
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/CouponsList"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Coupons"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
     "/platform/v1/clients/payment/cards": {
       "get": {
         "summary": "Get Client Payment Cards",
@@ -12870,6 +13142,99 @@
           }
         ]
       }
+    },
+    "/v3/sales/coupons": {
+      "get": {
+        "summary": "Get all Coupons",
+        "description": "Get a list of Coupons - Available for **Staff Tokens**",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "expiered",
+                "scheduled",
+                "still_available"
+              ]
+            },
+            "description": "Filter parameter coupon status, optional values = [active / expiered / scheduled / still_available]",
+            "required": false
+          },
+          {
+            "name": "uid_list",
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": "Filter the coupon list based on an array of coupon unique identifiers (UIDs)",
+            "required": false
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Page number of results. Default: 1",
+            "required": false
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "How many items to return per page. Default: 25. Max: 100",
+            "required": false
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Sort by fields. Example: sort=created_at:asc,updated_at:desc",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/CouponsList"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Coupons"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -12991,35 +13356,6 @@
                   "description": "The forecasted payment amount for the given date."
                 }
               }
-            }
-          }
-        }
-      },
-      "Response": {
-        "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "data": {
-            "type": "object"
-          }
-        },
-        "required": [
-          "success",
-          "data"
-        ]
-      },
-      "Object": {
-        "properties": {}
-      },
-      "CouponsList": {
-        "type": "object",
-        "properties": {
-          "coupons": {
-            "description": "List of Coupons",
-            "type": "array",
-            "items": {
-              "$ref": "https://vcita.github.io/developers-hub/entities/sales/Coupon.json"
             }
           }
         }
@@ -13215,6 +13551,35 @@
           "status",
           "error"
         ]
+      },
+      "Response": {
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "Object": {
+        "properties": {}
+      },
+      "CouponsList": {
+        "type": "object",
+        "properties": {
+          "coupons": {
+            "description": "List of Coupons",
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/sales/Coupon.json"
+            }
+          }
+        }
       }
     },
     "securitySchemes": {

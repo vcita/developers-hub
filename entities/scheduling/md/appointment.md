@@ -41,22 +41,22 @@ Represents a scheduled appointment, including timing, participants, pricing, and
 | no_show | Indicates whether the client did not show up | boolean |  |
 | notes | Additional notes for the appointment | string |  |
 | optional_times | Array of optional times available for rescheduling | array of strings |  |
-| payment_uid | Identifier for the payment, if applicable | string |  |
+| payment_id | Identifier for the payment, if applicable | string |  |
 | payment_status | Status of the payment | string |  |
 | price | Price of the appointment | string |  |
 | remind_before_in_hours_1 | Hours before appointment for the first reminder | number |  |
 | remind_before_in_hours_2 | Hours before appointment for the second reminder | number |  |
 | request_data | Additional request data, if applicable | object |  |
-| series_uid | ID of the series if this appointment is part of one | string |  |
+| series_id | ID of the series if this appointment is part of one | string |  |
 | series_instance_count | Number of instances in the appointment series | integer |  |
-| service_uid | Identifier of the service associated with the appointment | string |  |
+| service_id | Identifier of the service associated with the appointment | string |  |
 | sms_booking_confirmation | SMS confirmation details, if applicable | string |  |
 | source_data | Source data indicating how the appointment was initiated | object |  |
 | staff_display_name | Name of the staff member handling the appointment | string |  |
-| staff_uid | Unique identifier of the staff member | string |  |
+| staff_id | Unique identifier of the staff member | string |  |
 | staff_image | Image URL of the staff member | string |  |
 | start_time | Timestamp of when the appointment starts | string |  |
-| state | Current state of the appointment | string (enum: `scheduled`, `canceled`, `completed`, `pending`) |  |
+| state | Current state of the appointment | string (enum: `scheduled`, `cancelled`, `done`, `rejected`, `pending_reschedule`, `reschedule`) |  |
 | title | Title of the appointment | string |  |
 | type | Type of entity (appointment) | string (enum: `appointment`) |  |
 | updated_at | Timestamp of the last update | string |  |

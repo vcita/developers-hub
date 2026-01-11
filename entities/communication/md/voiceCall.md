@@ -8,26 +8,34 @@ Represents a phone call record, including participants, status, recording and au
 | --- | --- | --- | --- |
 | uid | Unique identifier of the VoiceCall object | string |  |
 | duration | Duration of the call in seconds | integer |  |
-| created_at | The time the call was created | string |  |
-| updated_at | The time the call was last updated | string |  |
-| status | The status of the call | string (enum: `incoming call`, `answered by staff`, `missed`, `answered by vonage`) |  |
-| direction | Whether the call is inbound or outbound | string (enum: `inbound/outbound`) |  |
+| created_at | The time the call was created | string (date-time) |  |
+| updated_at | The time the call was last updated | string (date-time) |  |
+| status | The status of the call | string (enum: `INCOMING_CALL`, `ANSWERED_BY_STAFF`, `MISSED`, `ANSWERED_BY_CALLS_PROVIDER`, `MISSED_CALL_HANDLED`, `VOICEMAIL_RECEIVED`) |  |
+| direction | Whether the call is inbound or outbound | string (enum: `inbound`, `outbound`) |  |
 | staff_uid | Unique identifier of the staff member who answered the call | string |  |
 | client_uid | Unique identifier of the client who made the call | string |  |
 | from_number | The phone number the call was made from | string |  |
 | to_number | The phone number the call was made to | string |  |
 | recording_url | Link to the call recording | string |  |
 | call_summary | Text summary of the call | string |  |
-| external_app_url | Link to an application page with additional details about the call.
-
- | string |  |
+| recording | The call recording details | object (VoiceCallRecording) |  |
+| external_app_url | Link to an application page with additional details about the call | string |  |
 | handled_by_staff_uid | The unique identifier of the staff who handled the call | string |  |
-| handled_at | The date and time when the call was handled | string |  |
-| deleted_at | Time the call was deleted - is null if the call is not deleted | string |  |
+| handled_at | The date and time when the call was handled | string (date-time) |  |
+| deleted_at | Time the call was deleted - is null if the call is not deleted | string (date-time) |  |
+
+## Status Values
+
+| Status | Description |
+| --- | --- |
+| `INCOMING_CALL` | Call is currently incoming |
+| `ANSWERED_BY_STAFF` | Call was answered by a staff member |
+| `MISSED` | Call was missed |
+| `ANSWERED_BY_CALLS_PROVIDER` | Call was answered by the voice provider (e.g., voicemail system) |
+| `MISSED_CALL_HANDLED` | Missed call was handled (e.g., callback made) |
+| `VOICEMAIL_RECEIVED` | Voicemail was left by the caller |
 
 ## Example
-
-JSON
 
 ```json
 {
@@ -35,7 +43,7 @@ JSON
   "created_at": "2021-07-20T14:00:00.000Z",
   "updated_at": "2021-07-20T14:00:00.000Z",
   "duration": 120,
-  "status": "answered by staff",
+  "status": "ANSWERED_BY_STAFF",
   "direction": "inbound",
   "staff_uid": "d290f1ee-6c54-4b01-90e6-d701748f0851",
   "client_uid": "d290f1ee-6c54-4b01-90e6-d701748f0851",

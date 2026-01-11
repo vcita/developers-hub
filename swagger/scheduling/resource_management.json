@@ -2,7 +2,7 @@
     "openapi": "3.0.0",
     "info": {
         "title": "Resource Management",
-        "description": "A set of endpoints to manage resource types and resources in the scheduling domain. Resource types define categories of similar resources (e.g., 'Treatment Room', 'Massage Table'), while resources are individual instances within those types (e.g., 'Treatment Room 1', 'Treatment Room 2'). This API enables businesses to create and maintain their resource inventory and associate resource types with services that require them.",
+        "description": "A set of endpoints to manage resource types and resources in the scheduling domain. Resource types define categories of similar resources (e.g., 'Treatment Room', 'Massage Table'), while resources are individual instances within those types (e.g., 'Treatment Room 1', 'Treatment Room 2'). This API enables businesses to create and maintain their resource inventory and associate resource types with services that require them.\n\n## Feature Requirements\n\nThe Resources feature must be enabled for your business. Both `pkg.sch.resources` AND `resources` feature flags must be active. If not enabled, create/update/delete operations will return a 403 Forbidden error.\n\n## Limits\n\n- **Maximum Resource Types per Business:** 5\n- **Maximum Resources per Resource Type:** 10\n- **Resource Type Name:** Maximum 20 characters\n- **Resource Name:** Maximum 30 characters\n\n## Permissions\n\nCreate, update, and delete operations require the `account.settings.manage` permission.",
         "version": "1.0",
         "contact": {}
     },
@@ -126,10 +126,13 @@
                         "description": "OAuth redirect when no authentication token provided"
                     },
                     "401": {
-                        "description": "Valid business context is required"
+                        "description": "Unauthorized - Valid business context is required"
                     },
                     "408": {
-                        "description": "Request exceeded timeout limit"
+                        "description": "Request Timeout - Request exceeded timeout limit"
+                    },
+                    "500": {
+                        "description": "Internal Server Error - Unexpected error occurred"
                     }
                 },
                 "tags": [
@@ -143,7 +146,7 @@
             },
             "post": {
                 "summary": "Create a ResourceType",
-                "description": "Create a new resource type.\n\nAvailable for **Staff Tokens**",
+                "description": "Create a new resource type.\n\n**Requires:** `account.settings.manage` permission\n\n**Feature Flags:** Both `pkg.sch.resources` AND `resources` must be enabled\n\nAvailable for **Staff Tokens**",
                 "parameters": [],
                 "requestBody": {
                     "required": true,
@@ -154,16 +157,25 @@
                                 "properties": {
                                     "name": {
                                         "type": "string",
-                                        "description": "The name of the resource type"
+                                        "description": "The name of the resource type",
+                                        "maxLength": 20,
+                                        "example": "Treatment Room"
                                     },
                                     "services": {
                                         "type": "array",
-                                        "description": "Array of service UIDs that require this resource type",
+                                        "description": "Array of service UIDs that require this resource type. When a service is associated with a resource type, bookings for that service will require an available resource of this type.",
                                         "items": {
                                             "type": "string"
-                                        }
+                                        },
+                                        "example": ["service_uid_1", "service_uid_2"]
+                                    },
+                                    "initial_resource_count": {
+                                        "type": "integer",
+                                        "description": "Number of initial resources to create automatically when the resource type is created. Each resource will be named sequentially (e.g., 'Treatment Room 1', 'Treatment Room 2').",
+                                        "minimum": 1,
+                                        "maximum": 10,
+                                        "example": 3
                                     }
-
                                 },
                                 "required": [
                                     "name"
@@ -208,10 +220,13 @@
                         "description": "Forbidden: Resources feature is not enabled or not authorized to create resource types (requires account.settings.manage permission)"
                     },
                     "408": {
-                        "description": "Request exceeded timeout limit"
+                        "description": "Request Timeout - Request exceeded timeout limit"
                     },
                     "422": {
-                        "description": "Request data failed validation"
+                        "description": "Unprocessable Entity - Request data failed validation"
+                    },
+                    "500": {
+                        "description": "Internal Server Error - Unexpected error occurred"
                     }
                 },
                 "tags": [
@@ -273,10 +288,13 @@
                         "description": "Not authorized to access this resource type"
                     },
                     "404": {
-                        "description": "ResourceType not found"
+                        "description": "Not Found - ResourceType not found"
                     },
                     "408": {
-                        "description": "Request exceeded timeout limit"
+                        "description": "Request Timeout - Request exceeded timeout limit"
+                    },
+                    "500": {
+                        "description": "Internal Server Error - Unexpected error occurred"
                     }
                 },
                 "tags": [
@@ -290,7 +308,7 @@
             },
             "put": {
                 "summary": "Update a ResourceType",
-                "description": "Update a resource type's properties\n\nAvailable for **Staff Tokens**",
+                "description": "Update a resource type's properties. All fields are optional - only provided fields will be updated.\n\n**Requires:** `account.settings.manage` permission\n\n**Feature Flags:** Both `pkg.sch.resources` AND `resources` must be enabled\n\nAvailable for **Staff Tokens**",
                 "parameters": [
                     {
                         "name": "uid",
@@ -312,14 +330,17 @@
                                 "properties": {
                                     "name": {
                                         "type": "string",
-                                        "description": "The name of the resource type"
+                                        "description": "The name of the resource type",
+                                        "maxLength": 20,
+                                        "example": "Massage Table"
                                     },
                                     "services": {
                                         "type": "array",
-                                        "description": "Array of service UIDs that require this resource type",
+                                        "description": "Array of service UIDs that require this resource type. This replaces the entire services list - to add a service, include all existing services plus the new one.",
                                         "items": {
                                             "type": "string"
-                                        }
+                                        },
+                                        "example": ["service_uid_1", "service_uid_3"]
                                     }
                                 }
                             }
@@ -362,13 +383,16 @@
                         "description": "Forbidden: Resources feature is not enabled or not authorized to update this resource type (requires account.settings.manage permission)"
                     },
                     "404": {
-                        "description": "ResourceType not found"
+                        "description": "Not Found - ResourceType not found"
                     },
                     "408": {
-                        "description": "Request exceeded timeout limit"
+                        "description": "Request Timeout - Request exceeded timeout limit"
                     },
                     "422": {
-                        "description": "Request data failed validation"
+                        "description": "Unprocessable Entity - Request data failed validation"
+                    },
+                    "500": {
+                        "description": "Internal Server Error - Unexpected error occurred"
                     }
                 },
                 "tags": [
@@ -382,7 +406,7 @@
             },
             "delete": {
                 "summary": "Delete a ResourceType",
-                "description": "Delete a resource type. Deletes all associated resources.\n\nAvailable for **Staff Tokens**",
+                "description": "Soft-delete a resource type. The resource type will be marked as deleted but can still be retrieved using `with_deleted=true`.\n\n**Note:** Deleting a resource type does NOT automatically delete its associated resources. Resources must be deleted separately.\n\n**Requires:** `account.settings.manage` permission\n\n**Feature Flags:** Both `pkg.sch.resources` AND `resources` must be enabled\n\nAvailable for **Staff Tokens**",
                 "parameters": [
                     {
                         "name": "uid",
@@ -397,7 +421,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Resource type deleted successfully. **Note:** All associated resources are automatically deleted (cascade deletion)",
+                        "description": "Resource type soft-deleted successfully. The resource type will have a `deleted_at` timestamp set.",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -420,10 +444,13 @@
                         "description": "Forbidden: Resources feature is not enabled or not authorized to delete this resource type (requires account.settings.manage permission)"
                     },
                     "404": {
-                        "description": "ResourceType not found"
+                        "description": "Not Found - ResourceType not found"
                     },
                     "408": {
-                        "description": "Request exceeded timeout limit"
+                        "description": "Request Timeout - Request exceeded timeout limit"
+                    },
+                    "500": {
+                        "description": "Internal Server Error - Unexpected error occurred"
                     }
                 },
                 "tags": [
@@ -550,10 +577,13 @@
                         "description": "OAuth redirect when no authentication token provided"
                     },
                     "401": {
-                        "description": "Valid business context is required"
+                        "description": "Unauthorized - Valid business context is required"
                     },
                     "408": {
-                        "description": "Request exceeded timeout limit"
+                        "description": "Request Timeout - Request exceeded timeout limit"
+                    },
+                    "500": {
+                        "description": "Internal Server Error - Unexpected error occurred"
                     }
                 },
                 "tags": [
@@ -567,7 +597,7 @@
             },
             "post": {
                 "summary": "Create a Resource",
-                "description": "Create a new resource\n\nAvailable for **Staff Tokens**",
+                "description": "Create a new resource instance belonging to a resource type.\n\n**Requires:** `account.settings.manage` permission\n\n**Feature Flags:** Both `pkg.sch.resources` AND `resources` must be enabled\n\n**Limit:** Maximum 10 resources per resource type\n\nAvailable for **Staff Tokens**",
                 "parameters": [],
                 "requestBody": {
                     "required": true,
@@ -578,11 +608,14 @@
                                 "properties": {
                                     "name": {
                                         "type": "string",
-                                        "description": "The name of the resource"
+                                        "description": "The name of the resource",
+                                        "maxLength": 30,
+                                        "example": "Treatment Room 1"
                                     },
                                     "resource_type_uid": {
                                         "type": "string",
-                                        "description": "The resource type this instance belongs to"
+                                        "description": "The UID of the resource type this instance belongs to. The resource type must exist and belong to the same business.",
+                                        "example": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
                                     }
                                 },
                                 "required": [
@@ -629,10 +662,13 @@
                         "description": "Forbidden: Resources feature is not enabled or not authorized to create resources (requires account.settings.manage permission)"
                     },
                     "408": {
-                        "description": "Request exceeded timeout limit"
+                        "description": "Request Timeout - Request exceeded timeout limit"
                     },
                     "422": {
-                        "description": "Request data failed validation"
+                        "description": "Unprocessable Entity - Request data failed validation (e.g., exceeded 10 resources per type limit)"
+                    },
+                    "500": {
+                        "description": "Internal Server Error - Unexpected error occurred"
                     }
                 },
                 "tags": [
@@ -703,10 +739,13 @@
                         "description": "Not authorized to access this resource"
                     },
                     "404": {
-                        "description": "Resource not found"
+                        "description": "Not Found - Resource not found"
                     },
                     "408": {
-                        "description": "Request exceeded timeout limit"
+                        "description": "Request Timeout - Request exceeded timeout limit"
+                    },
+                    "500": {
+                        "description": "Internal Server Error - Unexpected error occurred"
                     }
                 },
                 "tags": [
@@ -720,7 +759,7 @@
             },
             "put": {
                 "summary": "Update a Resource",
-                "description": "Update a resource's properties\n\nAvailable for **Staff Tokens**",
+                "description": "Update a resource's properties. All fields are optional - only provided fields will be updated.\n\n**Requires:** `account.settings.manage` permission\n\n**Feature Flags:** Both `pkg.sch.resources` AND `resources` must be enabled\n\nAvailable for **Staff Tokens**",
                 "parameters": [
                     {
                         "name": "uid",
@@ -742,11 +781,14 @@
                                 "properties": {
                                     "name": {
                                         "type": "string",
-                                        "description": "The name of the resource"
+                                        "description": "The name of the resource",
+                                        "maxLength": 30,
+                                        "example": "Treatment Room 1"
                                     },
                                     "resource_type_uid": {
                                         "type": "string",
-                                        "description": "The resource type this instance belongs to"
+                                        "description": "The UID of the resource type to move this resource to. Use this to reassign a resource to a different type.",
+                                        "example": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
                                     }
                                 }
                             }
@@ -789,13 +831,16 @@
                         "description": "Forbidden: Resources feature is not enabled or not authorized to update this resource (requires account.settings.manage permission)"
                     },
                     "404": {
-                        "description": "Resource not found"
+                        "description": "Not Found - Resource not found"
                     },
                     "408": {
-                        "description": "Request exceeded timeout limit"
+                        "description": "Request Timeout - Request exceeded timeout limit"
                     },
                     "422": {
-                        "description": "Request data failed validation"
+                        "description": "Unprocessable Entity - Request data failed validation"
+                    },
+                    "500": {
+                        "description": "Internal Server Error - Unexpected error occurred"
                     }
                 },
                 "tags": [
@@ -809,7 +854,7 @@
             },
             "delete": {
                 "summary": "Delete a Resource",
-                "description": "Soft-delete a resource\n\nAvailable for **Staff Tokens**",
+                "description": "Soft-delete a resource. The resource will be marked as deleted but can still be retrieved using `with_deleted=true`.\n\n**Requires:** `account.settings.manage` permission\n\n**Feature Flags:** Both `pkg.sch.resources` AND `resources` must be enabled\n\nAvailable for **Staff Tokens**",
                 "parameters": [
                     {
                         "name": "uid",
@@ -847,10 +892,13 @@
                         "description": "Forbidden: Resources feature is not enabled or not authorized to delete this resource (requires account.settings.manage permission)"
                     },
                     "404": {
-                        "description": "Resource not found"
+                        "description": "Not Found - Resource not found"
                     },
                     "408": {
-                        "description": "Request exceeded timeout limit"
+                        "description": "Request Timeout - Request exceeded timeout limit"
+                    },
+                    "500": {
+                        "description": "Internal Server Error - Unexpected error occurred"
                     }
                 },
                 "tags": [

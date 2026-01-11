@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "Availability Slots API",
-    "description": "API for retrieving availability slots for scheduling",
+    "description": "API for retrieving availability slots for scheduling. This endpoint calculates available time slots based on staff availability, resource availability, and existing bookings.\n\n## Response Time\n\nThis endpoint has a **30 second timeout** due to complex availability calculations for certain businesses. For best performance:\n- Use specific filters (staff_uids, resource_uids) rather than broad queries\n- Keep the time range as narrow as practical\n- Consider caching results for repeated queries\n\n## Available Entities\n\nEach availability slot includes information about which entities (staff, resources) are available during that time. This allows you to:\n- Show which staff members can perform the service\n- Show which resources (rooms, equipment) are available\n- Make informed booking decisions",
     "version": "1.0.0"
   },
   "servers": [
@@ -47,21 +47,23 @@
             "name": "start_time",
             "in": "query",
             "required": true,
-            "description": "Start time for availability search",
+            "description": "Start time for availability search in UTC. Must be in ISO 8601 format.",
             "schema": {
               "type": "string",
               "format": "date-time"
-            }
+            },
+            "example": "2026-01-15T00:00:00.000Z"
           },
           {
             "name": "end_time",
             "in": "query",
             "required": true,
-            "description": "End time for availability search",
+            "description": "End time for availability search in UTC. Must be in ISO 8601 format.",
             "schema": {
               "type": "string",
               "format": "date-time"
-            }
+            },
+            "example": "2026-01-16T00:00:00.000Z"
           },
           {
             "name": "service_uid",
@@ -103,41 +105,45 @@
             "name": "slot_duration",
             "in": "query",
             "required": false,
-            "description": "Duration of each slot in minutes",
+            "description": "Desired duration of each availability slot in minutes. If not specified, uses the service's default duration.",
             "schema": {
               "type": "integer",
               "minimum": 1
-            }
+            },
+            "example": 30
           },
           {
             "name": "slot_interval",
             "in": "query",
             "required": false,
-            "description": "Interval between slots in minutes (if relevant)",
+            "description": "Interval between slot start times in minutes. Controls how frequently slots are offered (e.g., every 15 minutes vs every 30 minutes).",
             "schema": {
               "type": "integer",
               "minimum": 1
-            }
+            },
+            "example": 15
           },
           {
             "name": "padding_before",
             "in": "query",
             "required": false,
-            "description": "Padding time before each slot in minutes (if relevant)",
+            "description": "Buffer time required before each slot in minutes. Use this for setup time or travel time between appointments. The padding time will be blocked but not shown to clients.",
             "schema": {
               "type": "integer",
               "minimum": 0
-            }
+            },
+            "example": 10
           },
           {
             "name": "padding_after",
             "in": "query",
             "required": false,
-            "description": "Padding time after each slot in minutes (if relevant)",
+            "description": "Buffer time required after each slot in minutes. Use this for cleanup time or notes. The padding time will be blocked but not shown to clients.",
             "schema": {
               "type": "integer",
               "minimum": 0
-            }
+            },
+            "example": 5
           },
           {
             "name": "exclude_booking_uid",
@@ -173,16 +179,55 @@
             }
           },
           "400": {
-            "description": "Invalid request parameters - missing required parameters or invalid values"
+            "description": "Bad Request - Invalid parameters",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "invalidDate": {
+                    "summary": "Invalid date format",
+                    "value": {
+                      "statusCode": 400,
+                      "message": "start_time must be a valid ISO date format"
+                    }
+                  },
+                  "unsupportedParams": {
+                    "summary": "Unsupported parameters without slot_duration",
+                    "value": {
+                      "statusCode": 400,
+                      "message": "slot_interval is not supported without slot_duration"
+                    }
+                  }
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized - Invalid or missing authentication token"
           },
           "404": {
-            "description": "Service or specified resources not found"
+            "description": "Not Found - Service or specified resources not found"
+          },
+          "422": {
+            "description": "Validation Error - Business logic validation failed",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "validationError": {
+                    "summary": "Validation error from downstream API",
+                    "value": {
+                      "statusCode": 422,
+                      "message": "Validation error details"
+                    }
+                  }
+                }
+              }
+            }
           },
           "500": {
-            "description": "Internal server error"
+            "description": "Internal Server Error - Unexpected error occurred"
+          },
+          "504": {
+            "description": "Gateway Timeout - Request exceeded 30 second timeout. Try narrowing your query with specific filters or a shorter time range."
           }
         },
         "security": [
