@@ -17,6 +17,10 @@
       "description": "The IDP Actor API facilitates seamless CRUD operations for managing users in an IDP integrated with SSO to the inTandem authorization bridge."
     },
     {
+      "name": "IDP Users",
+      "description": "Operations for managing IDP users directly in the Identity Provider"
+    },
+    {
       "name": "Directory IDP",
       "description": "Operations for managing Directory IDP configurations"
     }
@@ -306,6 +310,7 @@
     "/integrations/idp_actor_mappings": {
       "get": {
         "summary": "List all IDP Actor Mappings",
+        "description": "List all IDP Actor Mappings in the directory scope.\n\n## Overview\nRetrieves mappings between external Identity Provider users and inTandem actors (staff/operators).\n\n## When to Use\n- Find which inTandem users are linked to SSO accounts\n- Verify SSO integration setup\n- Search for specific actor mappings\n\n## Prerequisites\n- Valid Directory Token\n\n## Filtering\n- Filter by `actor_type` and `actor_uid` together to find a specific actor's mapping\n- Filter by `idp_user_reference_id` to find mapping by external ID",
         "parameters": [
           {
             "in": "query",
@@ -325,7 +330,7 @@
                 "operator"
               ]
             },
-            "description": "Filter by actor type. 'staff' refers to a staff member, while 'operator' refers to an operator in the Operators Portal."
+            "description": "Filter by actor type. Must be provided together with actor_uid."
           },
           {
             "in": "query",
@@ -333,14 +338,15 @@
             "schema": {
               "type": "string"
             },
-            "description": "Filter by unique identifier of the actor in the inTandem platform"
+            "description": "Filter by unique identifier of the actor. Must be provided together with actor_type."
           },
           {
             "in": "query",
             "name": "page",
             "schema": {
               "type": "integer",
-              "default": 1
+              "default": 1,
+              "minimum": 1
             },
             "description": "Page number of the results"
           },
@@ -349,19 +355,11 @@
             "name": "per_page",
             "schema": {
               "type": "integer",
-              "default": 25,
+              "default": 10,
+              "minimum": 1,
               "maximum": 100
             },
-            "description": "How many items to return per page"
-          },
-          {
-            "in": "query",
-            "name": "sort",
-            "schema": {
-              "type": "string",
-              "default": "updated_at:desc"
-            },
-            "description": "Sort by fields, e.g., \"created_at:asc,updated_at:desc\""
+            "description": "How many items to return per page (max: 100)"
           }
         ],
         "responses": {
@@ -386,6 +384,15 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "403": {
+            "description": "Forbidden - Only directory actors can access this endpoint"
+          },
+          "500": {
+            "description": "Internal Server Error"
           }
         },
         "security": [
@@ -395,10 +402,11 @@
         ],
         "tags": [
           "IDP Actor Mapping"
-        ],
-        "description": "List all IDP Actor Mappings in the directory scope.\n\nAvailable for **Directory Tokens only**\n"
+        ]
       },
       "post": {
+        "summary": "Create an IDP Actor Mapping",
+        "description": "Create a new IDP Actor Mapping to link an external Identity Provider user to an inTandem actor.\n\n## Overview\nEstablishes the connection between an SSO user and a staff member or operator in inTandem.\n\n## When to Use\n- Enable SSO login for a staff member or operator\n- Link an external IDP user to an existing inTandem account\n\n## Prerequisites\n- Valid Directory Token\n- The actor (staff/operator) must exist in inTandem\n\n## Notes\n- Each actor can only have one IDP mapping\n- The `idp_user_reference_id` must be unique within the directory",
         "requestBody": {
           "content": {
             "application/json": {
@@ -433,24 +441,18 @@
             }
           },
           "400": {
-            "description": "Bad Request - Invalid input data or missing required fields"
-            
+            "description": "Bad Request - Invalid input data, missing required fields, or IDP actor mapping already exists"
           },
           "401": {
             "description": "Unauthorized - Invalid or missing authentication token"
-            
           },
           "403": {
-            "description": "Forbidden - Insufficient permissions or not a Directory Token"
-            
+            "description": "Forbidden - Only directory actors can access this endpoint"
           },
-          "422": {
-            "description": "Unprocessable Entity - Business logic validation failed (e.g., invalid actor_uid or actor_type combination)"
-            
+          "500": {
+            "description": "Internal Server Error"
           }
         },
-        "summary": "Create an IDP Actor Mapping",
-        "description": "Create a new IDP Actor Mapping for SSO integration.\n\nAvailable for **Directory Tokens only**\n",
         "security": [
           {
             "Bearer": []
@@ -461,13 +463,13 @@
         ]
       }
     },
-    "/integrations/idp_actor_mappings/{uid}": {
-      "delete":{
+    "/integrations/idp_actor_mappings/{idp_actor_mapping_uid}": {
+      "delete": {
         "summary": "Delete an IDP Actor Mapping",
-        "description": "Delete an IDP Actor Mapping by UID. Available for **Directory Tokens only**",
+        "description": "Delete an IDP Actor Mapping to remove the SSO link for an actor.\n\n## Overview\nRemoves the connection between an SSO user and an inTandem actor.\n\n## When to Use\n- Disable SSO login for a specific user\n- Clean up mappings when an SSO user is removed from the IDP\n\n## Prerequisites\n- Valid Directory Token\n- Mapping must belong to the authenticated directory\n\n## Notes\n- This does not delete the actor in inTandem, only the SSO mapping\n- The actor can be re-linked to a different IDP user after deletion",
         "parameters": [
           {
-            "name": "uid",
+            "name": "idp_actor_mapping_uid",
             "in": "path",
             "required": true,
             "description": "The unique identifier of the IDP Actor Mapping",
@@ -484,10 +486,13 @@
             "description": "Unauthorized - Invalid or missing authentication token"
           },
           "403": {
-            "description": "Forbidden - Insufficient permissions or not a Directory Token"
+            "description": "Forbidden - Only directory actors can access this endpoint"
           },
           "404": {
-            "description": "Not Found - IDP Actor Mapping with the specified UID does not exist"
+            "description": "Not Found - IDP Actor Mapping not found or does not belong to the directory"
+          },
+          "500": {
+            "description": "Internal Server Error"
           }
         },
         "security": [
@@ -500,10 +505,380 @@
         ]
       }
     },
+    "/authbridge/idp_users/{actor_type}": {
+      "post": {
+        "summary": "Create an IDP User",
+        "description": "Create a new user in the Identity Provider and link them to an inTandem actor.\n\n## Overview\nCreates a user directly in the external IDP and establishes the SSO mapping.\n\n## When to Use\n- Provision a new staff member with SSO access\n- Create an operator with SSO login capability\n\n## Prerequisites\n- Valid Directory Token\n- IDP must be configured for the directory\n\n## Notes\n- The user is created in the external IDP system\n- An IDP actor mapping is automatically created\n- The user will receive an invitation email if configured",
+        "x-vcita-timeout": "15000ms",
+        "parameters": [
+          {
+            "name": "actor_type",
+            "in": "path",
+            "required": true,
+            "description": "Type of actor to create",
+            "schema": {
+              "type": "string",
+              "enum": ["staff", "operator"]
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "business_uid": {
+                    "type": "string",
+                    "description": "Business UID for the user (8 or 16 character alphanumeric)",
+                    "pattern": "^[a-z0-9]{8}$|^[a-z0-9]{16}$",
+                    "example": "1234567890abcdef"
+                  },
+                  "role_code": {
+                    "type": "string",
+                    "description": "Role code for the user",
+                    "enum": ["admin", "manager", "marketing", "collaborator", "user"],
+                    "example": "admin"
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Email address of the user",
+                    "example": "john.doe@example.com"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "Full name of the user",
+                    "example": "John Doe"
+                  },
+                  "locale": {
+                    "type": "string",
+                    "description": "Locale for the user (e.g., en_US)",
+                    "example": "en_US"
+                  }
+                },
+                "required": ["business_uid", "role_code", "email", "name", "locale"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "IDP User created successfully"
+          },
+          "400": {
+            "description": "Bad Request - Invalid input data or IDP user already exists"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "403": {
+            "description": "Forbidden - Only directory actors can access this endpoint"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "IDP Users"
+        ]
+      }
+    },
+    "/authbridge/idp_users/{actor_type}/{idp_user_reference_id}": {
+      "delete": {
+        "summary": "Delete an IDP User",
+        "description": "Delete a user from the Identity Provider.\n\n## Overview\nRemoves a user from the external IDP system.\n\n## When to Use\n- Remove SSO access for a staff member or operator\n- Clean up when a user leaves the organization\n\n## Prerequisites\n- Valid Directory Token\n\n## Notes\n- This deletes the user from the IDP, not just the mapping\n- The actor in inTandem is not deleted",
+        "x-vcita-timeout": "5000ms",
+        "parameters": [
+          {
+            "name": "actor_type",
+            "in": "path",
+            "required": true,
+            "description": "Type of actor",
+            "schema": {
+              "type": "string",
+              "enum": ["staff", "operator"]
+            }
+          },
+          {
+            "name": "idp_user_reference_id",
+            "in": "path",
+            "required": true,
+            "description": "External reference ID of the IDP user",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "business_uid",
+            "in": "query",
+            "required": false,
+            "description": "Business UID (required for certain operations)",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "IDP User deleted successfully"
+          },
+          "400": {
+            "description": "Bad Request - Invalid request parameters"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "403": {
+            "description": "Forbidden - Only directory actors can access this endpoint"
+          },
+          "500": {
+            "description": "Internal Server Error - IDP deletion failed"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "IDP Users"
+        ]
+      }
+    },
+    "/authbridge/idp_actor_mappings/{idp_actor_mappings_uid}/invite": {
+      "post": {
+        "summary": "Send IDP User Invitation",
+        "description": "Send an invitation email to an IDP user.\n\n## Overview\nTriggers the IDP to send an invitation/welcome email to the user.\n\n## When to Use\n- Resend invitation to a user who didn't receive it\n- Send initial invitation after creating an IDP user\n\n## Prerequisites\n- Valid Directory Token\n- IDP actor mapping must exist\n\n## Notes\n- The invitation is sent through the configured IDP\n- The invitation content depends on IDP configuration",
+        "x-vcita-timeout": "5000ms",
+        "parameters": [
+          {
+            "name": "idp_actor_mappings_uid",
+            "in": "path",
+            "required": true,
+            "description": "UID of the IDP actor mapping",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Invitation sent successfully"
+          },
+          "400": {
+            "description": "Bad Request - Invalid request parameters"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "403": {
+            "description": "Forbidden - Only directory actors can access this endpoint"
+          },
+          "404": {
+            "description": "Not Found - IDP actor mapping not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "IDP Users"
+        ]
+      }
+    },
+    "/authbridge/idp_users/{actor_type}/{actor_uid}/logout_url": {
+      "post": {
+        "summary": "Generate Logout URL",
+        "description": "Generate a logout URL for an IDP user to end their SSO session.\n\n## Overview\nCreates a URL that will log the user out of the Identity Provider.\n\n## When to Use\n- Log out a user from their SSO session\n- Implement single logout functionality\n\n## Prerequisites\n- Valid Directory Token\n- The actor must have an IDP mapping\n\n## Notes\n- The logout URL is specific to the IDP configuration\n- The URL should be used immediately as it may expire",
+        "x-vcita-timeout": "15000ms",
+        "parameters": [
+          {
+            "name": "actor_type",
+            "in": "path",
+            "required": true,
+            "description": "Type of actor (staff or operator)",
+            "schema": {
+              "type": "string",
+              "enum": ["staff", "operator"]
+            }
+          },
+          {
+            "name": "actor_uid",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the actor",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "business_uid": {
+                    "type": "string",
+                    "description": "Business UID for the logout context"
+                  },
+                  "host_mapping": {
+                    "type": "string",
+                    "description": "Optional host mapping for the redirect URL"
+                  }
+                },
+                "required": ["business_uid"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Logout URL generated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "logout_url": {
+                          "type": "string",
+                          "description": "The URL to redirect the user to for logging out"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid request parameters"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "403": {
+            "description": "Forbidden - Only directory actors can access this endpoint"
+          },
+          "404": {
+            "description": "Not Found - Staff member or IDP mapping not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "IDP Users"
+        ]
+      }
+    },
+    "/authbridge/idp_users/{actor_type}/{actor_uid}/request_email_change": {
+      "put": {
+        "summary": "Request IDP User Email Change",
+        "description": "Request an email change for an IDP user.\n\n## Overview\nInitiates an email change request through the Identity Provider.\n\n## When to Use\n- When a staff member needs to change their email address\n- The request is processed through the IDP's email change workflow\n\n## Prerequisites\n- Valid Staff Token (not Directory Token)\n- The actor must have an IDP mapping\n\n## Notes\n- The email change is handled by the IDP, not directly in inTandem\n- The process may require email verification depending on IDP configuration",
+        "x-vcita-timeout": "5000ms",
+        "parameters": [
+          {
+            "name": "actor_type",
+            "in": "path",
+            "required": true,
+            "description": "Type of actor",
+            "schema": {
+              "type": "string",
+              "enum": ["staff", "operator"]
+            }
+          },
+          {
+            "name": "actor_uid",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the actor",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "new_email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "The new email address"
+                  },
+                  "old_email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "The current email address (for verification)"
+                  }
+                },
+                "required": ["new_email", "old_email"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Email change request submitted successfully"
+          },
+          "400": {
+            "description": "Bad Request - Invalid request parameters or email format"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "403": {
+            "description": "Forbidden - Only staff actors can access this endpoint"
+          },
+          "404": {
+            "description": "Not Found - IDP user mapping not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "IDP Users"
+        ]
+      }
+    },
     "/integrations/directory_idps": {
       "get": {
         "summary": "List all Directory IDP configurations",
-        "description": "List all Directory IDP configurations with optional filtering.\n\nAvailable for **Staff Tokens** and **Directory Tokens**",
+        "description": "List all Directory IDP configurations with optional filtering.\n\n## Overview\nRetrieves IDP configurations for the directory, including settings for email/password change functionality.\n\n## When to Use\n- View configured IDPs for the directory\n- Check IDP settings for a specific staff member\n\n## Prerequisites\n- Valid Staff Token or Directory Token",
         "parameters": [
           {
             "in": "query",
@@ -511,14 +886,15 @@
             "schema": {
               "type": "string"
             },
-            "description": "Filter by staff UID"
+            "description": "Filter by staff UID to get IDP configuration for a specific staff member"
           },
           {
             "in": "query",
             "name": "page",
             "schema": {
               "type": "integer",
-              "default": 1
+              "default": 1,
+              "minimum": 1
             },
             "description": "Page number of the results"
           },
@@ -528,9 +904,10 @@
             "schema": {
               "type": "integer",
               "default": 25,
+              "minimum": 1,
               "maximum": 100
             },
-            "description": "How many items to return per page"
+            "description": "How many items to return per page (max: 100)"
           }
         ],
         "responses": {
@@ -561,6 +938,9 @@
           },
           "403": {
             "description": "Forbidden - Insufficient permissions"
+          },
+          "500": {
+            "description": "Internal Server Error"
           }
         },
         "security": [
@@ -573,6 +953,8 @@
         ]
       },
       "post": {
+        "summary": "Create a Directory IDP configuration",
+        "description": "Create a new Directory IDP configuration.\n\n## Overview\nConfigures how the directory integrates with an Identity Provider, including settings for email/password change workflows.\n\n## When to Use\n- Set up SSO integration for a directory\n- Configure how users change their email/password\n\n## Prerequisites\n- Valid Directory Token\n\n## Configuration Options\nFor `change_email`, `change_password`, and `reset_password`:\n- `iframe_modal`: Opens in an iframe modal within the app\n- `new_tab`: Opens in a new browser tab\n- `api`: Uses API endpoint for the operation\n- `disabled`: Disables the functionality",
         "requestBody": {
           "content": {
             "application/json": {
@@ -613,14 +995,12 @@
             "description": "Unauthorized - Invalid or missing authentication token"
           },
           "403": {
-            "description": "Forbidden - Insufficient permissions or not a Directory Token"
+            "description": "Forbidden - Only Directory Tokens can access this endpoint"
           },
-          "422": {
-            "description": "Unprocessable Entity - Business logic validation failed"
+          "500": {
+            "description": "Internal Server Error"
           }
         },
-        "summary": "Create a Directory IDP configuration",
-        "description": "Create a new Directory IDP configuration.\n\nAvailable for **Directory Tokens only**",
         "security": [
           {
             "Bearer": []
@@ -633,6 +1013,19 @@
     },
     "/integrations/directory_idps/{uid}": {
       "put": {
+        "summary": "Update a Directory IDP configuration",
+        "description": "Update an existing Directory IDP configuration.\n\n## Overview\nModifies the IDP configuration settings for the directory.\n\n## When to Use\n- Change email/password workflow settings\n- Update IDP endpoint URLs\n\n## Prerequisites\n- Valid Directory Token\n- Configuration must exist",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "The unique identifier of the Directory IDP configuration",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -673,28 +1066,15 @@
             "description": "Unauthorized - Invalid or missing authentication token"
           },
           "403": {
-            "description": "Forbidden - Insufficient permissions or not a Directory Token"
+            "description": "Forbidden - Only Directory Tokens can access this endpoint"
           },
           "404": {
             "description": "Not Found - Directory IDP configuration with the specified UID does not exist"
           },
-          "422": {
-            "description": "Unprocessable Entity - Business logic validation failed"
+          "500": {
+            "description": "Internal Server Error"
           }
         },
-        "summary": "Update a Directory IDP configuration",
-        "description": "Update an existing Directory IDP configuration by UID.\n\nAvailable for **Directory Tokens only**",
-        "parameters": [
-          {
-            "name": "uid",
-            "in": "path",
-            "required": true,
-            "description": "The unique identifier of the Directory IDP configuration",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
         "security": [
           {
             "Bearer": []

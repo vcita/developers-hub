@@ -16,11 +16,11 @@
 | 3 | Communication | 32 | ✅ Complete (Verified) | 100% | 2026-01-11 |
 | 4 | Sales | 70 | ✅ Complete (Verified) | 100% | 2026-01-11 |
 | 5 | Platform Administration | 82 | ✅ Complete (Verified) | 100% | 2026-01-11 |
-| 6 | Apps & Integrations | 34 | 🔲 Not Started | 0% | |
+| 6 | Apps & Integrations | 38 | ✅ Complete (Verified) | 100% | 2026-01-11 |
 | 7 | AI, Operators, Reviews | 26 | 🔲 Not Started | 0% | |
 
-**Total Progress:** 256/316 endpoints documented (81%)  
-**Verified Progress:** 256/316 endpoints verified against source code (81%)
+**Total Progress:** 294/320 endpoints documented (92%)  
+**Verified Progress:** 294/320 endpoints verified against source code (92%)
 
 ### ✅ Verification Status
 
@@ -31,7 +31,8 @@
 | 3 | 32 | 32 | 0 ✅ |
 | 4 | 70 | 70 | 0 ✅ |
 | 5 | 82 | 82 | 0 ✅ |
-| **Total** | **256** | **256** | **0** |
+| 6 | 38 | 38 | 0 ✅ |
+| **Total** | **294** | **294** | **0** |
 
 **Note:** "Documented" means error codes and basic documentation added. "Verified" means parameters and response fields confirmed against source code.
 
@@ -672,13 +673,114 @@
 
 ---
 
-## Phase 6: Apps & Integrations
+## Phase 6: Apps & Integrations ✅
 
-**Status:** 🔲 Not Started  
+**Status:** Complete  
+**Started:** 2026-01-11  
+**Completed:** 2026-01-11  
 **Endpoints:** 34  
-**Target Duration:** 1 week
+**Target Duration:** 1 week (completed in 1 day)
 
-_Endpoint tracking will be added when Phase 6 begins_
+### Endpoint Tracking
+
+#### v3 Apps APIs - apps.json (3 endpoints) - ✅ Complete
+
+| # | Endpoint | Status | Notes |
+|---|----------|--------|-------|
+| 1 | GET /v3/apps/app_assignments | ✅ | Already has 400, 401, 403, 500 |
+| 2 | POST /v3/apps/app_assignments | ✅ | Already has 400, 401, 403, 500 |
+| 3 | DELETE /v3/apps/app_assignments/{uid} | ✅ | Already has 400, 401, 403, 404, 500 |
+
+#### v3 Apps APIs - widgets_and_boards.json (9 endpoints) - ✅ Complete
+
+| # | Endpoint | Status | Notes |
+|---|----------|--------|-------|
+| 4 | POST /v3/apps/widgets | ✅ | Already has 400, 401, 403, 500 |
+| 5 | GET /v3/apps/widgets | ✅ | Already has 401, 403, 500 |
+| 6 | PUT /v3/apps/widgets/{uid} | ✅ | Already has 400, 401, 403, 404, 500 |
+| 7 | POST /v3/apps/staff_widgets_boards | ✅ | Already has 400, 401, 403, 500 |
+| 8 | GET /v3/apps/staff_widgets_boards | ✅ | Already has 401, 403, 500 |
+| 9 | PUT /v3/apps/staff_widgets_boards/{uid} | ✅ | Already has 400, 401, 403, 404, 500 |
+| 10 | POST /v3/apps/staff_widgets_boards_templates | ✅ | Already has 400, 401, 403, 404, 500 |
+| 11 | GET /v3/apps/staff_widgets_boards_templates | ✅ | Already has 401, 403, 500 |
+| 12 | PUT /v3/apps/staff_widgets_boards_templates/{uid} | ✅ | Already has 400, 401, 403, 404, 500 |
+| 13 | DELETE /v3/apps/staff_widgets_boards_templates/{uid} | ✅ | Already has 401, 403, 404, 500 |
+
+#### v3 Apps APIs - jwks.json (2 endpoints) - ✅ Complete
+
+| # | Endpoint | Status | Notes |
+|---|----------|--------|-------|
+| 14 | POST /v3/apps/compact_jws_tokens | ✅ | Already has 400, 401, 429, 500 |
+| 15 | POST /v3/apps/compact_jws_tokens/bulk | ✅ | Already has 400, 401, 429, 500 |
+
+#### v3 Integrations APIs - import.json (4 endpoints) - ✅ Complete
+
+| # | Endpoint | Status | Notes |
+|---|----------|--------|-------|
+| 16 | POST /v3/integrations/import_jobs | ✅ | Already has 400, 401, 403, 429, 500 |
+| 17 | GET /v3/integrations/import_jobs/{uid} | ✅ | Already has 401, 403, 404, 500 |
+| 18 | GET /v3/integrations/import_job_items | ✅ | Already has 400, 401, 403, 500 |
+| 19 | GET /v3/integrations/import_job_items/{uid} | ✅ | Already has 401, 403, 404, 500 |
+
+#### v3 Integrations APIs - authbridge.json (10 endpoints) - ✅ Complete
+
+| # | Endpoint | Status | Notes |
+|---|----------|--------|-------|
+| 20 | GET /v3/integrations/idp_actor_mappings | ✅ | Already has 401, 403, 500 |
+| 21 | POST /v3/integrations/idp_actor_mappings | ✅ | Already has 400, 401, 403, 500 |
+| 22 | DELETE /v3/integrations/idp_actor_mappings/{uid} | ✅ | Already has 401, 403, 404, 500 |
+| 23 | POST /authbridge/idp_users/{actor_type} | ✅ | Already has 400, 401, 403, 500 |
+| 24 | DELETE /authbridge/idp_users/{actor_type}/{id} | ✅ | Already has 400, 401, 403, 500 |
+| 25 | POST /authbridge/idp_actor_mappings/{uid}/invite | ✅ | Already has 400, 401, 403, 404, 500 |
+| 26 | POST /authbridge/idp_users/{actor_type}/{actor_uid}/logout_url | ✅ | **ADDED** - was missing from docs |
+| 27 | PUT /authbridge/idp_users/{actor_type}/{actor_uid}/request_email_change | ✅ | **ADDED** - was missing from docs |
+| 28 | GET /v3/integrations/directory_idps | ✅ | Already has 401, 403, 500 |
+| 29 | POST /v3/integrations/directory_idps | ✅ | Already has 400, 401, 403, 500 |
+| 30 | PUT /v3/integrations/directory_idps/{uid} | ✅ | Already has 400, 401, 403, 404, 500 |
+
+#### Legacy v1 Apps APIs - legacy_v1_apps.json (8 endpoints) - ✅ Complete
+
+| # | Endpoint | Status | Notes |
+|---|----------|--------|-------|
+| 31 | GET /platform/v1/apps | ✅ | Already has 401, 403, 500 |
+| 32 | POST /platform/v1/apps | ✅ | Already has 400, 401, 403, 422, 500 |
+| 33 | GET /platform/v1/apps/{id} | ✅ | Already has 401, 403, 404, 500 |
+| 34 | PUT /platform/v1/apps/{id} | ✅ | Already has 400, 401, 403, 404, 500 |
+| 35 | POST /platform/v1/apps/{id}/assign | ✅ | Already has 400, 401, 403, 404, 500 |
+| 36 | POST /platform/v1/apps/{id}/install_app | ✅ | Already has 401, 403, 404, 422, 500 |
+| 37 | POST /platform/v1/apps/{id}/unassign | ✅ | Already has 400, 401, 403, 404, 500 |
+| 38 | POST /platform/v1/apps/{id}/uninstall_app | ✅ | Already has 401, 403, 404, 422, 500 |
+
+### Entity Documentation - ✅ Complete
+
+| Entity | JSON Schema | Markdown | Notes |
+|--------|-------------|----------|-------|
+| widget | ✅ | ✅ | Already well documented |
+| staffWidgetsBoard | ✅ | ✅ | Already well documented |
+| staffWidgetsBoardsTemplate | ✅ | ✅ | Already well documented |
+| compactJWSToken | ✅ | ✅ | Already well documented |
+| appAssignment | ✅ | ✅ | Already well documented |
+| importJob | ✅ | ✅ | Already well documented |
+| importJobItem | ✅ | ✅ | Already well documented |
+| idp_actor_mapping | ✅ | ✅ | Already well documented |
+| directory_idp | ✅ | ✅ | Already well documented |
+
+### Phase 6 Statistics
+
+- **Completed:** 38/38 endpoints
+- **Swagger Files Updated:** 2 (authbridge.json, import.json)
+- **Entity Files Reviewed:** 9 (all already well documented)
+
+### Changes Made (2026-01-11)
+
+#### swagger/integrations/import.json
+- Fixed `entity_type` enum: added `mock` (was only `product`)
+- Fixed `provider_type` enum: added `mock` (was only `excel`, `import_job`)
+
+#### swagger/integrations/authbridge.json
+- **ADDED** `/authbridge/idp_users/{actor_type}/{actor_uid}/logout_url` endpoint
+- **ADDED** `/authbridge/idp_users/{actor_type}/{actor_uid}/request_email_change` endpoint
+- Both endpoints were present in code but missing from documentation
 
 ---
 
@@ -723,5 +825,9 @@ _Endpoint tracking will be added when Phase 7 begins_
 2026-01-11: Phase 3 (Communication) completed - 39 endpoints enhanced.
 2026-01-11: Phase 4 (Sales) completed - 70 endpoints enhanced.
 2026-01-11: Phase 5 (Platform Administration) completed - 82 endpoints enhanced.
-2026-01-11: Ready to begin Phase 6: Apps & Integrations.
+2026-01-11: User added Phase 6 codebases (app-widgets-manager, authnapplication, harbor, authbridge).
+2026-01-11: Phase 6 (Apps & Integrations) completed - 38 endpoints verified.
+           - Fixed import.json: added missing 'mock' values to entity_type and provider_type enums
+           - Fixed authbridge.json: added 2 missing endpoints (logout_url, request_email_change)
+2026-01-11: Ready to begin Phase 7: AI, Operators, Reviews.
 ```

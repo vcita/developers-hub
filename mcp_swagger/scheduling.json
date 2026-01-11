@@ -7,9 +7,9 @@
     "x-generated": {
       "sourceFiles": [
         "legacy_v1_scheduling.json",
+        "resource_management.json",
         "availability.json",
         "availability_slots.json",
-        "resource_management.json",
         "scheduling.json"
       ],
       "pathNormalizations": [
@@ -1671,408 +1671,6 @@
         }
       }
     },
-    "/v3/scheduling/business_availabilities/{business_uid}": {
-      "get": {
-        "summary": "Get BusinessAvailability",
-        "description": "Retrieve availability time slots for a specific business within a date range\n\n **Only available for Directory Tokens**",
-        "tags": [
-          "Business Availability"
-        ],
-        "parameters": [
-          {
-            "name": "business_uid",
-            "in": "path",
-            "required": true,
-            "description": "Unique identifier of the business",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "start_date",
-            "in": "query",
-            "required": true,
-            "description": "Start date (YYYY-MM-DD)",
-            "schema": {
-              "type": "string",
-              "format": "date"
-            }
-          },
-          {
-            "name": "end_date",
-            "in": "query",
-            "required": true,
-            "description": "End date (YYYY-MM-DD)",
-            "schema": {
-              "type": "string",
-              "format": "date"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Business availability retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/businessAvailability.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid parameters. Common causes:\n- Missing required `start_date` or `end_date`\n- Invalid date format (must be YYYY-MM-DD)\n- Start date is after end date"
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing authentication token"
-          },
-          "403": {
-            "description": "Forbidden - Only Directory tokens can access this endpoint"
-          },
-          "404": {
-            "description": "Not Found - Business not found"
-          },
-          "422": {
-            "description": "Validation Error - Business logic validation failed (e.g., invalid staff availability data)"
-          },
-          "500": {
-            "description": "Internal Server Error - Unexpected error occurred"
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/scheduling/business_availabilities": {
-      "get": {
-        "summary": "Get all BusinessAvailabilities",
-        "description": "Retrieve availability time slots for multiple businesses in a directory. Returns paginated results with available booking slots for each business.\n\n**Only available for Directory Tokens**\n\n**Rate Limiting:** Uses a distributed lock per directory. Concurrent requests for the same directory will receive a 429 error.\n\n**Timeout:** 10 seconds maximum response time",
-        "tags": [
-          "Business Availability"
-        ],
-        "parameters": [
-          {
-            "name": "date_start",
-            "in": "query",
-            "required": true,
-            "description": "Start date in YYYY-MM-DD format",
-            "schema": {
-              "type": "string",
-              "format": "date"
-            },
-            "example": "2026-01-15"
-          },
-          {
-            "name": "date_end",
-            "in": "query",
-            "required": true,
-            "description": "End date in YYYY-MM-DD format. **Maximum 7 days** from start date.",
-            "schema": {
-              "type": "string",
-              "format": "date"
-            },
-            "example": "2026-01-22"
-          },
-          {
-            "name": "page",
-            "in": "query",
-            "required": false,
-            "description": "Page number for pagination. **0-based** (first page is 0).",
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "default": 0
-            }
-          },
-          {
-            "name": "per_page",
-            "required": false,
-            "in": "query",
-            "description": "Number of items per page. **Maximum and default is 10.**",
-            "schema": {
-              "minimum": 1,
-              "maximum": 10,
-              "default": 10,
-              "type": "number"
-            }
-          },
-          {
-            "name": "scheduling_enabled",
-            "in": "query",
-            "required": false,
-            "description": "Filter businesses by online scheduling status. When `true` (default), only returns businesses with online scheduling enabled. When `false`, returns businesses with scheduling disabled.",
-            "schema": {
-              "type": "boolean",
-              "default": true
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "BusinessAvailabilities retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/BusinessAvailabilityList"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request parameters. Common causes:\n- Missing required `date_start` or `date_end`\n- Invalid date format (must be YYYY-MM-DD)\n- Date range exceeds 7 days"
-          },
-          "401": {
-            "description": "Unauthorized - invalid or missing bearer token"
-          },
-          "403": {
-            "description": "Forbidden - only Directory tokens can access this endpoint. Staff tokens and other token types are not permitted."
-          },
-          "422": {
-            "description": "Validation Error - Business logic validation failed (e.g., invalid staff availability data)"
-          },
-          "429": {
-            "description": "Too Many Requests - another request is currently processing for this directory. Wait a few seconds and retry."
-          },
-          "500": {
-            "description": "Internal Server Error - Unexpected error occurred"
-          },
-          "504": {
-            "description": "Gateway Timeout - Request exceeded 10 second timeout. Try reducing the date range or number of businesses."
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/scheduling/availability_slots": {
-      "get": {
-        "summary": "Get all AvailabilitySlots",
-        "description": "Retrieve availability slots for scheduling based on specified criteria. At least one of resource_type_uids, resource_uids, or staff_uids must be provided.",
-        "tags": [
-          "Availability Slots"
-        ],
-        "parameters": [
-          {
-            "name": "start_time",
-            "in": "query",
-            "required": true,
-            "description": "Start time for availability search in UTC. Must be in ISO 8601 format.",
-            "schema": {
-              "type": "string",
-              "format": "date-time"
-            },
-            "example": "2026-01-15T00:00:00.000Z"
-          },
-          {
-            "name": "end_time",
-            "in": "query",
-            "required": true,
-            "description": "End time for availability search in UTC. Must be in ISO 8601 format.",
-            "schema": {
-              "type": "string",
-              "format": "date-time"
-            },
-            "example": "2026-01-16T00:00:00.000Z"
-          },
-          {
-            "name": "service_uid",
-            "in": "query",
-            "required": false,
-            "description": "Unique identifier of the service",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "resource_type_uids",
-            "in": "query",
-            "required": false,
-            "description": "Comma-separated list of resource type UIDs. At least one of resource_type_uids, resource_uids, or staff_uids must be provided.",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "resource_uids",
-            "in": "query",
-            "required": false,
-            "description": "Comma-separated list of resource UIDs. At least one of resource_type_uids, resource_uids, or staff_uids must be provided.",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "staff_uids",
-            "in": "query",
-            "required": false,
-            "description": "Comma-separated list of staff UIDs. At least one of resource_type_uids, resource_uids, or staff_uids must be provided.",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "slot_duration",
-            "in": "query",
-            "required": false,
-            "description": "Desired duration of each availability slot in minutes. If not specified, uses the service's default duration.",
-            "schema": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "example": 30
-          },
-          {
-            "name": "slot_interval",
-            "in": "query",
-            "required": false,
-            "description": "Interval between slot start times in minutes. Controls how frequently slots are offered (e.g., every 15 minutes vs every 30 minutes).",
-            "schema": {
-              "type": "integer",
-              "minimum": 1
-            },
-            "example": 15
-          },
-          {
-            "name": "padding_before",
-            "in": "query",
-            "required": false,
-            "description": "Buffer time required before each slot in minutes. Use this for setup time or travel time between appointments. The padding time will be blocked but not shown to clients.",
-            "schema": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "example": 10
-          },
-          {
-            "name": "padding_after",
-            "in": "query",
-            "required": false,
-            "description": "Buffer time required after each slot in minutes. Use this for cleanup time or notes. The padding time will be blocked but not shown to clients.",
-            "schema": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "example": 5
-          },
-          {
-            "name": "exclude_booking_uid",
-            "in": "query",
-            "required": false,
-            "description": "Unique identifier of a booking to exclude from busy slots calculation when determining availability. When provided, the specified booking is temporarily removed from the busy slots list before calculating available time slots. This is essential for rescheduling scenarios where you need to check if the original time slot would be available without the current booking, or for conflict detection when validating potential overlaps. Example: If booking 'abc123' is scheduled from 2:00-3:00 PM and you want to reschedule it, passing exclude_booking_uid=abc123 will show 2:00-3:00 PM as available (assuming no other bookings conflict). If other bookings exist during that time, the slot remains busy.",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Availability slots retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/AvailabilitySlotList"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid parameters",
-            "content": {
-              "application/json": {
-                "examples": {
-                  "invalidDate": {
-                    "summary": "Invalid date format",
-                    "value": {
-                      "statusCode": 400,
-                      "message": "start_time must be a valid ISO date format"
-                    }
-                  },
-                  "unsupportedParams": {
-                    "summary": "Unsupported parameters without slot_duration",
-                    "value": {
-                      "statusCode": 400,
-                      "message": "slot_interval is not supported without slot_duration"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing authentication token"
-          },
-          "404": {
-            "description": "Not Found - Service or specified resources not found"
-          },
-          "422": {
-            "description": "Validation Error - Business logic validation failed",
-            "content": {
-              "application/json": {
-                "examples": {
-                  "validationError": {
-                    "summary": "Validation error from downstream API",
-                    "value": {
-                      "statusCode": 422,
-                      "message": "Validation error details"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal Server Error - Unexpected error occurred"
-          },
-          "504": {
-            "description": "Gateway Timeout - Request exceeded 30 second timeout. Try narrowing your query with specific filters or a shorter time range."
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
     "/v3/scheduling/resource_types": {
       "get": {
         "summary": "Get all ResourceTypes",
@@ -2926,6 +2524,408 @@
         "tags": [
           "Resource"
         ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/scheduling/business_availabilities/{business_uid}": {
+      "get": {
+        "summary": "Get BusinessAvailability",
+        "description": "Retrieve availability time slots for a specific business within a date range\n\n **Only available for Directory Tokens**",
+        "tags": [
+          "Business Availability"
+        ],
+        "parameters": [
+          {
+            "name": "business_uid",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the business",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "start_date",
+            "in": "query",
+            "required": true,
+            "description": "Start date (YYYY-MM-DD)",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "required": true,
+            "description": "End date (YYYY-MM-DD)",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Business availability retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/businessAvailability.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters. Common causes:\n- Missing required `start_date` or `end_date`\n- Invalid date format (must be YYYY-MM-DD)\n- Start date is after end date"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "403": {
+            "description": "Forbidden - Only Directory tokens can access this endpoint"
+          },
+          "404": {
+            "description": "Not Found - Business not found"
+          },
+          "422": {
+            "description": "Validation Error - Business logic validation failed (e.g., invalid staff availability data)"
+          },
+          "500": {
+            "description": "Internal Server Error - Unexpected error occurred"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/scheduling/business_availabilities": {
+      "get": {
+        "summary": "Get all BusinessAvailabilities",
+        "description": "Retrieve availability time slots for multiple businesses in a directory. Returns paginated results with available booking slots for each business.\n\n**Only available for Directory Tokens**\n\n**Rate Limiting:** Uses a distributed lock per directory. Concurrent requests for the same directory will receive a 429 error.\n\n**Timeout:** 10 seconds maximum response time",
+        "tags": [
+          "Business Availability"
+        ],
+        "parameters": [
+          {
+            "name": "date_start",
+            "in": "query",
+            "required": true,
+            "description": "Start date in YYYY-MM-DD format",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "example": "2026-01-15"
+          },
+          {
+            "name": "date_end",
+            "in": "query",
+            "required": true,
+            "description": "End date in YYYY-MM-DD format. **Maximum 7 days** from start date.",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "example": "2026-01-22"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Page number for pagination. **0-based** (first page is 0).",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "per_page",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page. **Maximum and default is 10.**",
+            "schema": {
+              "minimum": 1,
+              "maximum": 10,
+              "default": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "scheduling_enabled",
+            "in": "query",
+            "required": false,
+            "description": "Filter businesses by online scheduling status. When `true` (default), only returns businesses with online scheduling enabled. When `false`, returns businesses with scheduling disabled.",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "BusinessAvailabilities retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/BusinessAvailabilityList"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request parameters. Common causes:\n- Missing required `date_start` or `date_end`\n- Invalid date format (must be YYYY-MM-DD)\n- Date range exceeds 7 days"
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing bearer token"
+          },
+          "403": {
+            "description": "Forbidden - only Directory tokens can access this endpoint. Staff tokens and other token types are not permitted."
+          },
+          "422": {
+            "description": "Validation Error - Business logic validation failed (e.g., invalid staff availability data)"
+          },
+          "429": {
+            "description": "Too Many Requests - another request is currently processing for this directory. Wait a few seconds and retry."
+          },
+          "500": {
+            "description": "Internal Server Error - Unexpected error occurred"
+          },
+          "504": {
+            "description": "Gateway Timeout - Request exceeded 10 second timeout. Try reducing the date range or number of businesses."
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/scheduling/availability_slots": {
+      "get": {
+        "summary": "Get all AvailabilitySlots",
+        "description": "Retrieve availability slots for scheduling based on specified criteria. At least one of resource_type_uids, resource_uids, or staff_uids must be provided.",
+        "tags": [
+          "Availability Slots"
+        ],
+        "parameters": [
+          {
+            "name": "start_time",
+            "in": "query",
+            "required": true,
+            "description": "Start time for availability search in UTC. Must be in ISO 8601 format.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "example": "2026-01-15T00:00:00.000Z"
+          },
+          {
+            "name": "end_time",
+            "in": "query",
+            "required": true,
+            "description": "End time for availability search in UTC. Must be in ISO 8601 format.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "example": "2026-01-16T00:00:00.000Z"
+          },
+          {
+            "name": "service_uid",
+            "in": "query",
+            "required": false,
+            "description": "Unique identifier of the service",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "resource_type_uids",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated list of resource type UIDs. At least one of resource_type_uids, resource_uids, or staff_uids must be provided.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "resource_uids",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated list of resource UIDs. At least one of resource_type_uids, resource_uids, or staff_uids must be provided.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "staff_uids",
+            "in": "query",
+            "required": false,
+            "description": "Comma-separated list of staff UIDs. At least one of resource_type_uids, resource_uids, or staff_uids must be provided.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "slot_duration",
+            "in": "query",
+            "required": false,
+            "description": "Desired duration of each availability slot in minutes. If not specified, uses the service's default duration.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 30
+          },
+          {
+            "name": "slot_interval",
+            "in": "query",
+            "required": false,
+            "description": "Interval between slot start times in minutes. Controls how frequently slots are offered (e.g., every 15 minutes vs every 30 minutes).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 15
+          },
+          {
+            "name": "padding_before",
+            "in": "query",
+            "required": false,
+            "description": "Buffer time required before each slot in minutes. Use this for setup time or travel time between appointments. The padding time will be blocked but not shown to clients.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "example": 10
+          },
+          {
+            "name": "padding_after",
+            "in": "query",
+            "required": false,
+            "description": "Buffer time required after each slot in minutes. Use this for cleanup time or notes. The padding time will be blocked but not shown to clients.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "example": 5
+          },
+          {
+            "name": "exclude_booking_uid",
+            "in": "query",
+            "required": false,
+            "description": "Unique identifier of a booking to exclude from busy slots calculation when determining availability. When provided, the specified booking is temporarily removed from the busy slots list before calculating available time slots. This is essential for rescheduling scenarios where you need to check if the original time slot would be available without the current booking, or for conflict detection when validating potential overlaps. Example: If booking 'abc123' is scheduled from 2:00-3:00 PM and you want to reschedule it, passing exclude_booking_uid=abc123 will show 2:00-3:00 PM as available (assuming no other bookings conflict). If other bookings exist during that time, the slot remains busy.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Availability slots retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/AvailabilitySlotList"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid parameters",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "invalidDate": {
+                    "summary": "Invalid date format",
+                    "value": {
+                      "statusCode": 400,
+                      "message": "start_time must be a valid ISO date format"
+                    }
+                  },
+                  "unsupportedParams": {
+                    "summary": "Unsupported parameters without slot_duration",
+                    "value": {
+                      "statusCode": 400,
+                      "message": "slot_interval is not supported without slot_duration"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "404": {
+            "description": "Not Found - Service or specified resources not found"
+          },
+          "422": {
+            "description": "Validation Error - Business logic validation failed",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "validationError": {
+                    "summary": "Validation error from downstream API",
+                    "value": {
+                      "statusCode": 422,
+                      "message": "Validation error details"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error - Unexpected error occurred"
+          },
+          "504": {
+            "description": "Gateway Timeout - Request exceeded 30 second timeout. Try narrowing your query with specific filters or a shorter time range."
+          }
+        },
         "security": [
           {
             "Bearer": []
@@ -4806,30 +4806,6 @@
   },
   "components": {
     "schemas": {
-      "BusinessAvailabilityList": {
-        "type": "object",
-        "properties": {
-          "business_availabilities": {
-            "description": "List of BusinessAvailabilities",
-            "type": "array",
-            "items": {
-              "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/businessAvailability.json"
-            }
-          }
-        }
-      },
-      "AvailabilitySlotList": {
-        "type": "object",
-        "properties": {
-          "availability_slots": {
-            "description": "List of AvailabilitySlots",
-            "type": "array",
-            "items": {
-              "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/availabilitySlot.json"
-            }
-          }
-        }
-      },
       "ResourcesList": {
         "type": "object",
         "properties": {
@@ -4850,6 +4826,30 @@
             "type": "array",
             "items": {
               "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/resourceType.json"
+            }
+          }
+        }
+      },
+      "BusinessAvailabilityList": {
+        "type": "object",
+        "properties": {
+          "business_availabilities": {
+            "description": "List of BusinessAvailabilities",
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/businessAvailability.json"
+            }
+          }
+        }
+      },
+      "AvailabilitySlotList": {
+        "type": "object",
+        "properties": {
+          "availability_slots": {
+            "description": "List of AvailabilitySlots",
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/availabilitySlot.json"
             }
           }
         }

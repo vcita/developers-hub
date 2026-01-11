@@ -1,9 +1,11 @@
 # API Documentation Best Practices Guidelines
 ## inTandem Developers Hub - Documentation Excellence Framework
 
-**Version:** 1.0  
+**Version:** 2.0  
 **Date:** January 2026  
 **Purpose:** Establish standards for creating comprehensive, accurate, and developer-friendly API documentation that aligns with actual code implementations.
+
+> **Note:** This document incorporates lessons learned from the comprehensive documentation enhancement project completed in January 2026, covering Phases 1-5 (Scheduling, Clients, Communication, Sales, Platform Administration).
 
 ---
 
@@ -20,6 +22,9 @@
 9. [Quality Checklist](#9-quality-checklist)
 10. [Examples from Industry Leaders](#10-examples-from-industry-leaders)
 11. [Implementation Roadmap](#11-implementation-roadmap)
+12. [Lessons Learned](#12-lessons-learned)
+13. [Microservices Architecture Considerations](#13-microservices-architecture-considerations)
+14. [Custom OpenAPI Extensions (x-vcita)](#14-custom-openapi-extensions-x-vcita)
 
 ---
 
@@ -70,9 +75,9 @@ Transform the inTandem Developers Hub into a world-class API documentation resou
 | **Business Logic** | Not documented | Key business rules affecting API behavior |
 | **Related Endpoints** | Not linked | Cross-references to related operations |
 
-### Code Implementation Patterns (core project)
+### Code Implementation Patterns
 
-From analyzing the Ruby controllers:
+#### Ruby on Rails (core project)
 
 ```ruby
 # Pattern 1: Error Response Structure
@@ -85,13 +90,47 @@ render json: {status: 'OK', data: { booking: booking_response}}, status: 201
 unless Components::Common::Utils.within_rate_limit?("get_clients_for_business:#{context_business.try(:uid)}", 
   APP_CONFIG['rate_limit.get_clients.limit'], 
   APP_CONFIG['rate_limit.get_clients.interval'])
+
+# Pattern 4: Decorator Fields (defines response structure)
+DECORATE_FIELDS = [:uid, :service_uid, :start_time, :end_time, :status]
+```
+
+#### NestJS (microservices)
+
+```typescript
+// Pattern 1: DTO Validation (defines required fields)
+export class CreateResourceDto {
+  @IsNotEmpty()
+  @MaxLength(30)
+  name: string;
+  
+  @IsOptional()
+  description?: string;
+}
+
+// Pattern 2: Response Code Override
+@Post()
+@HttpCode(HttpStatus.CREATED)  // Returns 201
+async create() { ... }
+
+// Pattern 3: Feature Flag Protection
+@UseInterceptors(FeatureFlagsInterceptor)
+@FeatureFlags(['pkg.sch.resources', 'resources'])
+
+// Pattern 4: Actor Type Restriction
+@AllowedActors([ActorType.STAFF, ActorType.DIRECTORY])
+
+// Pattern 5: Permission Check
+@RequirePermissions(['account.settings.manage'])
 ```
 
 **Key Observations:**
 - Error responses include `error_code` field (e.g., "PARAMETER_MISSING", "TIMESLOT_UNAVAILABLE")
-- Rate limiting exists but is not documented
-- Validation happens at multiple levels (controller, component, model)
-- Business logic is encapsulated in Components modules
+- Rate limiting exists but is often not documented
+- Validation happens at multiple levels (controller, component/service, model/DTO)
+- Business logic is encapsulated in Components modules (Rails) or Services (NestJS)
+- NestJS uses decorators extensively for validation, auth, and response codes
+- **@IsOptional() decorator means field is NOT required** - critical for accurate documentation
 
 ---
 
@@ -880,8 +919,15 @@ For each endpoint, verify:
 - [ ] Rate limits documented (if applicable)
 - [ ] Required permissions/token types documented
 - [ ] Examples match actual API responses
+- [ ] **POST endpoints return 201 (not 200)** when creating resources
+- [ ] **@IsOptional() fields are NOT in required array**
+- [ ] **@IsNotEmpty() fields ARE in required array**
+- [ ] **Feature flag requirements documented** (x-vcita-feature-flags)
+- [ ] **Actor type restrictions documented** (check @AllowedActors)
+- [ ] **Timeouts documented** (check @Timeout decorators)
+- [ ] **Missing endpoints added** (check for undocumented DELETE, etc.)
 
-### 7.3 Automated Validation (Recommended)
+### 7.4 Automated Validation (Recommended)
 
 Implement validation scripts:
 
@@ -1128,11 +1174,18 @@ Use these custom extensions consistently:
 
 | Extension | Purpose | Example |
 |-----------|---------|---------|
-| `x-rate-limit` | Rate limiting info | `{"requests": 100, "period": "minute"}` |
-| `x-permissions` | Required permissions | `["scheduling:read", "staff:read"]` |
+| `x-vcita-rate-limiting` | Rate limiting info | `{"requests_per_minute": 30, "scope": "per_business"}` |
+| `x-vcita-feature-flags` | Required feature flags | `{"required": ["pkg.sch.resources", "resources"]}` |
+| `x-vcita-limits` | Business limits | `{"max_per_business": 5, "max_per_type": 10}` |
+| `x-vcita-timeout` | Request timeout | `"30 seconds"` |
+| `x-vcita-performance-notes` | Performance warnings | `"May be slow due to v1 API dependency"` |
+| `x-vcita-validation` | Custom validation | `{"date_range_max_days": 7}` |
+| `x-vcita-access` | Access restrictions | `{"actor_types": ["Directory"], "permissions": ["account.settings.manage"]}` |
+| `x-vcita-business-rules` | Business logic notes | Array of rule strings |
 | `x-ai-hints` | AI agent metadata | See Section 8.1 |
-| `x-business-rules` | Business logic notes | Array of rule strings |
 | `x-deprecation` | Deprecation details | `{"date": "2026-06-01", "replacement": "/v4/..."}` |
+
+> **Note:** We standardized on the `x-vcita-*` prefix for all custom extensions during the documentation enhancement project. See Section 14 for detailed usage guidelines.
 
 ---
 
@@ -1192,4 +1245,400 @@ Use these custom extensions consistently:
 
 ---
 
+## 12. Lessons Learned
+
+This section captures key insights from the comprehensive documentation enhancement project.
+
+### 12.1 Critical Safety Rules
+
+**Never Document Without Source Code Access**
+
+> ⚠️ **CRITICAL**: If you cannot find the source code for an API, DO NOT make documentation changes. Instead, document the blocked API and request codebase access.
+
+During our project, we discovered that many v3 APIs are implemented in separate microservices (not in the main `core` project). Attempting to document these without source code verification would have introduced inaccuracies.
+
+**Cost of Mistakes vs. Missing Information**
+
+> The cost of documenting incorrect information is MUCH higher than the cost of missing information.
+
+- Incorrect documentation leads to integration failures and support burden
+- Missing documentation is obvious; incorrect documentation is insidious
+- When uncertain, mark as "needs verification" rather than guessing
+
+### 12.2 Multi-Codebase API Architecture
+
+Our platform uses a distributed architecture where APIs are routed through an API Gateway to different microservices:
+
+| API Path Prefix | Service | Technology |
+|-----------------|---------|------------|
+| `/platform/v1/*` | core | Ruby on Rails |
+| `/v3/scheduling/resource_types`, `/v3/scheduling/resources` | resources | NestJS |
+| `/v3/scheduling/business_availabilities`, `/v3/scheduling/availability_slots` | availability | NestJS |
+| `/v3/communication/voice_calls/*` | voicecalls | NestJS |
+| `/v3/communication/business_phone_numbers/*` | phonenumbersmanager | NestJS |
+| `/v3/communication/notification_templates/*` | notificationscenter | NestJS |
+| `/business/communication/*` | communication-gw | NestJS |
+| `/v3/payment_processing/*` | payments | NestJS |
+| `/v3/license/*`, `/v3/subscriptions/*` | subscriptionsmng | NestJS |
+| `/v3/access_control/*` | permissionsmanager | NestJS |
+
+**Best Practice**: Always check `apigw/src/config/conf.yaml` to identify which microservice handles each API path before attempting to document it.
+
+### 12.3 Framework-Specific Patterns
+
+#### Ruby on Rails (core project)
+
+**Finding Response Fields:**
+```ruby
+# 1. Check DECORATE_FIELDS constants in API components:
+DECORATE_FIELDS = [:uid, :service_uid, :start_time, :end_time, :status]
+
+# 2. Check decorator classes:
+class AppointmentDecorator
+  def api_json(options = {})
+    # This defines the actual response structure
+  end
+end
+
+# 3. Check INDEX_RETURN_FIELDS for list endpoints:
+INDEX_RETURN_FIELDS = [:uid, :title, :start_time, :end_time]
+```
+
+**Finding Error Codes:**
+```ruby
+# 1. Check base controller rescue_from blocks:
+rescue_from ActiveRecord::RecordNotFound, with: :render_not_found  # 404
+rescue_from ActiveRecord::RecordInvalid, with: :render_invalid     # 422
+rescue_from ::Components::Infra::RateLimitReached, with: :render_rate_limit  # 429
+
+# 2. Check explicit error renders in controller actions:
+render json: {status: 'Error', error_code: "PARAMETER_MISSING"}, status: 400
+render json: {status: 'Error', error_code: "BOOKING_VIOLATION"}, status: 412
+```
+
+#### NestJS (microservices)
+
+**Finding Required/Optional Fields:**
+```typescript
+// Check DTO decorators - @IsOptional() means NOT required:
+export class CreateResourceDto {
+  @IsNotEmpty()  // REQUIRED
+  name: string;
+  
+  @IsOptional()  // NOT REQUIRED
+  description?: string;
+}
+```
+
+**Finding Response Codes:**
+```typescript
+// 1. Check @HttpCode decorators:
+@Post()
+@HttpCode(HttpStatus.CREATED)  // Returns 201, not 200
+
+// 2. Check explicit exceptions:
+throw new NotFoundException()      // 404
+throw new BadRequestException()    // 400
+throw new ForbiddenException()     // 403
+
+// 3. Check guards and interceptors:
+@UseGuards(FeatureFlagsGuard)  // Can throw 403 if feature disabled
+@AllowedActors([ActorType.STAFF])  // Can throw 403 for wrong actor
+```
+
+### 12.4 Common Documentation Mistakes Found
+
+| Mistake | Example | Fix |
+|---------|---------|-----|
+| Wrong response code for POST | POST returning 200 | Change to 201 Created |
+| Missing optional parameters | `@IsOptional()` field marked required | Remove from `required` array |
+| Wrong field names | `payment_uid` vs `payment_id` | Match actual code exactly |
+| Incomplete enum values | Status missing values | Check model/constant definitions |
+| Missing error responses | Only 200 documented | Add all error codes from code |
+| Extra fields in examples | Fields not returned by decorator | Remove non-existent fields |
+| Missing DELETE endpoints | Endpoint exists but not documented | Add the endpoint |
+| Wrong allowed actors | Missing STAFF from allowed list | Verify @AllowedActors decorator |
+| Missing 403 for feature flags | Feature flag check not documented | Add 403 with feature flag note |
+| Missing 500 error | Server error not documented | Always add 500 Internal Server Error |
+
+### 12.5 Specific Discrepancies Fixed During Project
+
+These are real examples from our documentation enhancement project:
+
+#### Phase 1 (Scheduling)
+- **appointment.json**: Field names `payment_uid`, `series_uid`, `service_uid`, `staff_uid` should be `payment_id`, `series_id`, `service_id`, `staff_id`
+- **appointment.json**: State enum was missing values - added `scheduled`, `cancelled`, `done`, `rejected`, `pending_reschedule`, `reschedule`
+- **GET /services**: Response example missing 18 fields including `display_missing_error`, `business_enabled`, `meeting_interaction_details`, etc.
+- **GET /scheduling/staff**: Response had `deleted` and `professional_title` but code uses `title` and no `deleted` field
+
+#### Phase 2 (Clients)
+- **DELETE /clients/{id}**: Response example had extra fields not returned by code (`channel`, `campaign`, `matter_term`, etc.)
+- **GET /clients**: Missing `phone_exists` query parameter
+
+#### Phase 3 (Communication)
+- **voice_call_settings DTOs**: All fields marked required but code has `@IsOptional()` on all
+- **CreateMessageDto**: `external_uid` marked required but code has `@IsOptional()`
+- **business_phone_numbers**: `features` parameter marked optional but code has `@IsNotEmpty()`
+- **voiceCall.md**: Status enum values were lowercase but JSON schema uses UPPERCASE
+
+#### Phase 4 (Sales)
+- **GET /payment_gateways**: Missing STAFF from allowed actors list
+
+#### Phase 5 (Platform Administration)
+- **POST /business_roles**: Response code was 200 but code returns 201
+- **POST /staff_business_roles**: Response code was 200 but code returns 201
+- **DELETE /staff_business_roles/{staff_uid}**: Endpoint completely missing from documentation
+- **Multiple endpoints**: Missing 403 response for feature flag `staff_role_permissions` checks
+
+### 12.5 Verification Process That Works
+
+**Step-by-Step for Each Endpoint:**
+
+1. **Identify Source Code Location**
+   - Check API gateway config for routing
+   - Navigate to correct microservice
+   - Find controller file
+
+2. **Verify Request Structure**
+   - Check controller method signature
+   - Check DTO class for field decorators
+   - Check strong params (Rails) or validation pipes (NestJS)
+   - Document ALL fields, marking required/optional correctly
+
+3. **Verify Response Structure**
+   - Find render/return statement
+   - Trace to decorator/serializer/DTO
+   - Document ALL fields returned
+   - Verify example matches actual output
+
+4. **Verify Error Responses**
+   - Check base controller error handling
+   - Check explicit error throws in controller
+   - Check guards and interceptors
+   - Check service layer exceptions
+   - Document ALL possible error codes
+
+5. **Verify Business Rules**
+   - Check for feature flag guards
+   - Check for permission requirements
+   - Check for rate limiting
+   - Check for validation constraints (maxLength, min, max)
+   - Document in x-vcita extensions
+
+---
+
+## 13. Microservices Architecture Considerations
+
+### 13.1 API Gateway as Source of Truth for Routing
+
+The `apigw/src/config/conf.yaml` file is the authoritative source for understanding which microservice handles each API path. Always consult this file before starting documentation work.
+
+**Example routing configuration:**
+```yaml
+- url: "${RESOURCES_HOST}"
+  path: [ "/v3/scheduling/resource_types", "/v3/scheduling/resources" ]
+- url: "${AVAILABILITY_HOST}"
+  path: [ "/v3/scheduling/business_availabilities", "/v3/scheduling/availability_slots" ]
+- url: "${CORE_HOST}"
+  path:
+  - "/platform/v1/"
+  - "/v3/scheduling/resource_bookings"
+```
+
+### 13.2 Handling Multiple Codebases
+
+When documenting APIs across multiple microservices:
+
+1. **Create a codebase access tracking file** (e.g., `NEEDS_CODEBASE_ACCESS.md`)
+2. **Group endpoints by required codebase** for efficient verification
+3. **Request all needed codebases upfront** for a phase to avoid context switching
+4. **Document service-specific patterns** (each NestJS service may have slightly different conventions)
+
+### 13.3 Service-Specific Error Handling
+
+Each microservice may have its own error handling patterns:
+
+| Service | Common Error Patterns |
+|---------|----------------------|
+| **core (Rails)** | `rescue_from` in base controller, explicit `render json: {status: 'Error'}` |
+| **NestJS services** | Exception filters, guards, validation pipes |
+| **availability** | Redis lock for rate limiting (429), timeout handling (504) |
+| **resources** | Feature flag checks (403), limit checks (422) |
+| **permissionsmanager** | Feature flag + permission checks (403) |
+
+---
+
+## 14. Custom OpenAPI Extensions (x-vcita)
+
+We use custom OpenAPI extensions to document information not covered by the standard specification.
+
+### 14.1 Extension Reference
+
+| Extension | Purpose | Example Value |
+|-----------|---------|---------------|
+| `x-vcita-rate-limiting` | Rate limit configuration | `{"requests_per_minute": 30}` |
+| `x-vcita-feature-flags` | Required feature flags | `["pkg.sch.resources", "resources"]` |
+| `x-vcita-limits` | Business limits | `{"max_per_business": 5, "max_per_type": 10}` |
+| `x-vcita-timeout` | Request timeout | `"30 seconds"` |
+| `x-vcita-performance-notes` | Performance considerations | `"May be slow due to v1 API dependency"` |
+| `x-vcita-validation` | Custom validation rules | `{"date_range_max_days": 7}` |
+| `x-vcita-access` | Access restrictions | `{"actor_types": ["Directory"], "permissions": ["account.settings.manage"]}` |
+| `x-vcita-business-rules` | Business logic rules | Array of rule descriptions |
+
+### 14.2 When to Use Each Extension
+
+**x-vcita-rate-limiting:**
+```json
+{
+  "x-vcita-rate-limiting": {
+    "requests_per_minute": 30,
+    "scope": "per_business"
+  }
+}
+```
+Use when: Controller has rate limiting checks (e.g., `within_rate_limit?`, Redis locks)
+
+**x-vcita-feature-flags:**
+```json
+{
+  "x-vcita-feature-flags": {
+    "required": ["pkg.sch.resources", "resources"],
+    "note": "Both flags must be enabled"
+  }
+}
+```
+Use when: Controller has `@FeatureFlagsInterceptor` or feature flag checks
+
+**x-vcita-limits:**
+```json
+{
+  "x-vcita-limits": {
+    "max_resource_types_per_business": 5,
+    "max_resources_per_type": 10
+  }
+}
+```
+Use when: Code enforces maximum counts (check constants files)
+
+**x-vcita-timeout:**
+```json
+{
+  "x-vcita-timeout": "30 seconds"
+}
+```
+Use when: Controller has `@Timeout()` decorator or explicit timeout handling
+
+**x-vcita-access:**
+```json
+{
+  "x-vcita-access": {
+    "actor_types": ["STAFF", "DIRECTORY"],
+    "permissions": ["account.settings.manage"],
+    "note": "Directory actors have read-only access"
+  }
+}
+```
+Use when: Controller has `@AllowedActors`, `@RequirePermissions`, or `@AuthorizeFor` decorators
+
+### 14.3 Placement of Extensions
+
+- **Endpoint-level extensions**: Place in the operation object (same level as `summary`, `responses`)
+- **Schema-level extensions**: Place in the schema object (same level as `properties`, `required`)
+- **Entity-level extensions**: Place at the root of entity JSON schema files
+
+---
+
+## 15. Documentation Maintenance
+
+### 15.1 When Code Changes
+
+Whenever API code changes, documentation must be updated:
+
+| Code Change | Documentation Update Required |
+|-------------|-------------------------------|
+| New endpoint added | Add to swagger file |
+| Endpoint removed | Remove from swagger (or mark deprecated) |
+| New parameter added | Add to parameters section |
+| Parameter removed | Remove from parameters |
+| Parameter becomes required | Update `required` array |
+| Response field added | Update response schema and example |
+| Response field removed | Update response schema and example |
+| New error condition | Add error response |
+| Rate limit changed | Update x-vcita-rate-limiting |
+| Feature flag added | Add x-vcita-feature-flags |
+| Permission changed | Update x-vcita-access |
+
+### 15.2 Validation Before Publishing
+
+Before publishing documentation updates:
+
+1. **Run OpenAPI linter** (Spectral) to catch syntax errors
+2. **Spot-check 3-5 endpoints** against source code
+3. **Verify all error codes** are documented
+4. **Check entity consistency** between swagger and entity files
+5. **Review x-vcita extensions** for accuracy
+
+### 15.3 Tracking Documentation Status
+
+Maintain a phase tracking document (`PHASE_TRACKING.md`) with:
+
+- Endpoint-by-endpoint status
+- Entity documentation status
+- Verification completion status
+- Any blocked items requiring codebase access
+
+---
+
 *This document should be reviewed and updated quarterly to incorporate lessons learned and evolving best practices.*
+
+---
+
+## Appendix D: Quick Reference Card
+
+### Minimum Response Codes (Always Document)
+
+```
+✅ 200/201 - Success
+✅ 400 - Bad Request (validation)
+✅ 401 - Unauthorized
+✅ 404 - Not Found (for path params)
+✅ 422 - Unprocessable Entity
+✅ 500 - Internal Server Error
+```
+
+### Additional Response Codes (When Applicable)
+
+```
+⚡ 403 - Forbidden (feature flags, permissions)
+⚡ 409 - Conflict (duplicates)
+⚡ 412 - Precondition Failed (business rules)
+⚡ 429 - Rate Limited
+⚡ 504 - Gateway Timeout
+```
+
+### NestJS Decorator → Response Code Mapping
+
+```
+@HttpCode(HttpStatus.CREATED) → 201
+@HttpCode(HttpStatus.NO_CONTENT) → 204
+throw new NotFoundException() → 404
+throw new BadRequestException() → 400
+throw new ForbiddenException() → 403
+throw new UnauthorizedException() → 401
+@UseGuards(FeatureFlagsGuard) → 403 possible
+@AllowedActors([...]) → 403 possible
+ValidationPipe → 400 possible
+```
+
+### Rails Pattern → Response Code Mapping
+
+```
+render status: :created → 201
+render status: :no_content → 204
+rescue_from ActiveRecord::RecordNotFound → 404
+rescue_from ActiveRecord::RecordInvalid → 422
+rescue_from RateLimitReached → 429
+render status: 400 → 400
+render status: 403 → 403
+render status: 412 → 412
+```

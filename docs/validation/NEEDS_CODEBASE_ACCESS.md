@@ -60,12 +60,14 @@
 | Phase 3 (Communication) | 32 endpoints | voice-calls-service, phone-numbers-manager, notifications-center, commgw | ✅ RESOLVED |
 | Phase 4 (Sales) | 5 endpoints | payments-service | ✅ RESOLVED |
 | Phase 5 (Platform Admin) | 35 endpoints | subscription-manager, permissions-manager | ✅ RESOLVED |
-| **Total** | **72 endpoints** | **6 codebases** | ✅ ALL RESOLVED |
+| Phase 6 (Apps & Integrations) | 26 endpoints | app-widgets-manager, authnapplication, harbor, authbridge | ✅ RESOLVED |
+| **Total** | **98 endpoints** | **10 codebases** | ✅ ALL RESOLVED |
 
 **✅ v3 Scheduling endpoints have source code access (availability, resources projects)**
 **✅ Phase 3 Communication endpoints have source code access (voicecalls, phonenumbersmanager, notificationscenter, communication-gw projects)**
 **✅ Phase 4 Sales endpoints have source code access (payments project)**
 **✅ Phase 5 Platform Admin endpoints have source code access (subscriptionsmng, permissionsmanager projects)**
+**✅ Phase 6 Apps & Integrations endpoints have source code access (app-widgets-manager, authnapplication, harbor, authbridge projects)**
 
 ---
 
@@ -86,6 +88,10 @@
 | payments | `C:\Programming\payments` | ✅ Available | Sales (v3): payment_gateways, payment_gateway_assignments |
 | subscriptionsmng | `C:\Programming\subscriptionsmng` | ✅ Available | License (v3): offerings, directory_offerings, bundled_offerings, subscriptions, business_carts |
 | permissionsmanager | `C:\Programming\permissionsmanager` | ✅ Available | Access Control (v3): permissions, business_roles, staff_business_roles, staff_permissions, staff_permission_overrides_lists |
+| app-widgets-manager | `C:\Programming\app-widgets-manager` | ✅ Available | Apps (v3): widgets, staff_widgets_boards, staff_widgets_boards_templates |
+| authnapplication | `C:\Programming\authnapplication` | ✅ Available | Apps (v3): compact_jws_tokens (JWKS signing) |
+| harbor | `C:\Programming\harbor` | ✅ Available | Integrations (v3): import_jobs, import_job_items |
+| authbridge | `C:\Programming\authbridge` | ✅ Available | Integrations (v3): idp_actor_mappings, idp_users, directory_idps |
 
 ---
 
@@ -115,13 +121,27 @@ All previously blocked codebases have been added to the workspace and verified:
 | subscriptionsmng | `${SUBSCRIPTIONMNG_HOST}` | `/v3/license/` offerings, subscriptions, business_carts | ✅ Verified |
 | permissionsmanager | `${PERMISSIONSMANAGER_HOST}` | `/v3/access_control/` permissions, business_roles, staff_permissions | ✅ Verified |
 
+### ✅ Phase 6 (Apps & Integrations) - RESOLVED
+
+**All Phase 6 codebases have been added to the workspace. Deep verification completed.**
+
+| Codebase | Status | Endpoints Verified |
+|----------|--------|-------------------|
+| app-widgets-manager | ✅ Added | 10 endpoints - widgets, staff_widgets_boards, staff_widgets_boards_templates |
+| authnapplication | ✅ Added | 2 endpoints - compact_jws_tokens, compact_jws_tokens/bulk |
+| harbor | ✅ Added | 4 endpoints - import_jobs, import_job_items |
+| authbridge | ✅ Added | 10 endpoints - idp_actor_mappings, idp_users, directory_idps |
+
+**Verification Findings:**
+- Fixed `entity_type` enum in import.json: added `mock` (was only `product`)
+- Fixed `provider_type` enum in import.json: added `mock` (was only `excel`, `import_job`)
+- Added missing `/authbridge/idp_users/{actor_type}/{actor_uid}/logout_url` endpoint to authbridge.json
+- Added missing `/authbridge/idp_users/{actor_type}/{actor_uid}/request_email_change` endpoint to authbridge.json
+
 ### Other Codebases (May Need for Future Phases)
 
 | Codebase | Environment Variable | APIs That Need It | Phase |
 |----------|---------------------|-------------------|-------|
-| authbridge | `${AUTHBRIDGE_HOST}` | `/v3/integrations/idp_actor_mappings`, `/authbridge` | Phase 6 |
-| widgets-manager | `${WIDGETS_MANAGER_HOST}` | `/v3/apps/widgets`, staff_widgets_boards | Phase 6 |
-| harbor | `${HARBOR_HOST}` | `/v3/integrations/import_jobs`, import_job_items | Phase 6 |
 | einvoicing | `${EINVOICING_HOST}` | `/v3/payments/invoices`, credit_notes | Future |
 
 ---
@@ -159,6 +179,10 @@ When you identify an endpoint that needs a codebase not currently available:
 | 2026-01-11 | payments | User | 5 endpoints: `/v3/payment_processing/payment_gateways`, payment_gateway_assignments |
 | 2026-01-11 | subscriptionsmng | User | 18 endpoints: `/v3/license/` offerings, directory_offerings, bundled_offerings, subscriptions, business_carts |
 | 2026-01-11 | permissionsmanager | User | 17 endpoints: `/v3/access_control/` permissions, business_roles, staff_business_roles, staff_permissions, staff_permission_overrides_lists |
+| 2026-01-11 | app-widgets-manager | User | 10 endpoints: `/v3/apps/widgets`, staff_widgets_boards, staff_widgets_boards_templates |
+| 2026-01-11 | authnapplication | User | 2 endpoints: `/v3/apps/compact_jws_tokens`, compact_jws_tokens/bulk |
+| 2026-01-11 | harbor | User | 4 endpoints: `/v3/integrations/import_jobs`, import_job_items |
+| 2026-01-11 | authbridge | User | 10 endpoints: `/v3/integrations/idp_actor_mappings`, idp_users, directory_idps |
 
 ---
 
@@ -195,4 +219,13 @@ When you identify an endpoint that needs a codebase not currently available:
              4. access_control.json: Missing 403 response for feature flag checks on PUT/DELETE business_roles
              5. access_control.json: Added x-vcita-feature-flags for staff_role_permissions requirement
            - Phases 4 and 5 are now fully verified against source code
+
+2026-01-11: User added Phase 6 codebases (app-widgets-manager, authnapplication, harbor, authbridge).
+           - Deep verification completed for all 38 Phase 6 endpoints
+           - Found and fixed discrepancies:
+             1. import.json: entity_type enum was missing 'mock' value
+             2. import.json: provider_type enum was missing 'mock' value
+             3. authbridge.json: Missing /authbridge/idp_users/{actor_type}/{actor_uid}/logout_url endpoint
+             4. authbridge.json: Missing /authbridge/idp_users/{actor_type}/{actor_uid}/request_email_change endpoint
+           - Phase 6 is now fully verified against source code
 ```
