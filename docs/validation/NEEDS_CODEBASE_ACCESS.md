@@ -228,4 +228,15 @@ When you identify an endpoint that needs a codebase not currently available:
              3. authbridge.json: Missing /authbridge/idp_users/{actor_type}/{actor_uid}/logout_url endpoint
              4. authbridge.json: Missing /authbridge/idp_users/{actor_type}/{actor_uid}/request_email_change endpoint
            - Phase 6 is now fully verified against source code
+
+2026-01-12: Phase 7 (AI, Operators, Reviews) analysis completed.
+           - AI Domain (12 endpoints): ✅ aiplatform codebase available
+           - Reviews Domain (3 endpoints): ✅ core codebase available
+           - Operator Tokens (1 endpoint): ✅ core codebase available
+           - Operators Domain (10 endpoints): ⛔ NOT IMPLEMENTED
+             * operatorCapabilities.json documents 10 endpoints that DO NOT EXIST in source code
+             * Routes file only has: POST /v3/operators/operator_tokens
+             * Models exist (OperatorCapability, OperatorRole) but NO v3 controllers
+             * These endpoints appear to be documented ahead of implementation
+             * Decision: Mark as "Not Implemented" - do not modify swagger
 ```
