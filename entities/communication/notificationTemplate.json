@@ -82,7 +82,9 @@
             },
             "deep_link": {
               "type": "string",
-              "description": "Optional deep link URL for notification action."
+              "pattern": "^/[a-zA-Z0-9_/${}-]+",
+              "description": "Deep link path for notification action. **Must start with '/'** and contain only letters, numbers, underscores, hyphens, slashes, and placeholder syntax (e.g., '/app/settings' or '/app/clients/${client_uid}'). Query parameters are allowed (e.g., '/app/settings?name=value'). Full URLs, HTML tags, scripts, and URL encoding are NOT allowed.",
+              "example": "/app/calendar"
             }
           },
           "required": ["title", "message_body"]
@@ -166,7 +168,9 @@
             },
             "deep_link": {
               "type": "string",
-              "description": "Optional deep link URL for SMS notification action."
+              "pattern": "^/[a-zA-Z0-9_/${}-]+",
+              "description": "Deep link path for SMS notification action. **Must start with '/'** and contain only letters, numbers, underscores, hyphens, slashes, and placeholder syntax (e.g., '/app/settings' or '/app/clients/${client_uid}'). Query parameters are allowed (e.g., '/app/settings?name=value'). Full URLs, HTML tags, scripts, and URL encoding are NOT allowed.",
+              "example": "/app/calendar"
             }
           },
           "required": ["message_body"]
@@ -200,7 +204,7 @@
   "definitions": {
     "localizedTextList": {
       "type": "array",
-      "description": "List of localized strings. Each item is a locale-value pair: locale is a locale (from enum), value is a string. Each language can appear only once.",
+      "description": "List of localized strings. Each item is a locale-value pair: locale is a locale (from enum), value is a string. Each language can appear only once. **Validation Rules:** The 'en' locale is mandatory for insert operations. At least one of 'title' or 'body' must be provided. The 'display_name' property is required and cannot exceed 50 characters. Parameters in text must use the format `${param_name}`.",
       "uniqueItems": true,
       "items": {
         "type": "object",
@@ -209,11 +213,24 @@
             "type": "string",
             "enum": [
               "en", "fr", "de", "it", "pl", "pt", "es", "nl", "he", "sl", "en_gb"
-            ]
+            ],
+            "description": "Language locale code. Must be one of the supported locales."
           },
-          "value": { "type": "string" }
+          "value": { 
+            "type": "string",
+            "description": "The localized text value. For descriptions: max 160 characters, only `<a href=\"...\">text</a>` HTML tag allowed (no other tags). For HTML content fields: only tags h1-h6, p, b, strong, i, em, u, br, span, div, pre, ul, ol, li are allowed with only 'style' attribute for color."
+          }
         },
         "required": ["locale", "value"]
+      },
+      "x-vcita-validation": {
+        "mandatory_locale": "en",
+        "description_max_length": 160,
+        "display_name_max_length": 50,
+        "parameter_format": "${param_name}",
+        "allowed_html_tags": ["h1", "h2", "h3", "h4", "h5", "h6", "p", "b", "strong", "i", "em", "u", "br", "span", "div", "pre", "ul", "ol", "li"],
+        "allowed_html_attributes": ["style"],
+        "style_allowed_properties": ["color"]
       }
     }
   },
@@ -245,7 +262,7 @@
           { "locale": "en", "value": "Thanks for joining us!" },
           { "locale": "fr", "value": "Merci de nous avoir rejoints!" }
         ],
-        "deep_link": "https://example.com/welcome"
+        "deep_link": "/app/welcome"
       },
       "email": {
         "subject": [
@@ -296,7 +313,7 @@
           { "locale": "fr", "value": "Bienvenue! Merci de nous avoir rejoints. Commencez:" },
           { "locale": "es", "value": "¡Bienvenido! Gracias por unirte. Comienza:" }
         ],
-        "deep_link": "https://example.com/welcome"
+        "deep_link": "/app/welcome"
       }
     },
     "created_at": "2024-06-01T12:00:00Z",

@@ -1593,6 +1593,67 @@ Maintain a phase tracking document (`PHASE_TRACKING.md`) with:
 
 ---
 
+## Appendix C: Field Validation Rules Documentation
+
+### C.1 Document Validation Constraints
+
+When a field has validation rules in the code (e.g., `@Matches`, `@Validate`, custom validators), these MUST be documented:
+
+| Validation Type | Documentation Approach |
+|----------------|------------------------|
+| Pattern/Regex | Add `pattern` property to schema + description |
+| Custom validator | Document rules in description |
+| Format constraints | Add `format` property + description |
+| Allowed characters | List in description |
+| Required prefix/suffix | Document with examples |
+
+### C.2 Example: Deep Link Validation
+
+The `deep_link` field in notification templates has a custom `DeepLinkValidation` validator:
+
+**Code validation rules:**
+```typescript
+// Must start with '/'
+// Only allowed: letters, numbers, underscores, hyphens, slashes, ${placeholder}
+// No HTML tags, scripts, URL encoding, or full URLs
+const pathRegex = /^\/[a-zA-Z0-9_\/${}-]+$/;
+```
+
+**Correct documentation:**
+```json
+{
+  "deep_link": {
+    "type": "string",
+    "pattern": "^/[a-zA-Z0-9_/${}-]+",
+    "description": "Deep link path. **Must start with '/'** and contain only letters, numbers, underscores, hyphens, slashes, and placeholder syntax (e.g., '/app/settings' or '/app/clients/${client_uid}'). Full URLs, HTML tags, scripts, and URL encoding are NOT allowed.",
+    "example": "/app/calendar"
+  }
+}
+```
+
+### C.3 Common Validation Patterns to Document
+
+| Pattern | Description | Example |
+|---------|-------------|---------|
+| Starts with `/` | Path-style deep links | `/app/settings` |
+| UUID format | Standard UUID | `f390f1ee-6c54-4b01-90e6-d701748f0852` |
+| Email format | RFC 5322 email | `user@example.com` |
+| URL format | Full HTTP/HTTPS URL | `https://example.com` |
+| Alphanumeric only | No special chars | `ABC123` |
+| Max length | Character limit | 255 characters |
+| Enum values | Fixed set of values | `["active", "inactive"]` |
+
+### C.4 Security-Related Validation
+
+Always document security-related validation rules explicitly:
+
+- **XSS prevention**: "HTML tags are not allowed"
+- **Script injection**: "JavaScript protocols (javascript:, data:) are not allowed"
+- **Path traversal**: "Path must not contain '..' sequences"
+- **URL encoding**: "URL-encoded characters are not allowed"
+
+---
+
 ## Appendix D: Quick Reference Card
 
 ### Minimum Response Codes (Always Document)

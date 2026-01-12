@@ -500,6 +500,23 @@ export class CreateClientDto {
 }
 ```
 
+**⚠️ CRITICAL: Custom Validators**
+
+When you see `@Validate(CustomValidatorClass)`, you MUST:
+1. **Find the validator file** (usually in `validators/` directory)
+2. **Read the validation logic** (regex patterns, conditions)
+3. **Document ALL validation rules** in the field description
+4. **Include the error messages** the validator throws
+5. **Verify examples comply** with the validation rules
+
+Example - `@Validate(DeepLinkValidation)` requires:
+- Path must start with `/`
+- Only letters, numbers, underscores, hyphens, slashes, `${placeholder}` allowed
+- No HTML tags, scripts, URL encoding, or full URLs
+- Query parameters must be `name=value` format
+
+This level of detail MUST be in the documentation.
+
 #### Response Structure Verification
 
 | What to Check | Where to Find It | Common Issues |
@@ -546,11 +563,19 @@ export class ClientResponseDto {
 For each endpoint:
 1. **Find the controller action** - identify what params are used
 2. **Find strong params or DTO** - identify all permitted/validated fields
-3. **Find the serializer/decorator** - identify all response fields
-4. **Compare with swagger** - document any discrepancies
-5. **Fix swagger** - update to match code exactly
+3. **Trace ALL validators** - for every `@Validate()`, `@Matches()`, or custom validator, READ the validator code
+4. **Find the serializer/decorator** - identify all response fields
+5. **Compare with swagger** - document any discrepancies
+6. **Verify examples** - ensure all examples comply with validation rules
+7. **Fix swagger** - update to match code exactly
 
 **CRITICAL:** If documentation shows fields that don't exist in code, or is missing fields that DO exist in code, the documentation MUST be corrected to match the actual implementation.
+
+**CRITICAL:** Custom validators contain business rules that MUST be documented. A field description like "Optional deep link URL" is INCOMPLETE if the code requires it to start with `/` and prohibits full URLs. The documentation must include:
+- Format requirements (patterns, prefixes, suffixes)
+- Allowed/disallowed characters
+- Security restrictions
+- Error messages users will see if validation fails
 
 ### Deliverables
 

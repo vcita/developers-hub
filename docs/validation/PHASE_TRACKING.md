@@ -23,6 +23,30 @@
 **Verified Progress:** 310/320 endpoints verified against source code (97%)  
 **Not Implemented:** 10 endpoints (Operators domain - documented but no source code)
 
+### 🔍 Custom Validator Audit (2026-01-12)
+
+Comprehensive audit of all custom validators across all codebases completed. Documentation updated for:
+
+| Codebase | Validators Found | Documentation Updated |
+|----------|------------------|----------------------|
+| notificationscenter | 7 validators | ✅ notificationTemplate.json entity |
+| phonenumbersmanager | 3 @Matches | ✅ Already documented in business_phone_numbers.json |
+| communication-gw | 1 @Matches | ✅ Already documented (created_at format) |
+| permissionsmanager | 2 @Matches | ✅ access_control.json (staff_uid pattern) |
+| authbridge | 3 @Matches + @IsIn | ✅ Already documented in authbridge.json |
+| aiplatform | 1 TypeSpecificValueValidator | ✅ ai_generation_feedback.json |
+| availability | 1 DateRangeValidator | ✅ Already documented (7-day limit) |
+
+**Key Validation Rules Now Documented:**
+- `deep_link` must start with `/`, no full URLs, no HTML/scripts
+- `staff_uid` must be 8 or 16 alphanumeric characters
+- `business_uid` must be 8 or 16 alphanumeric characters
+- `contact_phone`/`mobile_phone` must be 10-15 digits
+- `country_code` must be 2-letter uppercase
+- AI feedback `value` format depends on `type` field
+- Date range cannot exceed 7 days
+- Localized text must include `en` locale, `display_name` max 50 chars
+
 ### ✅ Verification Status
 
 | Phase | Documented | Verified | Blocked (No Source Code) |
