@@ -1,0 +1,586 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Privacy Policy",
+    "description": "API endpoints to manage privacy policy settings for a business. A business can configure either an external URL link to their privacy policy page, or inline text content displayed in a modal. This is a singleton resource - each business has at most one privacy policy configuration.",
+    "version": "3.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.vcita.biz",
+      "description": "API Gateway server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+      }
+    },
+    "schemas": {
+      "CreatePrivacyPolicyRequest": {
+        "type": "object",
+        "required": ["type"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["link", "text"],
+            "description": "The type of privacy policy configuration. 'link': External URL pointing to the business's privacy policy page. 'text': Inline privacy policy content that will be displayed in a modal."
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "External URL to the privacy policy page. Required when type is 'link' (e.g., \"https://example.com/privacy\")."
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 10000,
+            "description": "Inline privacy policy text content. Required when type is 'text'. Maximum 10,000 characters."
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": { "type": { "const": "link" } }
+            },
+            "then": {
+              "required": ["url"]
+            }
+          },
+          {
+            "if": {
+              "properties": { "type": { "const": "text" } }
+            },
+            "then": {
+              "required": ["content"]
+            }
+          }
+        ],
+        "example": {
+          "type": "text",
+          "content": "We respect your privacy and are committed to protecting your personal data..."
+        }
+      },
+      "UpdatePrivacyPolicyRequest": {
+        "type": "object",
+        "required": ["type"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["link", "text"],
+            "description": "The type of privacy policy configuration. 'link': External URL pointing to the business's privacy policy page. 'text': Inline privacy policy content that will be displayed in a modal."
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "External URL to the privacy policy page. Required when type is 'link' (e.g., \"https://example.com/privacy\")."
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 10000,
+            "description": "Inline privacy policy text content. Required when type is 'text'. Maximum 10,000 characters."
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": { "type": { "const": "link" } }
+            },
+            "then": {
+              "required": ["url"]
+            }
+          },
+          {
+            "if": {
+              "properties": { "type": { "const": "text" } }
+            },
+            "then": {
+              "required": ["content"]
+            }
+          }
+        ],
+        "example": {
+          "type": "link",
+          "url": "https://newsite.com/privacy-policy"
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "The field that caused the error (for validation errors)"
+                },
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": ["code", "message"]
+            }
+          }
+        },
+        "required": ["success", "errors"]
+      }
+    }
+  },
+  "paths": {
+    "/v3/business_administration/privacy_policies/{business_uid}": {
+      "get": {
+        "summary": "Retrieve Privacy Policy",
+        "description": "Get the privacy policy configuration for a specific business. Returns null in the data field if no privacy policy is configured.\n\nThis is a **public endpoint** - no authentication required. Rate limited via rack-attack.",
+        "operationId": "getPrivacyPolicy",
+        "parameters": [
+          {
+            "name": "business_uid",
+            "in": "path",
+            "required": true,
+            "description": "The unique identifier of the business.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Privacy policy retrieved successfully. Data will be null if no policy is configured.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "oneOf": [
+                            {
+                              "$ref": "https://vcita.github.io/developers-hub/entities/business_administration/privacyPolicy.json"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                },
+                "examples": {
+                  "configured": {
+                    "summary": "Privacy policy configured",
+                    "value": {
+                      "success": true,
+                      "data": {
+                        "business_uid": "d290f1ee26c54",
+                        "type": "link",
+                        "url": "https://example.com/privacy",
+                        "content": null,
+                        "created_at": "2026-01-12T10:30:00Z",
+                        "updated_at": "2026-01-12T10:30:00Z"
+                      }
+                    }
+                  },
+                  "not_configured": {
+                    "summary": "No privacy policy configured",
+                    "value": {
+                      "success": true,
+                      "data": null
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": ["Privacy Policy"]
+      },
+      "put": {
+        "summary": "Update Privacy Policy",
+        "description": "Update the privacy policy configuration for a specific business. The staff token's business_uid must match the path business_uid.\n\nAvailable for **Staff tokens** only.",
+        "operationId": "updatePrivacyPolicy",
+        "parameters": [
+          {
+            "name": "business_uid",
+            "in": "path",
+            "required": true,
+            "description": "The unique identifier of the business.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePrivacyPolicyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Privacy policy updated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/business_administration/privacyPolicy.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Client token or missing authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Clients are not authorized"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Staff token does not belong to the business.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Access denied"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - Privacy policy not found for this business.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Privacy policy not found"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "url",
+                      "code": "invalid",
+                      "message": "URL is required when type is 'link'"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": ["Privacy Policy"],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "summary": "Delete Privacy Policy",
+        "description": "Remove the privacy policy configuration for a specific business. The staff token's business_uid must match the path business_uid.\n\nAvailable for **Staff tokens** only.",
+        "operationId": "deletePrivacyPolicy",
+        "parameters": [
+          {
+            "name": "business_uid",
+            "in": "path",
+            "required": true,
+            "description": "The unique identifier of the business.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Privacy policy deleted successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Client token or missing authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Clients are not authorized"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Staff token does not belong to the business.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Access denied"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - Nothing to delete.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Privacy policy not found"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": ["Privacy Policy"],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/business_administration/privacy_policies": {
+      "post": {
+        "summary": "Create Privacy Policy",
+        "description": "Create a new privacy policy configuration for the business. The business is determined from the staff token. Returns 409 Conflict if a privacy policy already exists for the business.\n\nAvailable for **Staff tokens** only.",
+        "operationId": "createPrivacyPolicy",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePrivacyPolicyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Privacy policy created successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/business_administration/privacyPolicy.json"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "business_uid": "d290f1ee26c54",
+                    "type": "text",
+                    "url": null,
+                    "content": "We respect your privacy and are committed to protecting your personal data...",
+                    "created_at": "2026-01-12T10:30:00Z",
+                    "updated_at": "2026-01-12T10:30:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Client token or missing authentication.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Clients are not authorized"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Staff token does not belong to the business.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Access denied"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict - Privacy policy already exists for this business.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "conflict",
+                      "message": "Privacy policy already exists for this business"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "content",
+                      "code": "invalid",
+                      "message": "Content is required when type is 'text'"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": ["Privacy Policy"],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    }
+  }
+}
+
