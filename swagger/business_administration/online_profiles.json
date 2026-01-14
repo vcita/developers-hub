@@ -13,8 +13,8 @@
   "paths": {
     "/online_profiles/{business_uid}": {
       "get": {
-        "summary": "Get Online Profile (Public)",
-        "description": "Retrieve the online profile for a specific business. This is a **public endpoint** that does not require authentication. Returns the online profile including privacy policy configuration if set.\n\nNote: Returns 200 with null data even if business doesn't exist to prevent enumeration attacks.",
+        "summary": "Get Online Profile",
+        "description": "Retrieve the online profile for a specific business. This is a **public endpoint** that does not require authentication.\n\nNote: Returns 200 with null data even if business doesn't exist.",
         "operationId": "getOnlineProfilePublic",
         "parameters": [
           {
@@ -45,7 +45,7 @@
                             "online_profile": {
                               "oneOf": [
                                 {
-                                  "$ref": "https://vcita.github.io/developers-hub/entities/business_administration/onlineProfile.json"
+                                  "$ref": "#/components/schemas/OnlineProfile"
                                 },
                                 {
                                   "type": "null"
@@ -139,22 +139,53 @@
         "operationId": "listOnlineProfiles",
         "responses": {
           "200": {
-            "description": "Online profile retrieved successfully.",
+            "description": "Online profiles retrieved successfully.",
             "content": {
               "application/json": {
                 "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/business_administration/onlineProfile.json"
+                  "type": "object",
+                  "properties": {
+                    "online_profiles": {
+                      "oneOf": [
+                        {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/OnlineProfile"
+                          }
+                        },
+                        {
+                          "type": "null"
                         }
-                      }
+                      ]
                     }
-                  ]
+                  }
+                },
+                "examples": {
+                  "with_profile": {
+                    "summary": "Online profile exists",
+                    "value": {
+                      "online_profiles": [
+                        {
+                          "uid": "abc123",
+                          "business_uid": "d290f1ee26c54",
+                          "supported_languages": ["en", "es"],
+                          "privacy_policy": {
+                            "type": "link",
+                            "url": "https://example.com/privacy",
+                            "content": null
+                          },
+                          "created_at": "2026-01-12T10:30:00Z",
+                          "updated_at": "2026-01-12T10:30:00Z"
+                        }
+                      ]
+                    }
+                  },
+                  "no_profile": {
+                    "summary": "No online profile configured",
+                    "value": {
+                      "online_profiles": null
+                    }
+                  }
                 }
               }
             }
@@ -241,7 +272,7 @@
                     {
                       "properties": {
                         "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/business_administration/onlineProfile.json"
+                          "$ref": "#/components/schemas/OnlineProfile"
                         }
                       }
                     }
@@ -329,15 +360,33 @@
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "field": "privacy_policy.url",
-                      "code": "invalid",
-                      "message": "URL must be a valid HTTP or HTTPS URL"
+                "examples": {
+                  "invalid_url": {
+                    "summary": "Invalid URL format",
+                    "value": {
+                      "success": false,
+                      "errors": [
+                        {
+                          "field": "privacy_policy.url",
+                          "code": "invalid",
+                          "message": "URL must be a valid HTTP or HTTPS URL"
+                        }
+                      ]
                     }
-                  ]
+                  },
+                  "content_too_long": {
+                    "summary": "Content exceeds maximum length",
+                    "value": {
+                      "success": false,
+                      "errors": [
+                        {
+                          "field": "privacy_policy.content",
+                          "code": "invalid",
+                          "message": "Content exceeds maximum length of 40,000 characters"
+                        }
+                      ]
+                    }
+                  }
                 }
               }
             }
@@ -354,7 +403,7 @@
     "/online_profiles/{uid}": {
       "put": {
         "summary": "Update Online Profile",
-        "description": "Update an existing online profile. To clear the privacy policy, set `privacy_policy.type` to null. Available for **Staff tokens** with `can_access_admin_account?` permission.",
+        "description": "Update an existing online profile. Available for **Staff tokens** with `can_access_admin_account?` permission.",
         "operationId": "updateOnlineProfile",
         "parameters": [
           {
@@ -400,10 +449,10 @@
                   }
                 },
                 "clear_policy": {
-                  "summary": "Clear privacy policy",
+                  "summary": "Clear privacy policy (set url or content to null depending on type)",
                   "value": {
                     "privacy_policy": {
-                      "type": null
+                      "url": null
                     }
                   }
                 }
@@ -424,7 +473,7 @@
                     {
                       "properties": {
                         "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/business_administration/onlineProfile.json"
+                          "$ref": "#/components/schemas/OnlineProfile"
                         }
                       }
                     }
@@ -512,15 +561,33 @@
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "field": "privacy_policy.url",
-                      "code": "invalid",
-                      "message": "URL must be a valid HTTP or HTTPS URL"
+                "examples": {
+                  "invalid_url": {
+                    "summary": "Invalid URL format",
+                    "value": {
+                      "success": false,
+                      "errors": [
+                        {
+                          "field": "privacy_policy.url",
+                          "code": "invalid",
+                          "message": "URL must be a valid HTTP or HTTPS URL"
+                        }
+                      ]
                     }
-                  ]
+                  },
+                  "content_too_long": {
+                    "summary": "Content exceeds maximum length",
+                    "value": {
+                      "success": false,
+                      "errors": [
+                        {
+                          "field": "privacy_policy.content",
+                          "code": "invalid",
+                          "message": "Content exceeds maximum length of 40,000 characters"
+                        }
+                      ]
+                    }
+                  }
                 }
               }
             }
@@ -598,6 +665,68 @@
           },
           "privacy_policy": {
             "$ref": "#/components/schemas/PrivacyPolicyInput"
+          }
+        }
+      },
+      "OnlineProfile": {
+        "type": "object",
+        "description": "Online profile configuration for a business. Contains settings for client-facing features like supported languages and privacy policy.",
+        "properties": {
+          "uid": {
+            "type": "string",
+            "description": "Unique identifier for the online profile record."
+          },
+          "business_uid": {
+            "type": "string",
+            "description": "Unique identifier of the business that owns this online profile."
+          },
+          "supported_languages": {
+            "type": "array",
+            "description": "List of ISO 639-1 language codes supported by the business for client-facing content (e.g., [\"en\", \"es\", \"fr\"]).",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z]{2}$"
+            },
+            "uniqueItems": true
+          },
+          "privacy_policy": {
+            "oneOf": [
+              {
+                "type": "object",
+                "description": "Privacy policy configuration when set.",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": ["link", "text"],
+                    "description": "The type of privacy policy configuration. 'link': External URL pointing to the business's privacy policy page. 'text': Inline privacy policy content that will be displayed in a modal."
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "External URL to the privacy policy page. Used when type is 'link' (e.g., \"https://example.com/privacy\")."
+                  },
+                  "content": {
+                    "type": "string",
+                    "maxLength": 40000,
+                    "description": "Inline privacy policy text content. Used when type is 'text'. Maximum 40,000 characters."
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Privacy policy configuration for the business. Null if not configured or incomplete."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the online profile was created, in ISO 8601 format."
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the online profile was last updated, in ISO 8601 format."
           }
         }
       },
