@@ -47,6 +47,20 @@ Comprehensive audit of all custom validators across all codebases completed. Doc
 - Date range cannot exceed 7 days
 - Localized text must include `en` locale, `display_name` max 50 chars
 
+### 📝 Response Examples Audit (2026-01-12)
+
+Comprehensive audit and addition of response examples across all swagger files:
+
+| Domain | Files Updated | Examples Added |
+|--------|---------------|----------------|
+| AI | 4 files | ✅ ai_generation_feedback, recommendations, ai_smart_reply, staff_ai_settings |
+| Apps & Integrations | 3 files | ✅ widgets_and_boards, apps, import |
+| Communication | 2 files | ✅ communication (v3), legacy/communication |
+| Reviews | 1 file | ✅ business_reviews_settings |
+| Sales | 2 files | ✅ coupon, sales_reports |
+
+**All swagger files now have response examples** - verified via automated scan.
+
 ### ✅ Verification Status
 
 | Phase | Documented | Verified | Blocked (No Source Code) |
@@ -974,4 +988,28 @@ Comprehensive audit of all custom validators across all codebases completed. Doc
            - Removed GET /v3/ai/ai_recommended_actions/{uid} reference (no controller)
 2026-01-12: ALL PHASES COMPLETE - 310/320 endpoints documented and verified.
            - 10 Operators endpoints remain as "documented but not implemented"
+2026-01-12: Custom Validator Audit completed.
+           - Scanned all NestJS codebases for @Validate, @Matches, ValidatorConstraint
+           - Found and documented 7 validators in notificationscenter
+           - Updated notificationTemplate.json entity with deep_link validation rules
+           - Updated access_control.json with staff_uid pattern
+           - Updated ai_generation_feedback.json with type-specific value validation
+2026-01-12: Response Examples Audit completed.
+           - Identified 27 swagger files missing "example" properties
+           - Added realistic response examples to all missing files
+           - Verified all swagger files now have examples via automated scan
+           - Files updated: ai_generation_feedback, recommendations, ai_smart_reply,
+             staff_ai_settings, business_reviews_settings, communication (v3),
+             widgets_and_boards, apps, import, coupon, sales_reports, legacy/communication
+2026-01-12: Pre-existing Examples Verification completed.
+           - Verified examples in all swagger files against actual source code
+           - Discrepancies found and fixed:
+             * bizai.json: Changed 'metadata' field to 'config' (matches ChatResponseDto)
+             * license.json: Fixed is_active example from "active" to true (boolean)
+             * businessRole.json: Removed business_uid from required and example (not in ResponseBusinessRoleDto)
+             * clientSettings.json entity: Added missing fields (client_id, preferred_language, effective_language)
+             * staffAiSettings.json entity: Removed non-existent created_at/updated_at fields
+           - All other examples verified as correct against source code
+           - Legacy v1 swagger examples verified against Rails decorators
+           - NestJS swagger examples verified against response DTOs
 ```

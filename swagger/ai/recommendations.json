@@ -17,7 +17,7 @@
       "get": {
         "tags": ["AI Recommendations"],
         "summary": "Get all AIRecommendations",
-        "description": "Retrieve a list of AIRecommendations with optional filtering by status, target, and context. **Available for Staff tokens**",
+        "description": "Retrieve a list of AIRecommendations with optional filtering by status, target, and context. **Available for Staff Tokens and Directory Tokens**",
         "security": [{ "Bearer": [] }],
         "parameters": [
           {
@@ -58,6 +58,46 @@
                       }
                     }
                   ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "airecommendations": [
+                      {
+                        "uid": "rec-d290f1ee-6c54",
+                        "created_at": "2026-01-12T10:00:00.000Z",
+                        "updated_at": "2026-01-12T10:00:00.000Z",
+                        "display": {
+                          "title": "Follow up with client about estimate"
+                        },
+                        "context": {
+                          "context_uid": "matter-abc123",
+                          "context_type": "matter"
+                        },
+                        "target": {
+                          "target_actor_uid": "staff123abc",
+                          "target_actor_type": "staff"
+                        },
+                        "status": {
+                          "dismissed": false
+                        },
+                        "actions": [
+                          {
+                            "uid": "act-789xyz",
+                            "action": "reply",
+                            "reason": "Client requested a quote 2 days ago",
+                            "display": {
+                              "btn_text": "Send Reply"
+                            },
+                            "evidence": ["Client message: Can you send me a price estimate?"],
+                            "payload": {
+                              "message": "Hi! Here's the estimate you requested..."
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  }
                 }
               }
             }
@@ -76,7 +116,11 @@
       "post": {
         "tags": ["AI Recommendations"],
         "summary": "Create an AIRecommendation",
-        "description": "Create a new AIRecommendation. **Available for Staff tokens**",
+        "description": "Create a new AIRecommendation.\n\n## Overview\nCreates a recommendation that suggests actions for staff members based on AI analysis.\n\n## When to Use\n- Suggest follow-up actions for client interactions\n- Create estimate or scheduling recommendations\n\n## Rate Limits\n- 1 request per second\n\n**Available for Staff Tokens and Directory Tokens**",
+        "x-vcita-rate-limiting": {
+            "requests_per_second": 1,
+            "scope": "per_staff"
+        },
         "security": [{ "Bearer": [] }],
         "requestBody": {
           "required": true,
@@ -105,6 +149,29 @@
                       }
                     }
                   ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "uid": "rec-new-abc123",
+                    "created_at": "2026-01-12T11:00:00.000Z",
+                    "updated_at": "2026-01-12T11:00:00.000Z",
+                    "display": {
+                      "title": "New recommendation"
+                    },
+                    "context": {
+                      "context_uid": "client-xyz789",
+                      "context_type": "client"
+                    },
+                    "target": {
+                      "target_actor_uid": "staff456def",
+                      "target_actor_type": "staff"
+                    },
+                    "status": {
+                      "dismissed": false
+                    },
+                    "actions": []
+                  }
                 }
               }
             }
@@ -128,7 +195,7 @@
       "put": {
         "tags": ["AI Recommendations"],
         "summary": "Update an AIRecommendation",
-        "description": "Update an existing AIRecommendation by UID (typically to dismiss it). **Available for Staff tokens**",
+        "description": "Update an existing AIRecommendation by UID (typically to dismiss it). **Available for Staff Tokens and Directory Tokens**",
         "security": [{ "Bearer": [] }],
         "parameters": [
           {
@@ -166,6 +233,30 @@
                       }
                     }
                   ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "uid": "rec-d290f1ee-6c54",
+                    "created_at": "2026-01-12T10:00:00.000Z",
+                    "updated_at": "2026-01-12T12:00:00.000Z",
+                    "display": {
+                      "title": "Follow up with client"
+                    },
+                    "context": {
+                      "context_uid": "matter-abc123",
+                      "context_type": "matter"
+                    },
+                    "target": {
+                      "target_actor_uid": "staff123abc",
+                      "target_actor_type": "staff"
+                    },
+                    "status": {
+                      "dismissed": true,
+                      "dismissed_source_type": "user"
+                    },
+                    "actions": []
+                  }
                 }
               }
             }
@@ -186,19 +277,20 @@
       "get": {
         "tags": ["AI Recommended Actions"],
         "summary": "Retrieve an AIRecommendedAction",
-        "description": "Retrieve a specific AIRecommendedAction by UID. **Available for Staff tokens**",
+        "description": "Retrieve a specific AIRecommendedAction by UID.\n\n## Overview\nRetrieves details of a specific recommended action, including the action type, reason, evidence, and payload.\n\n## When to Use\n- Get full details of a recommended action\n- Retrieve the payload needed to execute the action\n\n**Available for Staff Tokens and Directory Tokens**",
         "security": [{ "Bearer": [] }],
         "parameters": [
           {
             "name": "uid",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": { "type": "string" },
+            "description": "Unique identifier of the AIRecommendedAction"
           }
         ],
         "responses": {
           "200": {
-            "description": "AIRecommendedAction retrieved",
+            "description": "AIRecommendedAction retrieved successfully",
             "content": {
               "application/json": {
                 "schema": {
@@ -218,6 +310,15 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "404": {
+            "description": "Not Found - AIRecommendedAction not found"
+          },
+          "500": {
+            "description": "Internal Server Error"
           }
         }
       }
