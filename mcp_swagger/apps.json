@@ -6,12 +6,12 @@
     "version": "3.0",
     "x-generated": {
       "sourceFiles": [
+        "jwks.json",
         "legacy_v1_apps.json",
         "widgets_and_boards.json",
+        "apps.json",
         "legacy_app_translation.json",
-        "jwks.json",
-        "legacy_token.json",
-        "apps.json"
+        "legacy_token.json"
       ],
       "pathNormalizations": [
         {
@@ -96,6 +96,167 @@
     }
   ],
   "paths": {
+    "/v3/apps/compact_jws_tokens": {
+      "post": {
+        "summary": "Create a compact JWS token",
+        "description": "Create a new compact JWS token that can be used to authenticate a staff member to an app in inTandem using a JWKS process. The token is signed by the app's private key and can be verified by inTandem's public key. Public JWKS token can be obtained at: https://api.vcita.biz/v3/apps/.well-known/jwks.json. Available for **Staff Tokens** and **AppStaffToken**.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "app_code_name": {
+                    "type": "string",
+                    "description": "The code name of the app that owns this token"
+                  }
+                },
+                "required": [
+                  "app_code_name"
+                ],
+                "example": {
+                  "app_code_name": "tips"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A compact JWS token is successfully created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/compactJWSToken.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing, invalid or not allowed to access the requested resource."
+          },
+          "429": {
+            "description": "Rate limit has been reached due to the number of requests made for the same staff member in a short period of time."
+          }
+        },
+        "tags": [
+          "JWKS"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/apps/compact_jws_tokens/bulk": {
+      "post": {
+        "summary": "Bulk create compact JWS tokens",
+        "description": "Create multiple compact JWS tokens for a list of app code names. The response will include the success, generated token (if successful), or error details for each app code name.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "app_code_names": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "description": "The code name of the app that owns the token"
+                    },
+                    "description": "List of app code names for which JWS tokens need to be generated"
+                  }
+                },
+                "required": [
+                  "app_code_names"
+                ],
+                "example": {
+                  "app_code_names": [
+                    "tips",
+                    "helpdesk",
+                    "sales"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bulk creation of compact JWS tokens.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "compact_jws_tokens": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "success": {
+                                "type": "boolean",
+                                "description": "Status of the creation for the entity. Possible values: true (success), false (error)."
+                              },
+                              "data": {
+                                "description": "The generated JWS token or null if failed",
+                                "$ref": "https://vcita.github.io/developers-hub/entities/apps/compactJWSToken.json"
+                              },
+                              "error": {
+                                "type": "string",
+                                "description": "Error message if token creation failed"
+                              }
+                            },
+                            "required": [
+                              "success",
+                              "entity",
+                              "error"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing, invalid or not allowed to access the requested resource."
+          },
+          "429": {
+            "description": "Rate limit has been reached due to the number of requests made for the same staff member in a short period of time."
+          }
+        },
+        "tags": [
+          "JWKS"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/platform/v1/apps": {
       "get": {
         "description": "Retrieve a list of available apps. **Available for Staff and Directory Tokens**.",
@@ -2034,6 +2195,233 @@
         ]
       }
     },
+    "/v3/apps/app_assignments": {
+      "get": {
+        "operationId": "AppAssignments_list",
+        "summary": "List App Assignments",
+        "description": "Get a list of app assignments with optional filtering. Note: assignee_uid can only be used when assignee_type is also provided. **Available for Directory and internal Tokens**",
+        "parameters": [
+          {
+            "name": "app_code_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by app code name"
+          },
+          {
+            "name": "assignee_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "business",
+                "package",
+                "directory"
+              ]
+            },
+            "description": "Filter by assignee type"
+          },
+          {
+            "name": "assignee_uid",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by assignee uid. Only allowed when assignee_type is also provided."
+          },
+          {
+            "name": "directory_uid",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by directory uid. Only available for internal Tokens."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "App assignments retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "app_assignments": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "https://vcita.github.io/developers-hub/entities/apps/appAssignment.json"
+                              }
+                            }
+                          },
+                          "required": [
+                            "app_assignments"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request. Invalid input data."
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing or invalid."
+          },
+          "403": {
+            "description": "Forbidden. You do not have access to this resource."
+          },
+          "500": {
+            "description": "Internal server error."
+          }
+        },
+        "tags": [
+          "App Assignments"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "AppAssignments_create",
+        "summary": "Create an App Assignment",
+        "description": "Create a new app assignment to a business, package or directory. **Available for Directory and internal Tokens**",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAppAssignmentRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "App assignment created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/appAssignment.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request. Invalid input data."
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing or invalid."
+          },
+          "403": {
+            "description": "Forbidden. You do not have access to this resource."
+          },
+          "500": {
+            "description": "Internal server error."
+          }
+        },
+        "tags": [
+          "App Assignments"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/apps/app_assignments/{uid}": {
+      "delete": {
+        "operationId": "AppAssignments_delete",
+        "summary": "Delete an App Assignment",
+        "description": "Delete an app assignment. **Available for Directory and internal Tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unique identifier of the app assignment to delete"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "App assignment deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/appAssignment.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request. Invalid input data."
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing or invalid."
+          },
+          "403": {
+            "description": "Forbidden. You do not have access to this resource."
+          },
+          "404": {
+            "description": "Not found. App assignment not found."
+          },
+          "500": {
+            "description": "Internal server error."
+          }
+        },
+        "tags": [
+          "App Assignments"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/platform/v1/apps/translations/{app_code_name}": {
       "put": {
         "summary": "Update app translations",
@@ -2260,167 +2648,6 @@
         }
       }
     },
-    "/v3/apps/compact_jws_tokens": {
-      "post": {
-        "summary": "Create a compact JWS token",
-        "description": "Create a new compact JWS token that can be used to authenticate a staff member to an app in inTandem using a JWKS process. The token is signed by the app's private key and can be verified by inTandem's public key. Public JWKS token can be obtained at: https://api.vcita.biz/v3/apps/.well-known/jwks.json. Available for **Staff Tokens** and **AppStaffToken**.",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "app_code_name": {
-                    "type": "string",
-                    "description": "The code name of the app that owns this token"
-                  }
-                },
-                "required": [
-                  "app_code_name"
-                ],
-                "example": {
-                  "app_code_name": "tips"
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "A compact JWS token is successfully created.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/compactJWSToken.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing, invalid or not allowed to access the requested resource."
-          },
-          "429": {
-            "description": "Rate limit has been reached due to the number of requests made for the same staff member in a short period of time."
-          }
-        },
-        "tags": [
-          "JWKS"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/apps/compact_jws_tokens/bulk": {
-      "post": {
-        "summary": "Bulk create compact JWS tokens",
-        "description": "Create multiple compact JWS tokens for a list of app code names. The response will include the success, generated token (if successful), or error details for each app code name.",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "app_code_names": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "description": "The code name of the app that owns the token"
-                    },
-                    "description": "List of app code names for which JWS tokens need to be generated"
-                  }
-                },
-                "required": [
-                  "app_code_names"
-                ],
-                "example": {
-                  "app_code_names": [
-                    "tips",
-                    "helpdesk",
-                    "sales"
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Bulk creation of compact JWS tokens.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "compact_jws_tokens": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "success": {
-                                "type": "boolean",
-                                "description": "Status of the creation for the entity. Possible values: true (success), false (error)."
-                              },
-                              "data": {
-                                "description": "The generated JWS token or null if failed",
-                                "$ref": "https://vcita.github.io/developers-hub/entities/apps/compactJWSToken.json"
-                              },
-                              "error": {
-                                "type": "string",
-                                "description": "Error message if token creation failed"
-                              }
-                            },
-                            "required": [
-                              "success",
-                              "entity",
-                              "error"
-                            ]
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing, invalid or not allowed to access the requested resource."
-          },
-          "429": {
-            "description": "Rate limit has been reached due to the number of requests made for the same staff member in a short period of time."
-          }
-        },
-        "tags": [
-          "JWKS"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
     "/oauth/service/token": {
       "post": {
         "parameters": [],
@@ -2487,233 +2714,6 @@
             }
           }
         },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/apps/app_assignments": {
-      "get": {
-        "operationId": "AppAssignments_list",
-        "summary": "List App Assignments",
-        "description": "Get a list of app assignments with optional filtering. Note: assignee_uid can only be used when assignee_type is also provided. **Available for Directory and internal Tokens**",
-        "parameters": [
-          {
-            "name": "app_code_name",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Filter by app code name"
-          },
-          {
-            "name": "assignee_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "business",
-                "package",
-                "directory"
-              ]
-            },
-            "description": "Filter by assignee type"
-          },
-          {
-            "name": "assignee_uid",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Filter by assignee uid. Only allowed when assignee_type is also provided."
-          },
-          {
-            "name": "directory_uid",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Filter by directory uid. Only available for internal Tokens."
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "App assignments retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "type": "object",
-                          "properties": {
-                            "app_assignments": {
-                              "type": "array",
-                              "items": {
-                                "$ref": "https://vcita.github.io/developers-hub/entities/apps/appAssignment.json"
-                              }
-                            }
-                          },
-                          "required": [
-                            "app_assignments"
-                          ]
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request. Invalid input data."
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing or invalid."
-          },
-          "403": {
-            "description": "Forbidden. You do not have access to this resource."
-          },
-          "500": {
-            "description": "Internal server error."
-          }
-        },
-        "tags": [
-          "App Assignments"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      },
-      "post": {
-        "operationId": "AppAssignments_create",
-        "summary": "Create an App Assignment",
-        "description": "Create a new app assignment to a business, package or directory. **Available for Directory and internal Tokens**",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateAppAssignmentRequestDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "App assignment created successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/appAssignment.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request. Invalid input data."
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing or invalid."
-          },
-          "403": {
-            "description": "Forbidden. You do not have access to this resource."
-          },
-          "500": {
-            "description": "Internal server error."
-          }
-        },
-        "tags": [
-          "App Assignments"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/apps/app_assignments/{uid}": {
-      "delete": {
-        "operationId": "AppAssignments_delete",
-        "summary": "Delete an App Assignment",
-        "description": "Delete an app assignment. **Available for Directory and internal Tokens**",
-        "parameters": [
-          {
-            "name": "uid",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Unique identifier of the app assignment to delete"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "App assignment deleted successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/appAssignment.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request. Invalid input data."
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing or invalid."
-          },
-          "403": {
-            "description": "Forbidden. You do not have access to this resource."
-          },
-          "404": {
-            "description": "Not found. App assignment not found."
-          },
-          "500": {
-            "description": "Internal server error."
-          }
-        },
-        "tags": [
-          "App Assignments"
-        ],
         "security": [
           {
             "Bearer": []
