@@ -9,11 +9,15 @@ const router = express.Router();
 
 const { loadConfig } = require('../../core/config');
 const { buildTestSequence, createTestContext } = require('../../core/orchestrator/test-sequencer');
-const { createApiClient, buildRequestConfig, executeRequest, extractUidFromResponse } = require('../../core/runner/api-client');
+const { parseResourcePath } = require('../../core/orchestrator/resource-grouper');
+const { createApiClient, buildRequestConfig, buildRequestConfigAsync, executeRequest, extractUidFromResponse } = require('../../core/runner/api-client');
 const { createRateLimiter } = require('../../core/runner/rate-limiter');
-const { createParamResolver, extractPathParams, hasParamSource, getParamSource, getNestedValue } = require('../../core/runner/param-resolver');
+const { createParamResolver, extractPathParams, hasParamSource, getParamSource, getNestedValue, deriveListEndpoint, generateResourceKey, smartExtractUid, isStaticParam, getListEndpoint, resolveParamByContext } = require('../../core/runner/param-resolver');
+const { askAIForListEndpoint, addLearnedMapping, removeLearnedMapping, getLearnedMapping } = require('../../core/resolver/ai-resolver');
 const { validateAgainstSchema, validateStatusCode, buildValidationResult, getSuggestion, FAILURE_REASONS } = require('../../core/validator/response-validator');
 const { createReport, addResult, finalizeReport } = require('../../core/reporter/report-generator');
+const { isUnrecoverableError, attemptSelfHealing } = require('../../core/runner/ai-self-healer');
+const { getWorkflow, saveWorkflow, executeCachedWorkflow, recordWorkflowFailure } = require('../../core/runner/workflow-cache');
 
 // Store for active validation sessions
 const activeSessions = new Map();
@@ -67,13 +71,14 @@ router.post('/', async (req, res) => {
       total: targetEndpoints.length,
       completed: 0,
       results: [],
-      listeners: new Set()
+      listeners: new Set(),
+      stopped: false  // Flag to stop execution
     };
     
     activeSessions.set(sessionId, session);
     
     // Start validation in background
-    runValidation(session, targetEndpoints, appConfig, options).catch(error => {
+    runValidation(session, targetEndpoints, appConfig, options, allEndpoints).catch(error => {
       console.error('Validation error:', error);
       session.status = 'error';
       session.error = error.message;
@@ -151,6 +156,8 @@ router.get('/stream/:sessionId', (req, res) => {
       status: session.status,
       passed: session.results.filter(r => r.status === 'PASS').length,
       failed: session.results.filter(r => r.status === 'FAIL').length,
+      warned: session.results.filter(r => r.status === 'WARN').length,
+      errored: session.results.filter(r => r.status === 'ERROR').length,
       skipped: session.results.filter(r => r.status === 'SKIP').length,
       duration: `${Date.now() - session.startTime}ms`
     })}\n\n`);
@@ -192,6 +199,50 @@ router.get('/sessions', (req, res) => {
 });
 
 /**
+ * POST /api/validate/stop/:sessionId
+ * Stop a running validation session
+ */
+router.post('/stop/:sessionId', (req, res) => {
+  const { sessionId } = req.params;
+  const session = activeSessions.get(sessionId);
+  
+  if (!session) {
+    return res.status(404).json({
+      error: 'Session not found',
+      message: 'The validation session does not exist or has expired'
+    });
+  }
+  
+  if (session.status !== 'running') {
+    return res.json({
+      success: true,
+      message: 'Session is already stopped',
+      status: session.status
+    });
+  }
+  
+  // Set the stopped flag
+  session.stopped = true;
+  session.status = 'stopped';
+  
+  // Broadcast stopped event
+  broadcastEvent(session, 'stopped', {
+    completed: session.completed,
+    total: session.total,
+    message: 'Validation stopped by user'
+  });
+  
+  console.log(`Session ${sessionId} stopped by user`);
+  
+  res.json({
+    success: true,
+    message: 'Validation stopped',
+    completed: session.completed,
+    total: session.total
+  });
+});
+
+/**
  * Broadcast event to all session listeners
  * @param {Object} session - Session object
  * @param {string} event - Event name
@@ -214,8 +265,9 @@ function broadcastEvent(session, event, data) {
  * @param {Object[]} endpoints - Endpoints to validate
  * @param {Object} appConfig - App configuration
  * @param {Object} options - Validation options
+ * @param {Object[]} allEndpoints - All available endpoints (for AI resolver)
  */
-async function runValidation(session, endpoints, appConfig, options = {}) {
+async function runValidation(session, endpoints, appConfig, options = {}, allEndpoints = []) {
   console.log('runValidation started for', endpoints.length, 'endpoints');
   
   const config = loadConfig();
@@ -233,14 +285,30 @@ async function runValidation(session, endpoints, appConfig, options = {}) {
   const report = createReport(config);
   
   // Pre-flight: Fetch missing dynamic parameters
+  broadcastEvent(session, 'preflight', { 
+    phase: 'Analyzing required parameters...', 
+    status: 'Preparing tests',
+    progress: { current: 0, total: 0 }
+  });
+  
   const preflightParams = await fetchMissingParams(
     endpoints,
     paramResolver,
     apiClient,
     rateLimiter,
     config,
-    (msg) => broadcastEvent(session, 'log', { message: msg })
+    (msg) => broadcastEvent(session, 'log', { message: msg }),
+    testContext,
+    allEndpoints,
+    // Progress callback for UI updates
+    (progress) => broadcastEvent(session, 'preflight', progress)
   );
+  
+  broadcastEvent(session, 'preflight', { 
+    phase: 'Parameters resolved', 
+    status: `Ready to test ${endpoints.length} endpoint(s)`,
+    progress: { current: 100, total: 100, done: true }
+  });
   
   // Add pre-fetched params to test context
   for (const [param, value] of Object.entries(preflightParams)) {
@@ -248,6 +316,12 @@ async function runValidation(session, endpoints, appConfig, options = {}) {
   }
   
   for (const testItem of sequence) {
+    // Check if execution was stopped
+    if (session.stopped) {
+      console.log(`Session ${session.id} stopped - aborting remaining tests`);
+      break;
+    }
+    
     const { endpoint, phase, captureUid, requiresUid, skip, skipReason, resourceKey } = testItem;
     
     console.log(`Testing: ${endpoint.method} ${endpoint.path}`);
@@ -304,8 +378,11 @@ async function runValidation(session, endpoints, appConfig, options = {}) {
       }
       
       if (!result) {
-        // Build and execute request
-        const buildResult = buildRequestConfig(endpoint, config, context);
+        // Build and execute request (use async version with AI if enabled)
+        const useAI = config.ai?.enabled && config.ai?.anthropicApiKey;
+        const buildResult = useAI 
+          ? await buildRequestConfigAsync(endpoint, config, context)
+          : buildRequestConfig(endpoint, config, context);
         const { config: requestConfig, tokenType, hasToken, skip, skipReason, isFallbackToken } = buildResult;
         
         // Handle unresolved path parameters
@@ -445,12 +522,19 @@ async function runValidation(session, endpoints, appConfig, options = {}) {
               request: fullRequestInfo
             });
           } else if (response) {
-            const statusValidation = validateStatusCode(response.status, endpoint.responses);
+            const statusValidation = validateStatusCode(response.status, endpoint.responses, response.data);
+            const isSuccessStatus = response.status >= 200 && response.status < 300;
             
             if (!statusValidation.valid) {
+              // Status code is NOT documented in the spec
+              // Check if this is an expected business error (409 Conflict, 404 Resource Not Found)
+              const isExpectedError = statusValidation.error?.isExpectedError || 
+                                      statusValidation.error?.reason === FAILURE_REASONS.RESOURCE_NOT_FOUND ||
+                                      statusValidation.error?.reason === FAILURE_REASONS.CONFLICT;
+              
               result = buildValidationResult({
                 endpoint,
-                status: 'FAIL',
+                status: isExpectedError ? 'ERROR' : 'FAIL',
                 httpStatus: response.status,
                 duration,
                 tokenUsed: tokenType,
@@ -460,11 +544,11 @@ async function runValidation(session, endpoints, appConfig, options = {}) {
                 response: { status: response.status, headers: response.headers, data: response.data }
               });
             } else {
-              // Validate response body against schema
+              // Status code IS documented - validate response body against schema
               const responseSpec = endpoint.responses?.[response.status] || endpoint.responses?.[String(response.status)];
               const responseSchema = responseSpec?.content?.['application/json']?.schema;
               
-              let schemaValidation = { valid: true, errors: [] };
+              let schemaValidation = { valid: true, errors: [], warnings: [] };
               if (responseSchema && response.data) {
                 schemaValidation = validateAgainstSchema(response.data, responseSchema);
               }
@@ -482,51 +566,104 @@ async function runValidation(session, endpoints, appConfig, options = {}) {
                 }
               }
               
-              // If we have doc issues, always mark as FAIL even if schema passes
-              if (docIssues.length > 0) {
-                result = buildValidationResult({
-                  endpoint,
-                  status: 'FAIL',
-                  httpStatus: response.status,
-                  duration,
-                  tokenUsed: tokenType,
-                  reason: 'DOC_ISSUE',
-                  errors: allErrors,
-                  request: fullRequestInfo,
-                  response: { status: response.status, headers: response.headers, data: response.data },
-                  suggestion: docIssues[0].suggestion
-                });
-              } else if (!schemaValidation.valid) {
-                result = buildValidationResult({
-                  endpoint,
-                  status: 'FAIL',
-                  httpStatus: response.status,
-                  duration,
-                  tokenUsed: tokenType,
-                  reason: FAILURE_REASONS.SCHEMA_MISMATCH,
-                  errors: schemaValidation.errors,
-                  request: fullRequestInfo,
-                  response: { status: response.status, headers: response.headers, data: response.data },
-                  suggestion: getSuggestion(FAILURE_REASONS.SCHEMA_MISMATCH)
-                });
-              } else {
-                // Capture UID if needed
-                if (captureUid && response.data) {
-                  const uid = extractUidFromResponse(response.data);
-                  if (uid) {
-                    testContext.setUid(resourceKey, uid);
-                  }
+              // Add undocumented field warnings as doc issues
+              const undocumentedWarnings = schemaValidation.warnings || [];
+              if (undocumentedWarnings.length > 0) {
+                for (const warning of undocumentedWarnings) {
+                  allErrors.push({
+                    reason: warning.reason,
+                    message: warning.message,
+                    friendlyMessage: warning.friendlyMessage,
+                    suggestion: 'Add this field to the entity schema documentation.'
+                  });
                 }
+              }
+              
+              // Determine status based on HTTP status and validation results:
+              // - PASS: 2xx + schema OK + no doc issues
+              // - WARN: 2xx + (doc issues OR schema issues)
+              // - ERROR: non-2xx + schema OK (expected error response)
+              // - FAIL: non-2xx + schema mismatch
+              
+              if (isSuccessStatus) {
+                // 2xx response
+                const hasDocIssues = docIssues.length > 0 || undocumentedWarnings.length > 0;
                 
-                result = buildValidationResult({
-                  endpoint,
-                  status: 'PASS',
-                  httpStatus: response.status,
-                  duration,
-                  tokenUsed: tokenType,
-                  request: fullRequestInfo,
-                  response: { status: response.status, headers: response.headers, data: response.data }
-                });
+                if (hasDocIssues) {
+                  const primaryIssue = docIssues[0] || undocumentedWarnings[0];
+                  result = buildValidationResult({
+                    endpoint,
+                    status: 'WARN',
+                    httpStatus: response.status,
+                    duration,
+                    tokenUsed: tokenType,
+                    reason: primaryIssue.type || primaryIssue.reason || 'DOC_ISSUE',
+                    errors: allErrors,
+                    request: fullRequestInfo,
+                    response: { status: response.status, headers: response.headers, data: response.data },
+                    suggestion: primaryIssue.suggestion || 'Update the API documentation to match the actual response.'
+                  });
+                } else if (!schemaValidation.valid) {
+                  result = buildValidationResult({
+                    endpoint,
+                    status: 'WARN',
+                    httpStatus: response.status,
+                    duration,
+                    tokenUsed: tokenType,
+                    reason: FAILURE_REASONS.SCHEMA_MISMATCH,
+                    errors: schemaValidation.errors,
+                    request: fullRequestInfo,
+                    response: { status: response.status, headers: response.headers, data: response.data },
+                    suggestion: getSuggestion(FAILURE_REASONS.SCHEMA_MISMATCH)
+                  });
+                } else {
+                  // Capture UID if needed
+                  if (captureUid && response.data) {
+                    const uid = extractUidFromResponse(response.data);
+                    if (uid) {
+                      testContext.setUid(resourceKey, uid);
+                    }
+                  }
+                  
+                  result = buildValidationResult({
+                    endpoint,
+                    status: 'PASS',
+                    httpStatus: response.status,
+                    duration,
+                    tokenUsed: tokenType,
+                    request: fullRequestInfo,
+                    response: { status: response.status, headers: response.headers, data: response.data }
+                  });
+                }
+              } else {
+                // Non-2xx response (but status IS documented)
+                if (schemaValidation.valid) {
+                  // ERROR: API returned documented error with correct schema
+                  result = buildValidationResult({
+                    endpoint,
+                    status: 'ERROR',
+                    httpStatus: response.status,
+                    duration,
+                    tokenUsed: tokenType,
+                    reason: FAILURE_REASONS.EXPECTED_ERROR,
+                    request: fullRequestInfo,
+                    response: { status: response.status, headers: response.headers, data: response.data }
+                  });
+                } else {
+                  // FAIL: Non-2xx AND schema mismatch
+                  result = buildValidationResult({
+                    endpoint,
+                    status: 'FAIL',
+                    httpStatus: response.status,
+                    duration,
+                    tokenUsed: tokenType,
+                    reason: FAILURE_REASONS.SCHEMA_MISMATCH,
+                    errors: schemaValidation.errors,
+                    request: fullRequestInfo,
+                    response: { status: response.status, headers: response.headers, data: response.data },
+                    suggestion: getSuggestion(FAILURE_REASONS.SCHEMA_MISMATCH)
+                  });
+                }
               }
             }
           } else {
@@ -543,6 +680,178 @@ async function runValidation(session, endpoints, appConfig, options = {}) {
       }
     }
     
+    // ============== SELF-HEALING LOGIC ==============
+    // Attempt to fix FAIL/ERROR results by creating prerequisites
+    if ((result.status === 'FAIL' || result.status === 'ERROR') && config.ai?.enabled) {
+      // Check if this is an unrecoverable error
+      if (!isUnrecoverableError(result)) {
+        const endpointKey = `${endpoint.method} ${endpoint.path}`;
+        
+        // Broadcast healing start
+        broadcastEvent(session, 'healing_start', {
+          endpoint: endpointKey,
+          originalError: `${result.httpStatus} - ${result.details?.reason || 'Unknown error'}`,
+          maxRetries: 5
+        });
+        
+        // Check for cached workflow first
+        const cachedWorkflow = getWorkflow(endpointKey);
+        
+        if (cachedWorkflow) {
+          // Try cached workflow
+          broadcastEvent(session, 'healing_analyzing', {
+            endpoint: endpointKey,
+            message: 'Using cached workflow...',
+            attempt: 0
+          });
+          
+          const cacheResult = await executeCachedWorkflow(
+            cachedWorkflow,
+            apiClient,
+            config,
+            testContext.getParams(),
+            (progress) => broadcastEvent(session, `healing_${progress.type}`, { 
+              endpoint: endpointKey, 
+              ...progress 
+            })
+          );
+          
+          if (cacheResult.success) {
+            // Retry with new params
+            broadcastEvent(session, 'healing_retry', {
+              endpoint: endpointKey,
+              attempt: 0,
+              message: 'Retrying with cached workflow...'
+            });
+            
+            const retryResult = await retryEndpointTest(
+              endpoint, 
+              cacheResult.newParams, 
+              config, 
+              apiClient, 
+              testContext
+            );
+            
+            if (retryResult.status === 'PASS' || retryResult.status === 'WARN') {
+              result = retryResult;
+              result.details = result.details || {};
+              result.details.healingInfo = {
+                usedCachedWorkflow: true,
+                attempts: 1,
+                prerequisitesCreated: cachedWorkflow.prerequisites.map(p => `${p.method} ${p.endpoint}`)
+              };
+              
+              broadcastEvent(session, 'healing_complete', {
+                endpoint: endpointKey,
+                success: true,
+                attempts: 1,
+                usedCache: true
+              });
+            } else {
+              // Cached workflow failed, record failure
+              recordWorkflowFailure(endpointKey);
+            }
+          }
+        }
+        
+        // If still failing, try AI healing
+        if (result.status === 'FAIL' || result.status === 'ERROR') {
+          const healingResult = await attemptSelfHealing({
+            endpoint,
+            result,
+            resolvedParams: testContext.getParams(),
+            allEndpoints,
+            config,
+            apiClient,
+            maxRetries: 5,
+            onProgress: (progress) => {
+              // Map progress events to SSE events
+              const eventMap = {
+                'attempt_start': 'healing_analyzing',
+                'analyzing': 'healing_analyzing',
+                'analysis_complete': 'healing_solution',
+                'creating_prerequisite': 'healing_creating',
+                'creating': 'healing_creating',
+                'created': 'healing_created',
+                'create_failed': 'healing_created',
+                'retrying': 'healing_retry',
+                'healed': 'healing_complete',
+                'healing_failed': 'healing_complete'
+              };
+              
+              const eventType = eventMap[progress.type] || 'healing_analyzing';
+              broadcastEvent(session, eventType, {
+                endpoint: endpointKey,
+                ...progress
+              });
+            },
+            retryTest: async (ep, newParams) => {
+              return await retryEndpointTest(ep, newParams, config, apiClient, testContext);
+            }
+          });
+          
+          // Always add documentation insights
+          if (healingResult.documentationIssues?.length > 0) {
+            result.details = result.details || {};
+            result.details.documentationIssues = healingResult.documentationIssues;
+            result.details.errors = [
+              ...(result.details.errors || []),
+              ...healingResult.documentationIssues.map(issue => ({
+                reason: issue.type,
+                message: issue.message,
+                friendlyMessage: issue.message,
+                suggestion: issue.suggestion,
+                field: issue.field
+              }))
+            ];
+          }
+          
+          if (healingResult.success) {
+            result = healingResult.finalResult;
+            result.details = result.details || {};
+            result.details.healingInfo = {
+              attempts: healingResult.attempts,
+              prerequisitesCreated: healingResult.createdEntities?.map(e => e.endpoint) || [],
+              workflowSaved: true,
+              healingHistory: healingResult.healingHistory || []
+            };
+            result.details.documentationIssues = healingResult.documentationIssues;
+            
+            // Save workflow for future use
+            if (healingResult.workflow) {
+              saveWorkflow(endpointKey, healingResult.workflow);
+            }
+            
+            broadcastEvent(session, 'healing_complete', {
+              endpoint: endpointKey,
+              success: true,
+              attempts: healingResult.attempts,
+              workflowSaved: true,
+              documentationIssues: healingResult.documentationIssues
+            });
+          } else {
+            // Healing failed
+            result.details = result.details || {};
+            result.details.healingInfo = {
+              attempted: true,
+              attempts: healingResult.attempts,
+              failed: true,
+              healingHistory: healingResult.healingHistory || []
+            };
+            
+            broadcastEvent(session, 'healing_complete', {
+              endpoint: endpointKey,
+              success: false,
+              healingHistory: healingResult.healingHistory,
+              attempts: healingResult.attempts,
+              documentationIssues: healingResult.documentationIssues
+            });
+          }
+        }
+      }
+    }
+    // ============== END SELF-HEALING LOGIC ==============
+    
     // Update session
     session.results.push(result);
     session.completed++;
@@ -555,18 +864,172 @@ async function runValidation(session, endpoints, appConfig, options = {}) {
   // Finalize
   const duration = Date.now() - session.startTime;
   finalizeReport(report, duration);
-  session.status = 'completed';
+  
+  // Don't override status if already stopped
+  if (session.status !== 'stopped') {
+    session.status = 'completed';
+  }
   session.report = report;
   
-  // Broadcast completion
-  broadcastEvent(session, 'complete', {
-    status: 'completed',
-    passed: report.summary.passed,
-    failed: report.summary.failed,
-    skipped: report.summary.skipped,
-    passRate: report.summary.passRate,
-    duration: report.summary.duration
-  });
+  // Broadcast completion (only if not already stopped)
+  if (!session.stopped) {
+    broadcastEvent(session, 'complete', {
+      status: 'completed',
+      passed: report.summary.passed,
+      failed: report.summary.failed,
+      warned: report.summary.warned,
+      errored: report.summary.errored,
+      skipped: report.summary.skipped,
+      passRate: report.summary.passRate,
+      duration: report.summary.duration
+    });
+  }
+}
+
+/**
+ * Retry an endpoint test with new parameters
+ * Used by self-healing to re-test after creating prerequisites
+ * @param {Object} endpoint - Endpoint to test
+ * @param {Object} newParams - New resolved parameters
+ * @param {Object} config - App config
+ * @param {Object} apiClient - Axios instance
+ * @param {Object} testContext - Test context
+ * @returns {Promise<Object>} Test result
+ */
+async function retryEndpointTest(endpoint, newParams, config, apiClient, testContext) {
+  const startTime = Date.now();
+  
+  try {
+    // Build request with new params
+    const context = {
+      params: { ...testContext.getParams(), ...newParams }
+    };
+    
+    const { config: requestConfig, tokenType, hasToken, skip, skipReason } = 
+      await buildRequestConfigAsync(endpoint, config, context);
+    
+    if (skip) {
+      return buildValidationResult({
+        endpoint,
+        status: 'SKIP',
+        httpStatus: null,
+        duration: Date.now() - startTime,
+        tokenUsed: tokenType,
+        reason: 'SKIPPED',
+        errors: [{ message: skipReason }]
+      });
+    }
+    
+    // Execute request
+    const response = await executeRequest(apiClient, requestConfig);
+    const duration = Date.now() - startTime;
+    
+    // Validate response
+    const isSuccessStatus = response.status >= 200 && response.status < 300;
+    const statusValidation = validateStatusCode(response.status, endpoint.responses, response.data);
+    
+    if (isSuccessStatus) {
+      // Get response schema and validate
+      const responseSpec = endpoint.responses?.[response.status] || endpoint.responses?.[String(response.status)];
+      const responseSchema = responseSpec?.content?.['application/json']?.schema;
+      
+      let schemaValidation = { valid: true, errors: [], warnings: [] };
+      if (responseSchema && response.data) {
+        schemaValidation = validateAgainstSchema(response.data, responseSchema);
+      }
+      
+      if (!schemaValidation.valid) {
+        return buildValidationResult({
+          endpoint,
+          status: 'WARN',
+          httpStatus: response.status,
+          duration,
+          tokenUsed: tokenType,
+          reason: FAILURE_REASONS.SCHEMA_MISMATCH,
+          errors: schemaValidation.errors,
+          request: requestConfig,
+          response: { status: response.status, headers: response.headers, data: response.data },
+          suggestion: getSuggestion(FAILURE_REASONS.SCHEMA_MISMATCH)
+        });
+      }
+      
+      return buildValidationResult({
+        endpoint,
+        status: 'PASS',
+        httpStatus: response.status,
+        duration,
+        tokenUsed: tokenType,
+        request: requestConfig,
+        response: { status: response.status, headers: response.headers, data: response.data }
+      });
+    } else {
+      // Non-success status
+      return buildValidationResult({
+        endpoint,
+        status: statusValidation.error?.isExpectedError ? 'ERROR' : 'FAIL',
+        httpStatus: response.status,
+        duration,
+        tokenUsed: tokenType,
+        reason: statusValidation.error?.reason || FAILURE_REASONS.UNEXPECTED_STATUS_CODE,
+        request: requestConfig,
+        response: { status: response.status, headers: response.headers, data: response.data },
+        suggestion: getSuggestion(statusValidation.error?.reason || FAILURE_REASONS.UNEXPECTED_STATUS_CODE)
+      });
+    }
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    
+    return buildValidationResult({
+      endpoint,
+      status: 'FAIL',
+      httpStatus: error.response?.status || null,
+      duration,
+      tokenUsed: null,
+      reason: error.code === 'ECONNABORTED' ? FAILURE_REASONS.TIMEOUT : FAILURE_REASONS.NETWORK_ERROR,
+      errors: [{ message: error.message }]
+    });
+  }
+}
+
+/**
+ * Extract uid/id field names from a request body schema
+ * @param {Object} schema - JSON schema for request body
+ * @param {string} prefix - Property path prefix
+ * @returns {string[]} Array of uid/id field names
+ */
+function extractBodyUidFields(schema, prefix = '') {
+  const fields = [];
+  if (!schema) return fields;
+  
+  // Handle allOf
+  if (schema.allOf) {
+    for (const subSchema of schema.allOf) {
+      fields.push(...extractBodyUidFields(subSchema, prefix));
+    }
+    return fields;
+  }
+  
+  // Handle properties
+  if (schema.properties) {
+    for (const [propName, propSchema] of Object.entries(schema.properties)) {
+      const fullPath = prefix ? `${prefix}.${propName}` : propName;
+      
+      // Check if this is a uid/id field
+      if (propName.endsWith('_uid') || propName.endsWith('_id') || propName === 'uid' || propName === 'id') {
+        // Only add if it's not a read-only field (uid, created_at, updated_at are typically read-only)
+        if (propName !== 'uid' && propName !== 'id') {
+          fields.push(propName);
+        }
+      }
+      
+      // Recurse into nested objects (but not too deep)
+      if (propSchema.type === 'object' && propSchema.properties && !prefix.includes('.')) {
+        fields.push(...extractBodyUidFields(propSchema, fullPath));
+      }
+    }
+  }
+  
+  return fields;
 }
 
 /**
@@ -577,24 +1040,90 @@ async function runValidation(session, endpoints, appConfig, options = {}) {
  * @param {Object} rateLimiter - Rate limiter
  * @param {Object} config - Configuration
  * @param {Function} log - Logging function
+ * @param {Object} testContext - Test context for storing UIDs
+ * @param {Object[]} allEndpoints - All available endpoints (for AI resolver)
  * @returns {Promise<Object>} Resolved parameters
  */
-async function fetchMissingParams(endpoints, paramResolver, apiClient, rateLimiter, config, log) {
+async function fetchMissingParams(endpoints, paramResolver, apiClient, rateLimiter, config, log, testContext, allEndpoints, onProgress) {
+  console.log(`\n========== PRE-FLIGHT PHASE ==========`);
+  console.log(`[Pre-flight] Processing ${endpoints.length} endpoint(s):`);
+  endpoints.forEach(e => console.log(`  - ${e.method} ${e.path}`));
+  
+  // Progress tracking
+  let totalParamsToResolve = 0;
+  let resolvedCount = 0;
+  
+  // Helper to report progress
+  const reportProgress = (phase, status, details = {}) => {
+    if (typeof onProgress === 'function') {
+      onProgress({ 
+        phase, 
+        status, 
+        progress: { 
+          resolved: resolvedCount, 
+          total: totalParamsToResolve,
+          ...details 
+        } 
+      });
+    }
+  };
+  
   const resolvedParams = {};
   const fetchedEndpoints = new Set();
   
-  // Collect all required params from all endpoints
+  // Collect all required params from all endpoints (path params + required query params + body uid fields)
   const allRequiredParams = new Set();
+  // Map generic params to their context-specific versions for substitution
+  const paramContextMap = {};
+  
   for (const endpoint of endpoints) {
-    const params = extractPathParams(endpoint.path);
-    for (const param of params) {
-      allRequiredParams.add(param);
+    // Path parameters (e.g., {client_uid} or generic {uid})
+    const pathParams = extractPathParams(endpoint.path);
+    for (const param of pathParams) {
+      // Apply context-aware resolution for generic params like 'uid' or 'id'
+      const resolvedParam = resolveParamByContext(param, endpoint.path);
+      allRequiredParams.add(resolvedParam);
+      
+      // Store mapping so we know to substitute {uid} with client_uid value later
+      if (resolvedParam !== param) {
+        paramContextMap[`${endpoint.path}:${param}`] = resolvedParam;
+        console.log(`[Pre-flight] Context mapping for ${endpoint.path}: {${param}} -> ${resolvedParam}`);
+      }
     }
+    
+    // Required query parameters (e.g., ai_chat_uid for bizai_chat_messages)
+    const queryParams = endpoint.parameters?.query || [];
+    console.log(`[Pre-flight] ${endpoint.method} ${endpoint.path} has ${queryParams.length} query params`);
+    for (const qp of queryParams) {
+      console.log(`[Pre-flight]   - ${qp.name} (required: ${qp.required})`);
+      if (qp.required && qp.name) {
+        allRequiredParams.add(qp.name);
+      }
+    }
+    
+    // Request body uid/id fields for POST/PUT/PATCH (to pre-fetch values)
+    if (['POST', 'PUT', 'PATCH'].includes(endpoint.method) && endpoint.requestSchema) {
+      const bodyUidFields = extractBodyUidFields(endpoint.requestSchema);
+      for (const field of bodyUidFields) {
+        console.log(`[Pre-flight]   - body field: ${field} (uid/id)`);
+        allRequiredParams.add(field);
+      }
+    }
+  }
+  
+  console.log(`[Pre-flight] All required params: [${Array.from(allRequiredParams).join(', ')}]`);
+  console.log(`[Pre-flight] hasParamSource('ai_chat_uid'): ${hasParamSource('ai_chat_uid')}`);
+  console.log(`[Pre-flight] hasParamSource('bizai_chat_uid'): ${hasParamSource('bizai_chat_uid')}`);
+  if (hasParamSource('ai_chat_uid')) {
+    console.log(`[Pre-flight] ai_chat_uid source:`, JSON.stringify(getParamSource('ai_chat_uid')));
   }
   
   // Filter to only dynamic params that have sources and aren't already configured
   const staticParams = config.params || {};
   const paramsToFetch = [];
+  
+  // Track which params share the same endpoint so we can store values under all of them
+  const endpointToParams = new Map(); // endpoint -> [param1, param2, ...]
   
   for (const param of allRequiredParams) {
     // Skip if already in static config
@@ -605,68 +1134,387 @@ async function fetchMissingParams(endpoints, paramResolver, apiClient, rateLimit
     // Check if we have a source for this param
     if (hasParamSource(param)) {
       const source = getParamSource(param);
-      if (source.endpoint && !fetchedEndpoints.has(source.endpoint)) {
-        paramsToFetch.push({ param, ...source });
-        fetchedEndpoints.add(source.endpoint);
+      if (source.endpoint) {
+        // Track all params that use this endpoint
+        if (!endpointToParams.has(source.endpoint)) {
+          endpointToParams.set(source.endpoint, []);
+        }
+        endpointToParams.get(source.endpoint).push(param);
+        
+        // Only add to fetch list if not already fetched
+        if (!fetchedEndpoints.has(source.endpoint)) {
+          paramsToFetch.push({ param, ...source });
+          fetchedEndpoints.add(source.endpoint);
+        }
       }
     }
   }
   
-  if (paramsToFetch.length === 0) {
-    return resolvedParams;
+  console.log(`[Pre-flight] paramsToFetch: ${JSON.stringify(paramsToFetch.map(p => p.param))}`);
+  console.log(`[Pre-flight] endpointToParams map: ${JSON.stringify(Array.from(endpointToParams.entries()))}`);
+  
+  // Count total params to resolve (from PARAM_SOURCES + derivations needed)
+  totalParamsToResolve = paramsToFetch.length;
+  reportProgress('Analyzing', `Found ${totalParamsToResolve} parameter(s) to resolve`);
+  
+  // ========== PHASE 1: Resolve params from PARAM_SOURCES ==========
+  if (paramsToFetch.length > 0) {
+    console.log(`[Pre-flight Phase 1] Fetching ${paramsToFetch.length} known parameter(s)...`);
+    reportProgress('Phase 1: Known sources', `Fetching from known endpoints...`);
+    // Broadcast preflight progress to UI
+    if (typeof log === 'function') {
+      log(`Pre-flight Phase 1: Fetching ${paramsToFetch.length} known parameter(s)...`);
+    }
+    
+    // Fetch each source endpoint
+    for (const { param, endpoint, field, arrayPath } of paramsToFetch) {
+      try {
+        reportProgress('Phase 1: Known sources', `Fetching ${param}...`);
+        console.log(`[Pre-flight Phase 1] Fetching ${param} from ${endpoint}...`);
+        log(`  Fetching ${param} from ${endpoint}...`);
+        
+        // Build a simple GET request with the first available token
+        const token = config.tokens?.staff || config.tokens?.directory || Object.values(config.tokens || {})[0];
+        console.log(`[Pre-flight Phase 1] Using token: ${token ? 'yes' : 'NO TOKEN'}`);
+        
+        const requestConfig = {
+          method: 'get',
+          url: endpoint,
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+          params: { page: 1, per_page: 1 }
+        };
+        
+        console.log(`[Pre-flight Phase 1] Making request to: ${endpoint}`);
+        const { response, error } = await rateLimiter.execute(
+          () => executeRequest(apiClient, requestConfig)
+        );
+        
+        console.log(`[Pre-flight Phase 1] Response: status=${response?.status}, error=${error?.message || 'none'}`);
+        
+        if (response && response.status >= 200 && response.status < 300 && response.data) {
+          console.log(`[Pre-flight Phase 1] Got successful response, data keys: ${Object.keys(response.data).join(', ')}`);
+          console.log(`[Pre-flight Phase 1] Looking for arrayPath: ${arrayPath}`);
+          // Extract the value
+          let items = arrayPath ? getNestedValue(response.data, arrayPath) : response.data;
+          
+          // Handle nested data wrapper
+          if (!items && response.data.data) {
+            items = arrayPath ? getNestedValue(response.data.data, arrayPath.replace('data.', '')) : response.data.data;
+          }
+          
+          // Build list of fields to try (configured field + common alternatives)
+          const fieldsToTry = [field, 'uid', 'id'];
+          // Also try the param name without _uid/_id suffix as a field
+          if (param.endsWith('_uid')) {
+            fieldsToTry.push(param, param.replace(/_uid$/, '_id'));
+          } else if (param.endsWith('_id')) {
+            fieldsToTry.push(param, param.replace(/_id$/, '_uid'));
+          }
+          
+          // Get first item from array
+          if (Array.isArray(items) && items.length > 0) {
+            let value = null;
+            let usedField = null;
+            for (const f of fieldsToTry) {
+              if (items[0][f]) {
+                value = items[0][f];
+                usedField = f;
+                break;
+              }
+            }
+            if (value) {
+              // Store under ALL param names that share this endpoint
+              const allParamsForEndpoint = endpointToParams.get(endpoint) || [param];
+              for (const p of allParamsForEndpoint) {
+                resolvedParams[p] = value;
+              }
+              resolvedCount++;
+              reportProgress('Phase 1: Known sources', `✓ Resolved ${param}`);
+              log(`    ✓ Got ${allParamsForEndpoint.join(', ')}=${value}${usedField !== field ? ` (via '${usedField}' field)` : ''}`);
+            } else {
+              log(`    ✗ No ${fieldsToTry.join('/')} field in response`);
+            }
+          } else if (items && typeof items === 'object') {
+            let value = null;
+            for (const f of fieldsToTry) {
+              if (items[f]) {
+                value = items[f];
+                break;
+              }
+            }
+            if (value) {
+              // Store under ALL param names that share this endpoint
+              const allParamsForEndpoint = endpointToParams.get(endpoint) || [param];
+              for (const p of allParamsForEndpoint) {
+                resolvedParams[p] = value;
+              }
+              resolvedCount++;
+              reportProgress('Phase 1: Known sources', `✓ Resolved ${param}`);
+              log(`    ✓ Got ${allParamsForEndpoint.join(', ')}=${value}`);
+            } else {
+              log(`    ✗ No data found in response`);
+            }
+          } else {
+            console.log(`[Pre-flight Phase 1] No data found in response`);
+            log(`    ✗ No data found in response`);
+          }
+        } else {
+          console.log(`[Pre-flight Phase 1] Request failed: status=${response?.status}, error=${error?.message}`);
+          log(`    ✗ Request failed: ${error?.message || response?.status || 'unknown error'}`);
+        }
+      } catch (err) {
+        console.log(`[Pre-flight Phase 1] Exception: ${err.message}`);
+        log(`    ✗ Error fetching ${param}: ${err.message}`);
+      }
+    }
   }
   
-  log(`Pre-flight: Fetching ${paramsToFetch.length} dynamic parameter(s)...`);
+  // ========== PHASE 2: Auto-derive IDs for paths with unresolved trailing params ==========
+  // Handles any trailing param like {uid}, {id}, {client_package_id}, etc.
+  const allResolved = { ...staticParams, ...resolvedParams };
+  const derivedEndpoints = new Set(); // Track derived list endpoints to avoid duplicates
   
-  // Fetch each source endpoint
-  for (const { param, endpoint, field, arrayPath } of paramsToFetch) {
-    try {
-      log(`  Fetching ${param} from ${endpoint}...`);
+  reportProgress('Phase 2: Auto-derivation', 'Analyzing paths...');
+  log(`Pre-flight Phase 2: Auto-deriving IDs for ${endpoints.length} endpoint(s)...`);
+  
+  // Find endpoints with unresolved trailing params (any {param} at end of path)
+  const endpointsNeedingDerivation = [];
+  for (const endpoint of endpoints) {
+    const derived = deriveListEndpoint(endpoint.path);
+    if (!derived) continue; // Path doesn't end with a parameter
+    
+    // Get resource key in same format as test sequencer (domain/resource)
+    const resourceInfo = parseResourcePath(endpoint.path);
+    const resourceKey = `${resourceInfo.domain}/${resourceInfo.resource}`;
+    
+    // Skip static params (like business_id, staff_id) - these should come from config
+    if (isStaticParam(derived.paramName)) continue;
+    
+    // Check if we already have a UID for this resource in testContext
+    if (testContext && testContext.hasUid(resourceKey)) continue;
+    
+    // Skip if param is already resolved (in config or Phase 1)
+    if (allResolved[derived.paramName]) continue;
+    
+    // Get the list endpoint (may be overridden for different paths)
+    let listPath = getListEndpoint(derived.listEndpoint);
+    if (listPath !== derived.listEndpoint) {
+      console.log(`[Phase 2] Using override: ${derived.listEndpoint} → ${listPath}`);
+    }
+    
+    // Substitute any already-resolved params in the list endpoint path
+    for (const [param, value] of Object.entries(allResolved)) {
+      listPath = listPath.replace(`{${param}}`, value);
+    }
+    
+    // Check if list path still has unresolved params
+    const unresolvedParams = extractPathParams(listPath);
+    if (unresolvedParams.length > 0) {
+      log(`  Skipping ${endpoint.path}: list endpoint ${listPath} has unresolved params: ${unresolvedParams.join(', ')}`);
+      continue;
+    }
+    
+    // Add to derivation queue if not already fetched
+    if (!derivedEndpoints.has(listPath)) {
+      endpointsNeedingDerivation.push({
+        originalPath: endpoint.path,
+        listPath,
+        paramName: derived.paramName,
+        resourceKey
+      });
+      derivedEndpoints.add(listPath);
+    }
+  }
+  
+  
+  if (endpointsNeedingDerivation.length > 0) {
+    // Add Phase 2 params to total count
+    totalParamsToResolve += endpointsNeedingDerivation.length;
+    reportProgress('Phase 2: Auto-derivation', `Deriving ${endpointsNeedingDerivation.length} param(s) from list endpoints`);
+    log(`Pre-flight Phase 2: Auto-deriving ${endpointsNeedingDerivation.length} uid/id param(s) from list endpoints...`);
+    
+    const token = config.tokens?.staff || config.tokens?.directory || Object.values(config.tokens || {})[0];
+    
+    for (const { originalPath, listPath, paramName, resourceKey } of endpointsNeedingDerivation) {
+      try {
+        log(`  Deriving ${paramName} for ${originalPath} from ${listPath}...`);
+        
+        const requestConfig = {
+          method: 'get',
+          url: listPath,
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+          params: { page: 1, per_page: 1 }
+        };
+        
+        const { response, error } = await rateLimiter.execute(
+          () => executeRequest(apiClient, requestConfig)
+        );
+        
+        if (response && response.status >= 200 && response.status < 300 && response.data) {
+          // Use smart extraction to find uid/id in response
+          const value = smartExtractUid(response.data, paramName);
+          
+          if (value) {
+            // Store UID in testContext with the proper resource key
+            if (testContext) {
+              testContext.setUid(resourceKey, value);
+              resolvedCount++;
+              reportProgress('Phase 2: Auto-derivation', `✓ Resolved ${paramName}`);
+              log(`    ✓ Got UID for ${resourceKey}=${value}`);
+            } else {
+              resolvedParams[resourceKey] = value;
+              resolvedCount++;
+              reportProgress('Phase 2: Auto-derivation', `✓ Resolved ${paramName}`);
+              log(`    ✓ Got ${resourceKey}=${value}`);
+            }
+          } else {
+            log(`    ✗ Could not extract ${paramName} from response`);
+          }
+        } else {
+          log(`    ✗ Request failed: ${error?.message || response?.status || 'unknown error'}`);
+        }
+      } catch (err) {
+        log(`    ✗ Error deriving ${paramName} for ${originalPath}: ${err.message}`);
+      }
+    }
+  }
+  
+  
+  // ========== PHASE 3: AI-Assisted Resolution for remaining unresolved endpoints ==========
+  // Only runs if AI is enabled and we have endpoints that still need UIDs
+  const aiEnabled = config.ai?.enabled && config.ai?.anthropicApiKey;
+  
+  if (aiEnabled && allEndpoints && allEndpoints.length > 0) {
+    reportProgress('Phase 3: AI Resolution', 'Checking for unresolved parameters...');
+    // Find endpoints that still need UIDs (weren't resolved in Phase 1 or 2)
+    const stillUnresolved = [];
+    for (const endpoint of endpoints) {
+      const derived = deriveListEndpoint(endpoint.path);
+      if (!derived) continue;
       
-      // Build a simple GET request with the first available token
+      // Skip static params
+      if (isStaticParam(derived.paramName)) continue;
+      
+      const resourceInfo = parseResourcePath(endpoint.path);
+      const resourceKey = `${resourceInfo.domain}/${resourceInfo.resource}`;
+      
+      // Check if already resolved
+      if (testContext && testContext.hasUid(resourceKey)) continue;
+      if (allResolved[derived.paramName]) continue;
+      
+      stillUnresolved.push({
+        endpoint,
+        resourceKey,
+        paramName: derived.paramName
+      });
+    }
+    
+    if (stillUnresolved.length > 0) {
+      // Add Phase 3 params to total count
+      totalParamsToResolve += stillUnresolved.length;
+      reportProgress('Phase 3: AI Resolution', `Resolving ${stillUnresolved.length} param(s) with AI...`);
+      log(`Pre-flight Phase 3: AI-assisted resolution for ${stillUnresolved.length} endpoint(s)...`);
+      console.log(`[Phase 3] Starting AI resolution for ${stillUnresolved.length} endpoints`);
+      
       const token = config.tokens?.staff || config.tokens?.directory || Object.values(config.tokens || {})[0];
       
-      const requestConfig = {
-        method: 'get',
-        url: endpoint,
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-        params: { page: 1, per_page: 1 }
-      };
-      
-      const { response, error } = await rateLimiter.execute(
-        () => executeRequest(apiClient, requestConfig)
-      );
-      
-      if (response && response.status >= 200 && response.status < 300 && response.data) {
-        // Extract the value
-        let items = arrayPath ? getNestedValue(response.data, arrayPath) : response.data;
-        
-        // Handle nested data wrapper
-        if (!items && response.data.data) {
-          items = arrayPath ? getNestedValue(response.data.data, arrayPath.replace('data.', '')) : response.data.data;
-        }
-        
-        // Get first item from array
-        if (Array.isArray(items) && items.length > 0) {
-          const value = items[0][field];
-          if (value) {
-            resolvedParams[param] = value;
-            log(`    ✓ Got ${param}=${value}`);
+      for (const { endpoint, resourceKey, paramName } of stillUnresolved) {
+        try {
+          // First check if we have a learned mapping
+          const learnedPath = getLearnedMapping(endpoint.path);
+          let aiSuggestedPath = learnedPath;
+          
+          if (!learnedPath) {
+            // Ask AI for suggestion
+            console.log(`[Phase 3] Asking AI for: ${endpoint.path}`);
+            log(`  Asking AI for list endpoint for ${endpoint.path}...`);
+            
+            aiSuggestedPath = await askAIForListEndpoint(
+              endpoint.path,
+              paramName,
+              allEndpoints,
+              config.ai.anthropicApiKey
+            );
           } else {
-            log(`    ✗ No ${field} field in response`);
+            console.log(`[Phase 3] Using learned mapping: ${endpoint.path} → ${learnedPath}`);
+            log(`  Using learned mapping: ${endpoint.path} → ${learnedPath}`);
           }
-        } else if (items && typeof items === 'object' && items[field]) {
-          resolvedParams[param] = items[field];
-          log(`    ✓ Got ${param}=${items[field]}`);
-        } else {
-          log(`    ✗ No data found in response`);
+          
+          if (!aiSuggestedPath) {
+            console.log(`[Phase 3] AI returned no suggestion for ${endpoint.path}`);
+            log(`    ✗ No suitable list endpoint found`);
+            continue;
+          }
+          
+          console.log(`[Phase 3] AI suggested: ${aiSuggestedPath}`);
+          log(`    AI suggests: ${aiSuggestedPath}`);
+          
+          // Try the suggested endpoint
+          const requestConfig = {
+            method: 'get',
+            url: aiSuggestedPath,
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+            params: { page: 1, per_page: 1 }
+          };
+          
+          const { response, error } = await rateLimiter.execute(
+            () => executeRequest(apiClient, requestConfig)
+          );
+          
+          if (response && response.status >= 200 && response.status < 300 && response.data) {
+            const value = smartExtractUid(response.data, paramName);
+            
+            if (value) {
+              if (testContext) {
+                testContext.setUid(resourceKey, value);
+              }
+              
+              // Save successful mapping for future use
+              if (!learnedPath) {
+                addLearnedMapping(endpoint.path, aiSuggestedPath);
+              }
+              
+              resolvedCount++;
+              reportProgress('Phase 3: AI Resolution', `✓ Resolved ${paramName}`);
+              console.log(`[Phase 3] ✓ AI resolution success: ${resourceKey}=${value}`);
+              log(`    ✓ Got UID via AI: ${resourceKey}=${value}`);
+            } else {
+              console.log(`[Phase 3] ✗ Could not extract ${paramName} from AI-suggested endpoint`);
+              log(`    ✗ Could not extract ${paramName} from response`);
+              
+              // Remove failed learned mapping
+              if (learnedPath) {
+                removeLearnedMapping(endpoint.path);
+              }
+            }
+          } else if (response && response.status >= 400) {
+            console.log(`[Phase 3] ✗ AI suggestion failed with ${response.status}`);
+            log(`    ✗ AI suggestion failed: HTTP ${response.status}`);
+            
+            // Remove failed learned mapping
+            if (learnedPath) {
+              removeLearnedMapping(endpoint.path);
+              log(`    Removed failed mapping from cache`);
+            }
+          } else {
+            console.log(`[Phase 3] ✗ Request failed: ${error?.message || 'unknown'}`);
+            log(`    ✗ Request failed: ${error?.message || 'unknown error'}`);
+          }
+        } catch (err) {
+          console.log(`[Phase 3] ✗ Error: ${err.message}`);
+          log(`    ✗ Error in AI resolution: ${err.message}`);
         }
-      } else {
-        log(`    ✗ Request failed: ${error?.message || response?.status || 'unknown error'}`);
       }
-    } catch (err) {
-      log(`    ✗ Error fetching ${param}: ${err.message}`);
     }
+  }
+  
+  // Report final summary
+  if (totalParamsToResolve > 0) {
+    reportProgress('Complete', `Resolved ${resolvedCount}/${totalParamsToResolve} parameter(s)`);
+    log(`Pre-flight complete: ${resolvedCount}/${totalParamsToResolve} parameters resolved`);
+  } else {
+    reportProgress('Complete', 'No parameters needed resolution');
+    log(`Pre-flight complete: No parameters needed resolution`);
   }
   
   return resolvedParams;

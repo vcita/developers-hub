@@ -22,7 +22,7 @@ const app = express();
 const PORT = process.env.PORT || 3500;
 
 // Middleware
-app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // Increased limit for large validation reports
 app.use(express.static(path.join(__dirname, '../ui')));
 
 // CORS for development
@@ -116,6 +116,36 @@ app.get('/api/health', (req, res) => {
     endpointsLoaded: appState.endpoints.length,
     timestamp: new Date().toISOString()
   });
+});
+
+// Reload swagger files
+app.post('/api/reload', async (req, res) => {
+  try {
+    console.log('Reloading swagger files...');
+    
+    // Re-parse swagger files with $ref dereferencing
+    const { endpoints, byDomain, domains } = await parseAllSwaggersAsync(appState.config.swaggerPath);
+    appState.endpoints = endpoints;
+    appState.byDomain = byDomain;
+    appState.domains = domains;
+    appState.statistics = getStatistics(endpoints);
+    
+    console.log(`Reloaded ${endpoints.length} endpoints from ${Object.keys(domains).length} domains`);
+    
+    res.json({
+      success: true,
+      message: `Reloaded ${endpoints.length} endpoints from ${Object.keys(domains).length} domains`,
+      statistics: appState.statistics,
+      domains: Object.keys(domains),
+      endpointsLoaded: endpoints.length
+    });
+  } catch (error) {
+    console.error('Error reloading swaggers:', error);
+    res.status(500).json({ 
+      success: false,
+      error: error.message 
+    });
+  }
 });
 
 // Store validation results for report generation

@@ -29,9 +29,16 @@ const TOKEN_NORMALIZATION = {
   'operator tokens': 'operator',
   'operator token': 'operator',
   'operator': 'operator',
-  'application & application user': 'app',
   'appstaff': 'app'
 };
+
+// Legacy x-auth-type values that should use staff token but are NOT proper documentation
+// These will be treated as "missing token documentation" and fallback to staff
+const LEGACY_AUTH_TYPES = [
+  'application & application user',
+  'application user',
+  'none'
+];
 
 // Regex patterns for extracting token information from descriptions
 const TOKEN_PATTERNS = [
@@ -126,26 +133,36 @@ function extractFromDescription(description) {
 /**
  * Extract token availability from x-auth-type field (legacy v1 endpoints)
  * @param {string} authType - x-auth-type field value
- * @returns {Object} { found: boolean, tokens: string[], raw: string|null }
+ * @returns {Object} { found: boolean, tokens: string[], raw: string|null, isLegacy: boolean }
  */
 function extractFromAuthType(authType) {
   if (!authType) {
-    return { found: false, tokens: [], raw: null };
+    return { found: false, tokens: [], raw: null, isLegacy: false };
+  }
+  
+  const authTypeLower = authType.toLowerCase().trim();
+  
+  // Check if this is a legacy x-auth-type that doesn't provide proper token documentation
+  // These endpoints typically accept staff tokens but the x-auth-type doesn't document it properly
+  // Return found: false and empty tokens so:
+  // 1. Tests will use staff token via fallback mechanism
+  // 2. "missing token documentation" warning will be triggered
+  if (LEGACY_AUTH_TYPES.includes(authTypeLower)) {
+    return {
+      found: false,
+      tokens: [], // Empty - let fallback mechanism choose staff token
+      raw: authType,
+      isLegacy: true
+    };
   }
   
   const tokens = parseTokenTypes(authType);
   
-  // Special handling for "Application & Application User"
-  if (authType.toLowerCase().includes('application')) {
-    if (!tokens.includes('app')) {
-      tokens.push('app');
-    }
-  }
-  
   return {
     found: tokens.length > 0,
     tokens,
-    raw: authType
+    raw: authType,
+    isLegacy: false
   };
 }
 
@@ -153,11 +170,11 @@ function extractFromAuthType(authType) {
  * Extract token availability from an endpoint operation
  * Checks both description and x-auth-type
  * @param {Object} operation - OpenAPI operation object
- * @returns {Object} { found: boolean, tokens: string[], source: string, raw: string|null }
+ * @returns {Object} { found: boolean, tokens: string[], source: string, raw: string|null, isLegacy: boolean }
  */
 function extractTokenInfo(operation) {
   if (!operation) {
-    return { found: false, tokens: [], source: null, raw: null };
+    return { found: false, tokens: [], source: null, raw: null, isLegacy: false };
   }
   
   // First try description
@@ -165,7 +182,8 @@ function extractTokenInfo(operation) {
   if (fromDescription.found) {
     return {
       ...fromDescription,
-      source: 'description'
+      source: 'description',
+      isLegacy: false
     };
   }
   
@@ -173,7 +191,9 @@ function extractTokenInfo(operation) {
   const authType = operation['x-auth-type'];
   if (authType) {
     const fromAuthType = extractFromAuthType(authType);
-    if (fromAuthType.found) {
+    // If it's a legacy auth type, return it even though found is false
+    // This allows the test to use staff token fallback while still flagging missing docs
+    if (fromAuthType.found || fromAuthType.isLegacy) {
       return {
         ...fromAuthType,
         source: 'x-auth-type'
@@ -186,7 +206,8 @@ function extractTokenInfo(operation) {
     found: false,
     tokens: [],
     source: null,
-    raw: null
+    raw: null,
+    isLegacy: false
   };
 }
 
@@ -226,19 +247,31 @@ function getValidToken(tokenType, configuredTokens) {
   return token;
 }
 
+// Privileged token types that should NOT use fallback
+// These tokens have special permissions that other tokens don't have
+const PRIVILEGED_TOKENS = ['internal', 'operator'];
+
 /**
  * Get the first available token type that matches configured tokens
  * @param {string[]} requiredTokens - Token types required by endpoint
  * @param {Object} configuredTokens - Token configuration object
  * @param {Object} options - Additional options
  * @param {boolean} options.useFallback - Use fallback token when no required tokens specified or when required token is missing
- * @returns {Object} { tokenType: string|null, token: string|null, isFallback: boolean }
+ * @param {string} options.path - Endpoint path for path-based token preference
+ * @returns {Object} { tokenType: string|null, token: string|null, isFallback: boolean, shouldSkip: boolean }
  */
 function selectToken(requiredTokens, configuredTokens, options = {}) {
-  const { useFallback = true } = options;
+  const { useFallback = true, path = '' } = options;
   
-  // Priority order for fallback: staff, directory, app, business, client
-  const fallbackOrder = ['staff', 'directory', 'app', 'business', 'client', 'operator', 'internal'];
+  // Determine fallback order based on path
+  // For /client/* paths, prioritize client token
+  let fallbackOrder;
+  if (path.startsWith('/client')) {
+    fallbackOrder = ['client', 'staff', 'directory', 'app', 'business', 'operator', 'internal'];
+  } else {
+    // Default priority order for fallback: staff, directory, app, business, client
+    fallbackOrder = ['staff', 'directory', 'app', 'business', 'client', 'operator', 'internal'];
+  }
   
   // If we have required tokens, try to match them
   if (requiredTokens && requiredTokens.length > 0) {
@@ -248,9 +281,23 @@ function selectToken(requiredTokens, configuredTokens, options = {}) {
         return {
           tokenType,
           token,
-          isFallback: false
+          isFallback: false,
+          shouldSkip: false
         };
       }
+    }
+    
+    // Check if ALL required tokens are privileged (internal/operator only)
+    // If so, don't use fallback - skip the test instead
+    const allPrivileged = requiredTokens.every(t => PRIVILEGED_TOKENS.includes(t));
+    if (allPrivileged) {
+      return {
+        tokenType: requiredTokens[0],
+        token: null,
+        isFallback: false,
+        shouldSkip: true,
+        skipReason: `Requires ${requiredTokens.join(' or ')} token (not configured)`
+      };
     }
     
     // Required token not found/placeholder - try fallback if enabled
@@ -262,6 +309,7 @@ function selectToken(requiredTokens, configuredTokens, options = {}) {
             tokenType,
             token,
             isFallback: true,
+            shouldSkip: false,
             originalRequired: requiredTokens[0] // Track what was originally required
           };
         }
@@ -272,7 +320,8 @@ function selectToken(requiredTokens, configuredTokens, options = {}) {
     return {
       tokenType: requiredTokens[0], // Return first required for error message
       token: null,
-      isFallback: false
+      isFallback: false,
+      shouldSkip: false
     };
   }
   
@@ -302,5 +351,6 @@ module.exports = {
   selectToken,
   isPlaceholderToken,
   getValidToken,
-  TOKEN_NORMALIZATION
+  TOKEN_NORMALIZATION,
+  LEGACY_AUTH_TYPES
 };

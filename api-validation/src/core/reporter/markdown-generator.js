@@ -26,6 +26,7 @@ function generateMarkdownReport(report) {
     generateSummarySection(report),
     generateDomainSummaryTable(report),
     generateMainResultsTable(report),
+    generateHealingSummary(report),
     generateDetailedIssues(report),
     generateFooter(report)
   ];
@@ -72,6 +73,8 @@ function generateSummarySection(report) {
 | Total Endpoints | ${summary.total} |
 | ✅ Passed | ${summary.passed} |
 | ❌ Failed | ${summary.failed} |
+| ⚠️ Warned | ${summary.warned || 0} |
+| 🔶 Errors | ${summary.errored || 0} |
 | ⏭️ Skipped | ${summary.skipped} |
 | ${rateIndicator} **Pass Rate** | **${summary.passRate}** |`;
 }
@@ -93,13 +96,13 @@ function generateDomainSummaryTable(report) {
     else if (rate >= 70) status = '🟡';
     else if (rate >= 50) status = '🟠';
     
-    return `| ${domain} | ${stats.total} | ${stats.passed} | ${stats.failed} | ${stats.skipped} | ${status} ${stats.passRate} |`;
+    return `| ${domain} | ${stats.total} | ${stats.passed} | ${stats.failed} | ${stats.warned || 0} | ${stats.errored || 0} | ${stats.skipped} | ${status} ${stats.passRate} |`;
   });
   
   return `## Results by Domain
 
-| Domain | Total | ✅ Pass | ❌ Fail | ⏭️ Skip | Rate |
-|--------|-------|---------|---------|---------|------|
+| Domain | Total | ✅ Pass | ❌ Fail | ⚠️ Warn | 🔶 Error | ⏭️ Skip | Rate |
+|--------|-------|---------|---------|---------|----------|---------|------|
 ${rows.join('\n')}`;
 }
 
@@ -126,6 +129,8 @@ function analyzeEndpointIssues(result) {
     issues.other.push(result.details?.friendlyMessage || 'Skipped');
     return issues;
   }
+  
+  // Both FAIL and WARN can have issues
   
   const reason = result.details?.reason;
   const errors = result.details?.errors || [];
@@ -220,10 +225,34 @@ function generateMainResultsTable(report) {
   
   for (const [domain, domainResults] of Object.entries(byDomain)) {
     const rows = domainResults.map(result => {
-      const status = result.status === 'PASS' ? '✅' : (result.status === 'FAIL' ? '❌' : '⏭️');
+      const status = result.status === 'PASS' ? '✅' : 
+                     result.status === 'FAIL' ? '❌' : 
+                     result.status === 'WARN' ? '⚠️' : 
+                     result.status === 'ERROR' ? '🔶' : '⏭️';
       const issues = analyzeEndpointIssues(result);
       
-      return `| ${status} | \`${result.method}\` | \`${result.path}\` | ${result.httpStatus || '-'} | ${formatIssueCellCompact(issues.schema)} | ${formatIssueCellCompact(issues.paramMismatch)} | ${formatIssueCellCompact(issues.tokenDoc)} | ${formatIssueCellCompact(issues.auth)} | ${result.duration} |`;
+      // Determine if we got a successful HTTP response (2xx)
+      const httpStatus = result.httpStatus;
+      const isSuccessResponse = httpStatus && httpStatus >= 200 && httpStatus < 300;
+      const wasSkipped = result.status === 'SKIP';
+      
+      // For non-2xx responses or skipped tests, we can't validate schema/params against success schema
+      // Show '-' instead of misleading ✅
+      let schemaCell, paramsCell;
+      if (wasSkipped) {
+        schemaCell = '-';
+        paramsCell = '-';
+      } else if (!isSuccessResponse) {
+        // Non-2xx: can't validate success schema, but we can show if there were doc issues
+        schemaCell = '-';
+        paramsCell = issues.paramMismatch ? '⚠️' : '-';
+      } else {
+        // 2xx response: show actual validation results
+        schemaCell = formatIssueCellCompact(issues.schema);
+        paramsCell = formatIssueCellCompact(issues.paramMismatch);
+      }
+      
+      return `| ${status} | \`${result.method}\` | \`${result.path}\` | ${httpStatus || '-'} | ${schemaCell} | ${paramsCell} | ${formatIssueCellCompact(issues.tokenDoc)} | ${formatIssueCellCompact(issues.auth)} | ${result.duration} |`;
     });
     
     tables.push(`### ${domain}
@@ -239,21 +268,94 @@ ${tables.join('\n\n')}`;
 }
 
 /**
- * Generate detailed issues section for failed endpoints
+ * Generate detailed issues section for failed/warned endpoints
  * @param {Object} report - Report object
  * @returns {string} Detailed issues markdown
  */
-function generateDetailedIssues(report) {
-  const failures = (report.results || []).filter(r => r.status === 'FAIL');
+/**
+ * Generate healing summary section
+ * Shows endpoints that were self-healed and AI-detected documentation issues
+ * @param {Object} report - Report object
+ * @returns {string} Healing summary markdown
+ */
+function generateHealingSummary(report) {
+  const results = report.results || [];
   
-  if (failures.length === 0) {
+  // Find healed endpoints
+  const healedResults = results.filter(r => r.details?.healingInfo);
+  
+  // Find all AI-detected documentation issues
+  const allDocIssues = [];
+  for (const result of results) {
+    const docIssues = result.details?.documentationIssues || [];
+    for (const issue of docIssues) {
+      allDocIssues.push({
+        endpoint: `${result.method} ${result.path}`,
+        ...issue
+      });
+    }
+  }
+  
+  if (healedResults.length === 0 && allDocIssues.length === 0) {
+    return '';
+  }
+  
+  let output = '## 🔧 Self-Healing Summary\n\n';
+  
+  // Healed endpoints section
+  if (healedResults.length > 0) {
+    output += `### Healed Endpoints (${healedResults.length})\n\n`;
+    output += `*These endpoints initially failed but were automatically fixed by creating required dependencies.*\n\n`;
+    output += '| Endpoint | Attempts | Prerequisites Created | Workflow |\n';
+    output += '|----------|----------|----------------------|----------|\n';
+    
+    for (const result of healedResults) {
+      const healing = result.details.healingInfo;
+      const prereqs = healing.prerequisitesCreated?.join(', ') || '-';
+      const workflow = healing.workflowSaved ? '💾 Saved' : 
+                       healing.usedCachedWorkflow ? '📦 Cached' : '-';
+      
+      output += `| \`${result.method} ${result.path}\` | ${healing.attempts || 1} | ${prereqs} | ${workflow} |\n`;
+    }
+    output += '\n';
+  }
+  
+  // AI-detected documentation issues section
+  if (allDocIssues.length > 0) {
+    output += `### 📝 AI-Detected Documentation Issues (${allDocIssues.length})\n\n`;
+    output += `*These issues were identified by AI during testing and should be reviewed.*\n\n`;
+    output += '| Endpoint | Type | Field | Issue | Suggestion |\n';
+    output += '|----------|------|-------|-------|------------|\n';
+    
+    for (const issue of allDocIssues) {
+      const field = issue.field ? `\`${issue.field}\`` : '-';
+      const message = issue.message?.replace(/\|/g, '\\|') || '-';
+      const suggestion = issue.suggestion?.replace(/\|/g, '\\|') || '-';
+      
+      output += `| \`${issue.endpoint}\` | ${issue.type} | ${field} | ${message} | ${suggestion} |\n`;
+    }
+  }
+  
+  return output;
+}
+
+function generateDetailedIssues(report) {
+  // Include FAIL, WARN, and ERROR in detailed issues
+  const failures = (report.results || []).filter(r => r.status === 'FAIL');
+  const warnings = (report.results || []).filter(r => r.status === 'WARN');
+  const errors = (report.results || []).filter(r => r.status === 'ERROR');
+  
+  if (failures.length === 0 && warnings.length === 0) {
     return `## Detailed Issues
 
 🎉 **No issues found!** All tested endpoints passed validation.`;
   }
   
-  const issueRows = [];
+  // Separate tables for failures (HTTP errors) and warnings (doc issues)
+  const failureRows = [];
+  const warningRows = [];
   
+  // Process failures (HTTP errors)
   for (const result of failures) {
     const issues = analyzeEndpointIssues(result);
     const allIssues = [];
@@ -270,17 +372,52 @@ function generateDetailedIssues(report) {
     }
     
     if (allIssues.length > 0) {
-      issueRows.push(`| \`${result.method} ${result.path}\` | ${allIssues.join('<br>') || '-'} | ${result.details?.suggestion || '-'} |`);
+      failureRows.push(`| \`${result.method} ${result.path}\` | ${allIssues.join('<br>') || '-'} | ${result.details?.suggestion || '-'} |`);
     }
   }
   
-  if (issueRows.length === 0) return '';
+  // Process warnings (doc issues with successful HTTP)
+  for (const result of warnings) {
+    const issues = analyzeEndpointIssues(result);
+    const allIssues = [];
+    
+    if (issues.paramMismatch) allIssues.push(`**Param Mismatch:** ${issues.paramMismatch}`);
+    if (issues.tokenDoc) allIssues.push(`**Token Doc:** ${issues.tokenDoc}`);
+    if (issues.schema.length > 0) {
+      allIssues.push(`**Schema (${issues.schema.length}):** ${issues.schema.slice(0, 3).join('; ')}${issues.schema.length > 3 ? '...' : ''}`);
+    }
+    if (issues.other.length > 0) {
+      allIssues.push(`**Other:** ${issues.other.join('; ')}`);
+    }
+    
+    if (allIssues.length > 0) {
+      warningRows.push(`| \`${result.method} ${result.path}\` | ${allIssues.join('<br>') || '-'} | ${result.details?.suggestion || '-'} |`);
+    }
+  }
   
-  return `## Detailed Issues
+  let output = '## Detailed Issues\n\n';
+  
+  if (failureRows.length > 0) {
+    output += `### ❌ Failures (HTTP Errors)
 
 | Endpoint | Issues | Suggested Fix |
 |----------|--------|---------------|
-${issueRows.join('\n')}`;
+${failureRows.join('\n')}
+
+`;
+  }
+  
+  if (warningRows.length > 0) {
+    output += `### ⚠️ Warnings (Documentation Issues)
+
+*These endpoints returned successful HTTP responses but have documentation discrepancies.*
+
+| Endpoint | Issues | Suggested Fix |
+|----------|--------|---------------|
+${warningRows.join('\n')}`;
+  }
+  
+  return output;
 }
 
 /**
@@ -300,7 +437,8 @@ function generateFooter(report) {
   };
   
   for (const result of (report.results || [])) {
-    if (result.status !== 'FAIL') continue;
+    // Include FAIL, WARN, and ERROR in issue counts
+    if (result.status !== 'FAIL' && result.status !== 'WARN' && result.status !== 'ERROR') continue;
     const issues = analyzeEndpointIssues(result);
     if (issues.schema.length > 0) issueCounts.schema++;
     if (issues.paramMismatch) issueCounts.paramMismatch++;
@@ -349,7 +487,7 @@ function generateCompactSummary(report) {
   else if (passRate >= 70) emoji = '🟡';
   else if (passRate >= 50) emoji = '🟠';
   
-  return `${emoji} **${summary.passRate}** | ✅ ${summary.passed} | ❌ ${summary.failed} | ⏭️ ${summary.skipped} | Total: ${summary.total}`;
+  return `${emoji} **${summary.passRate}** | ✅ ${summary.passed} | ❌ ${summary.failed} | ⚠️ ${summary.warned || 0} | 🔶 ${summary.errored || 0} | ⏭️ ${summary.skipped} | Total: ${summary.total}`;
 }
 
 /**

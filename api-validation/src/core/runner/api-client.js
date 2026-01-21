@@ -5,7 +5,8 @@
 
 const axios = require('axios');
 const { selectToken } = require('../parser/token-parser');
-const { extractPathParams, isStaticParam, hasParamSource, getParamSource } = require('./param-resolver');
+const { extractPathParams, isStaticParam, hasParamSource, getParamSource, deriveListEndpoint, generateResourceKey, resolveParamByContext } = require('./param-resolver');
+const { generateQueryParams: aiGenerateQueryParams, generateRequestBody: aiGenerateRequestBody } = require('./ai-param-generator');
 
 /**
  * Create an axios instance configured for API validation
@@ -35,7 +36,23 @@ function createApiClient(config) {
  */
 function buildRequestConfig(endpoint, config, context = {}) {
   // Select appropriate token (with fallback for undocumented endpoints or placeholder tokens)
-  const { tokenType, token, isFallback, originalRequired } = selectToken(endpoint.tokenInfo.tokens, config.tokens, { useFallback: true });
+  // Pass path for path-based token preference (e.g., /client/* endpoints prefer client token)
+  const { tokenType, token, isFallback, originalRequired, shouldSkip, skipReason } = selectToken(
+    endpoint.tokenInfo.tokens, 
+    config.tokens, 
+    { useFallback: true, path: endpoint.path }
+  );
+  
+  // Skip if endpoint requires privileged tokens we don't have
+  if (shouldSkip) {
+    return {
+      skip: true,
+      skipReason: skipReason || `Requires ${tokenType} token (not configured)`,
+      config: null,
+      tokenType,
+      hasToken: false
+    };
+  }
   
   // Build path with substituted parameters
   let path = endpoint.path;
@@ -48,8 +65,15 @@ function buildRequestConfig(endpoint, config, context = {}) {
     }
   }
   
-  // 2. Substitute UID parameters from context (legacy support)
+  // 2. Substitute UID from context (from testContext.getUid for detail endpoints)
   if (context.uid) {
+    // Get the trailing param name from the path (e.g., {uid}, {id}, {client_package_id})
+    const derived = deriveListEndpoint(endpoint.path);
+    if (derived) {
+      // Substitute the actual param name (could be uid, id, client_package_id, etc.)
+      path = path.replace(`{${derived.paramName}}`, context.uid);
+    }
+    // Also try common patterns as fallback
     path = path.replace('{uid}', context.uid);
     path = path.replace('{id}', context.uid);
   }
@@ -59,9 +83,22 @@ function buildRequestConfig(endpoint, config, context = {}) {
     for (const [key, value] of Object.entries(context.params)) {
       path = path.replace(`{${key}}`, value);
     }
+    
+    // 3b. Context-aware substitution for generic params like {uid} or {id}
+    // If path still has {uid} or {id}, try to resolve using context
+    const remainingParams = extractPathParams(path);
+    for (const param of remainingParams) {
+      if (param === 'uid' || param === 'id') {
+        const contextParam = resolveParamByContext(param, endpoint.path);
+        if (contextParam !== param && context.params[contextParam]) {
+          path = path.replace(`{${param}}`, context.params[contextParam]);
+          console.log(`[API Client] Context substitution: {${param}} -> ${contextParam} = ${context.params[contextParam]}`);
+        }
+      }
+    }
   }
   
-  // 4. Check for unresolved parameters
+  // 5. Check for unresolved parameters
   const unresolvedParams = extractPathParams(path);
   if (unresolvedParams.length > 0) {
     // Categorize unresolved params
@@ -107,16 +144,24 @@ function buildRequestConfig(endpoint, config, context = {}) {
   
   // Add query parameters defined in the swagger spec (stored as endpoint.parameters.query)
   const endpointQueryParams = endpoint.parameters?.query;
+  const dynamicParams = context.params || {}; // Resolved params from pre-flight (e.g., ai_chat_uid)
+  
   console.log(`  [QueryParams] Endpoint has ${endpointQueryParams?.length || 0} query params defined`);
   
   if (endpointQueryParams && Array.isArray(endpointQueryParams)) {
-    const staticParams = config.params || {};
     console.log(`  [QueryParams] Static params available: ${JSON.stringify(staticParams)}`);
+    console.log(`  [QueryParams] Dynamic params available: ${JSON.stringify(dynamicParams)}`);
     
     for (const param of endpointQueryParams) {
       console.log(`  [QueryParams] Processing param: ${param.name} (required: ${param.required})`);
-      // Use configured value if available (e.g., business_id from tokens.json)
-      if (staticParams[param.name]) {
+      
+      // Priority order: dynamic params > static params > default > example > infer
+      if (dynamicParams[param.name]) {
+        // Use dynamically resolved param (from pre-flight)
+        queryParams[param.name] = dynamicParams[param.name];
+        console.log(`  [QueryParams] → Added from dynamic params: ${param.name}=${dynamicParams[param.name]}`);
+      } else if (staticParams[param.name]) {
+        // Use configured value (e.g., business_id from tokens.json)
         queryParams[param.name] = staticParams[param.name];
         console.log(`  [QueryParams] → Added from static params: ${param.name}=${staticParams[param.name]}`);
       } else if (param.schema?.default !== undefined) {
@@ -126,8 +171,13 @@ function buildRequestConfig(endpoint, config, context = {}) {
         queryParams[param.name] = param.example;
         console.log(`  [QueryParams] → Added from example: ${param.name}=${param.example}`);
       } else if (param.required) {
-        // Required param without value - try to infer
-        if (param.name === 'page') {
+        // Required param without value - try to infer or check for uid variants
+        const altKey = param.name.replace(/_uid$/, '_id').replace(/_id$/, '_uid');
+        
+        if (dynamicParams[altKey]) {
+          queryParams[param.name] = dynamicParams[altKey];
+          console.log(`  [QueryParams] → Added from dynamic params (alt key): ${param.name}=${dynamicParams[altKey]}`);
+        } else if (param.name === 'page') {
           queryParams[param.name] = 1;
         } else if (param.name === 'per_page') {
           queryParams[param.name] = 10;
@@ -135,8 +185,18 @@ function buildRequestConfig(endpoint, config, context = {}) {
           queryParams[param.name] = param.schema.enum[0];
           console.log(`  [QueryParams] → Added from enum: ${param.name}=${param.schema.enum[0]}`);
         } else {
-          console.log(`  [QueryParams] → MISSING required param: ${param.name}`);
+          // Generate value based on schema type/format
+          const generatedValue = generateQueryParamValue(param);
+          if (generatedValue !== null) {
+            queryParams[param.name] = generatedValue;
+            console.log(`  [QueryParams] → Generated from schema: ${param.name}=${generatedValue}`);
+          } else {
+            console.warn(`  [QueryParams] → MISSING required param: ${param.name}`);
+          }
         }
+      } else {
+        // Optional param - still generate if it has a meaningful schema type
+        // (helps ensure API returns complete responses for validation)
       }
     }
   }
@@ -154,7 +214,16 @@ function buildRequestConfig(endpoint, config, context = {}) {
   
   // Add request body for POST/PUT/PATCH
   if (['POST', 'PUT', 'PATCH'].includes(endpoint.method)) {
-    requestConfig.data = context.requestBody || generateMinimalPayload(endpoint);
+    // Merge all resolved parameters for body generation
+    const allResolvedParams = { ...staticParams, ...(context.params || {}) };
+    
+    // Generate body with all documented fields (not just required)
+    let body = context.requestBody || generateMinimalPayload(endpoint, allResolvedParams);
+    
+    // Substitute resolved parameters in request body (handles any remaining placeholders)
+    body = substituteBodyParams(body, staticParams, context.params || {});
+    
+    requestConfig.data = body;
   }
   
   return {
@@ -168,54 +237,438 @@ function buildRequestConfig(endpoint, config, context = {}) {
 }
 
 /**
- * Generate minimal valid payload for POST/PUT requests
+ * Build request config with AI-powered parameter generation
  * @param {Object} endpoint - Endpoint object
- * @returns {Object} Minimal request payload
+ * @param {Object} config - App configuration
+ * @param {Object} context - Test context with UIDs and params
+ * @returns {Promise<Object>} Axios request config or skip info
  */
-function generateMinimalPayload(endpoint) {
+async function buildRequestConfigAsync(endpoint, config, context = {}) {
+  // Select appropriate token
+  const { tokenType, token, isFallback, originalRequired, shouldSkip, skipReason } = selectToken(
+    endpoint.tokenInfo.tokens, 
+    config.tokens, 
+    { useFallback: true, path: endpoint.path }
+  );
+  
+  // Skip if endpoint requires privileged tokens we don't have
+  if (shouldSkip) {
+    return {
+      skip: true,
+      skipReason: skipReason || `Requires ${tokenType} token (not configured)`,
+      config: null,
+      tokenType,
+      hasToken: false
+    };
+  }
+  
+  // Build path with substituted parameters
+  let path = endpoint.path;
+  const staticParams = config.params || {};
+  
+  // Substitute static params
+  for (const [param, value] of Object.entries(staticParams)) {
+    if (value && value !== `your-${param.replace(/_/g, '-')}-here`) {
+      path = path.replace(`{${param}}`, value);
+    }
+  }
+  
+  // Substitute UID from context
+  if (context.uid) {
+    const derived = deriveListEndpoint(endpoint.path);
+    if (derived) {
+      path = path.replace(`{${derived.paramName}}`, context.uid);
+    }
+    path = path.replace('{uid}', context.uid);
+    path = path.replace('{id}', context.uid);
+  }
+  
+  // Substitute dynamic params
+  if (context.params) {
+    for (const [key, value] of Object.entries(context.params)) {
+      path = path.replace(`{${key}}`, value);
+    }
+    
+    // Context-aware substitution for generic params like {uid} or {id}
+    const remainingParams = extractPathParams(path);
+    for (const param of remainingParams) {
+      if (param === 'uid' || param === 'id') {
+        const contextParam = resolveParamByContext(param, endpoint.path);
+        if (contextParam !== param && context.params[contextParam]) {
+          path = path.replace(`{${param}}`, context.params[contextParam]);
+          console.log(`[API Client Async] Context substitution: {${param}} -> ${contextParam} = ${context.params[contextParam]}`);
+        }
+      }
+    }
+  }
+  
+  // Check for unresolved parameters
+  const unresolvedParams = extractPathParams(path);
+  if (unresolvedParams.length > 0) {
+    const missingStatic = unresolvedParams.filter(p => isStaticParam(p));
+    const missingDynamic = unresolvedParams.filter(p => !isStaticParam(p) && hasParamSource(p));
+    const unknown = unresolvedParams.filter(p => !isStaticParam(p) && !hasParamSource(p));
+    
+    let reason = `Missing path parameters: ${unresolvedParams.map(p => `{${p}}`).join(', ')}`;
+    
+    if (missingStatic.length > 0) {
+      reason += `\n  → Configure these in tokens.json params: ${missingStatic.join(', ')}`;
+    }
+    if (missingDynamic.length > 0) {
+      reason += `\n  → These could be fetched from API: ${missingDynamic.join(', ')}`;
+    }
+    if (unknown.length > 0) {
+      reason += `\n  → Unknown params (no source): ${unknown.join(', ')}`;
+    }
+    
+    return {
+      skip: true,
+      skipReason: reason,
+      config: null,
+      tokenType,
+      hasToken: !!token,
+      unresolvedParams
+    };
+  }
+  
+  const requestConfig = {
+    method: endpoint.method.toLowerCase(),
+    url: path,
+    headers: {}
+  };
+  
+  if (token) {
+    requestConfig.headers['Authorization'] = `Bearer ${token}`;
+  }
+  
+  // AI config
+  const aiConfig = {
+    enabled: config.ai?.enabled || false,
+    apiKey: config.ai?.anthropicApiKey
+  };
+  
+  const dynamicParams = context.params || {};
+  
+  // Generate query parameters (with AI if enabled)
+  const hasQueryParams = endpoint.parameters?.query?.some(p => p.required);
+  if (hasQueryParams || endpoint.parameters?.query?.length > 0) {
+    console.log(`  [AI Param Gen] Generating query params for ${endpoint.method} ${endpoint.path}...`);
+    const queryParams = await aiGenerateQueryParams(endpoint, staticParams, dynamicParams, aiConfig);
+    
+    // Add default pagination for list endpoints
+    if (endpoint.method === 'GET' && !endpoint.hasUidParam) {
+      if (!queryParams.page) queryParams.page = 1;
+      if (!queryParams.per_page) queryParams.per_page = 25;
+    }
+    
+    if (Object.keys(queryParams).length > 0) {
+      requestConfig.params = queryParams;
+    }
+  }
+  
+  // Generate request body (with AI if enabled)
+  if (['POST', 'PUT', 'PATCH'].includes(endpoint.method)) {
+    console.log(`  [AI Param Gen] Generating request body for ${endpoint.method} ${endpoint.path}...`);
+    let body = context.requestBody;
+    
+    if (!body) {
+      body = await aiGenerateRequestBody(endpoint, staticParams, dynamicParams, aiConfig);
+    }
+    
+    // Substitute any remaining placeholders
+    body = substituteBodyParams(body, staticParams, dynamicParams);
+    requestConfig.data = body;
+  }
+  
+  return {
+    skip: false,
+    config: requestConfig,
+    tokenType,
+    hasToken: !!token,
+    isFallbackToken: isFallback,
+    originalRequired
+  };
+}
+
+/**
+ * Check if a value is a placeholder that should be substituted
+ * @param {*} value - Value to check
+ * @returns {boolean}
+ */
+function isPlaceholderValue(value) {
+  if (value === null || value === undefined || value === '') return true;
+  if (typeof value !== 'string') return false;
+  
+  // Common placeholder patterns
+  const placeholders = [
+    'test_string',
+    'string',
+    'example',
+    'your-',
+    'placeholder',
+    '00000000-0000-0000-0000-000000000000' // UUID placeholder
+  ];
+  
+  const lowerValue = value.toLowerCase();
+  return placeholders.some(p => lowerValue.includes(p));
+}
+
+/**
+ * Substitute resolved parameters in request body
+ * Replaces placeholder values like "test_string" with actual resolved values
+ * @param {Object} body - Request body object
+ * @param {Object} staticParams - Static params from config (business_id, etc.)
+ * @param {Object} dynamicParams - Dynamically resolved params (client_uid, etc.)
+ * @returns {Object} Body with substituted values
+ */
+function substituteBodyParams(body, staticParams = {}, dynamicParams = {}) {
+  if (!body || typeof body !== 'object') return body;
+  
+  // Combine all available params
+  const allParams = { ...staticParams, ...dynamicParams };
+  
+  // Deep clone and substitute
+  const substitute = (obj) => {
+    if (Array.isArray(obj)) {
+      return obj.map(item => substitute(item));
+    }
+    
+    if (obj && typeof obj === 'object') {
+      const result = {};
+      for (const [key, value] of Object.entries(obj)) {
+        // Check if this key matches a known param and value is a placeholder
+        if (allParams[key] && isPlaceholderValue(value)) {
+          result[key] = allParams[key];
+        } else if (typeof value === 'object') {
+          result[key] = substitute(value);
+        } else {
+          result[key] = value;
+        }
+      }
+      return result;
+    }
+    
+    return obj;
+  };
+  
+  return substitute(body);
+}
+
+/**
+ * Check if a property name represents a uid/id field
+ * @param {string} propName - Property name
+ * @returns {boolean}
+ */
+function isUidField(propName) {
+  const lower = propName.toLowerCase();
+  return lower.endsWith('_uid') || 
+         lower.endsWith('_id') || 
+         lower === 'uid' || 
+         lower === 'id';
+}
+
+/**
+ * Generate a value for a required query parameter based on its schema
+ * @param {Object} param - Parameter definition from swagger
+ * @returns {*} Generated value or null
+ */
+function generateQueryParamValue(param) {
+  const schema = param.schema;
+  if (!schema) return null;
+  
+  // Use example if available on the param itself
+  if (param.example !== undefined) {
+    return param.example;
+  }
+  
+  // Use schema example
+  if (schema.example !== undefined) {
+    return schema.example;
+  }
+  
+  // Generate based on type and format
+  const type = schema.type;
+  const format = schema.format;
+  
+  if (type === 'string') {
+    // Handle date/time formats
+    if (format === 'date-time') {
+      // Generate start_time as now, end_time as 7 days from now
+      const now = new Date();
+      if (param.name.includes('start') || param.name.includes('from')) {
+        return now.toISOString();
+      } else if (param.name.includes('end') || param.name.includes('to') || param.name.includes('until')) {
+        const future = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days
+        return future.toISOString();
+      }
+      return now.toISOString();
+    }
+    if (format === 'date') {
+      const now = new Date();
+      if (param.name.includes('start') || param.name.includes('from')) {
+        return now.toISOString().split('T')[0];
+      } else if (param.name.includes('end') || param.name.includes('to') || param.name.includes('until')) {
+        const future = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        return future.toISOString().split('T')[0];
+      }
+      return now.toISOString().split('T')[0];
+    }
+    if (format === 'email') {
+      return 'test@example.com';
+    }
+    if (format === 'uuid') {
+      return '00000000-0000-0000-0000-000000000000';
+    }
+    if (format === 'uri') {
+      return 'https://example.com';
+    }
+    // Default string
+    return 'test_string';
+  }
+  
+  if (type === 'integer' || type === 'number') {
+    if (schema.minimum !== undefined) {
+      return schema.minimum;
+    }
+    return 1;
+  }
+  
+  if (type === 'boolean') {
+    return true;
+  }
+  
+  if (type === 'array') {
+    return [];
+  }
+  
+  return null;
+}
+
+/**
+ * Generate complete valid payload for POST/PUT requests
+ * Includes all documented properties with special uid/id handling
+ * @param {Object} endpoint - Endpoint object
+ * @param {Object} resolvedParams - Resolved uid/id parameters from context
+ * @returns {Object} Request payload
+ */
+function generateMinimalPayload(endpoint, resolvedParams = {}) {
   const schema = endpoint.requestSchema;
   
   if (!schema) {
     return {};
   }
   
-  // Try to generate minimal valid object from schema
-  return generateFromSchema(schema);
+  // Generate complete object from schema
+  return generateFromSchema(schema, schema.required || [], resolvedParams);
 }
 
 /**
- * Generate minimal object from JSON schema
+ * Generate complete object from JSON schema
+ * Includes all properties, handling uid/id fields specially
  * @param {Object} schema - JSON schema
+ * @param {string[]} requiredFields - Required field names
+ * @param {Object} resolvedParams - Resolved uid/id parameters
  * @returns {Object} Generated object
  */
-function generateFromSchema(schema) {
+function generateFromSchema(schema, requiredFields = [], resolvedParams = {}) {
   if (!schema) return {};
+  
+  // Handle allOf - merge all schemas
+  if (schema.allOf) {
+    const merged = {};
+    let mergedRequired = [...requiredFields];
+    for (const subSchema of schema.allOf) {
+      if (subSchema.required) {
+        mergedRequired = [...mergedRequired, ...subSchema.required];
+      }
+      Object.assign(merged, generateFromSchema(subSchema, mergedRequired, resolvedParams));
+    }
+    return merged;
+  }
+  
+  // Handle $ref - skip external refs (can't resolve at runtime)
+  if (schema.$ref) {
+    return {};
+  }
   
   if (schema.type === 'object') {
     const obj = {};
-    const required = schema.required || [];
+    const required = schema.required || requiredFields;
     const properties = schema.properties || {};
     
-    // Add required properties
-    for (const prop of required) {
-      if (properties[prop]) {
-        obj[prop] = generateValue(properties[prop]);
+    // Process ALL properties (not just required)
+    for (const [propName, propSchema] of Object.entries(properties)) {
+      const isRequired = required.includes(propName);
+      const isUid = isUidField(propName);
+      
+      // For uid/id fields, check if we have a resolved value
+      if (isUid) {
+        // Try to find a matching resolved param
+        const paramKey = propName;
+        const altKey = propName.replace(/_uid$/, '_id').replace(/_id$/, '_uid');
+        
+        if (resolvedParams[paramKey]) {
+          obj[propName] = resolvedParams[paramKey];
+        } else if (resolvedParams[altKey]) {
+          obj[propName] = resolvedParams[altKey];
+        } else if (isRequired) {
+          // Required uid/id with no resolved value - use placeholder
+          obj[propName] = generateValue(propSchema, propName, resolvedParams);
+        }
+        // Skip non-required uid/id fields with no resolved value
+        continue;
       }
+      
+      // For non-uid fields, include all of them with generated values
+      obj[propName] = generateValue(propSchema, propName, resolvedParams);
     }
     
     return obj;
   }
   
-  return generateValue(schema);
+  return generateValue(schema, '', resolvedParams);
 }
 
 /**
  * Generate a value based on schema type
  * @param {Object} schema - Property schema
+ * @param {string} propName - Property name (for uid/id handling)
+ * @param {Object} resolvedParams - Resolved parameters
  * @returns {*} Generated value
  */
-function generateValue(schema) {
+function generateValue(schema, propName = '', resolvedParams = {}) {
   if (!schema) return null;
+  
+  // For uid/id fields, try to find a matching resolved param
+  if (propName && isUidField(propName)) {
+    const altKey = propName.replace(/_uid$/, '_id').replace(/_id$/, '_uid');
+    if (resolvedParams[propName]) return resolvedParams[propName];
+    if (resolvedParams[altKey]) return resolvedParams[altKey];
+  }
+  
+  // Handle allOf - merge all schemas (e.g., config field with allOf)
+  if (schema.allOf) {
+    const merged = {};
+    for (const subSchema of schema.allOf) {
+      Object.assign(merged, generateValue(subSchema, propName, resolvedParams));
+    }
+    return merged;
+  }
+  
+  // Handle oneOf - use first option
+  if (schema.oneOf && schema.oneOf.length > 0) {
+    return generateValue(schema.oneOf[0], propName, resolvedParams);
+  }
+  
+  // Handle anyOf - use first option
+  if (schema.anyOf && schema.anyOf.length > 0) {
+    return generateValue(schema.anyOf[0], propName, resolvedParams);
+  }
+  
+  // Handle $ref that wasn't dereferenced (external refs)
+  if (schema.$ref) {
+    return {};
+  }
   
   // Use example if available
   if (schema.example !== undefined) {
@@ -250,12 +703,21 @@ function generateValue(schema) {
       return true;
     
     case 'array':
+      // Generate one item if items schema is provided
+      if (schema.items) {
+        const item = generateValue(schema.items, '', resolvedParams);
+        return item !== null ? [item] : [];
+      }
       return [];
     
     case 'object':
-      return generateFromSchema(schema);
+      return generateFromSchema(schema, schema.required || [], resolvedParams);
     
     default:
+      // No type specified but has properties - treat as object
+      if (schema.properties) {
+        return generateFromSchema(schema, schema.required || [], resolvedParams);
+      }
       return null;
   }
 }
@@ -352,6 +814,7 @@ function generateCurlCommand(requestConfig, baseUrl) {
 module.exports = {
   createApiClient,
   buildRequestConfig,
+  buildRequestConfigAsync,
   executeRequest,
   extractUidFromResponse,
   generateMinimalPayload,

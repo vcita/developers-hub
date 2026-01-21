@@ -14,13 +14,16 @@ const FAILURE_REASONS = {
   UNEXPECTED_STATUS_CODE: 'UNEXPECTED_STATUS_CODE',
   AUTH_FAILED: 'AUTH_FAILED',
   ENDPOINT_NOT_FOUND: 'ENDPOINT_NOT_FOUND',
+  RESOURCE_NOT_FOUND: 'RESOURCE_NOT_FOUND', // Resource/entity not found (404 with valid API response)
+  CONFLICT: 'CONFLICT', // 409 Conflict - operation cannot be performed due to current state
   TIMEOUT: 'TIMEOUT',
   REF_RESOLUTION_FAILED: 'REF_RESOLUTION_FAILED',
   RATE_LIMITED: 'RATE_LIMITED',
   SERVER_ERROR: 'SERVER_ERROR',
   NETWORK_ERROR: 'NETWORK_ERROR',
   DOC_ISSUE: 'DOC_ISSUE',
-  PARAM_NAME_MISMATCH: 'PARAM_NAME_MISMATCH'
+  PARAM_NAME_MISMATCH: 'PARAM_NAME_MISMATCH',
+  EXPECTED_ERROR: 'EXPECTED_ERROR' // API returned documented error response
 };
 
 // Friendly message templates
@@ -41,7 +44,13 @@ const FRIENDLY_MESSAGES = {
     `Authentication failed with ${tokenType} token. Verify the token is valid and has access to this endpoint.`,
   
   [FAILURE_REASONS.ENDPOINT_NOT_FOUND]: () => 
-    `Endpoint returned 404. Either the path is wrong in documentation or the resource doesn't exist.`,
+    `Endpoint not found (404). The API path may be incorrect in the documentation.`,
+  
+  [FAILURE_REASONS.RESOURCE_NOT_FOUND]: (resourceInfo) => 
+    `Resource not found (404). The requested ${resourceInfo || 'entity'} does not exist. This is a valid API response.`,
+  
+  [FAILURE_REASONS.CONFLICT]: (message) => 
+    `Conflict (409). ${message || 'The operation cannot be performed due to the current state of the resource.'}`,
   
   [FAILURE_REASONS.TIMEOUT]: (timeout) => 
     `Request timed out after ${timeout}ms. The endpoint may be slow or unavailable.`,
@@ -62,7 +71,10 @@ const FRIENDLY_MESSAGES = {
     `Documentation issue detected. The API call succeeded after correcting the request, but the documentation needs updating.`,
   
   [FAILURE_REASONS.PARAM_NAME_MISMATCH]: (original, correct) =>
-    `Documentation uses {${original}} but API expects {${correct}}. Update the OpenAPI spec.`
+    `Documentation uses {${original}} but API expects {${correct}}. Update the OpenAPI spec.`,
+  
+  [FAILURE_REASONS.EXPECTED_ERROR]: (status) =>
+    `API returned ${status} error response. This is expected behavior per documentation.`
 };
 
 /**
@@ -222,7 +234,23 @@ function validateAgainstSchema(response, schema, ajv = createValidator()) {
   
   const valid = validate(response);
   
+  // Check for undocumented fields (additional properties)
+  const undocumentedFields = findUndocumentedFields(response, processedSchema);
+  
   if (valid) {
+    // Even if valid, report undocumented fields as warnings
+    if (undocumentedFields.length > 0) {
+      return { 
+        valid: true, 
+        errors: [],
+        warnings: undocumentedFields.map(field => ({
+          reason: 'UNDOCUMENTED_FIELD',
+          path: field.path,
+          message: `Field "${field.field}" is not documented in schema`,
+          friendlyMessage: `API returned undocumented field "${field.field}" at ${field.path || 'root'}. Consider adding it to the documentation.`
+        }))
+      };
+    }
     return { valid: true, errors: [] };
   }
   
@@ -260,7 +288,106 @@ function validateAgainstSchema(response, schema, ajv = createValidator()) {
     };
   });
   
-  return { valid: false, errors };
+  return { valid: false, errors, warnings: undocumentedFields.map(field => ({
+    reason: 'UNDOCUMENTED_FIELD',
+    path: field.path,
+    message: `Field "${field.field}" is not documented in schema`,
+    friendlyMessage: `API returned undocumented field "${field.field}" at ${field.path || 'root'}. Consider adding it to the documentation.`
+  })) };
+}
+
+/**
+ * Find fields in response that are not documented in schema
+ * @param {*} data - Response data
+ * @param {Object} schema - JSON Schema
+ * @param {string} path - Current path
+ * @param {number} depth - Current recursion depth (to prevent infinite loops)
+ * @returns {Array} Array of undocumented field info
+ */
+function findUndocumentedFields(data, schema, path = '', depth = 0) {
+  const undocumented = [];
+  
+  // Prevent infinite recursion and skip deep nesting
+  if (depth > 5 || !data || typeof data !== 'object' || !schema) {
+    return undocumented;
+  }
+  
+  // Skip if schema has unresolved $ref (can't validate)
+  if (schema.$ref) {
+    return undocumented;
+  }
+  
+  // Handle arrays - only check first item to avoid noise
+  if (Array.isArray(data)) {
+    const itemSchema = schema.items;
+    if (itemSchema && data.length > 0) {
+      undocumented.push(...findUndocumentedFields(data[0], itemSchema, `${path}[0]`, depth + 1));
+    }
+    return undocumented;
+  }
+  
+  // Collect all documented properties from schema (handle complex compositions)
+  const schemaProperties = collectSchemaProperties(schema);
+  
+  // If schema allows additional properties or we couldn't determine properties, skip
+  if (schema.additionalProperties === true || Object.keys(schemaProperties).length === 0) {
+    return undocumented;
+  }
+  
+  // Check each field in the response
+  for (const key of Object.keys(data)) {
+    const fieldPath = path ? `${path}.${key}` : key;
+    
+    // Skip common response envelope fields that may not be in entity schemas
+    if (['success', 'status', 'message', 'meta', 'pagination'].includes(key) && !path) {
+      continue;
+    }
+    
+    if (!schemaProperties[key]) {
+      // Field is not documented
+      undocumented.push({ field: key, path: fieldPath });
+    } else if (schemaProperties[key] && data[key] && typeof data[key] === 'object') {
+      // Recursively check nested objects
+      undocumented.push(...findUndocumentedFields(data[key], schemaProperties[key], fieldPath, depth + 1));
+    }
+  }
+  
+  return undocumented;
+}
+
+/**
+ * Recursively collect all properties from a schema, handling allOf, oneOf, anyOf
+ * @param {Object} schema - JSON Schema
+ * @returns {Object} Merged properties object
+ */
+function collectSchemaProperties(schema) {
+  let properties = {};
+  
+  if (!schema) return properties;
+  
+  // Direct properties
+  if (schema.properties) {
+    properties = { ...properties, ...schema.properties };
+  }
+  
+  // Handle allOf - merge all properties
+  if (schema.allOf && Array.isArray(schema.allOf)) {
+    for (const subSchema of schema.allOf) {
+      properties = { ...properties, ...collectSchemaProperties(subSchema) };
+    }
+  }
+  
+  // Handle oneOf - use first as reference
+  if (schema.oneOf && Array.isArray(schema.oneOf) && schema.oneOf[0]) {
+    properties = { ...properties, ...collectSchemaProperties(schema.oneOf[0]) };
+  }
+  
+  // Handle anyOf - use first as reference
+  if (schema.anyOf && Array.isArray(schema.anyOf) && schema.anyOf[0]) {
+    properties = { ...properties, ...collectSchemaProperties(schema.anyOf[0]) };
+  }
+  
+  return properties;
 }
 
 /**
@@ -280,13 +407,16 @@ function buildValidationResult({
   request = null,
   suggestion = null
 }) {
-  const isPassing = status === 'PASS';
+  // PASS, WARN, and ERROR are "successful" statuses (include request/response without error details)
+  const isSuccessful = status === 'PASS' || status === 'WARN' || status === 'ERROR';
   
   const result = {
     endpoint: `${endpoint.method} ${endpoint.path}`,
     domain: endpoint.domain,
     method: endpoint.method,
     path: endpoint.path,
+    summary: endpoint.summary || null,
+    description: endpoint.description || null,
     status,
     httpStatus,
     duration: `${duration}ms`,
@@ -295,11 +425,13 @@ function buildValidationResult({
     details: null
   };
   
-  if (!isPassing) {
-    const friendlyMessage = errors.length > 0 
-      ? errors[0].friendlyMessage 
-      : FRIENDLY_MESSAGES[reason]?.() || reason;
-    
+  // Build friendlyMessage for all statuses that have a reason
+  const friendlyMessage = errors.length > 0 
+    ? errors[0].friendlyMessage 
+    : (reason ? (FRIENDLY_MESSAGES[reason]?.(httpStatus) || reason) : null);
+  
+  if (!isSuccessful) {
+    // FAIL or SKIP - include full error details
     result.details = {
       reason,
       friendlyMessage,
@@ -320,8 +452,12 @@ function buildValidationResult({
       } : null
     };
   } else {
-    // Include request/response in passing results for debugging
+    // PASS, WARN, ERROR - include request/response and any issues for debugging
     result.details = {
+      reason,
+      friendlyMessage, // Include for WARN/ERROR to show what the issue is
+      errors, // Include for WARN to show schema/doc issues
+      suggestion, // Include for WARN/ERROR
       request: request ? {
         url: request.url,
         method: request.method,
@@ -342,12 +478,72 @@ function buildValidationResult({
 }
 
 /**
+ * Check if response data indicates a "resource not found" (vs endpoint not found)
+ * @param {Object} responseData - Response body
+ * @returns {Object|null} - { isResourceNotFound: boolean, resourceInfo: string }
+ */
+function detectResourceNotFound(responseData) {
+  if (!responseData || typeof responseData !== 'object') {
+    return null;
+  }
+  
+  // Check for common API error response patterns
+  const hasApiStructure = responseData.success === false || 
+                          responseData.errors || 
+                          responseData.error ||
+                          responseData.message ||
+                          responseData.code;
+  
+  if (!hasApiStructure) {
+    return null;
+  }
+  
+  // Extract error message to get resource info
+  let errorMessage = '';
+  if (responseData.errors && Array.isArray(responseData.errors) && responseData.errors.length > 0) {
+    errorMessage = responseData.errors[0].message || responseData.errors[0].code || '';
+  } else if (responseData.error) {
+    errorMessage = typeof responseData.error === 'string' ? responseData.error : responseData.error.message || '';
+  } else if (responseData.message) {
+    errorMessage = responseData.message;
+  }
+  
+  // Check if the error indicates a resource not found (not endpoint)
+  const notFoundPatterns = [
+    /not found/i,
+    /does not exist/i,
+    /doesn't exist/i,
+    /no .* found/i,
+    /could not find/i,
+    /unable to find/i,
+    /invalid .* id/i,
+    /unknown .*/i
+  ];
+  
+  const isResourceNotFound = notFoundPatterns.some(pattern => pattern.test(errorMessage)) ||
+                             responseData.code === 'not_found' ||
+                             (responseData.errors?.[0]?.code === 'not_found');
+  
+  if (isResourceNotFound) {
+    // Try to extract resource name from message (e.g., "Chat not found" -> "Chat")
+    const resourceMatch = errorMessage.match(/^(\w+)\s+not found/i) ||
+                          errorMessage.match(/^(\w+)\s+does not exist/i);
+    const resourceInfo = resourceMatch ? resourceMatch[1] : 'resource';
+    
+    return { isResourceNotFound: true, resourceInfo };
+  }
+  
+  return null;
+}
+
+/**
  * Validate HTTP status code
  * @param {number} actualStatus - Actual HTTP status
  * @param {Object} expectedResponses - Expected responses from spec
+ * @param {Object} responseData - Response body (for distinguishing 404 types)
  * @returns {Object} { valid: boolean, error: Object|null }
  */
-function validateStatusCode(actualStatus, expectedResponses) {
+function validateStatusCode(actualStatus, expectedResponses, responseData = null) {
   const expectedCodes = Object.keys(expectedResponses || {}).map(Number);
   
   // Always accept documented status codes
@@ -368,12 +564,45 @@ function validateStatusCode(actualStatus, expectedResponses) {
   }
   
   if (actualStatus === 404) {
+    // Distinguish between endpoint not found vs resource not found
+    const resourceCheck = detectResourceNotFound(responseData);
+    
+    if (resourceCheck?.isResourceNotFound) {
+      return {
+        valid: false,
+        error: {
+          reason: FAILURE_REASONS.RESOURCE_NOT_FOUND,
+          expected: expectedCodes,
+          actual: actualStatus,
+          resourceInfo: resourceCheck.resourceInfo
+        }
+      };
+    }
+    
     return {
       valid: false,
       error: {
         reason: FAILURE_REASONS.ENDPOINT_NOT_FOUND,
         expected: expectedCodes,
         actual: actualStatus
+      }
+    };
+  }
+  
+  if (actualStatus === 409) {
+    // 409 Conflict - expected business error (e.g., duplicate resource, invalid state)
+    // Extract error message from response if available
+    const errorMessage = responseData?.errors?.[0]?.message || 
+                         responseData?.error?.message || 
+                         responseData?.message;
+    return {
+      valid: false,
+      error: {
+        reason: FAILURE_REASONS.CONFLICT,
+        expected: expectedCodes,
+        actual: actualStatus,
+        message: errorMessage,
+        isExpectedError: true // Flag to indicate this should be ERROR not FAIL
       }
     };
   }
@@ -466,7 +695,13 @@ function getSuggestion(reason, context = {}) {
       return `Check token validity and permissions. Ensure the token has access to this endpoint.`;
     
     case FAILURE_REASONS.ENDPOINT_NOT_FOUND:
-      return `Verify the endpoint path is correct in the documentation. Check if the resource exists.`;
+      return `Verify the endpoint path is correct in the documentation.`;
+    
+    case FAILURE_REASONS.RESOURCE_NOT_FOUND:
+      return `The endpoint works correctly but returned 404 because the test resource doesn't exist. This is expected behavior - consider adding test data or documenting 404 responses.`;
+    
+    case FAILURE_REASONS.CONFLICT:
+      return `The endpoint returned 409 Conflict, indicating the operation cannot be performed due to the current state (e.g., duplicate resource, invalid state). This is a valid API error response.`;
     
     case FAILURE_REASONS.RATE_LIMITED:
       return `Reduce request rate or wait before retrying. Consider using the conservative rate limit preset.`;

@@ -124,6 +124,10 @@ function setupEventListeners() {
   document.getElementById('select-all-btn')?.addEventListener('click', selectAll);
   document.getElementById('deselect-all-btn')?.addEventListener('click', deselectAll);
   document.getElementById('run-btn')?.addEventListener('click', runTests);
+  document.getElementById('stop-btn')?.addEventListener('click', stopTests);
+  
+  // Initialize report modal
+  ResultsViewer.initReportModal();
 }
 
 /**
@@ -271,6 +275,14 @@ async function runTests() {
 }
 
 /**
+ * Stop running tests
+ */
+async function stopTests() {
+  console.log('stopTests called');
+  await TestRunner.stop();
+}
+
+/**
  * Show warning message
  */
 function showWarning(message) {
@@ -299,6 +311,66 @@ function debounce(fn, delay) {
     timeout = setTimeout(() => fn.apply(this, args), delay);
   };
 }
+
+/**
+ * Reload swagger files from the server
+ * Use this after updating documentation to pick up changes without restarting
+ */
+async function reloadSwaggers() {
+  const btn = document.getElementById('reload-swaggers-btn');
+  const countEl = document.getElementById('endpoint-count');
+  
+  try {
+    // Show loading state
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '⏳ Reloading...';
+    }
+    
+    // Call reload endpoint
+    const response = await fetch('/api/reload', { method: 'POST' });
+    const data = await response.json();
+    
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || 'Failed to reload swaggers');
+    }
+    
+    // Reload endpoints in the app
+    await loadEndpoints();
+    
+    // Re-render with current filters
+    renderEndpoints();
+    
+    // Show success message
+    if (btn) {
+      btn.innerHTML = '✅ Reloaded!';
+      setTimeout(() => {
+        btn.innerHTML = '🔄 Reload Docs';
+        btn.disabled = false;
+      }, 2000);
+    }
+    
+    console.log(`Swagger files reloaded: ${data.message}`);
+    
+  } catch (error) {
+    console.error('Failed to reload swaggers:', error);
+    
+    if (btn) {
+      btn.innerHTML = '❌ Failed';
+      setTimeout(() => {
+        btn.innerHTML = '🔄 Reload Docs';
+        btn.disabled = false;
+      }, 2000);
+    }
+    
+    alert('Failed to reload swagger files: ' + error.message);
+  }
+}
+
+// Expose functions to window.App for onclick handlers
+window.App = {
+  reloadSwaggers
+};
 
 // Initialize on DOM ready
 document.addEventListener('DOMContentLoaded', initApp);

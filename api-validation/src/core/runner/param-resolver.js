@@ -58,7 +58,7 @@ const PARAM_SOURCES = {
   resource_type_uid: { 
     endpoint: '/v3/scheduling/resource_types', 
     field: 'uid',
-    arrayPath: 'data.resourceTypes'
+    arrayPath: 'data.resource_types'
   },
   
   // Payments / Sales
@@ -113,8 +113,8 @@ const PARAM_SOURCES = {
     arrayPath: 'data.product_orders'
   },
   estimate_uid: { 
-    endpoint: '/business/payments/v1/estimates', 
-    field: 'uid',
+    endpoint: '/platform/v1/estimates', 
+    field: 'id',
     arrayPath: 'data.estimates'
   },
   deposit_uid: { 
@@ -148,6 +148,18 @@ const PARAM_SOURCES = {
     arrayPath: 'data.scheduled_payments_rules'
   },
   
+  // AI / BizAI
+  ai_chat_uid: { 
+    endpoint: '/v3/ai/bizai_chats', 
+    field: 'uid',
+    arrayPath: 'data.bizai_chats'  // Note: no underscore between "biz" and "ai"
+  },
+  bizai_chat_uid: { 
+    endpoint: '/v3/ai/bizai_chats', 
+    field: 'uid',
+    arrayPath: 'data.bizai_chats'  // Note: no underscore between "biz" and "ai"
+  },
+  
   // Generic uid/id - these are typically resource-specific
   // and will be resolved from context or skipped
   uid: { 
@@ -170,6 +182,206 @@ const STATIC_PARAMS = [
   'directory_id',
   'directory_uid'
 ];
+
+/**
+ * Override list endpoints for Phase 2 auto-derivation
+ * Maps detail endpoint patterns to their actual list endpoints
+ * when the list is at a different path than would be derived
+ */
+const LIST_ENDPOINT_OVERRIDES = {
+  // Estimates: detail is at /business/payments/v1, list is at /platform/v1
+  '/business/payments/v1/estimates': '/platform/v1/estimates',
+  
+  // Add more overrides as needed:
+  // '/some/path/to/resource': '/different/path/to/list',
+};
+
+/**
+ * Context-aware parameter mapping
+ * When a generic param like {uid} appears in a path, this maps it to a specific param name
+ * based on the path context (e.g., /contacts/{uid} -> client_uid)
+ * Format: { pathContains: paramName }
+ */
+const PATH_CONTEXT_PARAMS = {
+  // contacts == clients, so {uid} in /contacts/ paths should use client_uid
+  '/contacts/': 'client_uid',
+  '/clients/': 'client_uid',
+  
+  // Add more context mappings as needed:
+  // '/invoices/': 'invoice_uid',
+  // '/bookings/': 'booking_uid',
+};
+
+/**
+ * Resolve a generic parameter name to a specific one based on path context
+ * @param {string} paramName - The generic param name (e.g., 'uid')
+ * @param {string} path - The full API path
+ * @returns {string} The resolved param name (e.g., 'client_uid')
+ */
+function resolveParamByContext(paramName, path) {
+  // Only apply context resolution for generic params like 'uid' or 'id'
+  if (paramName !== 'uid' && paramName !== 'id') {
+    return paramName;
+  }
+  
+  // Check each path context pattern
+  for (const [pathPattern, mappedParam] of Object.entries(PATH_CONTEXT_PARAMS)) {
+    if (path.includes(pathPattern)) {
+      console.log(`[Param Resolver] Context mapping: ${paramName} -> ${mappedParam} (path contains "${pathPattern}")`);
+      return mappedParam;
+    }
+  }
+  
+  return paramName;
+}
+
+/**
+ * Get the list endpoint for a given detail endpoint path
+ * Returns override if available, otherwise returns the derived path
+ * @param {string} derivedListPath - The path derived by stripping trailing param
+ * @returns {string} The actual list endpoint to use
+ */
+function getListEndpoint(derivedListPath) {
+  return LIST_ENDPOINT_OVERRIDES[derivedListPath] || derivedListPath;
+}
+
+/**
+ * Derive list endpoint from a detail endpoint path
+ * Works for any path ending with a parameter like /{uid}, /{id}, /{client_package_id}, etc.
+ * @param {string} path - API path (e.g., '/v3/license/subscriptions/{uid}' or '/business/payments/v1/client_packages/{client_package_id}')
+ * @returns {Object|null} { listEndpoint, paramName } or null if not derivable
+ */
+function deriveListEndpoint(path) {
+  // Match paths ending with any /{param_name} pattern
+  const match = path.match(/^(.+)\/\{([a-z_]+)\}$/);
+  if (!match) return null;
+  
+  return {
+    listEndpoint: match[1],
+    paramName: match[2]
+  };
+}
+
+/**
+ * Generate a resource-specific key for caching derived UIDs
+ * @param {string} path - Original path with {uid} or {id}
+ * @returns {string} Cache key like 'license_subscriptions_uid'
+ */
+function generateResourceKey(path) {
+  // Remove version prefix and parameter placeholders
+  const cleaned = path
+    .replace(/^\/v\d+\//, '')  // Remove /v3/ etc
+    .replace(/^\/business\//, '')  // Remove /business/ prefix
+    .replace(/^\/platform\/v\d+\//, '')  // Remove /platform/v1/ etc
+    .replace(/\{[^}]+\}/g, '')  // Remove all {param} placeholders
+    .replace(/\/+/g, '_')  // Replace slashes with underscores
+    .replace(/^_|_$/g, '');  // Trim leading/trailing underscores
+  
+  // Extract the param name (uid or id)
+  const match = path.match(/\{(uid|id)\}$/);
+  const paramName = match ? match[1] : 'uid';
+  
+  return `${cleaned}_${paramName}`;
+}
+
+/**
+ * Smart extraction of uid/id from API response
+ * Handles various common response patterns
+ * @param {Object} response - API response data
+ * @param {string} paramName - Parameter name (e.g., 'uid', 'id', 'client_package_id')
+ * @returns {string|null} Extracted value or null
+ */
+function smartExtractUid(response, paramName = 'uid') {
+  if (!response || typeof response !== 'object') return null;
+  
+  // Build list of fields to check - try the param name and common id fields
+  const fieldsToCheck = [
+    paramName,           // e.g., 'client_package_id'
+    'uid',               // Common standard field
+    'id',                // Another common field
+  ];
+  
+  // If param ends with _id or _uid, also try without suffix
+  // e.g., 'client_package_id' → also try 'client_package_uid'
+  if (paramName.endsWith('_id')) {
+    fieldsToCheck.push(paramName.replace(/_id$/, '_uid'));
+  } else if (paramName.endsWith('_uid')) {
+    fieldsToCheck.push(paramName.replace(/_uid$/, '_id'));
+  }
+  
+  /**
+   * Extract first matching field from an item
+   */
+  function extractFromItem(item) {
+    if (!item || typeof item !== 'object') return null;
+    for (const field of fieldsToCheck) {
+      if (item[field]) return item[field];
+    }
+    return null;
+  }
+  
+  // Try common patterns in order of likelihood
+  const patterns = [
+    // Pattern 1: { data: { items: [...] } }
+    () => {
+      const items = response.data?.items;
+      if (Array.isArray(items) && items.length > 0) {
+        return extractFromItem(items[0]);
+      }
+      return null;
+    },
+    // Pattern 2: { data: { <resource_name>: [...] } } - find first array in data
+    () => {
+      if (response.data && typeof response.data === 'object') {
+        for (const [key, value] of Object.entries(response.data)) {
+          if (Array.isArray(value) && value.length > 0) {
+            return extractFromItem(value[0]);
+          }
+        }
+      }
+      return null;
+    },
+    // Pattern 3: { data: [...] } - data is directly an array
+    () => {
+      if (Array.isArray(response.data) && response.data.length > 0) {
+        return extractFromItem(response.data[0]);
+      }
+      return null;
+    },
+    // Pattern 4: { items: [...] }
+    () => {
+      if (Array.isArray(response.items) && response.items.length > 0) {
+        return extractFromItem(response.items[0]);
+      }
+      return null;
+    },
+    // Pattern 5: Response is directly an array
+    () => {
+      if (Array.isArray(response) && response.length > 0) {
+        return extractFromItem(response[0]);
+      }
+      return null;
+    },
+    // Pattern 6: Fallback - find first array anywhere in response
+    () => {
+      for (const [key, value] of Object.entries(response)) {
+        if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'object') {
+          const extracted = extractFromItem(value[0]);
+          if (extracted) return extracted;
+        }
+      }
+      return null;
+    }
+  ];
+  
+  // Try each pattern until one works
+  for (const pattern of patterns) {
+    const result = pattern();
+    if (result) return result;
+  }
+  
+  return null;
+}
 
 /**
  * Extract a value from an object using dot notation path
@@ -415,13 +627,20 @@ function createParamResolver(config) {
 module.exports = {
   PARAM_SOURCES,
   STATIC_PARAMS,
+  LIST_ENDPOINT_OVERRIDES,
+  PATH_CONTEXT_PARAMS,
   isStaticParam,
   hasParamSource,
   getParamSource,
+  getListEndpoint,
   extractPathParams,
   analyzePathParams,
   substitutePath,
   extractParamFromResponse,
   createParamResolver,
-  getNestedValue
+  getNestedValue,
+  deriveListEndpoint,
+  generateResourceKey,
+  smartExtractUid,
+  resolveParamByContext
 };

@@ -6,8 +6,10 @@
     "version": "3.0",
     "x-generated": {
       "sourceFiles": [
-        "operatorTokens.json",
+        "access_control.json",
         "staff.json",
+        "online_profiles.json",
+        "operatorTokens.json",
         "license.json",
         "operatorCapabilities.json",
         "oauth.json",
@@ -15,11 +17,30 @@
         "staff.json",
         "accounts.json",
         "legacy_v1_platform.json",
-        "access_control.json",
-        "online_profiles.json",
         "staff_member.json"
       ],
       "pathNormalizations": [
+        {
+          "file": "online_profiles.json",
+          "basePath": "/v3/business_administration",
+          "transformations": [
+            {
+              "original": "/online_profiles/{business_uid}",
+              "normalized": "/v3/business_administration/online_profiles/{business_uid}",
+              "basePath": "/v3/business_administration"
+            },
+            {
+              "original": "/online_profiles",
+              "normalized": "/v3/business_administration/online_profiles",
+              "basePath": "/v3/business_administration"
+            },
+            {
+              "original": "/online_profiles/{uid}",
+              "normalized": "/v3/business_administration/online_profiles/{uid}",
+              "basePath": "/v3/business_administration"
+            }
+          ]
+        },
         {
           "file": "license.json",
           "basePath": "/v3",
@@ -264,27 +285,6 @@
               "basePath": "/platform/v1"
             }
           ]
-        },
-        {
-          "file": "online_profiles.json",
-          "basePath": "/v3/business_administration",
-          "transformations": [
-            {
-              "original": "/online_profiles/{business_uid}",
-              "normalized": "/v3/business_administration/online_profiles/{business_uid}",
-              "basePath": "/v3/business_administration"
-            },
-            {
-              "original": "/online_profiles",
-              "normalized": "/v3/business_administration/online_profiles",
-              "basePath": "/v3/business_administration"
-            },
-            {
-              "original": "/online_profiles/{uid}",
-              "normalized": "/v3/business_administration/online_profiles/{uid}",
-              "basePath": "/v3/business_administration"
-            }
-          ]
         }
       ],
       "pathConflicts": [],
@@ -310,16 +310,158 @@
     }
   ],
   "paths": {
-    "/v3/operators/operator_business_tokens": {
+    "/v3/access_control/business_roles": {
+      "get": {
+        "summary": "Get all BusinessRoles",
+        "description": "Get a list of BusinessRoles\n\nAvailable for **Staff Tokens**",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number of results.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 10000,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "per_page",
+            "required": false,
+            "in": "query",
+            "description": "How many items to return per page. Max: 100",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Sort by fields. Example: sort=created_at:asc,updated_at:desc",
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "updated_at:desc",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/BusinessRolesList"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Business Role"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
       "post": {
-        "summary": "Create an OperatorBusinessToken",
-        "description": "Create an OperatorBusinessToken\n\nAvailable for **operators Tokens**",
+        "summary": "Create a BusinessRole",
+        "description": "Create a new role for a business\n\nAvailable for **Staff Tokens**",
         "parameters": [],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateOperatorBusinessTokenDTO"
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "description": "A unique readable code for the role"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "The role name as it's presented in the UI. By default, it will be assigned from the original permission, but can be overridden for a specific business"
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "The role description as it’s presented in the UI. By default, it will be assigned from the original permission, but can be overridden for a specific business"
+                  },
+                  "permissions": {
+                    "type": "array",
+                    "description": "A list of permissions that are assigned to the role by default",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "description": "The unique identifier (key) of the Permission"
+                        },
+                        "allow": {
+                          "type": "boolean",
+                          "description": "A flag indicating if this permission is by default assigned to the role"
+                        }
+                      }
+                    }
+                  },
+                  "is_editable": {
+                    "type": "boolean",
+                    "description": "A flag to indicate if the role can be edited by the business. By default, system roles are not editable. Can not be changed after creation",
+                    "default": true
+                  }
+                },
+                "required": [
+                  "code",
+                  "name",
+                  "description",
+                  "permissions"
+                ],
+                "example": {
+                  "code": "admin",
+                  "name": "Admin",
+                  "description": "Admin role. Typically has access to all features in the system",
+                  "is_editable": true,
+                  "permissions": [
+                    {
+                      "key": "payments.invoices.export",
+                      "allow": true
+                    },
+                    {
+                      "key": "payments.invoices.import",
+                      "allow": true
+                    },
+                    {
+                      "key": "payments.invoices.view",
+                      "allow": true
+                    },
+                    {
+                      "key": "payments.invoices.delete",
+                      "allow": true
+                    },
+                    {
+                      "key": "payments.invoices.create",
+                      "allow": true
+                    }
+                  ]
+                }
               }
             }
           }
@@ -337,7 +479,7 @@
                     {
                       "properties": {
                         "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/operators/operatorBusinessToken.json"
+                          "$ref": "https://vcita.github.io/developers-hub/entities/access_control/businessRole.json"
                         }
                       }
                     }
@@ -348,7 +490,852 @@
           }
         },
         "tags": [
-          "Operator Business Tokens"
+          "Business Role"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/access_control/business_roles/{uid}": {
+      "get": {
+        "summary": "Retrieve a BusinessRole",
+        "description": "Retrieve a specific BusinessRole  based on it’s unique identifier (UID)\n\nAvailable for **Staff Tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the BusinessRole",
+            "schema": {
+              "type": "string"
+            },
+            "example": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/access_control/businessRole.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Business Role"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "put": {
+        "summary": "Update a BusinessRole",
+        "description": "Create a new role for a business\n\nAvailable for **Staff Tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the BusinessRole",
+            "schema": {
+              "type": "string"
+            },
+            "example": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "The role name as it's presented in the UI. By default, it will be assigned from the original permission, but can be overriden for a specific business"
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "The role description as it’s presented in the UD. By default, will be assigned from the original permission, but can be overriden for a specific business"
+                  },
+                  "permissions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "description": "The unique identifier (key) of the Permission"
+                        },
+                        "allow": {
+                          "type": "boolean",
+                          "description": "A flag indicating if this permission is by default assigned to the role"
+                        }
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "uid"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/access_control/businessRole.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Business Role"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "summary": "Delete a BusinessRole",
+        "description": "Delete a specific BusinessRole  based on it’s unique identifier (UID)\n\nAvailable for **Staff Tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the BusinessRole",
+            "schema": {
+              "type": "string"
+            },
+            "example": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Business Role"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/access_control/permissions": {
+      "get": {
+        "summary": "Get all Permissions",
+        "description": "Get a list of Permissions\n\nAvailable for **Staff Tokens**",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number of results.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 10000,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "per_page",
+            "required": false,
+            "in": "query",
+            "description": "How many items to return per page. Max: 100",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Sort by fields. Example: sort=created_at:asc,updated_at:desc",
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "position:desc",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/PermissionsList"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Permission"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/access_control/staff_business_roles": {
+      "get": {
+        "summary": "Get all StaffBusinessRoles",
+        "description": "Get a list of StaffBusinessRoles\n\nAvailable for **Staff Tokens**",
+        "parameters": [
+          {
+            "name": "staff_uid",
+            "required": false,
+            "in": "query",
+            "description": "The unique identifier (UID) of the business account",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "business_role_uid",
+            "required": false,
+            "in": "query",
+            "description": "The unique identifier (UID) of the business account",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number of results.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 10000,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "per_page",
+            "required": false,
+            "in": "query",
+            "description": "How many items to return per page. Max: 100",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Sort by fields. Example: sort=created_at:asc,updated_at:desc",
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "updated_at:desc",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/StaffBusinessRolesList"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Staff Business Role"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "Create a StaffBusinessRole",
+        "description": "Create a new StaffBusinessRole for a staff\n\nAvailable for **Staff Tokens**",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "staff_uid": {
+                    "type": "string",
+                    "description": "The unique identifier (UID) of the staff member"
+                  },
+                  "business_role_uid": {
+                    "type": "string",
+                    "description": "The unique identifier (UID) of the associated StaffBusinessRole"
+                  }
+                },
+                "required": [
+                  "staff_uid",
+                  "business_role_uid"
+                ],
+                "example": {
+                  "staff_uid": "d290f1ee-6c54-4b01-90e6-d701748f0851",
+                  "business_role_uid": "d290f1ee-6c54-4b01-90e6-d701748f0851"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/access_control/staffBusinessRole.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Staff Business Role"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/access_control/staff_business_roles/{staff_uid}": {
+      "get": {
+        "summary": "Retrieve a StaffBusinessRole",
+        "description": "Retrieve a StaffBusinessRole based on the unique identifier of staff_uid (staff_uid)\n\nAvailable for **Staff Tokens**",
+        "parameters": [
+          {
+            "name": "staff_uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the staff member assigned to this BusinessRole",
+            "schema": {
+              "type": "string"
+            },
+            "example": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/access_control/staffBusinessRole.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Staff Business Role"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "put": {
+        "summary": "Update a StaffBusinessRole",
+        "description": "Update the business role for a staff member. **All overrides will be removed** and user will need to reapply them if the old role is reassigned.\n\nAvailable for **Staff Tokens**",
+        "parameters": [
+          {
+            "name": "staff_uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the StaffBusinessRole",
+            "schema": {
+              "type": "string"
+            },
+            "example": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "business_role_uid": {
+                    "type": "string",
+                    "description": "The unique identifier (UID) of the BusinessRole assigned"
+                  }
+                },
+                "required": [
+                  "staff_uid",
+                  "business_role_uid"
+                ],
+                "example": {
+                  "business_role_uid": "d290f1ee-6c54-4b01-90e6-d701748f0851"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/access_control/staffBusinessRole.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Staff Business Role"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/access_control/staff_permission_overrides_lists/{staff_uid}": {
+      "get": {
+        "summary": "Retrieve a Staff Permissions Overrides List",
+        "description": "Retrieve a StaffPermissionOverrideList based on a staff member's unique identifier (staff_uid)\n\nAvailable for **Staff Tokens**",
+        "parameters": [
+          {
+            "name": "staff_uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the staff member",
+            "schema": {
+              "type": "string"
+            },
+            "example": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/access_control/staffPermissionOverridesList.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Staff Permission Override List"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "put": {
+        "summary": "Update a Staff Permissions Overrides List",
+        "description": "Update a Staff Permission Overrides List based on staff UID and a list of permissions. The list supplied will append new permissions and override exsiting permissions assigned to this staff.\n\nAvailable for **Staff Tokens**",
+        "parameters": [
+          {
+            "name": "staff_uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the staff member",
+            "schema": {
+              "type": "string"
+            },
+            "example": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "permissions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "key": {
+                          "type": "string",
+                          "description": "The unique identifier (UID) of the Permission"
+                        },
+                        "state": {
+                          "type": "string",
+                          "description": "allow, deny or inherit. When inherit is used, the permission override is removed and the default permission from the BusinessRole is used",
+                          "enum": [
+                            "allow",
+                            "deny",
+                            "inherit"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "staff_uid",
+                  "permissions"
+                ],
+                "example": {
+                  "staff_uid": "d290f1ee-6c54-4b01-90e6-d701748f0851",
+                  "permissions": [
+                    {
+                      "key": "payments.invoices.export",
+                      "state": "allow"
+                    },
+                    {
+                      "key": "payments.invoices.import",
+                      "state": "allow"
+                    },
+                    {
+                      "key": "payments.invoices.view",
+                      "state": "deny"
+                    },
+                    {
+                      "key": "payments.invoices.delete",
+                      "state": "inherit"
+                    },
+                    {
+                      "key": "payments.invoices.create",
+                      "state": "allow"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/access_control/staffPermissionOverridesList.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Staff Permission Override List"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "summary": "Remove all permission overrides",
+        "description": "Removes all assigned overrides based on a staff member's unique identifier (staff_uid).\n\nThis will return user to its original Business Role defaults\n\nAvailable for **Staff Tokens**",
+        "parameters": [
+          {
+            "name": "staff_uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the staff member",
+            "schema": {
+              "type": "string"
+            },
+            "example": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Staff Permission Override List"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/access_control/staff_permission_overrides_lists/": {
+      "get": {
+        "summary": "Get all Staff Permission Overrides Lists",
+        "description": "Get a list of all StaffPermissionOverrideList in the business (if used by a user that has permissions to view and manage permissions to staff in the business)\n\nAvailable for **Staff Tokens**",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number of results.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 10000,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "per_page",
+            "required": false,
+            "in": "query",
+            "description": "How many items to return per page. Max: 100",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Sort by fields. Example: sort=created_at:asc,updated_at:desc",
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "updated_at:desc",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/StaffPermissionOverridesList"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Staff Permission Override List"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/access_control/staff_permissions/": {
+      "get": {
+        "summary": "Get All StaffPermissions",
+        "description": "Get a list of staff Permissions. You must filter the list using a list of permissions keys\nUsed to validate if a user can or can not access features\n\nAvailable for **Staff Tokens**",
+        "parameters": [
+          {
+            "name": "keys",
+            "required": true,
+            "in": "query",
+            "description": "A list of unique identifier of the Permissions you wish to check",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "example": "payments.invoices.export"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/StaffPermissionsList"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Staff Permission"
         ],
         "security": [
           {
@@ -368,7 +1355,7 @@
           }
         ],
         "summary": "Get relevant quick action lists per staff",
-        "description": "A quick action entity represents a configurable shortcut displayed in the staff's dashboard, allowing personalized access to key system functions.",
+        "description": "A quick action entity represents a configurable shortcut displayed in the staff's dashboard, allowing personalized access to key system functions. Available for **Staff tokens**.",
         "parameters": [
           {
             "name": "show_only_visible",
@@ -449,7 +1436,7 @@
           }
         ],
         "summary": "Update quick action lists for a specific staff member",
-        "description": "Update the order and visibility of quick actions for a specific staff member",
+        "description": "Update the order and visibility of quick actions for a specific staff member. Available for **Staff tokens**.",
         "parameters": [
           {
             "name": "staff_uid",
@@ -620,6 +1607,601 @@
             }
           }
         }
+      }
+    },
+    "/v3/business_administration/online_profiles/{business_uid}": {
+      "get": {
+        "summary": "Get Online Profile",
+        "description": "Retrieve the online profile for a specific business. This is a **public endpoint** that does not require authentication.\n\nNote: Returns 200 with null data even if business doesn't exist. Available for **Staff tokens**.",
+        "operationId": "getOnlineProfilePublic",
+        "parameters": [
+          {
+            "name": "business_uid",
+            "in": "path",
+            "required": true,
+            "description": "The unique identifier of the business.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Online profile retrieved successfully. Data will be null if no profile exists or business not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "online_profile": {
+                              "oneOf": [
+                                {
+                                  "$ref": "https://vcita.github.io/developers-hub/entities/business_administration/onlineProfile.json"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "examples": {
+                  "with_privacy_policy": {
+                    "summary": "Profile with privacy policy URL",
+                    "value": {
+                      "success": true,
+                      "data": {
+                        "online_profile": {
+                          "uid": "abc123",
+                          "business_uid": "d290f1ee26c54",
+                          "supported_languages": [
+                            "en",
+                            "es"
+                          ],
+                          "privacy_policy_url": "https://example.com/privacy",
+                          "created_at": "2026-01-12T10:30:00Z",
+                          "updated_at": "2026-01-12T10:30:00Z"
+                        }
+                      }
+                    }
+                  },
+                  "no_policy": {
+                    "summary": "Profile without privacy policy configured",
+                    "value": {
+                      "success": true,
+                      "data": {
+                        "online_profile": {
+                          "uid": "abc123",
+                          "business_uid": "d290f1ee26c54",
+                          "supported_languages": [
+                            "en"
+                          ],
+                          "privacy_policy_url": null,
+                          "created_at": "2026-01-12T10:30:00Z",
+                          "updated_at": "2026-01-12T10:30:00Z"
+                        }
+                      }
+                    }
+                  },
+                  "not_found": {
+                    "summary": "Business not found or no profile",
+                    "value": {
+                      "success": true,
+                      "data": {
+                        "online_profile": null
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Online Profiles"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/business_administration/online_profiles": {
+      "get": {
+        "summary": "Get My Online Profile",
+        "description": "Retrieve the online profile for the business associated with the authenticated token. Available for **Staff tokens only**.",
+        "operationId": "getMyOnlineProfile",
+        "responses": {
+          "200": {
+            "description": "Online profiles retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "online_profiles": {
+                          "oneOf": [
+                            {
+                              "type": "array",
+                              "items": {
+                                "$ref": "https://vcita.github.io/developers-hub/entities/business_administration/onlineProfile.json"
+                              }
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "with_profile": {
+                    "summary": "Online profile exists",
+                    "value": {
+                      "success": true,
+                      "data": {
+                        "online_profiles": [
+                          {
+                            "uid": "abc123",
+                            "business_uid": "d290f1ee26c54",
+                            "supported_languages": [
+                              "en",
+                              "es"
+                            ],
+                            "privacy_policy_url": "https://example.com/privacy",
+                            "created_at": "2026-01-12T10:30:00Z",
+                            "updated_at": "2026-01-12T10:30:00Z"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "no_profile": {
+                    "summary": "No online profile configured",
+                    "value": {
+                      "success": true,
+                      "data": {
+                        "online_profiles": null
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Missing or invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Authentication required"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Online Profiles"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "Create Online Profile",
+        "description": "Create a new online profile for the business. The business is determined from the authenticated token. Available for **Staff tokens** with `can_access_admin_account?` permission.",
+        "operationId": "createOnlineProfile",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOnlineProfileRequest"
+              },
+              "examples": {
+                "with_languages": {
+                  "summary": "Create with supported languages only",
+                  "value": {
+                    "supported_languages": [
+                      "en",
+                      "es",
+                      "fr"
+                    ]
+                  }
+                },
+                "with_privacy_policy": {
+                  "summary": "Create with privacy policy URL",
+                  "value": {
+                    "supported_languages": [
+                      "en"
+                    ],
+                    "privacy_policy_url": "https://example.com/privacy"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Online profile created successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/business_administration/onlineProfile.json"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "uid": "abc123",
+                    "business_uid": "d290f1ee26c54",
+                    "supported_languages": [
+                      "en",
+                      "es"
+                    ],
+                    "privacy_policy_url": "https://example.com/privacy",
+                    "created_at": "2026-01-12T10:30:00Z",
+                    "updated_at": "2026-01-12T10:30:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Client token or missing authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Client is not authorized"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Staff token lacks required permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Access denied"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict - Online profile already exists for this business",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "conflict",
+                      "message": "Online profile already exists for this business"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "privacy_policy_url",
+                      "code": "invalid",
+                      "message": "URL must be a valid HTTP or HTTPS URL"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Online Profiles"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/business_administration/online_profiles/{uid}": {
+      "put": {
+        "summary": "Update Online Profile",
+        "description": "Update an existing online profile. Available for **Staff tokens** with `can_access_admin_account?` permission.",
+        "operationId": "updateOnlineProfile",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "The unique identifier of the online profile.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOnlineProfileRequest"
+              },
+              "examples": {
+                "update_languages": {
+                  "summary": "Update supported languages only",
+                  "value": {
+                    "supported_languages": [
+                      "en",
+                      "es",
+                      "de"
+                    ]
+                  }
+                },
+                "set_privacy_policy": {
+                  "summary": "Set privacy policy URL",
+                  "value": {
+                    "privacy_policy_url": "https://newsite.com/privacy-policy"
+                  }
+                },
+                "clear_policy_empty": {
+                  "summary": "Clear privacy policy (empty string)",
+                  "value": {
+                    "privacy_policy_url": ""
+                  }
+                },
+                "clear_policy_null": {
+                  "summary": "Clear privacy policy (null)",
+                  "value": {
+                    "privacy_policy_url": null
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Online profile updated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/business_administration/onlineProfile.json"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "uid": "abc123",
+                    "business_uid": "d290f1ee26c54",
+                    "supported_languages": [
+                      "en",
+                      "es"
+                    ],
+                    "privacy_policy_url": "https://newsite.com/privacy-policy",
+                    "created_at": "2026-01-12T10:30:00Z",
+                    "updated_at": "2026-01-12T14:00:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Client token or missing authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Client is not authorized"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Staff token lacks required permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Access denied"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - Online profile not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Online profile not found"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "privacy_policy_url",
+                      "code": "invalid",
+                      "message": "URL must be a valid HTTP or HTTPS URL"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Online Profiles"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/operators/operator_business_tokens": {
+      "post": {
+        "summary": "Create an OperatorBusinessToken",
+        "description": "Create an OperatorBusinessToken\n\nAvailable for **operators Tokens**",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOperatorBusinessTokenDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/operators/operatorBusinessToken.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Operator Business Tokens"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       }
     },
     "/v3/license/offerings": {
@@ -7673,1588 +9255,6 @@
         ]
       }
     },
-    "/v3/access_control/business_roles": {
-      "get": {
-        "summary": "Get all BusinessRoles",
-        "description": "Get a list of BusinessRoles\n\nAvailable for **Staff Tokens**",
-        "parameters": [
-          {
-            "name": "page",
-            "required": false,
-            "in": "query",
-            "description": "Page number of results.",
-            "schema": {
-              "minimum": 1,
-              "maximum": 10000,
-              "default": 1,
-              "type": "number"
-            }
-          },
-          {
-            "name": "per_page",
-            "required": false,
-            "in": "query",
-            "description": "How many items to return per page. Max: 100",
-            "schema": {
-              "minimum": 1,
-              "maximum": 100,
-              "default": 25,
-              "type": "number"
-            }
-          },
-          {
-            "description": "Sort by fields. Example: sort=created_at:asc,updated_at:desc",
-            "name": "sort",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "default": "updated_at:desc",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/BusinessRolesList"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Business Role"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      },
-      "post": {
-        "summary": "Create a BusinessRole",
-        "description": "Create a new role for a business\n\nAvailable for **Staff Tokens**",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "code": {
-                    "type": "string",
-                    "description": "A unique readable code for the role"
-                  },
-                  "name": {
-                    "type": "string",
-                    "description": "The role name as it's presented in the UI. By default, it will be assigned from the original permission, but can be overridden for a specific business"
-                  },
-                  "description": {
-                    "type": "string",
-                    "description": "The role description as it’s presented in the UI. By default, it will be assigned from the original permission, but can be overridden for a specific business"
-                  },
-                  "permissions": {
-                    "type": "array",
-                    "description": "A list of permissions that are assigned to the role by default",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "key": {
-                          "type": "string",
-                          "description": "The unique identifier (key) of the Permission"
-                        },
-                        "allow": {
-                          "type": "boolean",
-                          "description": "A flag indicating if this permission is by default assigned to the role"
-                        }
-                      }
-                    }
-                  },
-                  "is_editable": {
-                    "type": "boolean",
-                    "description": "A flag to indicate if the role can be edited by the business. By default, system roles are not editable. Can not be changed after creation",
-                    "default": true
-                  }
-                },
-                "required": [
-                  "code",
-                  "name",
-                  "description",
-                  "permissions"
-                ],
-                "example": {
-                  "code": "admin",
-                  "name": "Admin",
-                  "description": "Admin role. Typically has access to all features in the system",
-                  "is_editable": true,
-                  "permissions": [
-                    {
-                      "key": "payments.invoices.export",
-                      "allow": true
-                    },
-                    {
-                      "key": "payments.invoices.import",
-                      "allow": true
-                    },
-                    {
-                      "key": "payments.invoices.view",
-                      "allow": true
-                    },
-                    {
-                      "key": "payments.invoices.delete",
-                      "allow": true
-                    },
-                    {
-                      "key": "payments.invoices.create",
-                      "allow": true
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/access_control/businessRole.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Business Role"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/access_control/business_roles/{uid}": {
-      "get": {
-        "summary": "Retrieve a BusinessRole",
-        "description": "Retrieve a specific BusinessRole  based on it’s unique identifier (UID)\n\nAvailable for **Staff Tokens**",
-        "parameters": [
-          {
-            "name": "uid",
-            "required": true,
-            "in": "path",
-            "description": "Unique identifier of the BusinessRole",
-            "schema": {
-              "type": "string"
-            },
-            "example": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/access_control/businessRole.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Business Role"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      },
-      "put": {
-        "summary": "Update a BusinessRole",
-        "description": "Create a new role for a business\n\nAvailable for **Staff Tokens**",
-        "parameters": [
-          {
-            "name": "uid",
-            "required": true,
-            "in": "path",
-            "description": "Unique identifier of the BusinessRole",
-            "schema": {
-              "type": "string"
-            },
-            "example": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "description": "The role name as it's presented in the UI. By default, it will be assigned from the original permission, but can be overriden for a specific business"
-                  },
-                  "description": {
-                    "type": "string",
-                    "description": "The role description as it’s presented in the UD. By default, will be assigned from the original permission, but can be overriden for a specific business"
-                  },
-                  "permissions": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "key": {
-                          "type": "string",
-                          "description": "The unique identifier (key) of the Permission"
-                        },
-                        "allow": {
-                          "type": "boolean",
-                          "description": "A flag indicating if this permission is by default assigned to the role"
-                        }
-                      }
-                    }
-                  }
-                },
-                "required": [
-                  "uid"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/access_control/businessRole.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Business Role"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      },
-      "delete": {
-        "summary": "Delete a BusinessRole",
-        "description": "Delete a specific BusinessRole  based on it’s unique identifier (UID)\n\nAvailable for **Staff Tokens**",
-        "parameters": [
-          {
-            "name": "uid",
-            "required": true,
-            "in": "path",
-            "description": "Unique identifier of the BusinessRole",
-            "schema": {
-              "type": "string"
-            },
-            "example": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Business Role"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/access_control/permissions": {
-      "get": {
-        "summary": "Get all Permissions",
-        "description": "Get a list of Permissions\n\nAvailable for **Staff Tokens**",
-        "parameters": [
-          {
-            "name": "page",
-            "required": false,
-            "in": "query",
-            "description": "Page number of results.",
-            "schema": {
-              "minimum": 1,
-              "maximum": 10000,
-              "default": 1,
-              "type": "number"
-            }
-          },
-          {
-            "name": "per_page",
-            "required": false,
-            "in": "query",
-            "description": "How many items to return per page. Max: 100",
-            "schema": {
-              "minimum": 1,
-              "maximum": 100,
-              "default": 25,
-              "type": "number"
-            }
-          },
-          {
-            "description": "Sort by fields. Example: sort=created_at:asc,updated_at:desc",
-            "name": "sort",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "default": "position:desc",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/PermissionsList"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Permission"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/access_control/staff_business_roles": {
-      "get": {
-        "summary": "Get all StaffBusinessRoles",
-        "description": "Get a list of StaffBusinessRoles\n\nAvailable for **Staff Tokens**",
-        "parameters": [
-          {
-            "name": "staff_uid",
-            "required": false,
-            "in": "query",
-            "description": "The unique identifier (UID) of the business account",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "business_role_uid",
-            "required": false,
-            "in": "query",
-            "description": "The unique identifier (UID) of the business account",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "page",
-            "required": false,
-            "in": "query",
-            "description": "Page number of results.",
-            "schema": {
-              "minimum": 1,
-              "maximum": 10000,
-              "default": 1,
-              "type": "number"
-            }
-          },
-          {
-            "name": "per_page",
-            "required": false,
-            "in": "query",
-            "description": "How many items to return per page. Max: 100",
-            "schema": {
-              "minimum": 1,
-              "maximum": 100,
-              "default": 25,
-              "type": "number"
-            }
-          },
-          {
-            "description": "Sort by fields. Example: sort=created_at:asc,updated_at:desc",
-            "name": "sort",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "default": "updated_at:desc",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/StaffBusinessRolesList"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Staff Business Role"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      },
-      "post": {
-        "summary": "Create a StaffBusinessRole",
-        "description": "Create a new StaffBusinessRole for a staff\n\nAvailable for **Staff Tokens**",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "staff_uid": {
-                    "type": "string",
-                    "description": "The unique identifier (UID) of the staff member"
-                  },
-                  "business_role_uid": {
-                    "type": "string",
-                    "description": "The unique identifier (UID) of the associated StaffBusinessRole"
-                  }
-                },
-                "required": [
-                  "staff_uid",
-                  "business_role_uid"
-                ],
-                "example": {
-                  "staff_uid": "d290f1ee-6c54-4b01-90e6-d701748f0851",
-                  "business_role_uid": "d290f1ee-6c54-4b01-90e6-d701748f0851"
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/access_control/staffBusinessRole.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Staff Business Role"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/access_control/staff_business_roles/{staff_uid}": {
-      "get": {
-        "summary": "Retrieve a StaffBusinessRole",
-        "description": "Retrieve a StaffBusinessRole based on the unique identifier of staff_uid (staff_uid)\n\nAvailable for **Staff Tokens**",
-        "parameters": [
-          {
-            "name": "staff_uid",
-            "required": true,
-            "in": "path",
-            "description": "Unique identifier of the staff member assigned to this BusinessRole",
-            "schema": {
-              "type": "string"
-            },
-            "example": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/access_control/staffBusinessRole.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Staff Business Role"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      },
-      "put": {
-        "summary": "Update a StaffBusinessRole",
-        "description": "Update the business role for a staff member. **All overrides will be removed** and user will need to reapply them if the old role is reassigned.\n\nAvailable for **Staff Tokens**",
-        "parameters": [
-          {
-            "name": "staff_uid",
-            "required": true,
-            "in": "path",
-            "description": "Unique identifier of the StaffBusinessRole",
-            "schema": {
-              "type": "string"
-            },
-            "example": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "business_role_uid": {
-                    "type": "string",
-                    "description": "The unique identifier (UID) of the BusinessRole assigned"
-                  }
-                },
-                "required": [
-                  "staff_uid",
-                  "business_role_uid"
-                ],
-                "example": {
-                  "business_role_uid": "d290f1ee-6c54-4b01-90e6-d701748f0851"
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/access_control/staffBusinessRole.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Staff Business Role"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/access_control/staff_permission_overrides_lists/{staff_uid}": {
-      "get": {
-        "summary": "Retrieve a Staff Permissions Overrides List",
-        "description": "Retrieve a StaffPermissionOverrideList based on a staff member's unique identifier (staff_uid)\n\nAvailable for **Staff Tokens**",
-        "parameters": [
-          {
-            "name": "staff_uid",
-            "required": true,
-            "in": "path",
-            "description": "Unique identifier of the staff member",
-            "schema": {
-              "type": "string"
-            },
-            "example": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/access_control/staffPermissionOverridesList.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Staff Permission Override List"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      },
-      "put": {
-        "summary": "Update a Staff Permissions Overrides List",
-        "description": "Update a Staff Permission Overrides List based on staff UID and a list of permissions. The list supplied will append new permissions and override exsiting permissions assigned to this staff.\n\nAvailable for **Staff Tokens**",
-        "parameters": [
-          {
-            "name": "staff_uid",
-            "required": true,
-            "in": "path",
-            "description": "Unique identifier of the staff member",
-            "schema": {
-              "type": "string"
-            },
-            "example": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "permissions": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "key": {
-                          "type": "string",
-                          "description": "The unique identifier (UID) of the Permission"
-                        },
-                        "state": {
-                          "type": "string",
-                          "description": "allow, deny or inherit. When inherit is used, the permission override is removed and the default permission from the BusinessRole is used",
-                          "enum": [
-                            "allow",
-                            "deny",
-                            "inherit"
-                          ]
-                        }
-                      }
-                    }
-                  }
-                },
-                "required": [
-                  "staff_uid",
-                  "permissions"
-                ],
-                "example": {
-                  "staff_uid": "d290f1ee-6c54-4b01-90e6-d701748f0851",
-                  "permissions": [
-                    {
-                      "key": "payments.invoices.export",
-                      "state": "allow"
-                    },
-                    {
-                      "key": "payments.invoices.import",
-                      "state": "allow"
-                    },
-                    {
-                      "key": "payments.invoices.view",
-                      "state": "deny"
-                    },
-                    {
-                      "key": "payments.invoices.delete",
-                      "state": "inherit"
-                    },
-                    {
-                      "key": "payments.invoices.create",
-                      "state": "allow"
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/access_control/staffPermissionOverridesList.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Staff Permission Override List"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      },
-      "delete": {
-        "summary": "Remove all permission overrides",
-        "description": "Removes all assigned overrides based on a staff member's unique identifier (staff_uid).\n\nThis will return user to its original Business Role defaults\n\nAvailable for **Staff Tokens**",
-        "parameters": [
-          {
-            "name": "staff_uid",
-            "required": true,
-            "in": "path",
-            "description": "Unique identifier of the staff member",
-            "schema": {
-              "type": "string"
-            },
-            "example": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Staff Permission Override List"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/access_control/staff_permission_overrides_lists/": {
-      "get": {
-        "summary": "Get all Staff Permission Overrides Lists",
-        "description": "Get a list of all StaffPermissionOverrideList in the business (if used by a user that has permissions to view and manage permissions to staff in the business)\n\nAvailable for **Staff Tokens**",
-        "parameters": [
-          {
-            "name": "page",
-            "required": false,
-            "in": "query",
-            "description": "Page number of results.",
-            "schema": {
-              "minimum": 1,
-              "maximum": 10000,
-              "default": 1,
-              "type": "number"
-            }
-          },
-          {
-            "name": "per_page",
-            "required": false,
-            "in": "query",
-            "description": "How many items to return per page. Max: 100",
-            "schema": {
-              "minimum": 1,
-              "maximum": 100,
-              "default": 25,
-              "type": "number"
-            }
-          },
-          {
-            "description": "Sort by fields. Example: sort=created_at:asc,updated_at:desc",
-            "name": "sort",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "default": "updated_at:desc",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/StaffPermissionOverridesList"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Staff Permission Override List"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/access_control/staff_permissions/": {
-      "get": {
-        "summary": "Get All StaffPermissions",
-        "description": "Get a list of staff Permissions. You must filter the list using a list of permissions keys\nUsed to validate if a user can or can not access features\n\nAvailable for **Staff Tokens**",
-        "parameters": [
-          {
-            "name": "keys",
-            "required": true,
-            "in": "query",
-            "description": "A list of unique identifier of the Permissions you wish to check",
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            "example": "payments.invoices.export"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/StaffPermissionsList"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Staff Permission"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/business_administration/online_profiles/{business_uid}": {
-      "get": {
-        "summary": "Get Online Profile",
-        "description": "Retrieve the online profile for a specific business. This is a **public endpoint** that does not require authentication.\n\nNote: Returns 200 with null data even if business doesn't exist.",
-        "operationId": "getOnlineProfilePublic",
-        "parameters": [
-          {
-            "name": "business_uid",
-            "in": "path",
-            "required": true,
-            "description": "The unique identifier of the business.",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Online profile retrieved successfully. Data will be null if no profile exists or business not found.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "type": "object",
-                          "properties": {
-                            "online_profile": {
-                              "oneOf": [
-                                {
-                                  "$ref": "https://vcita.github.io/developers-hub/entities/business_administration/onlineProfile.json"
-                                },
-                                {
-                                  "type": "null"
-                                }
-                              ]
-                            }
-                          }
-                        }
-                      }
-                    }
-                  ]
-                },
-                "examples": {
-                  "with_privacy_policy": {
-                    "summary": "Profile with privacy policy URL",
-                    "value": {
-                      "success": true,
-                      "data": {
-                        "online_profile": {
-                          "uid": "abc123",
-                          "business_uid": "d290f1ee26c54",
-                          "supported_languages": [
-                            "en",
-                            "es"
-                          ],
-                          "privacy_policy_url": "https://example.com/privacy",
-                          "created_at": "2026-01-12T10:30:00Z",
-                          "updated_at": "2026-01-12T10:30:00Z"
-                        }
-                      }
-                    }
-                  },
-                  "no_policy": {
-                    "summary": "Profile without privacy policy configured",
-                    "value": {
-                      "success": true,
-                      "data": {
-                        "online_profile": {
-                          "uid": "abc123",
-                          "business_uid": "d290f1ee26c54",
-                          "supported_languages": [
-                            "en"
-                          ],
-                          "privacy_policy_url": null,
-                          "created_at": "2026-01-12T10:30:00Z",
-                          "updated_at": "2026-01-12T10:30:00Z"
-                        }
-                      }
-                    }
-                  },
-                  "not_found": {
-                    "summary": "Business not found or no profile",
-                    "value": {
-                      "success": true,
-                      "data": {
-                        "online_profile": null
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Online Profiles"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/business_administration/online_profiles": {
-      "get": {
-        "summary": "Get My Online Profile",
-        "description": "Retrieve the online profile for the business associated with the authenticated token. Available for **Staff tokens only**.",
-        "operationId": "getMyOnlineProfile",
-        "responses": {
-          "200": {
-            "description": "Online profiles retrieved successfully.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "online_profiles": {
-                          "oneOf": [
-                            {
-                              "type": "array",
-                              "items": {
-                                "$ref": "https://vcita.github.io/developers-hub/entities/business_administration/onlineProfile.json"
-                              }
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        }
-                      }
-                    }
-                  }
-                },
-                "examples": {
-                  "with_profile": {
-                    "summary": "Online profile exists",
-                    "value": {
-                      "success": true,
-                      "data": {
-                        "online_profiles": [
-                          {
-                            "uid": "abc123",
-                            "business_uid": "d290f1ee26c54",
-                            "supported_languages": [
-                              "en",
-                              "es"
-                            ],
-                            "privacy_policy_url": "https://example.com/privacy",
-                            "created_at": "2026-01-12T10:30:00Z",
-                            "updated_at": "2026-01-12T10:30:00Z"
-                          }
-                        ]
-                      }
-                    }
-                  },
-                  "no_profile": {
-                    "summary": "No online profile configured",
-                    "value": {
-                      "success": true,
-                      "data": {
-                        "online_profiles": null
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Missing or invalid authentication",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "unauthorized",
-                      "message": "Authentication required"
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Online Profiles"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      },
-      "post": {
-        "summary": "Create Online Profile",
-        "description": "Create a new online profile for the business. The business is determined from the authenticated token. Available for **Staff tokens** with `can_access_admin_account?` permission.",
-        "operationId": "createOnlineProfile",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateOnlineProfileRequest"
-              },
-              "examples": {
-                "with_languages": {
-                  "summary": "Create with supported languages only",
-                  "value": {
-                    "supported_languages": [
-                      "en",
-                      "es",
-                      "fr"
-                    ]
-                  }
-                },
-                "with_privacy_policy": {
-                  "summary": "Create with privacy policy URL",
-                  "value": {
-                    "supported_languages": [
-                      "en"
-                    ],
-                    "privacy_policy_url": "https://example.com/privacy"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Online profile created successfully.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/business_administration/onlineProfile.json"
-                        }
-                      }
-                    }
-                  ]
-                },
-                "example": {
-                  "success": true,
-                  "data": {
-                    "uid": "abc123",
-                    "business_uid": "d290f1ee26c54",
-                    "supported_languages": [
-                      "en",
-                      "es"
-                    ],
-                    "privacy_policy_url": "https://example.com/privacy",
-                    "created_at": "2026-01-12T10:30:00Z",
-                    "updated_at": "2026-01-12T10:30:00Z"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Client token or missing authentication",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "unauthorized",
-                      "message": "Client is not authorized"
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden - Staff token lacks required permission",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "forbidden",
-                      "message": "Access denied"
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict - Online profile already exists for this business",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "conflict",
-                      "message": "Online profile already exists for this business"
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Unprocessable Entity - Validation error.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "field": "privacy_policy_url",
-                      "code": "invalid",
-                      "message": "URL must be a valid HTTP or HTTPS URL"
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Online Profiles"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/business_administration/online_profiles/{uid}": {
-      "put": {
-        "summary": "Update Online Profile",
-        "description": "Update an existing online profile. Available for **Staff tokens** with `can_access_admin_account?` permission.",
-        "operationId": "updateOnlineProfile",
-        "parameters": [
-          {
-            "name": "uid",
-            "in": "path",
-            "required": true,
-            "description": "The unique identifier of the online profile.",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateOnlineProfileRequest"
-              },
-              "examples": {
-                "update_languages": {
-                  "summary": "Update supported languages only",
-                  "value": {
-                    "supported_languages": [
-                      "en",
-                      "es",
-                      "de"
-                    ]
-                  }
-                },
-                "set_privacy_policy": {
-                  "summary": "Set privacy policy URL",
-                  "value": {
-                    "privacy_policy_url": "https://newsite.com/privacy-policy"
-                  }
-                },
-                "clear_policy_empty": {
-                  "summary": "Clear privacy policy (empty string)",
-                  "value": {
-                    "privacy_policy_url": ""
-                  }
-                },
-                "clear_policy_null": {
-                  "summary": "Clear privacy policy (null)",
-                  "value": {
-                    "privacy_policy_url": null
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Online profile updated successfully.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/business_administration/onlineProfile.json"
-                        }
-                      }
-                    }
-                  ]
-                },
-                "example": {
-                  "success": true,
-                  "data": {
-                    "uid": "abc123",
-                    "business_uid": "d290f1ee26c54",
-                    "supported_languages": [
-                      "en",
-                      "es"
-                    ],
-                    "privacy_policy_url": "https://newsite.com/privacy-policy",
-                    "created_at": "2026-01-12T10:30:00Z",
-                    "updated_at": "2026-01-12T14:00:00Z"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Client token or missing authentication",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "unauthorized",
-                      "message": "Client is not authorized"
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden - Staff token lacks required permission",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "forbidden",
-                      "message": "Access denied"
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found - Online profile not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "not_found",
-                      "message": "Online profile not found"
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Unprocessable Entity - Validation error.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "field": "privacy_policy_url",
-                      "code": "invalid",
-                      "message": "URL must be a valid HTTP or HTTPS URL"
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Online Profiles"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
     "/v3/business_administration/staff_members/{uid}": {
       "get": {
         "summary": "Retrieve a StaffMember",
@@ -9404,21 +9404,63 @@
   },
   "components": {
     "schemas": {
-      "CreateOperatorBusinessTokenDTO": {
+      "BusinessRolesList": {
         "type": "object",
         "properties": {
-          "acting_as_uid": {
-            "type": "string",
-            "description": "The unique id of the staff/operator acting as. Either operator uid when acting as the operator, or staff uid when acting on behalf of a staff member",
-            "example": "bc33f12d98ee"
-          },
-          "acting_as": {
-            "type": "string",
-            "description": "The type of the entity the Operator is acting as, operator - acting as the operator; staff - acting on behlaf of a staff member",
-            "enum": [
-              "operator",
-              "staff"
-            ]
+          "business_roles": {
+            "description": "List of BusinessRoles",
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/access_control/businessRole.json"
+            }
+          }
+        }
+      },
+      "PermissionsList": {
+        "type": "object",
+        "properties": {
+          "permissions": {
+            "description": "List of Permissions",
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/access_control/permission.json"
+            }
+          }
+        }
+      },
+      "StaffBusinessRolesList": {
+        "type": "object",
+        "properties": {
+          "staff_business_roles": {
+            "description": "List of StaffBusinessRoles",
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/access_control/staffBusinessRole.json"
+            }
+          }
+        }
+      },
+      "StaffPermissionsList": {
+        "type": "object",
+        "properties": {
+          "staff_permissions": {
+            "description": "List of StaffPermissions",
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/access_control/staffPermission.json"
+            }
+          }
+        }
+      },
+      "StaffPermissionOverridesList": {
+        "type": "object",
+        "properties": {
+          "staff_permission_overrides_lists": {
+            "description": "List of StaffPermissionOverrides",
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/access_control/staffPermissionOverridesList.json"
+            }
           }
         }
       },
@@ -9459,6 +9501,99 @@
           "success",
           "error"
         ]
+      },
+      "CreateOnlineProfileRequest": {
+        "type": "object",
+        "properties": {
+          "supported_languages": {
+            "type": "array",
+            "description": "List of ISO 639-1 language/locale codes supported by the business for client-facing content (e.g., [\"en\", \"es\", \"en-GB\"]).",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z]{2}(-[A-Z]{2})?$"
+            },
+            "uniqueItems": true
+          },
+          "privacy_policy_url": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2048,
+            "description": "External URL to the business's privacy policy page (e.g., \"https://example.com/privacy\"). Optional."
+          }
+        }
+      },
+      "UpdateOnlineProfileRequest": {
+        "type": "object",
+        "properties": {
+          "supported_languages": {
+            "type": "array",
+            "description": "List of ISO 639-1 language/locale codes supported by the business for client-facing content (e.g., [\"en\", \"es\", \"en-GB\"]).",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z]{2}(-[A-Z]{2})?$"
+            },
+            "uniqueItems": true
+          },
+          "privacy_policy_url": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2048,
+            "nullable": true,
+            "description": "External URL to the business's privacy policy page. Set to empty string or null to clear. Omit to leave unchanged."
+          }
+        }
+      },
+      "ErrorResponse_online_profiles": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "The field that caused the error (for validation errors)"
+                },
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ]
+            }
+          }
+        },
+        "required": [
+          "success",
+          "errors"
+        ]
+      },
+      "CreateOperatorBusinessTokenDTO": {
+        "type": "object",
+        "properties": {
+          "acting_as_uid": {
+            "type": "string",
+            "description": "The unique id of the staff/operator acting as. Either operator uid when acting as the operator, or staff uid when acting on behalf of a staff member",
+            "example": "bc33f12d98ee"
+          },
+          "acting_as": {
+            "type": "string",
+            "description": "The type of the entity the Operator is acting as, operator - acting as the operator; staff - acting on behlaf of a staff member",
+            "enum": [
+              "operator",
+              "staff"
+            ]
+          }
+        }
       },
       "FeaturesPackageList": {
         "type": "object",
@@ -10037,141 +10172,6 @@
             "example": "d290f1ee-6c54-4b01-90e6-d701748f0851"
           }
         }
-      },
-      "BusinessRolesList": {
-        "type": "object",
-        "properties": {
-          "business_roles": {
-            "description": "List of BusinessRoles",
-            "type": "array",
-            "items": {
-              "$ref": "https://vcita.github.io/developers-hub/entities/access_control/businessRole.json"
-            }
-          }
-        }
-      },
-      "PermissionsList": {
-        "type": "object",
-        "properties": {
-          "premissions": {
-            "description": "List of Permissions",
-            "type": "array",
-            "items": {
-              "$ref": "https://vcita.github.io/developers-hub/entities/access_control/permission.json"
-            }
-          }
-        }
-      },
-      "StaffBusinessRolesList": {
-        "type": "object",
-        "properties": {
-          "staff_business_roles": {
-            "description": "List of StaffBusinessRoles",
-            "type": "array",
-            "items": {
-              "$ref": "https://vcita.github.io/developers-hub/entities/access_control/staffBusinessRole.json"
-            }
-          }
-        }
-      },
-      "StaffPermissionsList": {
-        "type": "object",
-        "properties": {
-          "staff_permissions": {
-            "description": "List of StaffPermissions",
-            "type": "array",
-            "items": {
-              "$ref": "https://vcita.github.io/developers-hub/entities/access_control/staffPermission.json"
-            }
-          }
-        }
-      },
-      "StaffPermissionOverridesList": {
-        "type": "object",
-        "properties": {
-          "staff_permission_overrides_lists": {
-            "description": "List of StaffPermissionOverrides",
-            "type": "array",
-            "items": {
-              "$ref": "https://vcita.github.io/developers-hub/entities/access_control/staffPermissionOverridesList.json"
-            }
-          }
-        }
-      },
-      "CreateOnlineProfileRequest": {
-        "type": "object",
-        "properties": {
-          "supported_languages": {
-            "type": "array",
-            "description": "List of ISO 639-1 language/locale codes supported by the business for client-facing content (e.g., [\"en\", \"es\", \"en-GB\"]).",
-            "items": {
-              "type": "string",
-              "pattern": "^[a-z]{2}(-[A-Z]{2})?$"
-            },
-            "uniqueItems": true
-          },
-          "privacy_policy_url": {
-            "type": "string",
-            "format": "uri",
-            "maxLength": 2048,
-            "description": "External URL to the business's privacy policy page (e.g., \"https://example.com/privacy\"). Optional."
-          }
-        }
-      },
-      "UpdateOnlineProfileRequest": {
-        "type": "object",
-        "properties": {
-          "supported_languages": {
-            "type": "array",
-            "description": "List of ISO 639-1 language/locale codes supported by the business for client-facing content (e.g., [\"en\", \"es\", \"en-GB\"]).",
-            "items": {
-              "type": "string",
-              "pattern": "^[a-z]{2}(-[A-Z]{2})?$"
-            },
-            "uniqueItems": true
-          },
-          "privacy_policy_url": {
-            "type": "string",
-            "format": "uri",
-            "maxLength": 2048,
-            "nullable": true,
-            "description": "External URL to the business's privacy policy page. Set to empty string or null to clear. Omit to leave unchanged."
-          }
-        }
-      },
-      "ErrorResponse_online_profiles": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "errors": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "field": {
-                  "type": "string",
-                  "description": "The field that caused the error (for validation errors)"
-                },
-                "code": {
-                  "type": "string"
-                },
-                "message": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "code",
-                "message"
-              ]
-            }
-          }
-        },
-        "required": [
-          "success",
-          "errors"
-        ]
       },
       "StaffMemberUpdate": {
         "type": "object",

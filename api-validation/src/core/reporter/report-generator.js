@@ -20,6 +20,8 @@ function createReport(config) {
       total: 0,
       passed: 0,
       failed: 0,
+      warned: 0,
+      errored: 0,
       skipped: 0,
       passRate: '0%',
       duration: '0s',
@@ -80,6 +82,8 @@ function addResult(report, result) {
     report.byDomain[domain] = {
       passed: 0,
       failed: 0,
+      warned: 0,
+      errored: 0,
       skipped: 0,
       total: 0
     };
@@ -93,6 +97,12 @@ function addResult(report, result) {
       break;
     case 'FAIL':
       report.byDomain[domain].failed++;
+      break;
+    case 'WARN':
+      report.byDomain[domain].warned++;
+      break;
+    case 'ERROR':
+      report.byDomain[domain].errored++;
       break;
     case 'SKIP':
       report.byDomain[domain].skipped++;
@@ -109,9 +119,11 @@ function finalizeReport(report, durationMs) {
   report.summary.total = report.results.length;
   report.summary.passed = report.results.filter(r => r.status === 'PASS').length;
   report.summary.failed = report.results.filter(r => r.status === 'FAIL').length;
+  report.summary.warned = report.results.filter(r => r.status === 'WARN').length;
+  report.summary.errored = report.results.filter(r => r.status === 'ERROR').length;
   report.summary.skipped = report.results.filter(r => r.status === 'SKIP').length;
   
-  // Calculate pass rate
+  // Calculate pass rate (PASS / (PASS + FAIL + WARN))
   const testable = report.summary.total - report.summary.skipped;
   if (testable > 0) {
     const rate = (report.summary.passed / testable * 100).toFixed(1);
@@ -213,7 +225,7 @@ function generateSummaryText(report) {
     `Environment: ${summary.environment} (${summary.baseUrl})`,
     `Duration: ${summary.duration}`,
     '',
-    `Total: ${summary.total} | Passed: ${summary.passed} | Failed: ${summary.failed} | Skipped: ${summary.skipped}`,
+    `Total: ${summary.total} | ✅ Passed: ${summary.passed} | ❌ Failed: ${summary.failed} | ⚠️ Warned: ${summary.warned} | 🔶 Errors: ${summary.errored} | ⏭️ Skipped: ${summary.skipped}`,
     `Pass Rate: ${summary.passRate}`,
     '',
     'By Domain:',
