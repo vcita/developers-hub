@@ -278,12 +278,24 @@ async function runValidation(options) {
     }
     
     // Execute request with rate limiting
-    const { success, response, duration, error } = await rateLimiter.execute(
+    const { success, response, duration, error, usedFallback, fallbackInfo } = await rateLimiter.execute(
       () => executeRequest(apiClient, requestConfig)
     );
     
     // Process result
     let result;
+    
+    // Track if fallback URL was used due to bad gateway error (502 or 404 with "bad gateway" message)
+    let fallbackWarning = null;
+    if (usedFallback && fallbackInfo) {
+      console.log(`  [Fallback] Primary URL returned bad gateway error (status ${fallbackInfo.primaryStatus}), succeeded on fallback URL`);
+      fallbackWarning = {
+        reason: FAILURE_REASONS.BAD_GATEWAY_FALLBACK,
+        message: `Primary URL (${fallbackInfo.primaryUrl}) returned bad gateway error (status ${fallbackInfo.primaryStatus}). Request succeeded using fallback URL (${fallbackInfo.fallbackUrl}).`,
+        friendlyMessage: `Primary URL (${fallbackInfo.primaryUrl}) returned bad gateway error (status ${fallbackInfo.primaryStatus}). Request succeeded using fallback URL (${fallbackInfo.fallbackUrl}).`,
+        suggestion: `Investigate gateway/load balancer issues on the primary URL. The fallback URL is working correctly.`
+      };
+    }
     
     if (error && error.isNetworkError) {
       result = buildValidationResult({
@@ -353,6 +365,19 @@ async function runValidation(options) {
               }),
               response: { status: response.status, data: responseData }
             });
+          } else if (fallbackWarning) {
+            // Schema validation passed but fallback was used - mark as WARN
+            result = buildValidationResult({
+              endpoint,
+              status: 'WARN',
+              httpStatus: response.status,
+              duration,
+              tokenUsed: tokenType,
+              reason: FAILURE_REASONS.BAD_GATEWAY_FALLBACK,
+              errors: [fallbackWarning],
+              suggestion: fallbackWarning.suggestion,
+              response: { status: response.status, data: responseData }
+            });
           } else {
             result = buildValidationResult({
               endpoint,
@@ -363,14 +388,28 @@ async function runValidation(options) {
             });
           }
         } else {
-          // No schema to validate against - pass based on status code
-          result = buildValidationResult({
-            endpoint,
-            status: 'PASS',
-            httpStatus: response.status,
-            duration,
-            tokenUsed: tokenType
-          });
+          // No schema to validate against - pass or warn based on fallback usage
+          if (fallbackWarning) {
+            result = buildValidationResult({
+              endpoint,
+              status: 'WARN',
+              httpStatus: response.status,
+              duration,
+              tokenUsed: tokenType,
+              reason: FAILURE_REASONS.BAD_GATEWAY_FALLBACK,
+              errors: [fallbackWarning],
+              suggestion: fallbackWarning.suggestion,
+              response: { status: response.status, data: responseData }
+            });
+          } else {
+            result = buildValidationResult({
+              endpoint,
+              status: 'PASS',
+              httpStatus: response.status,
+              duration,
+              tokenUsed: tokenType
+            });
+          }
         }
       }
     } else {

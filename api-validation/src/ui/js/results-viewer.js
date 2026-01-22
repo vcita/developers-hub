@@ -1035,6 +1035,8 @@ const ResultsViewer = {
         'Healing Attempts',
         'Prerequisites Created',
         'Doc Issues',
+        'Doc Fix Suggestions',
+        'Workflow Status',
         'Request JSON',
         'Response JSON'
       ];
@@ -1062,6 +1064,14 @@ const ResultsViewer = {
         const docIssues = (details.documentationIssues || [])
           .map(i => `${i.type}: ${i.field || ''} - ${i.message}`)
           .join('; ');
+        
+        // Doc fix suggestions (verified by AI agent)
+        const docFixSuggestions = (healingInfo.docFixSuggestions || [])
+          .map(s => `[${s.severity}] ${s.field}: ${s.issue} → ${s.suggested_fix || s.suggestedFix}`)
+          .join('; ');
+        
+        // Workflow status
+        const workflowStatus = healingInfo.workflowStatus || 'N/A';
         
         // Safely stringify request and response
         let requestJson = '';
@@ -1099,6 +1109,8 @@ const ResultsViewer = {
           healingAttempts,
           prerequisitesCreated,
           docIssues,
+          docFixSuggestions,
+          workflowStatus,
           requestJson,
           responseJson
         ];

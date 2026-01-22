@@ -451,15 +451,15 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
             console.log(`  Using token: ${tokenType || 'none'}`);
           }
           
-          let { success, response, duration, error } = await rateLimiter.execute(
+          let { success, response, duration, error, usedFallback, fallbackInfo } = await rateLimiter.execute(
             () => executeRequest(apiClient, requestConfig)
           );
-          console.log(`  Response: status=${response?.status}, duration=${duration}ms, error=${error?.message || 'none'}`);
+          console.log(`  Response: status=${response?.status}, duration=${duration}ms, error=${error?.message || 'none'}${usedFallback ? ', usedFallback=true' : ''}`);
           
           // Build full request info for debugging (including actual URL and token)
           const fullRequestInfo = {
             method: requestConfig.method?.toUpperCase() || endpoint.method,
-            url: `${config.baseUrl}${requestConfig.url}`,
+            url: usedFallback ? `${fallbackInfo.fallbackUrl}${requestConfig.url}` : `${config.baseUrl}${requestConfig.url}`,
             headers: { ...requestConfig.headers },
             params: requestConfig.params,
             data: requestConfig.data
@@ -467,6 +467,21 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
           
           // Track documentation issues found during validation
           let docIssues = [];
+          
+          // Track if fallback URL was used due to bad gateway error (502 or 404 with "bad gateway" message)
+          if (usedFallback && fallbackInfo) {
+            console.log(`  [Fallback] Primary URL returned bad gateway error (status ${fallbackInfo.primaryStatus}), succeeded on fallback URL`);
+            docIssues.push({
+              type: FAILURE_REASONS.BAD_GATEWAY_FALLBACK,
+              message: `Primary URL (${fallbackInfo.primaryUrl}) returned bad gateway error (status ${fallbackInfo.primaryStatus}). Request succeeded using fallback URL (${fallbackInfo.fallbackUrl}).`,
+              suggestion: `Investigate gateway/load balancer issues on the primary URL. The fallback URL is working correctly.`,
+              primaryUrl: fallbackInfo.primaryUrl,
+              fallbackUrl: fallbackInfo.fallbackUrl,
+              primaryStatus: fallbackInfo.primaryStatus,
+              fallbackStatus: fallbackInfo.fallbackStatus,
+              fallbackDuration: fallbackInfo.fallbackDuration
+            });
+          }
           
           // Flag if fallback token was used
           if (isFallbackToken) {
@@ -846,7 +861,12 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
               result.details.healingInfo = {
                 attempts: healingResult.iterations,
                 summary: healingResult.summary,
-                agentLog: healingResult.healingLog
+                agentLog: healingResult.healingLog,
+                docFixSuggestions: healingResult.docFixSuggestions || [],
+                savedWorkflows: healingResult.savedWorkflows || [],
+                workflowReused: healingResult.workflowReused || false,
+                workflowStatus: healingResult.savedWorkflows?.length > 0 ? 'New' : 
+                               healingResult.workflowReused ? 'Reused' : 'N/A'
               };
             }
             
@@ -859,7 +879,9 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
               endpoint: endpointKey,
               success: true,
               iterations: healingResult.iterations,
-              summary: healingResult.summary
+              summary: healingResult.summary,
+              workflowSaved: healingResult.savedWorkflows?.length > 0,
+              docFixCount: healingResult.docFixSuggestions?.length || 0
             });
           } else {
             // Agent couldn't fix it
@@ -869,14 +891,17 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
               iterations: healingResult.iterations,
               failed: true,
               reason: healingResult.reason,
-              agentLog: healingResult.healingLog
+              agentLog: healingResult.healingLog,
+              docFixSuggestions: healingResult.docFixSuggestions || [],
+              workflowStatus: 'Failed'
             };
             
             broadcastEvent(session, 'healing_complete', {
               endpoint: endpointKey,
               success: false,
               iterations: healingResult.iterations,
-              reason: healingResult.reason
+              reason: healingResult.reason,
+              docFixCount: healingResult.docFixSuggestions?.length || 0
             });
           }
         }
