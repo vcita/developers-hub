@@ -32,6 +32,7 @@ Metadata for a payment gateway integration, including locales, supported regions
 | ideal | Indicates if the gateway supports iDeal payments. | boolean |  |
 | bancontact | Indicates if the gateway supports Bancontact payments. | boolean |  |
 | twint | Indicates if the gateway supports Twint payments. | boolean |  |
+| express_wallets | Indicates if the gateway supports Express Wallets, such as Google Pay and Apple Pay. | boolean |  |
 
 ### Processing Features Properties
 
@@ -123,7 +124,8 @@ JSON
     "ach": true,
     "ideal": true,
     "bancontact": false,
-    "twint": false
+    "twint": false,
+    "express_wallets": false
   },
   "processing_features": {
     "multi_currency": true,
