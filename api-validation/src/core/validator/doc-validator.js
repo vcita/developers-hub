@@ -28,7 +28,7 @@ function validateTokenDocumentation(operation, path, method) {
     return {
       endpoint: `${method.toUpperCase()} ${path}`,
       issue: DOC_ISSUES.MISSING_TOKEN_DOCUMENTATION,
-      message: "No token availability found in description or x-auth-type field. Add 'Available for **{Token} Tokens**' to the description.",
+      message: "No token availability found in description. Add '**Available for {Token} Tokens**' to the description.",
       severity: 'error'
     };
   }

@@ -314,6 +314,16 @@ function createTestContext() {
     },
     
     /**
+     * Set multiple resolved parameters at once
+     * @param {Object} params - Object of param name -> value pairs
+     */
+    setParams(params) {
+      for (const [key, value] of Object.entries(params)) {
+        paramMap[key] = value;
+      }
+    },
+    
+    /**
      * Check if a parameter is resolved
      * @param {string} paramName - Parameter name
      * @returns {boolean}

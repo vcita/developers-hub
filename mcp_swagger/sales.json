@@ -7,9 +7,9 @@
     "x-generated": {
       "sourceFiles": [
         "legacy_v1_sales.json",
-        "sales_reports.json",
-        "payment_gateway.json",
         "payments.json",
+        "payment_gateway.json",
+        "sales_reports.json",
         "coupon.json",
         "client_cards.json"
       ],
@@ -180,8 +180,8 @@
               "basePath": "/business/payments"
             },
             {
-              "original": "/v1/client_packages/{client_package_id}",
-              "normalized": "/business/payments/v1/client_packages/{client_package_id}",
+              "original": "/v1/client_packages/{uid}",
+              "normalized": "/business/payments/v1/client_packages/{uid}",
               "basePath": "/business/payments"
             },
             {
@@ -2692,25 +2692,29 @@
                     "type": "number"
                   },
                   "products": {
-                    "description": "Products included in the package. Up to 3 different products allowed.",
+                    "description": "Products included in the package. Up to 3 different products allowed. **Must be an empty array `[]` if no products are included - do NOT pass null or omit this field.**",
+                    "type": "array",
+                    "default": [],
+                    "x-nullable": false,
                     "items": {
+                      "type": "object",
                       "properties": {
                         "id": {
-                          "description": "Product ID",
-                          "type": "number"
+                          "description": "Product UID (string identifier)",
+                          "type": "string"
                         },
                         "quantity": {
                           "description": "Product's quantity, must be greater than 0, up to 5 items allowed.",
-                          "type": "number"
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 5
                         }
                       },
                       "required": [
                         "id",
                         "quantity"
-                      ],
-                      "type": "object"
-                    },
-                    "type": "array"
+                      ]
+                    }
                   }
                 },
                 "required": [
@@ -3028,25 +3032,29 @@
                         "type": "number"
                       },
                       "products": {
-                        "description": "Package's products. [] will remove the package's products",
+                        "description": "Package's products. **Use empty array `[]` to remove products or if no products are included - do NOT pass null.**",
+                        "type": "array",
+                        "default": [],
+                        "x-nullable": false,
                         "items": {
+                          "type": "object",
                           "properties": {
                             "id": {
-                              "description": "Product ID",
-                              "type": "number"
+                              "description": "Product UID (string identifier)",
+                              "type": "string"
                             },
                             "quantity": {
-                              "description": "Product's quantity, must be greater than 0.",
-                              "type": "number"
+                              "description": "Product's quantity, must be greater than 0, up to 5 items allowed.",
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 5
                             }
                           },
                           "required": [
                             "id",
                             "quantity"
-                          ],
-                          "type": "object"
-                        },
-                        "type": "array"
+                          ]
+                        }
                       }
                     },
                     "required": [
@@ -3926,948 +3934,6 @@
         "x-auth-type": "Application & Application User"
       }
     },
-    "/v3/sales/reports/payments_widget": {
-      "get": {
-        "summary": "Retrieve Payments Widget Data",
-        "description": "Fetch summarized data for the Payments widget, including total payments, overdue payments, and pending estimates. This endpoint is accessible with **Staff Tokens** only.",
-        "responses": {
-          "200": {
-            "description": "Successful response containing Payments widget data.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/PaymentsWidget"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Sales Reports"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/sales/reports/forecast_payments": {
-      "get": {
-        "summary": "Retrieve Payments Forecast Data",
-        "description": "Fetch detailed data for the Payments forecast widget, providing predictions of future payments on a month-by-month basis. This endpoint is accessible with **Staff Tokens** only.",
-        "responses": {
-          "200": {
-            "description": "Successful response containing Payments forecast data.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/PaymentsForecast"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Sales Reports"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/payment_processing/payment_gateways": {
-      "get": {
-        "summary": "Get all PaymentGateways",
-        "description": "Retrieve all available payment gateways - Available for **Directory, Business, and Client Tokens**\n\n**Note:** When using a **Client token**, all fields are returned in the response, but sensitive fields will contain `null` for security and privacy reasons. See response examples below for the differences between token types.",
-        "parameters": [
-          {
-            "name": "directory_uid",
-            "in": "query",
-            "description": "Filter by directory unique identifier",
-            "schema": {
-              "type": "string"
-            },
-            "example": "main_directory"
-          },
-          {
-            "name": "country",
-            "in": "query",
-            "description": "Filter by country, represented using ISO 3166-1 alpha-2 country codes. For example: ['US', 'CA', 'GB']",
-            "schema": {
-              "type": "string"
-            },
-            "example": "US"
-          },
-          {
-            "name": "currency",
-            "in": "query",
-            "description": "Filter by supported currency, represented using ISO 4217 format. For example: ['USD', 'EUR', 'GBP']",
-            "schema": {
-              "type": "string"
-            },
-            "example": "USD"
-          },
-          {
-            "name": "gateway_name",
-            "in": "query",
-            "description": "Filter by gateway name",
-            "schema": {
-              "type": "string"
-            },
-            "example": "stripe"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful response. All fields are returned in the response. The response content varies based on the token type - see examples below for details.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/PaymentGatewayList"
-                        }
-                      }
-                    }
-                  ]
-                },
-                "examples": {
-                  "Directory_or_Business_Token": {
-                    "summary": "Response with Directory or Business Token",
-                    "description": "Full response with all fields populated",
-                    "value": {
-                      "success": true,
-                      "data": {
-                        "payment_gateways": [
-                          {
-                            "uid": "pgw_abc123def456",
-                            "gateway_name": "stripe_payments_v2",
-                            "app_code_name": "stripe_payments_v2",
-                            "gateway_logo_url": "https://cdn.stripe.com/logo.png",
-                            "default_locale": "en",
-                            "gateway_type": "payments_provider",
-                            "status": "active",
-                            "created_at": "2024-01-15T10:30:00.000Z",
-                            "updated_at": "2024-01-20T14:45:00.000Z",
-                            "main_gateway_benefits": [
-                              {
-                                "locale": "en",
-                                "benefits": [
-                                  "Accept payments from 195+ countries",
-                                  "Industry-leading fraud protection",
-                                  "Fast payouts in 2-7 business days",
-                                  "24/7 customer support"
-                                ]
-                              }
-                            ],
-                            "brief_benefit_highlights": [
-                              {
-                                "locale": "en",
-                                "highlights": [
-                                  "Global reach",
-                                  "Fraud protection",
-                                  "Fast payouts"
-                                ]
-                              }
-                            ],
-                            "supported_countries": [
-                              "US",
-                              "CA",
-                              "GB",
-                              "AU",
-                              "DE",
-                              "FR",
-                              "ES",
-                              "IT"
-                            ],
-                            "supported_currencies": [
-                              "USD",
-                              "EUR",
-                              "GBP",
-                              "CAD",
-                              "AUD"
-                            ],
-                            "minimum_charge_amount": 0.5,
-                            "payment_methods": {
-                              "credit_card": true,
-                              "ach": true,
-                              "ideal": true,
-                              "bancontact": false,
-                              "twint": false
-                            },
-                            "processing_features": {
-                              "multi_currency": true,
-                              "back_office_charge": true,
-                              "checkout": true,
-                              "refund": true,
-                              "partial_refund": true,
-                              "client_save_card_on_checkout": true,
-                              "client_save_card_standalone": true,
-                              "save_card_by_business": true,
-                              "offset_fees": true
-                            }
-                          }
-                        ]
-                      }
-                    }
-                  },
-                  "Client_Token": {
-                    "summary": "Response with Client Token",
-                    "description": "Response with sensitive fields set to null for Client tokens",
-                    "value": {
-                      "success": true,
-                      "data": {
-                        "payment_gateways": [
-                          {
-                            "uid": "pgw_abc123def456",
-                            "gateway_name": "stripe_payments_v2",
-                            "app_code_name": null,
-                            "gateway_logo_url": null,
-                            "default_locale": null,
-                            "gateway_type": null,
-                            "status": "active",
-                            "created_at": null,
-                            "updated_at": null,
-                            "main_gateway_benefits": null,
-                            "brief_benefit_highlights": null,
-                            "supported_countries": [
-                              "US",
-                              "CA",
-                              "GB",
-                              "AU",
-                              "DE",
-                              "FR",
-                              "ES",
-                              "IT"
-                            ],
-                            "supported_currencies": [
-                              "USD",
-                              "EUR",
-                              "GBP",
-                              "CAD",
-                              "AUD"
-                            ],
-                            "minimum_charge_amount": null,
-                            "payment_methods": {
-                              "credit_card": true,
-                              "ach": true,
-                              "ideal": true,
-                              "bancontact": false,
-                              "twint": false
-                            },
-                            "processing_features": {
-                              "multi_currency": true,
-                              "back_office_charge": true,
-                              "checkout": true,
-                              "refund": true,
-                              "partial_refund": true,
-                              "client_save_card_on_checkout": true,
-                              "client_save_card_standalone": true,
-                              "save_card_by_business": true,
-                              "offset_fees": true
-                            }
-                          }
-                        ]
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Payment Gateways"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      },
-      "post": {
-        "summary": "Create a PaymentGateway",
-        "description": "Create a new payment gateway - **Only available for Application Tokens**",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "app_code_name": {
-                    "type": "string",
-                    "description": "The unique code name of the pre-created gateway's app, created via the API- Creates an app, https://api.vcita.biz/platform/v1/apps"
-                  },
-                  "gateway_logo_url": {
-                    "type": "string",
-                    "description": "The URL or path to the logo of the gateway"
-                  },
-                  "default_locale": {
-                    "type": "string",
-                    "description": "Specifies the fallback locale for the gateway's textual content. If a translation or string is missing, this locale will be used by default."
-                  },
-                  "gateway_type": {
-                    "type": "string",
-                    "enum": [
-                      "digital_wallet",
-                      "payments_provider"
-                    ],
-                    "description": "Integration type: a payment service provider (e.g., Stripe, Square) that enables merchants to process multiple payment methods, or a digital wallet (e.g., PayPal, Google Pay) that allows consumers to store and use payment credentials"
-                  },
-                  "status": {
-                    "type": "string",
-                    "enum": [
-                      "active",
-                      "disabled",
-                      "deprecated"
-                    ],
-                    "description": "Indicates the current status of the payment gateway: 'active' (available for use), 'disabled' (not available for use), or 'deprecated' (still available but not recommended for new integrations)"
-                  },
-                  "main_gateway_benefits": {
-                    "type": "array",
-                    "description": "A clear 3-4 bullet list highlighting the unique features and value of the gateway, aimed at encouraging merchants to connect with it. This information is stored per locale.",
-                    "minItems": 1,
-                    "uniqueItems": true,
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "locale": {
-                          "type": "string",
-                          "enum": [
-                            "en",
-                            "fr",
-                            "de",
-                            "it",
-                            "pl",
-                            "pt",
-                            "es",
-                            "nl",
-                            "he",
-                            "en_gb"
-                          ],
-                          "description": "The locale code (e.g., en, fr, es)."
-                        },
-                        "benefits": {
-                          "type": "array",
-                          "description": "A list of benefits in the specified locale.",
-                          "items": {
-                            "type": "string"
-                          }
-                        }
-                      },
-                      "required": [
-                        "locale",
-                        "benefits"
-                      ]
-                    }
-                  },
-                  "brief_benefit_highlights": {
-                    "type": "array",
-                    "description": "A brief, 2-4 word version of the gateway benefits, tailored for compact displays or mobile interfaces. This information is stored per locale.",
-                    "minItems": 1,
-                    "uniqueItems": true,
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "locale": {
-                          "type": "string",
-                          "enum": [
-                            "en",
-                            "fr",
-                            "de",
-                            "it",
-                            "pl",
-                            "pt",
-                            "es",
-                            "nl",
-                            "he",
-                            "en_gb"
-                          ],
-                          "description": "The locale code (e.g., en, fr, es)."
-                        },
-                        "highlights": {
-                          "type": "array",
-                          "description": "A list of short benefit highlights in the specified locale.",
-                          "items": {
-                            "type": "string"
-                          }
-                        }
-                      },
-                      "required": [
-                        "locale",
-                        "highlights"
-                      ]
-                    }
-                  },
-                  "supported_countries": {
-                    "type": "array",
-                    "description": "A list of countries supported by the payment gateway, represented using ISO 3166-1 alpha-2 country codes. For example: ['US', 'CA', 'GB']",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "supported_currencies": {
-                    "type": "array",
-                    "description": "A list of currencies supported by the payment gateway, represented using ISO 4217 format. For example: ['USD', 'EUR', 'GBP']",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "minimum_charge_amount": {
-                    "type": "number",
-                    "description": "The minimum value that can be charged using the payment gateway"
-                  },
-                  "payment_methods": {
-                    "type": "object",
-                    "description": "The payment methods supported by the gateway",
-                    "properties": {
-                      "credit_card": {
-                        "type": "boolean",
-                        "description": "Indicates if the gateway supports credit card payments."
-                      },
-                      "ach": {
-                        "type": "boolean",
-                        "description": "Indicates if the gateway supports ACH payments."
-                      },
-                      "ideal": {
-                        "type": "boolean",
-                        "description": "Indicates if the gateway supports iDeal payments."
-                      },
-                      "bancontact": {
-                        "type": "boolean",
-                        "description": "Indicates if the gateway supports Bancontact payments."
-                      },
-                      "twint": {
-                        "type": "boolean",
-                        "description": "Indicates if the gateway supports Twint payments."
-                      }
-                    }
-                  },
-                  "processing_features": {
-                    "type": "object",
-                    "description": "The features the payment gateway supports and their current state (enabled/disabled)",
-                    "properties": {
-                      "multi_currency": {
-                        "type": "boolean",
-                        "description": "Indicates if the gateway supports multi-currency transactions."
-                      },
-                      "back_office_charge": {
-                        "type": "boolean",
-                        "description": "Indicates if the gateway allows the SMB to process charges directly from the back office."
-                      },
-                      "checkout": {
-                        "type": "boolean",
-                        "description": "Indicates whether the payment gateway supports a checkout option initiated from the client portal. This value must always be set to true, as client portal checkout is a core feature."
-                      },
-                      "refund": {
-                        "type": "boolean",
-                        "description": "Indicates if the gateway supports full online refunds."
-                      },
-                      "partial_refund": {
-                        "type": "boolean",
-                        "description": "Indicates if the gateway supports partial online refunds. Requires full refunds to be enabled."
-                      },
-                      "client_save_card_on_checkout": {
-                        "type": "boolean",
-                        "description": "Indicates if clients can save cards on file during a payment flow."
-                      },
-                      "client_save_card_standalone": {
-                        "type": "boolean",
-                        "description": "Indicates if clients can save cards on file through a standalone flow."
-                      },
-                      "save_card_by_business": {
-                        "type": "boolean",
-                        "description": "Indicates if the gateway supports saving cards on file from the business side."
-                      },
-                      "offset_fees": {
-                        "type": "boolean",
-                        "description": "Indicates whether the gateway supports offsetting processing fees, as surcharges, convenience fees, or both, while each SMB can enable only one fee type or none."
-                      }
-                    },
-                    "required": [
-                      "multi_currency",
-                      "back_office_charge",
-                      "checkout",
-                      "refund",
-                      "partial_refund",
-                      "client_save_card_on_checkout",
-                      "client_save_card_standalone",
-                      "save_card_by_business",
-                      "offset_fees"
-                    ]
-                  }
-                },
-                "required": [
-                  "app_code_name",
-                  "gateway_logo_url",
-                  "default_locale",
-                  "gateway_type",
-                  "status",
-                  "main_gateway_benefits",
-                  "brief_benefit_highlights",
-                  "supported_countries",
-                  "supported_currencies",
-                  "payment_methods",
-                  "processing_features"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Payment gateway created successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/payment_processing/payment_gateway.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Payment Gateways"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/payment_processing/payment_gateways/{uid}": {
-      "get": {
-        "summary": "Retrieve a PaymentGateway",
-        "description": "Get details of a specific payment gateway - Available for **Directory, Business, and Application Tokens**. Note: Application tokens can only access their own gateway.",
-        "parameters": [
-          {
-            "name": "uid",
-            "required": true,
-            "in": "path",
-            "description": "Unique identifier of the Payment Gateway",
-            "schema": {
-              "type": "string"
-            },
-            "example": "pgw_abc123def456"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/payment_processing/payment_gateway.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Payment Gateways"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      },
-      "put": {
-        "summary": "Update a PaymentGateway",
-        "description": "Update an existing payment gateway - Available for **Application Tokens**",
-        "parameters": [
-          {
-            "name": "uid",
-            "required": true,
-            "in": "path",
-            "description": "Unique identifier of the Payment Gateway",
-            "schema": {
-              "type": "string"
-            },
-            "example": "pgw_abc123def456"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "gateway_logo_url": {
-                    "type": "string",
-                    "description": "The URL to the logo of the gateway"
-                  },
-                  "default_locale": {
-                    "type": "string",
-                    "description": "Specifies the fallback locale for the gateway's textual content. If a translation or string is missing, this locale will be used by default."
-                  },
-                  "gateway_type": {
-                    "type": "string",
-                    "enum": [
-                      "digital_wallet",
-                      "payments_provider"
-                    ],
-                    "description": "Integration type: a payment service provider (e.g., Stripe, Square) that enables merchants to process multiple payment methods, or a digital wallet (e.g., PayPal, Google Pay) that allows consumers to store and use payment credentials"
-                  },
-                  "status": {
-                    "type": "string",
-                    "enum": [
-                      "active",
-                      "disabled",
-                      "deprecated"
-                    ],
-                    "description": "Indicates the current status of the payment gateway: 'active' (available for use), 'disabled' (not available for use), or 'deprecated' (still available but not recommended for new integrations)"
-                  },
-                  "main_gateway_benefits": {
-                    "type": "array",
-                    "description": "A clear 3-4 bullet list highlighting the unique features and value of the gateway, aimed at encouraging merchants to connect with it. This information is stored per locale.",
-                    "minItems": 1,
-                    "uniqueItems": true,
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "locale": {
-                          "type": "string",
-                          "enum": [
-                            "en",
-                            "fr",
-                            "de",
-                            "it",
-                            "pl",
-                            "pt",
-                            "es",
-                            "nl",
-                            "he",
-                            "en_gb"
-                          ],
-                          "description": "The locale code (e.g., en, fr, es)."
-                        },
-                        "benefits": {
-                          "type": "array",
-                          "description": "A list of benefits in the specified locale.",
-                          "items": {
-                            "type": "string"
-                          }
-                        }
-                      },
-                      "required": [
-                        "locale",
-                        "benefits"
-                      ]
-                    }
-                  },
-                  "brief_benefit_highlights": {
-                    "type": "array",
-                    "description": "A brief, 2-4 word version of the gateway benefits, tailored for compact displays or mobile interfaces. This information is stored per locale.",
-                    "minItems": 1,
-                    "uniqueItems": true,
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "locale": {
-                          "type": "string",
-                          "enum": [
-                            "en",
-                            "fr",
-                            "de",
-                            "it",
-                            "pl",
-                            "pt",
-                            "es",
-                            "nl",
-                            "he",
-                            "en_gb"
-                          ],
-                          "description": "The locale code (e.g., en, fr, es)."
-                        },
-                        "highlights": {
-                          "type": "array",
-                          "description": "A list of short benefit highlights in the specified locale.",
-                          "items": {
-                            "type": "string"
-                          }
-                        }
-                      },
-                      "required": [
-                        "locale",
-                        "highlights"
-                      ]
-                    }
-                  },
-                  "supported_countries": {
-                    "type": "array",
-                    "description": "A list of countries supported by the payment gateway, represented using ISO 3166-1 alpha-2 country codes.",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "supported_currencies": {
-                    "type": "array",
-                    "description": "A list of currencies supported by the payment gateway, represented using ISO 4217 format.",
-                    "items": {
-                      "type": "string"
-                    }
-                  },
-                  "minimum_charge_amount": {
-                    "type": "number",
-                    "description": "The minimum value that can be charged using the payment gateway"
-                  },
-                  "payment_methods": {
-                    "type": "object",
-                    "description": "The payment methods supported by the gateway",
-                    "properties": {
-                      "credit_card": {
-                        "type": "boolean",
-                        "description": "Indicates if the gateway supports credit card payments."
-                      },
-                      "ach": {
-                        "type": "boolean",
-                        "description": "Indicates if the gateway supports ACH payments."
-                      },
-                      "ideal": {
-                        "type": "boolean",
-                        "description": "Indicates if the gateway supports iDeal payments."
-                      },
-                      "bancontact": {
-                        "type": "boolean",
-                        "description": "Indicates if the gateway supports Bancontact payments."
-                      },
-                      "twint": {
-                        "type": "boolean",
-                        "description": "Indicates if the gateway supports Twint payments."
-                      }
-                    }
-                  },
-                  "processing_features": {
-                    "type": "object",
-                    "description": "The features the payment gateway supports and their current state (enabled/disabled)",
-                    "properties": {
-                      "multi_currency": {
-                        "type": "boolean",
-                        "description": "Indicates if the gateway supports multi-currency transactions."
-                      },
-                      "back_office_charge": {
-                        "type": "boolean",
-                        "description": "Indicates if the gateway allows the SMB to process charges directly from the back office."
-                      },
-                      "checkout": {
-                        "type": "boolean",
-                        "description": "Indicates whether the payment gateway supports a checkout option initiated from the client portal. This value must always be set to true, as client portal checkout is a core feature."
-                      },
-                      "refund": {
-                        "type": "boolean",
-                        "description": "Indicates if the gateway supports full online refunds."
-                      },
-                      "partial_refund": {
-                        "type": "boolean",
-                        "description": "Indicates if the gateway supports partial online refunds. Requires full refunds to be enabled."
-                      },
-                      "client_save_card_on_checkout": {
-                        "type": "boolean",
-                        "description": "Indicates if clients can save cards on file during a payment flow."
-                      },
-                      "client_save_card_standalone": {
-                        "type": "boolean",
-                        "description": "Indicates if clients can save cards on file through a standalone flow."
-                      },
-                      "save_card_by_business": {
-                        "type": "boolean",
-                        "description": "Indicates if the gateway supports saving cards on file from the business side."
-                      },
-                      "offset_fees": {
-                        "type": "boolean",
-                        "description": "Indicates whether the gateway supports offsetting processing fees, as surcharges, convenience fees, or both, while each SMB can enable only one fee type or none."
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Payment gateway updated successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/payment_processing/payment_gateway.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Payment Gateways"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      },
-      "delete": {
-        "summary": "Delete a PaymentGateway",
-        "description": "Delete an existing payment gateway - Available for **Application Tokens**",
-        "parameters": [
-          {
-            "name": "uid",
-            "required": true,
-            "in": "path",
-            "description": "Unique identifier of the Payment Gateway",
-            "schema": {
-              "type": "string"
-            },
-            "example": "pgw_abc123def456"
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Payment gateway deleted successfully"
-          }
-        },
-        "tags": [
-          "Payment Gateways"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/payment_processing/payment_gateway_assignments": {
-      "post": {
-        "summary": "Create a PaymentGatewayAssignment",
-        "description": "Assign a payment gateway to a directory - **Only available for Directory Tokens**",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreatePaymentGatewayAssignmentRequestDto"
-              },
-              "example": {
-                "gateway_uid": "pgw_stripe_v2_789",
-                "directory_uid": "dir_main_directory_123"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Payment gateway assignment created successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/payment_processing/paymentGatewayAssignment.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request. Invalid input data or assignment already exists."
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing or invalid."
-          },
-          "403": {
-            "description": "Forbidden. You do not have access to this resource."
-          },
-          "404": {
-            "description": "Not found. Payment gateway or directory not found."
-          },
-          "500": {
-            "description": "Internal server error."
-          }
-        },
-        "tags": [
-          "Payment Gateways"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
     "/business/payments/v1/card_requests": {
       "post": {
         "description": "Creates a Card Request",
@@ -5667,12 +4733,12 @@
         "x-auth-type": "Application & Application User"
       }
     },
-    "/business/payments/v1/client_packages/{client_package_id}": {
+    "/business/payments/v1/client_packages/{uid}": {
       "get": {
         "parameters": [
           {
             "in": "path",
-            "name": "client_package_id",
+            "name": "uid",
             "required": true,
             "schema": {
               "type": "string"
@@ -5793,7 +4859,7 @@
         "parameters": [
           {
             "in": "path",
-            "name": "client_package_id",
+            "name": "uid",
             "required": true,
             "schema": {
               "type": "string"
@@ -12599,6 +11665,948 @@
         }
       }
     },
+    "/v3/payment_processing/payment_gateways": {
+      "get": {
+        "summary": "Get all PaymentGateways",
+        "description": "Retrieve all available payment gateways - Available for **Directory, Business, and Client Tokens**\n\n**Note:** When using a **Client token**, all fields are returned in the response, but sensitive fields will contain `null` for security and privacy reasons. See response examples below for the differences between token types.",
+        "parameters": [
+          {
+            "name": "directory_uid",
+            "in": "query",
+            "description": "Filter by directory unique identifier",
+            "schema": {
+              "type": "string"
+            },
+            "example": "main_directory"
+          },
+          {
+            "name": "country",
+            "in": "query",
+            "description": "Filter by country, represented using ISO 3166-1 alpha-2 country codes. For example: ['US', 'CA', 'GB']",
+            "schema": {
+              "type": "string"
+            },
+            "example": "US"
+          },
+          {
+            "name": "currency",
+            "in": "query",
+            "description": "Filter by supported currency, represented using ISO 4217 format. For example: ['USD', 'EUR', 'GBP']",
+            "schema": {
+              "type": "string"
+            },
+            "example": "USD"
+          },
+          {
+            "name": "gateway_name",
+            "in": "query",
+            "description": "Filter by gateway name",
+            "schema": {
+              "type": "string"
+            },
+            "example": "stripe"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response. All fields are returned in the response. The response content varies based on the token type - see examples below for details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/PaymentGatewayList"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "examples": {
+                  "Directory_or_Business_Token": {
+                    "summary": "Response with Directory or Business Token",
+                    "description": "Full response with all fields populated",
+                    "value": {
+                      "success": true,
+                      "data": {
+                        "payment_gateways": [
+                          {
+                            "uid": "pgw_abc123def456",
+                            "gateway_name": "stripe_payments_v2",
+                            "app_code_name": "stripe_payments_v2",
+                            "gateway_logo_url": "https://cdn.stripe.com/logo.png",
+                            "default_locale": "en",
+                            "gateway_type": "payments_provider",
+                            "status": "active",
+                            "created_at": "2024-01-15T10:30:00.000Z",
+                            "updated_at": "2024-01-20T14:45:00.000Z",
+                            "main_gateway_benefits": [
+                              {
+                                "locale": "en",
+                                "benefits": [
+                                  "Accept payments from 195+ countries",
+                                  "Industry-leading fraud protection",
+                                  "Fast payouts in 2-7 business days",
+                                  "24/7 customer support"
+                                ]
+                              }
+                            ],
+                            "brief_benefit_highlights": [
+                              {
+                                "locale": "en",
+                                "highlights": [
+                                  "Global reach",
+                                  "Fraud protection",
+                                  "Fast payouts"
+                                ]
+                              }
+                            ],
+                            "supported_countries": [
+                              "US",
+                              "CA",
+                              "GB",
+                              "AU",
+                              "DE",
+                              "FR",
+                              "ES",
+                              "IT"
+                            ],
+                            "supported_currencies": [
+                              "USD",
+                              "EUR",
+                              "GBP",
+                              "CAD",
+                              "AUD"
+                            ],
+                            "minimum_charge_amount": 0.5,
+                            "payment_methods": {
+                              "credit_card": true,
+                              "ach": true,
+                              "ideal": true,
+                              "bancontact": false,
+                              "twint": false
+                            },
+                            "processing_features": {
+                              "multi_currency": true,
+                              "back_office_charge": true,
+                              "checkout": true,
+                              "refund": true,
+                              "partial_refund": true,
+                              "client_save_card_on_checkout": true,
+                              "client_save_card_standalone": true,
+                              "save_card_by_business": true,
+                              "offset_fees": true
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "Client_Token": {
+                    "summary": "Response with Client Token",
+                    "description": "Response with sensitive fields set to null for Client tokens",
+                    "value": {
+                      "success": true,
+                      "data": {
+                        "payment_gateways": [
+                          {
+                            "uid": "pgw_abc123def456",
+                            "gateway_name": "stripe_payments_v2",
+                            "app_code_name": null,
+                            "gateway_logo_url": null,
+                            "default_locale": null,
+                            "gateway_type": null,
+                            "status": "active",
+                            "created_at": null,
+                            "updated_at": null,
+                            "main_gateway_benefits": null,
+                            "brief_benefit_highlights": null,
+                            "supported_countries": [
+                              "US",
+                              "CA",
+                              "GB",
+                              "AU",
+                              "DE",
+                              "FR",
+                              "ES",
+                              "IT"
+                            ],
+                            "supported_currencies": [
+                              "USD",
+                              "EUR",
+                              "GBP",
+                              "CAD",
+                              "AUD"
+                            ],
+                            "minimum_charge_amount": null,
+                            "payment_methods": {
+                              "credit_card": true,
+                              "ach": true,
+                              "ideal": true,
+                              "bancontact": false,
+                              "twint": false
+                            },
+                            "processing_features": {
+                              "multi_currency": true,
+                              "back_office_charge": true,
+                              "checkout": true,
+                              "refund": true,
+                              "partial_refund": true,
+                              "client_save_card_on_checkout": true,
+                              "client_save_card_standalone": true,
+                              "save_card_by_business": true,
+                              "offset_fees": true
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Payment Gateways"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "Create a PaymentGateway",
+        "description": "Create a new payment gateway - **Only available for Application Tokens**",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "app_code_name": {
+                    "type": "string",
+                    "description": "The unique code name of the pre-created gateway's app, created via the API- Creates an app, https://api.vcita.biz/platform/v1/apps"
+                  },
+                  "gateway_logo_url": {
+                    "type": "string",
+                    "description": "The URL or path to the logo of the gateway"
+                  },
+                  "default_locale": {
+                    "type": "string",
+                    "description": "Specifies the fallback locale for the gateway's textual content. If a translation or string is missing, this locale will be used by default."
+                  },
+                  "gateway_type": {
+                    "type": "string",
+                    "enum": [
+                      "digital_wallet",
+                      "payments_provider"
+                    ],
+                    "description": "Integration type: a payment service provider (e.g., Stripe, Square) that enables merchants to process multiple payment methods, or a digital wallet (e.g., PayPal, Google Pay) that allows consumers to store and use payment credentials"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "active",
+                      "disabled",
+                      "deprecated"
+                    ],
+                    "description": "Indicates the current status of the payment gateway: 'active' (available for use), 'disabled' (not available for use), or 'deprecated' (still available but not recommended for new integrations)"
+                  },
+                  "main_gateway_benefits": {
+                    "type": "array",
+                    "description": "A clear 3-4 bullet list highlighting the unique features and value of the gateway, aimed at encouraging merchants to connect with it. This information is stored per locale.",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "locale": {
+                          "type": "string",
+                          "enum": [
+                            "en",
+                            "fr",
+                            "de",
+                            "it",
+                            "pl",
+                            "pt",
+                            "es",
+                            "nl",
+                            "he",
+                            "en_gb"
+                          ],
+                          "description": "The locale code (e.g., en, fr, es)."
+                        },
+                        "benefits": {
+                          "type": "array",
+                          "description": "A list of benefits in the specified locale.",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "locale",
+                        "benefits"
+                      ]
+                    }
+                  },
+                  "brief_benefit_highlights": {
+                    "type": "array",
+                    "description": "A brief, 2-4 word version of the gateway benefits, tailored for compact displays or mobile interfaces. This information is stored per locale.",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "locale": {
+                          "type": "string",
+                          "enum": [
+                            "en",
+                            "fr",
+                            "de",
+                            "it",
+                            "pl",
+                            "pt",
+                            "es",
+                            "nl",
+                            "he",
+                            "en_gb"
+                          ],
+                          "description": "The locale code (e.g., en, fr, es)."
+                        },
+                        "highlights": {
+                          "type": "array",
+                          "description": "A list of short benefit highlights in the specified locale.",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "locale",
+                        "highlights"
+                      ]
+                    }
+                  },
+                  "supported_countries": {
+                    "type": "array",
+                    "description": "A list of countries supported by the payment gateway, represented using ISO 3166-1 alpha-2 country codes. For example: ['US', 'CA', 'GB']",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "supported_currencies": {
+                    "type": "array",
+                    "description": "A list of currencies supported by the payment gateway, represented using ISO 4217 format. For example: ['USD', 'EUR', 'GBP']",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "minimum_charge_amount": {
+                    "type": "number",
+                    "description": "The minimum value that can be charged using the payment gateway"
+                  },
+                  "payment_methods": {
+                    "type": "object",
+                    "description": "The payment methods supported by the gateway",
+                    "properties": {
+                      "credit_card": {
+                        "type": "boolean",
+                        "description": "Indicates if the gateway supports credit card payments."
+                      },
+                      "ach": {
+                        "type": "boolean",
+                        "description": "Indicates if the gateway supports ACH payments."
+                      },
+                      "ideal": {
+                        "type": "boolean",
+                        "description": "Indicates if the gateway supports iDeal payments."
+                      },
+                      "bancontact": {
+                        "type": "boolean",
+                        "description": "Indicates if the gateway supports Bancontact payments."
+                      },
+                      "twint": {
+                        "type": "boolean",
+                        "description": "Indicates if the gateway supports Twint payments."
+                      }
+                    }
+                  },
+                  "processing_features": {
+                    "type": "object",
+                    "description": "The features the payment gateway supports and their current state (enabled/disabled)",
+                    "properties": {
+                      "multi_currency": {
+                        "type": "boolean",
+                        "description": "Indicates if the gateway supports multi-currency transactions."
+                      },
+                      "back_office_charge": {
+                        "type": "boolean",
+                        "description": "Indicates if the gateway allows the SMB to process charges directly from the back office."
+                      },
+                      "checkout": {
+                        "type": "boolean",
+                        "description": "Indicates whether the payment gateway supports a checkout option initiated from the client portal. This value must always be set to true, as client portal checkout is a core feature."
+                      },
+                      "refund": {
+                        "type": "boolean",
+                        "description": "Indicates if the gateway supports full online refunds."
+                      },
+                      "partial_refund": {
+                        "type": "boolean",
+                        "description": "Indicates if the gateway supports partial online refunds. Requires full refunds to be enabled."
+                      },
+                      "client_save_card_on_checkout": {
+                        "type": "boolean",
+                        "description": "Indicates if clients can save cards on file during a payment flow."
+                      },
+                      "client_save_card_standalone": {
+                        "type": "boolean",
+                        "description": "Indicates if clients can save cards on file through a standalone flow."
+                      },
+                      "save_card_by_business": {
+                        "type": "boolean",
+                        "description": "Indicates if the gateway supports saving cards on file from the business side."
+                      },
+                      "offset_fees": {
+                        "type": "boolean",
+                        "description": "Indicates whether the gateway supports offsetting processing fees, as surcharges, convenience fees, or both, while each SMB can enable only one fee type or none."
+                      }
+                    },
+                    "required": [
+                      "multi_currency",
+                      "back_office_charge",
+                      "checkout",
+                      "refund",
+                      "partial_refund",
+                      "client_save_card_on_checkout",
+                      "client_save_card_standalone",
+                      "save_card_by_business",
+                      "offset_fees"
+                    ]
+                  }
+                },
+                "required": [
+                  "app_code_name",
+                  "gateway_logo_url",
+                  "default_locale",
+                  "gateway_type",
+                  "status",
+                  "main_gateway_benefits",
+                  "brief_benefit_highlights",
+                  "supported_countries",
+                  "supported_currencies",
+                  "payment_methods",
+                  "processing_features"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Payment gateway created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/payment_processing/payment_gateway.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Payment Gateways"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/payment_processing/payment_gateways/{uid}": {
+      "get": {
+        "summary": "Retrieve a PaymentGateway",
+        "description": "Get details of a specific payment gateway - Available for **Directory, Business, and Application Tokens**. Note: Application tokens can only access their own gateway.",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the Payment Gateway",
+            "schema": {
+              "type": "string"
+            },
+            "example": "pgw_abc123def456"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/payment_processing/payment_gateway.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Payment Gateways"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "put": {
+        "summary": "Update a PaymentGateway",
+        "description": "Update an existing payment gateway - Available for **Application Tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the Payment Gateway",
+            "schema": {
+              "type": "string"
+            },
+            "example": "pgw_abc123def456"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "gateway_logo_url": {
+                    "type": "string",
+                    "description": "The URL to the logo of the gateway"
+                  },
+                  "default_locale": {
+                    "type": "string",
+                    "description": "Specifies the fallback locale for the gateway's textual content. If a translation or string is missing, this locale will be used by default."
+                  },
+                  "gateway_type": {
+                    "type": "string",
+                    "enum": [
+                      "digital_wallet",
+                      "payments_provider"
+                    ],
+                    "description": "Integration type: a payment service provider (e.g., Stripe, Square) that enables merchants to process multiple payment methods, or a digital wallet (e.g., PayPal, Google Pay) that allows consumers to store and use payment credentials"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "active",
+                      "disabled",
+                      "deprecated"
+                    ],
+                    "description": "Indicates the current status of the payment gateway: 'active' (available for use), 'disabled' (not available for use), or 'deprecated' (still available but not recommended for new integrations)"
+                  },
+                  "main_gateway_benefits": {
+                    "type": "array",
+                    "description": "A clear 3-4 bullet list highlighting the unique features and value of the gateway, aimed at encouraging merchants to connect with it. This information is stored per locale.",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "locale": {
+                          "type": "string",
+                          "enum": [
+                            "en",
+                            "fr",
+                            "de",
+                            "it",
+                            "pl",
+                            "pt",
+                            "es",
+                            "nl",
+                            "he",
+                            "en_gb"
+                          ],
+                          "description": "The locale code (e.g., en, fr, es)."
+                        },
+                        "benefits": {
+                          "type": "array",
+                          "description": "A list of benefits in the specified locale.",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "locale",
+                        "benefits"
+                      ]
+                    }
+                  },
+                  "brief_benefit_highlights": {
+                    "type": "array",
+                    "description": "A brief, 2-4 word version of the gateway benefits, tailored for compact displays or mobile interfaces. This information is stored per locale.",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "locale": {
+                          "type": "string",
+                          "enum": [
+                            "en",
+                            "fr",
+                            "de",
+                            "it",
+                            "pl",
+                            "pt",
+                            "es",
+                            "nl",
+                            "he",
+                            "en_gb"
+                          ],
+                          "description": "The locale code (e.g., en, fr, es)."
+                        },
+                        "highlights": {
+                          "type": "array",
+                          "description": "A list of short benefit highlights in the specified locale.",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      },
+                      "required": [
+                        "locale",
+                        "highlights"
+                      ]
+                    }
+                  },
+                  "supported_countries": {
+                    "type": "array",
+                    "description": "A list of countries supported by the payment gateway, represented using ISO 3166-1 alpha-2 country codes.",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "supported_currencies": {
+                    "type": "array",
+                    "description": "A list of currencies supported by the payment gateway, represented using ISO 4217 format.",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "minimum_charge_amount": {
+                    "type": "number",
+                    "description": "The minimum value that can be charged using the payment gateway"
+                  },
+                  "payment_methods": {
+                    "type": "object",
+                    "description": "The payment methods supported by the gateway",
+                    "properties": {
+                      "credit_card": {
+                        "type": "boolean",
+                        "description": "Indicates if the gateway supports credit card payments."
+                      },
+                      "ach": {
+                        "type": "boolean",
+                        "description": "Indicates if the gateway supports ACH payments."
+                      },
+                      "ideal": {
+                        "type": "boolean",
+                        "description": "Indicates if the gateway supports iDeal payments."
+                      },
+                      "bancontact": {
+                        "type": "boolean",
+                        "description": "Indicates if the gateway supports Bancontact payments."
+                      },
+                      "twint": {
+                        "type": "boolean",
+                        "description": "Indicates if the gateway supports Twint payments."
+                      }
+                    }
+                  },
+                  "processing_features": {
+                    "type": "object",
+                    "description": "The features the payment gateway supports and their current state (enabled/disabled)",
+                    "properties": {
+                      "multi_currency": {
+                        "type": "boolean",
+                        "description": "Indicates if the gateway supports multi-currency transactions."
+                      },
+                      "back_office_charge": {
+                        "type": "boolean",
+                        "description": "Indicates if the gateway allows the SMB to process charges directly from the back office."
+                      },
+                      "checkout": {
+                        "type": "boolean",
+                        "description": "Indicates whether the payment gateway supports a checkout option initiated from the client portal. This value must always be set to true, as client portal checkout is a core feature."
+                      },
+                      "refund": {
+                        "type": "boolean",
+                        "description": "Indicates if the gateway supports full online refunds."
+                      },
+                      "partial_refund": {
+                        "type": "boolean",
+                        "description": "Indicates if the gateway supports partial online refunds. Requires full refunds to be enabled."
+                      },
+                      "client_save_card_on_checkout": {
+                        "type": "boolean",
+                        "description": "Indicates if clients can save cards on file during a payment flow."
+                      },
+                      "client_save_card_standalone": {
+                        "type": "boolean",
+                        "description": "Indicates if clients can save cards on file through a standalone flow."
+                      },
+                      "save_card_by_business": {
+                        "type": "boolean",
+                        "description": "Indicates if the gateway supports saving cards on file from the business side."
+                      },
+                      "offset_fees": {
+                        "type": "boolean",
+                        "description": "Indicates whether the gateway supports offsetting processing fees, as surcharges, convenience fees, or both, while each SMB can enable only one fee type or none."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Payment gateway updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/payment_processing/payment_gateway.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Payment Gateways"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "summary": "Delete a PaymentGateway",
+        "description": "Delete an existing payment gateway - Available for **Application Tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the Payment Gateway",
+            "schema": {
+              "type": "string"
+            },
+            "example": "pgw_abc123def456"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Payment gateway deleted successfully"
+          }
+        },
+        "tags": [
+          "Payment Gateways"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/payment_processing/payment_gateway_assignments": {
+      "post": {
+        "summary": "Create a PaymentGatewayAssignment",
+        "description": "Assign a payment gateway to a directory - **Only available for Directory Tokens**",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePaymentGatewayAssignmentRequestDto"
+              },
+              "example": {
+                "gateway_uid": "pgw_stripe_v2_789",
+                "directory_uid": "dir_main_directory_123"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Payment gateway assignment created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/payment_processing/paymentGatewayAssignment.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request. Invalid input data or assignment already exists."
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing or invalid."
+          },
+          "403": {
+            "description": "Forbidden. You do not have access to this resource."
+          },
+          "404": {
+            "description": "Not found. Payment gateway or directory not found."
+          },
+          "500": {
+            "description": "Internal server error."
+          }
+        },
+        "tags": [
+          "Payment Gateways"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/sales/reports/payments_widget": {
+      "get": {
+        "summary": "Retrieve Payments Widget Data",
+        "description": "Fetch summarized data for the Payments widget, including total payments, overdue payments, and pending estimates. This endpoint is accessible with **Staff Tokens** only.",
+        "responses": {
+          "200": {
+            "description": "Successful response containing Payments widget data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/PaymentsWidget"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Sales Reports"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/sales/reports/forecast_payments": {
+      "get": {
+        "summary": "Retrieve Payments Forecast Data",
+        "description": "Fetch detailed data for the Payments forecast widget, providing predictions of future payments on a month-by-month basis. This endpoint is accessible with **Staff Tokens** only.",
+        "responses": {
+          "200": {
+            "description": "Successful response containing Payments forecast data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/PaymentsForecast"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Sales Reports"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v3/sales/coupons": {
       "get": {
         "summary": "Get all Coupons",
@@ -12973,6 +12981,35 @@
   },
   "components": {
     "schemas": {
+      "PaymentGatewayList": {
+        "type": "object",
+        "properties": {
+          "payment_gateways": {
+            "description": "List of Payment Gateways",
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/payment_processing/payment_gateway.json"
+            }
+          }
+        }
+      },
+      "CreatePaymentGatewayAssignmentRequestDto": {
+        "type": "object",
+        "properties": {
+          "gateway_uid": {
+            "type": "string",
+            "description": "The unique identifier of the payment gateway to assign"
+          },
+          "directory_uid": {
+            "type": "string",
+            "description": "The unique identifier of the directory to assign the payment gateway to"
+          }
+        },
+        "required": [
+          "gateway_uid",
+          "directory_uid"
+        ]
+      },
       "PaymentsWidget": {
         "type": "object",
         "properties": {
@@ -13064,35 +13101,6 @@
             }
           }
         }
-      },
-      "PaymentGatewayList": {
-        "type": "object",
-        "properties": {
-          "payment_gateways": {
-            "description": "List of Payment Gateways",
-            "type": "array",
-            "items": {
-              "$ref": "https://vcita.github.io/developers-hub/entities/payment_processing/payment_gateway.json"
-            }
-          }
-        }
-      },
-      "CreatePaymentGatewayAssignmentRequestDto": {
-        "type": "object",
-        "properties": {
-          "gateway_uid": {
-            "type": "string",
-            "description": "The unique identifier of the payment gateway to assign"
-          },
-          "directory_uid": {
-            "type": "string",
-            "description": "The unique identifier of the directory to assign the payment gateway to"
-          }
-        },
-        "required": [
-          "gateway_uid",
-          "directory_uid"
-        ]
       },
       "Response": {
         "properties": {

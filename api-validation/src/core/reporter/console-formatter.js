@@ -87,7 +87,8 @@ function printHeader(summary) {
   
   // Stats line
   const passColor = summary.failed === 0 ? colors.green : (summary.passed > summary.failed ? colors.yellow : colors.red);
-  const stats = `  PASSED: ${summary.passed}    FAILED: ${summary.failed}    SKIPPED: ${summary.skipped}    TOTAL: ${summary.total}`;
+  const warned = summary.warned || 0;
+  const stats = `  PASSED: ${summary.passed}    WARNED: ${warned}    FAILED: ${summary.failed}    SKIPPED: ${summary.skipped}    TOTAL: ${summary.total}`;
   console.log(colors.cyan + box.vertical + passColor + padRight(stats, width) + colors.reset + colors.cyan + box.vertical + colors.reset);
   console.log(colors.cyan + box.vertical + colors.bold + padRight(`  Pass Rate: ${summary.passRate}`, width) + colors.reset + colors.cyan + box.vertical + colors.reset);
   console.log(colors.cyan + box.bottomLeft + horizontalLine(width) + box.bottomRight + colors.reset);
@@ -188,7 +189,8 @@ function printDomainSummary(byDomain) {
  */
 function printProgress(current, total, result) {
   const percent = Math.round((current / total) * 100);
-  const status = result.status === 'PASS' ? colors.green + '✓' : colors.red + '✗';
+  const status = result.status === 'PASS' ? colors.green + '✓' : 
+                 result.status === 'WARN' ? colors.yellow + '⚠' : colors.red + '✗';
   
   process.stdout.write(`\r${colors.dim}[${current}/${total}]${colors.reset} ${percent}% ${status} ${result.endpoint}${colors.reset}`.padEnd(80));
 }
