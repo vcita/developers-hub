@@ -846,7 +846,12 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
               result.details.healingInfo = {
                 attempts: healingResult.iterations,
                 summary: healingResult.summary,
-                agentLog: healingResult.healingLog
+                agentLog: healingResult.healingLog,
+                docFixSuggestions: healingResult.docFixSuggestions || [],
+                savedWorkflows: healingResult.savedWorkflows || [],
+                workflowReused: healingResult.workflowReused || false,
+                workflowStatus: healingResult.savedWorkflows?.length > 0 ? 'New' : 
+                               healingResult.workflowReused ? 'Reused' : 'N/A'
               };
             }
             
@@ -859,7 +864,9 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
               endpoint: endpointKey,
               success: true,
               iterations: healingResult.iterations,
-              summary: healingResult.summary
+              summary: healingResult.summary,
+              workflowSaved: healingResult.savedWorkflows?.length > 0,
+              docFixCount: healingResult.docFixSuggestions?.length || 0
             });
           } else {
             // Agent couldn't fix it
@@ -869,14 +876,17 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
               iterations: healingResult.iterations,
               failed: true,
               reason: healingResult.reason,
-              agentLog: healingResult.healingLog
+              agentLog: healingResult.healingLog,
+              docFixSuggestions: healingResult.docFixSuggestions || [],
+              workflowStatus: 'Failed'
             };
             
             broadcastEvent(session, 'healing_complete', {
               endpoint: endpointKey,
               success: false,
               iterations: healingResult.iterations,
-              reason: healingResult.reason
+              reason: healingResult.reason,
+              docFixCount: healingResult.docFixSuggestions?.length || 0
             });
           }
         }
