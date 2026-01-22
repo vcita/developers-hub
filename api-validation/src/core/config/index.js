@@ -5,6 +5,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { validateAndRefreshTokens, validateAllTokens } = require('./token-validator');
 
 const CONFIG_DIR = path.join(__dirname, '../../../config');
 const DEFAULT_CONFIG_PATH = path.join(CONFIG_DIR, 'default.json');
@@ -191,9 +192,37 @@ function validateConfig(config) {
   };
 }
 
+/**
+ * Load configuration and validate/refresh tokens
+ * @param {Object} overrides - CLI or runtime overrides
+ * @returns {Promise<Object>} Complete configuration with validated tokens
+ */
+async function loadConfigWithTokenValidation(overrides = {}) {
+  const config = loadConfig(overrides);
+  
+  // Validate and refresh tokens
+  const { config: updatedConfig, validation } = await validateAndRefreshTokens(config);
+  
+  return {
+    config: updatedConfig,
+    tokenValidation: validation
+  };
+}
+
+/**
+ * Synchronously validate tokens (for quick checks without refresh)
+ * @param {Object} tokens - Token configuration
+ * @returns {Object} Validation result
+ */
+function validateTokensSync(tokens) {
+  return validateAllTokens(tokens);
+}
+
 module.exports = {
   loadConfig,
+  loadConfigWithTokenValidation,
   getMaskedConfig,
   validateConfig,
+  validateTokensSync,
   RATE_LIMIT_PRESETS
 };

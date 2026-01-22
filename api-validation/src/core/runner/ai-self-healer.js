@@ -135,7 +135,7 @@ async function analyzeFailure(context) {
 }
 
 /**
- * Build the analysis prompt for AI
+ * Build the analysis prompt for AI (simplified, agentic approach)
  */
 function buildAnalysisPrompt(context) {
   const { endpoint, result, resolvedParams, availableEndpoints, previousAttempts } = context;
@@ -150,11 +150,7 @@ function buildAnalysisPrompt(context) {
       domain: e.domain
     }));
   
-  return `You are an API testing expert. Analyze this test failure and determine:
-1. The root cause of the failure
-2. Whether this is a missing dependency issue (can be fixed by creating entities) or a documentation issue
-3. What prerequisite API calls are needed to fix it (if any)
-4. Any documentation issues you notice
+  return `You are an API testing agent. Your job is to analyze test failures and determine the best fix.
 
 ## Failed Endpoint
 - **Method**: ${endpoint.method}
@@ -173,67 +169,72 @@ ${JSON.stringify(result.details?.request || {}, null, 2)}
 ${JSON.stringify(result.details?.response?.data || {}, null, 2)}
 \`\`\`
 
-## Available Resolved Parameters
-These are UIDs/IDs we already have:
+## Available UIDs/Parameters
+These are real UIDs we already have from the system:
 \`\`\`json
 ${JSON.stringify(resolvedParams, null, 2)}
 \`\`\`
 
-## Available POST Endpoints
-These can be used to create missing entities:
+## Available POST Endpoints (for creating dependencies)
 \`\`\`json
 ${JSON.stringify(postEndpoints.slice(0, 50), null, 2)}
 \`\`\`
 
-${previousAttempts.length > 0 ? `## Previous Attempts (Failed)
-These approaches were already tried and didn't work:
-${previousAttempts.map((a, i) => `${i + 1}. ${a.description}`).join('\n')}
+${previousAttempts.length > 0 ? `## Previous Attempts (IMPORTANT - these already failed!)
+${previousAttempts.map((a, i) => `
+### Attempt ${i + 1}
+- Action: ${a.description}
+- Result: ${a.result?.status || 'Unknown'} - ${a.result?.details?.reason || ''}
+${a.requestBody ? `- Request body used:\n\`\`\`json\n${JSON.stringify(a.requestBody, null, 2)}\n\`\`\`` : ''}
+`).join('\n')}
+
+**DO NOT repeat the same approaches. Try something different.**
 ` : ''}
 
-## Instructions
-Analyze the error and respond with a JSON object. Consider:
-- If the error mentions a missing UID/ID (e.g., "resource_type_uid not found"), suggest creating that entity first
-- If the error is about validation (wrong type, missing field), check if it's a documentation issue
-- If you can't determine a fix, set canRetry to false
+## Your Task
+Analyze the error and decide the BEST action:
 
-## Documentation Issue Types to Identify
-- MISSING_REQUIRED_FIELD: API requires field but docs might say it's optional
-- WRONG_TYPE: Type mismatch between what API expects vs what was sent
-- UNDOCUMENTED_ERROR: This error status code might not be documented
-- WRONG_ENUM: API rejected a value that might be documented as valid
-- MISSING_FIELD_IN_SCHEMA: API returns fields not in documentation
-- DEPRECATED_FIELD: A documented field has no effect
+1. **If IDs/UIDs are wrong**: The request might use placeholder numeric IDs (like 1001, 1002) but the API needs real UIDs. Check if we have matching UIDs in the Available UIDs section.
+
+2. **If dependencies are missing**: Some entities might need to be created first (e.g., need a service before creating a package that references it).
+
+3. **If it's a documentation issue**: The API might behave differently than documented.
 
 ## Response Format
 Return ONLY a JSON object:
 \`\`\`json
 {
-  "rootCause": "Brief description of why the test failed",
-  "analysisType": "missing_dependency" | "documentation_issue" | "both" | "unknown",
-  "canRetry": true/false,
+  "rootCause": "Clear explanation of why the test failed",
+  "action": "retry_with_fix" | "create_dependencies" | "cannot_fix",
+  "correctedRequestBody": { /* COMPLETE corrected request body if action is retry_with_fix */ },
   "prerequisites": [
     {
-      "endpoint": "/v3/path/to/create",
-      "method": "POST",
-      "description": "Why this needs to be created",
+      "endpoint": "/path/to/create",
+      "method": "POST", 
+      "description": "What we're creating and why",
       "extractField": "uid",
-      "storeAs": "parameter_name_uid"
+      "storeAs": "service_uid"
     }
   ],
   "documentationIssues": [
     {
-      "type": "MISSING_REQUIRED_FIELD",
+      "type": "WRONG_ID_FORMAT",
       "field": "field_name",
-      "message": "Human readable description",
+      "message": "Description of the issue",
       "suggestion": "How to fix the documentation"
     }
   ]
 }
-\`\`\``;
+\`\`\`
+
+**IMPORTANT**: 
+- If action is "retry_with_fix", you MUST provide the complete correctedRequestBody with real UIDs substituted
+- If action is "create_dependencies", after we create them, we'll ask you again for the corrected body
+- Look at the error message carefully - "must be a valid service id" usually means use service_uid from Available UIDs`;
 }
 
 /**
- * Parse AI analysis response
+ * Parse AI analysis response (agentic format)
  */
 function parseAnalysisResponse(content) {
   try {
@@ -243,10 +244,15 @@ function parseAnalysisResponse(content) {
     
     const parsed = JSON.parse(jsonStr);
     
+    // Map new action format to canRetry
+    const action = parsed.action || 'cannot_fix';
+    const canRetry = action === 'retry_with_fix' || action === 'create_dependencies';
+    
     return {
       rootCause: parsed.rootCause || 'Unknown',
-      analysisType: parsed.analysisType || 'unknown',
-      canRetry: parsed.canRetry === true,
+      action,
+      canRetry,
+      correctedRequestBody: parsed.correctedRequestBody || null,
       prerequisites: Array.isArray(parsed.prerequisites) ? parsed.prerequisites : [],
       documentationIssues: Array.isArray(parsed.documentationIssues) ? parsed.documentationIssues : []
     };
@@ -254,11 +260,153 @@ function parseAnalysisResponse(content) {
     console.error('[Self-Healer] Failed to parse AI response:', error.message);
     return {
       rootCause: 'Failed to parse AI response',
-      analysisType: 'unknown',
+      action: 'cannot_fix',
       canRetry: false,
+      correctedRequestBody: null,
       prerequisites: [],
       documentationIssues: []
     };
+  }
+}
+
+/**
+ * Ask AI to generate the corrected request body (agentic approach)
+ * This gives the AI full context and lets it decide how to fix the request
+ * @param {Object} context - Context for generating the fix
+ * @returns {Promise<Object|null>} Corrected request body or null
+ */
+async function generateCorrectedRequestBody(context) {
+  const { 
+    endpoint, 
+    originalRequest, 
+    errorResponse, 
+    createdEntities, 
+    currentParams,
+    previousAttempts,
+    apiKey 
+  } = context;
+  
+  initializeClient(apiKey);
+  
+  if (!anthropicClient) {
+    console.log('[Self-Healer] No API key - cannot generate corrected body');
+    return null;
+  }
+  
+  // Pre-process entities to extract UIDs from responses if they're null
+  const processedEntities = createdEntities.map(e => {
+    let uid = e.extractedUid;
+    
+    // If UID is null, try to find it in the response
+    if (!uid && e.response) {
+      const resp = e.response;
+      // Try common paths
+      uid = resp.uid || resp.id || 
+            resp.data?.uid || resp.data?.id ||
+            resp.service_uid || resp.product_uid ||
+            resp.data?.service_uid || resp.data?.product_uid ||
+            resp.matter_service_uid || resp.data?.matter_service_uid;
+      
+      // If still not found, search for any *_uid field
+      if (!uid) {
+        const searchForUid = (obj) => {
+          if (!obj || typeof obj !== 'object') return null;
+          for (const [key, value] of Object.entries(obj)) {
+            if ((key.endsWith('_uid') || key === 'uid' || key === 'id') && 
+                typeof value === 'string' && value.length > 0) {
+              return value;
+            }
+          }
+          return null;
+        };
+        uid = searchForUid(resp) || searchForUid(resp.data);
+      }
+      
+      if (uid) {
+        console.log(`[Self-Healer] Recovered UID from response for ${e.storeAs}: ${uid}`);
+      }
+    }
+    
+    return {
+      type: e.storeAs,
+      uid: uid,
+      endpoint: e.endpoint,
+      responsePreview: JSON.stringify(e.response).substring(0, 300)
+    };
+  });
+  
+  console.log('[Self-Healer] Processed entities for AI:', JSON.stringify(processedEntities, null, 2));
+  
+  const prompt = `You are an API testing agent. Generate a corrected request body.
+
+## Original Request (Failed)
+**Endpoint**: ${endpoint.method} ${endpoint.path}
+**Request Body**:
+\`\`\`json
+${JSON.stringify(originalRequest, null, 2)}
+\`\`\`
+
+## Error Response
+\`\`\`json
+${JSON.stringify(errorResponse, null, 2)}
+\`\`\`
+
+## Entities We Just Created (USE THESE UIDs!)
+\`\`\`json
+${JSON.stringify(processedEntities, null, 2)}
+\`\`\`
+
+**CRITICAL**: Use the 'uid' values from the entities above. These are REAL UIDs from the system.
+
+## All Available UIDs/Parameters
+\`\`\`json
+${JSON.stringify(currentParams, null, 2)}
+\`\`\`
+
+${previousAttempts.length > 0 ? `## Previous Failed Attempts
+${previousAttempts.map((a, i) => `
+Attempt ${i + 1}: ${a.description}
+Request: ${JSON.stringify(a.requestBody, null, 2)}
+Result: ${a.result?.status} - ${a.result?.details?.reason}
+`).join('\n')}
+` : ''}
+
+## Your Task
+Generate the COMPLETE corrected request body. 
+
+Key things to fix:
+- Replace placeholder numeric IDs (like 1001, 1002) with ACTUAL UIDs from the created entities or available parameters
+- Use the correct field names (e.g., service_uid instead of id if that's what the API expects)
+- Keep all other fields from the original request
+
+Return ONLY a JSON object with the corrected body:
+\`\`\`json
+{
+  "correctedBody": { /* the complete corrected request body */ },
+  "changes": ["list of changes made"]
+}
+\`\`\``;
+
+  try {
+    const response = await anthropicClient.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4000,
+      messages: [{ role: 'user', content: prompt }]
+    });
+    
+    const content = response.content[0]?.text;
+    if (!content) return null;
+    
+    const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
+    const jsonStr = jsonMatch ? jsonMatch[1] : content;
+    const parsed = JSON.parse(jsonStr);
+    
+    console.log('[Self-Healer] AI generated corrected body:', parsed.changes);
+    return parsed.correctedBody;
+    
+  } catch (error) {
+    console.error('[Self-Healer] Failed to generate corrected body:', error.message);
+    return null;
   }
 }
 
@@ -316,13 +464,19 @@ async function executePrerequisite(prerequisite, apiClient, config, resolvedPara
     }
     
     // Execute the request
+    console.log(`[Self-Healer] Executing prerequisite: ${method} ${endpoint}`);
     const response = await apiClient.request(requestConfig);
+    console.log(`[Self-Healer] Prerequisite response status: ${response.status}`);
+    console.log(`[Self-Healer] Prerequisite response data:`, JSON.stringify(response.data).substring(0, 500));
     
     // Extract the UID from response
     let extractedUid = null;
-    if (extractField && response.data) {
-      extractedUid = extractUidFromResponse(response.data, extractField);
+    if (response.data) {
+      // Always try to extract, use extractField as a hint but also try common fields
+      extractedUid = extractUidFromResponse(response.data, extractField || 'uid');
     }
+    
+    console.log(`[Self-Healer] Extracted UID: ${extractedUid}, storeAs: ${storeAs}`);
     
     onProgress?.({ 
       type: 'created', 
@@ -358,14 +512,22 @@ async function executePrerequisite(prerequisite, apiClient, config, resolvedPara
 }
 
 /**
- * Extract UID from API response
+ * Extract UID from API response - smart extraction that tries multiple paths
  */
 function extractUidFromResponse(data, fieldName) {
+  console.log('[Self-Healer] Extracting UID, fieldName:', fieldName, 'from response:', JSON.stringify(data).substring(0, 500));
+  
   // Try direct field
-  if (data[fieldName]) return data[fieldName];
+  if (data[fieldName]) {
+    console.log('[Self-Healer] Found at root:', data[fieldName]);
+    return data[fieldName];
+  }
   
   // Try in data wrapper
-  if (data.data?.[fieldName]) return data.data[fieldName];
+  if (data.data?.[fieldName]) {
+    console.log('[Self-Healer] Found in data wrapper:', data.data[fieldName]);
+    return data.data[fieldName];
+  }
   
   // Try uid/id at root or in data
   if (fieldName === 'uid' || fieldName === 'id') {
@@ -375,15 +537,54 @@ function extractUidFromResponse(data, fieldName) {
     if (data.data?.id) return data.data.id;
   }
   
+  // Try common UID field names
+  const uidFields = ['uid', 'id', 'service_uid', 'product_uid', 'matter_service_uid', 'package_uid'];
+  for (const field of uidFields) {
+    if (data[field]) {
+      console.log(`[Self-Healer] Found UID in field '${field}':`, data[field]);
+      return data[field];
+    }
+    if (data.data?.[field]) {
+      console.log(`[Self-Healer] Found UID in data.${field}:`, data.data[field]);
+      return data.data[field];
+    }
+  }
+  
   // Try first item in array (for list responses)
   const arrayKeys = Object.keys(data.data || data).filter(k => Array.isArray((data.data || data)[k]));
   if (arrayKeys.length > 0) {
     const arr = (data.data || data)[arrayKeys[0]];
-    if (arr.length > 0 && arr[0][fieldName]) {
-      return arr[0][fieldName];
+    if (arr.length > 0) {
+      // Try the specified field first, then common UID fields
+      if (arr[0][fieldName]) return arr[0][fieldName];
+      for (const field of uidFields) {
+        if (arr[0][field]) {
+          console.log(`[Self-Healer] Found UID in array[0].${field}:`, arr[0][field]);
+          return arr[0][field];
+        }
+      }
     }
   }
   
+  // Last resort: look for any field ending in '_uid' or 'uid'
+  const findUidInObject = (obj) => {
+    if (!obj || typeof obj !== 'object') return null;
+    for (const [key, value] of Object.entries(obj)) {
+      if ((key.endsWith('_uid') || key === 'uid') && typeof value === 'string' && value.length > 0) {
+        console.log(`[Self-Healer] Found UID field '${key}':`, value);
+        return value;
+      }
+    }
+    return null;
+  };
+  
+  let found = findUidInObject(data);
+  if (found) return found;
+  
+  found = findUidInObject(data.data);
+  if (found) return found;
+  
+  console.log('[Self-Healer] Could not extract UID from response');
   return null;
 }
 
@@ -500,8 +701,78 @@ async function attemptSelfHealing(options) {
       break;
     }
     
-    // Execute prerequisites
-    if (analysis.prerequisites.length > 0) {
+    // Get the original request body for context
+    const originalRequest = attempts.length > 0 
+      ? attempts[attempts.length - 1]?.result?.details?.request?.data 
+      : result.details?.request?.data;
+    
+    // ============== ACTION: RETRY WITH AI-GENERATED FIX ==============
+    if (analysis.action === 'retry_with_fix' && analysis.correctedRequestBody) {
+      healingHistory.push({
+        type: 'ai_fix',
+        icon: '🤖',
+        title: 'AI Generated Fix',
+        description: 'Retrying with AI-corrected request body',
+        details: `Changes applied by AI`,
+        timestamp: new Date().toISOString()
+      });
+      
+      onProgress?.({ 
+        type: 'trying_ai_fix', 
+        attempt,
+        healingHistory
+      });
+      
+      // Retry with AI-generated body
+      const retryResult = await retryTest(endpoint, currentParams, analysis.correctedRequestBody);
+      
+      if (retryResult.status === 'PASS' || retryResult.status === 'WARN') {
+        healingHistory.push({
+          type: 'success',
+          icon: '🎉',
+          title: 'AI Fix Worked!',
+          description: `Test passed after AI corrected the request`,
+          timestamp: new Date().toISOString()
+        });
+        
+        onProgress?.({ 
+          type: 'healing_success', 
+          attempt,
+          resolvedVia: 'ai_correction',
+          healingHistory
+        });
+        
+        return {
+          success: true,
+          attempts: attempt,
+          attemptDetails: [...attempts, { attempt, description: 'AI correction succeeded', analysis }],
+          documentationIssues: allDocIssues,
+          healingHistory,
+          result: retryResult
+        };
+      } else {
+        // AI fix didn't work, record and continue
+        healingHistory.push({
+          type: 'ai_fix_failed',
+          icon: '⚠️',
+          title: 'AI Fix Did Not Work',
+          description: `${retryResult.status}: ${retryResult.details?.reason || 'Unknown error'}`,
+          timestamp: new Date().toISOString()
+        });
+        
+        attempts.push({
+          attempt,
+          description: `AI correction failed: ${retryResult.details?.reason}`,
+          analysis,
+          result: retryResult,
+          requestBody: analysis.correctedRequestBody // Track what we tried
+        });
+        continue; // Go to next attempt for re-analysis
+      }
+    }
+    
+    // ============== ACTION: CREATE DEPENDENCIES ==============
+    if (analysis.action === 'create_dependencies' && analysis.prerequisites.length > 0) {
       let allPrereqsSucceeded = true;
       const createdEntities = [];
       
@@ -535,17 +806,46 @@ async function attemptSelfHealing(options) {
         );
         
         if (prereqResult.success) {
+          // Try to recover UID if it wasn't extracted
+          let recoveredUid = prereqResult.extractedUid;
+          if (!recoveredUid && prereqResult.response) {
+            const resp = prereqResult.response;
+            recoveredUid = resp.uid || resp.id || 
+                          resp.data?.uid || resp.data?.id ||
+                          resp.service_uid || resp.product_uid ||
+                          resp.data?.service_uid || resp.data?.product_uid;
+            
+            // Search for any *_uid field
+            if (!recoveredUid) {
+              const searchForUid = (obj) => {
+                if (!obj || typeof obj !== 'object') return null;
+                for (const [key, value] of Object.entries(obj)) {
+                  if ((key.endsWith('_uid') || key === 'uid' || key === 'id') && 
+                      typeof value === 'string' && value.length > 0) {
+                    return value;
+                  }
+                }
+                return null;
+              };
+              recoveredUid = searchForUid(resp) || searchForUid(resp.data);
+            }
+            
+            if (recoveredUid) {
+              console.log(`[Self-Healer] Recovered UID from response: ${recoveredUid}`);
+              prereqResult.extractedUid = recoveredUid;
+            }
+          }
+          
           createdEntities.push(prereqResult);
           
           // Add success to history
+          const uidDisplay = prereqResult.extractedUid || 'UID_NOT_FOUND (check logs)';
           healingHistory.push({
             type: 'created',
             icon: '✅',
             title: `Created Successfully`,
             description: `${prereq.method || 'POST'} ${prereq.endpoint}`,
-            details: prereqResult.extractedUid 
-              ? `Extracted: ${prereqResult.storeAs || 'uid'} = ${prereqResult.extractedUid}`
-              : null,
+            details: `Extracted: ${prereqResult.storeAs || 'uid'} = ${uidDisplay}`,
             timestamp: new Date().toISOString()
           });
           
@@ -587,7 +887,55 @@ async function attemptSelfHealing(options) {
         continue; // Try again with new analysis
       }
       
-      // Retry the original test with new params
+      // ============== ASK AI FOR CORRECTED BODY ==============
+      // Now that we've created the dependencies, ask AI to generate the corrected request
+      healingHistory.push({
+        type: 'generating_fix',
+        icon: '🤖',
+        title: 'Generating Corrected Request',
+        description: 'Asking AI to generate request body with new UIDs',
+        timestamp: new Date().toISOString()
+      });
+      
+      onProgress?.({ type: 'generating_corrected_body', attempt, healingHistory });
+      
+      const errorResponse = attempts.length > 0 
+        ? attempts[attempts.length - 1]?.result?.details?.response?.data 
+        : result.details?.response?.data;
+      
+      const correctedBody = await generateCorrectedRequestBody({
+        endpoint,
+        originalRequest,
+        errorResponse,
+        createdEntities,
+        currentParams,
+        previousAttempts: attempts,
+        apiKey: config.ai?.anthropicApiKey
+      });
+      
+        if (correctedBody) {
+        // Log the entities and their UIDs for debugging
+        const uidSummary = createdEntities.map(e => {
+          if (e.extractedUid) {
+            return `${e.storeAs}=${e.extractedUid}`;
+          } else {
+            // Try to find UID in response as fallback
+            const respUid = e.response?.data?.uid || e.response?.uid || 'NOT_FOUND';
+            return `${e.storeAs}=${respUid} (from response)`;
+          }
+        }).join(', ');
+        
+        healingHistory.push({
+          type: 'body_generated',
+          icon: '📝',
+          title: 'AI Generated Corrected Body',
+          description: 'Request body updated with real UIDs',
+          details: `Using: ${uidSummary}`,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+      // Retry the original test with AI-generated body
       healingHistory.push({
         type: 'retrying',
         icon: '🔄',
@@ -599,7 +947,7 @@ async function attemptSelfHealing(options) {
       
       onProgress?.({ type: 'retrying', attempt, newParams: currentParams, healingHistory });
       
-      const retryResult = await retryTest(endpoint, currentParams);
+      const retryResult = await retryTest(endpoint, currentParams, correctedBody);
       
       if (retryResult.status === 'PASS' || retryResult.status === 'WARN') {
         // Success!
@@ -652,25 +1000,30 @@ async function attemptSelfHealing(options) {
           description: `Retry failed with status ${retryResult.status}: ${retryResult.details?.reason}`,
           analysis,
           result: retryResult,
+          requestBody: correctedBody, // Track what body we tried
           createdEntities
         });
       }
     } else {
-      // No prerequisites suggested, can't fix
+      // No valid action from AI, can't fix
       healingHistory.push({
         type: 'no_fix',
         icon: '🤷',
         title: 'No Fix Available',
-        description: analysis.rootCause,
+        description: analysis.rootCause || 'AI could not determine a fix',
         timestamp: new Date().toISOString()
       });
       
       attempts.push({
         attempt,
-        description: `No prerequisites suggested: ${analysis.rootCause}`,
+        description: `AI action: ${analysis.action || 'none'} - ${analysis.rootCause}`,
         analysis
       });
-      break;
+      
+      // If AI explicitly said cannot_fix, don't retry
+      if (analysis.action === 'cannot_fix') {
+        break;
+      }
     }
   }
   
@@ -702,6 +1055,7 @@ async function attemptSelfHealing(options) {
 module.exports = {
   isUnrecoverableError,
   analyzeFailure,
+  generateCorrectedRequestBody,
   executePrerequisite,
   attemptSelfHealing,
   DOC_ISSUE_TYPES

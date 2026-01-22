@@ -367,9 +367,82 @@ async function reloadSwaggers() {
   }
 }
 
+/**
+ * Check and validate tokens, refresh expired ones
+ */
+async function checkTokens() {
+  const btn = document.getElementById('check-tokens-btn');
+  const statusEl = document.getElementById('token-status');
+  
+  try {
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '⏳ Checking...';
+    }
+    
+    const response = await fetch('/api/validate/tokens/check', { method: 'POST' });
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to check tokens');
+    }
+    
+    // Update status badge
+    const validCount = data.valid?.length || 0;
+    const expiredCount = data.expired?.length || 0;
+    const invalidCount = data.invalid?.length || 0;
+    
+    if (statusEl) {
+      if (expiredCount > 0 || invalidCount > 0) {
+        statusEl.textContent = `Tokens: ${validCount}✓ ${expiredCount + invalidCount}✗`;
+        statusEl.className = 'badge badge-warn';
+      } else {
+        statusEl.textContent = `Tokens: ${validCount}✓`;
+        statusEl.className = 'badge badge-pass';
+      }
+    }
+    
+    // Show result
+    if (btn) {
+      if (data.tokensRefreshed) {
+        btn.innerHTML = '✅ Refreshed!';
+      } else if (expiredCount === 0 && invalidCount === 0) {
+        btn.innerHTML = '✅ All Valid!';
+      } else {
+        btn.innerHTML = '⚠️ Issues Found';
+      }
+      setTimeout(() => {
+        btn.innerHTML = '🔐 Check Tokens';
+        btn.disabled = false;
+      }, 2000);
+    }
+    
+    // Log details
+    if (data.warnings?.length > 0) {
+      console.warn('Token warnings:', data.warnings);
+    }
+    if (data.errors?.length > 0) {
+      console.error('Token errors:', data.errors);
+      alert('Token issues:\n' + data.errors.join('\n'));
+    }
+    
+  } catch (error) {
+    console.error('Failed to check tokens:', error);
+    
+    if (btn) {
+      btn.innerHTML = '❌ Failed';
+      setTimeout(() => {
+        btn.innerHTML = '🔐 Check Tokens';
+        btn.disabled = false;
+      }, 2000);
+    }
+  }
+}
+
 // Expose functions to window.App for onclick handlers
 window.App = {
-  reloadSwaggers
+  reloadSwaggers,
+  checkTokens
 };
 
 // Initialize on DOM ready

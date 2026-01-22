@@ -7,7 +7,8 @@
 const express = require('express');
 const router = express.Router();
 
-const { loadConfig } = require('../../core/config');
+const { loadConfig, loadConfigWithTokenValidation } = require('../../core/config');
+const { validateAndRefreshTokens, validateAllTokens } = require('../../core/config/token-validator');
 const { buildTestSequence, createTestContext } = require('../../core/orchestrator/test-sequencer');
 const { parseResourcePath } = require('../../core/orchestrator/resource-grouper');
 const { createApiClient, buildRequestConfig, buildRequestConfigAsync, executeRequest, extractUidFromResponse } = require('../../core/runner/api-client');
@@ -16,7 +17,8 @@ const { createParamResolver, extractPathParams, hasParamSource, getParamSource, 
 const { askAIForListEndpoint, addLearnedMapping, removeLearnedMapping, getLearnedMapping } = require('../../core/resolver/ai-resolver');
 const { validateAgainstSchema, validateStatusCode, buildValidationResult, getSuggestion, FAILURE_REASONS } = require('../../core/validator/response-validator');
 const { createReport, addResult, finalizeReport } = require('../../core/reporter/report-generator');
-const { isUnrecoverableError, attemptSelfHealing } = require('../../core/runner/ai-self-healer');
+const { isUnrecoverableError } = require('../../core/runner/ai-self-healer');
+const { runAgentHealer } = require('../../core/runner/ai-agent-healer');
 const { getWorkflow, saveWorkflow, executeCachedWorkflow, recordWorkflowFailure } = require('../../core/runner/workflow-cache');
 
 // Store for active validation sessions
@@ -240,6 +242,33 @@ router.post('/stop/:sessionId', (req, res) => {
     completed: session.completed,
     total: session.total
   });
+});
+
+/**
+ * POST /api/validate/tokens/check
+ * Validate tokens and attempt to refresh expired ones
+ */
+router.post('/tokens/check', async (req, res) => {
+  try {
+    const config = loadConfig();
+    const { config: updatedConfig, validation } = await validateAndRefreshTokens(config);
+    
+    res.json({
+      success: true,
+      valid: Object.keys(validation.valid),
+      expired: Object.keys(validation.expired),
+      invalid: Object.keys(validation.invalid),
+      warnings: validation.warnings,
+      errors: validation.errors,
+      tokensRefreshed: validation.tokensRefreshed || false
+    });
+  } catch (error) {
+    console.error('Token validation error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
 });
 
 /**
@@ -754,52 +783,49 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
           }
         }
         
-        // If still failing, try AI healing
+        // If still failing, try AI Agent healing
         if (result.status === 'FAIL' || result.status === 'ERROR') {
-          const healingResult = await attemptSelfHealing({
+          broadcastEvent(session, 'healing_start', {
+            endpoint: endpointKey,
+            message: 'Starting AI Agent healer...'
+          });
+          
+          const healingResult = await runAgentHealer({
             endpoint,
             result,
             resolvedParams: testContext.getParams(),
             allEndpoints,
             config,
             apiClient,
-            maxRetries: 5,
+            maxIterations: 10,
             onProgress: (progress) => {
-              // Map progress events to SSE events
+              // Map agent events to SSE
               const eventMap = {
-                'attempt_start': 'healing_analyzing',
-                'analyzing': 'healing_analyzing',
-                'analysis_complete': 'healing_solution',
-                'creating_prerequisite': 'healing_creating',
-                'creating': 'healing_creating',
-                'created': 'healing_created',
-                'create_failed': 'healing_created',
-                'retrying': 'healing_retry',
-                'healed': 'healing_complete',
-                'healing_failed': 'healing_complete'
+                'agent_start': 'healing_analyzing',
+                'agent_thinking': 'healing_analyzing',
+                'agent_thought': 'healing_analyzing',
+                'agent_tool_call': 'healing_creating',
+                'agent_tool_result': 'healing_created',
+                'agent_complete': 'healing_complete'
               };
               
-              const eventType = eventMap[progress.type] || 'healing_analyzing';
-              broadcastEvent(session, eventType, {
+              broadcastEvent(session, eventMap[progress.type] || 'healing_analyzing', {
                 endpoint: endpointKey,
                 ...progress
               });
-            },
-            retryTest: async (ep, newParams) => {
-              return await retryEndpointTest(ep, newParams, config, apiClient, testContext);
             }
           });
           
-          // Always add documentation insights
+          // Process results
           if (healingResult.documentationIssues?.length > 0) {
             result.details = result.details || {};
             result.details.documentationIssues = healingResult.documentationIssues;
             result.details.errors = [
               ...(result.details.errors || []),
               ...healingResult.documentationIssues.map(issue => ({
-                reason: issue.type,
-                message: issue.message,
-                friendlyMessage: issue.message,
+                reason: issue.type || 'DOCUMENTATION_ISSUE',
+                message: issue.issue,
+                friendlyMessage: issue.issue,
                 suggestion: issue.suggestion,
                 field: issue.field
               }))
@@ -807,44 +833,50 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
           }
           
           if (healingResult.success) {
-            result = healingResult.finalResult;
-            result.details = result.details || {};
-            result.details.healingInfo = {
-              attempts: healingResult.attempts,
-              prerequisitesCreated: healingResult.createdEntities?.map(e => e.endpoint) || [],
-              workflowSaved: true,
-              healingHistory: healingResult.healingHistory || []
-            };
-            result.details.documentationIssues = healingResult.documentationIssues;
+            // Agent fixed it! Get the last successful API call from the log
+            const lastSuccess = healingResult.healingLog
+              ?.filter(l => l.type === 'tool_result' && l.result?.success && l.result?.status >= 200 && l.result?.status < 300)
+              ?.pop();
             
-            // Save workflow for future use
-            if (healingResult.workflow) {
-              saveWorkflow(endpointKey, healingResult.workflow);
+            if (lastSuccess) {
+              result.status = 'PASS';
+              result.httpStatus = lastSuccess.result.status;
+              result.details = result.details || {};
+              result.details.response = { data: lastSuccess.result.data };
+              result.details.healingInfo = {
+                attempts: healingResult.iterations,
+                summary: healingResult.summary,
+                agentLog: healingResult.healingLog
+              };
+            }
+            
+            // Update resolved params with what the agent learned
+            if (healingResult.resolvedParams) {
+              testContext.setParams({ ...testContext.getParams(), ...healingResult.resolvedParams });
             }
             
             broadcastEvent(session, 'healing_complete', {
               endpoint: endpointKey,
               success: true,
-              attempts: healingResult.attempts,
-              workflowSaved: true,
-              documentationIssues: healingResult.documentationIssues
+              iterations: healingResult.iterations,
+              summary: healingResult.summary
             });
           } else {
-            // Healing failed
+            // Agent couldn't fix it
             result.details = result.details || {};
             result.details.healingInfo = {
               attempted: true,
-              attempts: healingResult.attempts,
+              iterations: healingResult.iterations,
               failed: true,
-              healingHistory: healingResult.healingHistory || []
+              reason: healingResult.reason,
+              agentLog: healingResult.healingLog
             };
             
             broadcastEvent(session, 'healing_complete', {
               endpoint: endpointKey,
               success: false,
-              healingHistory: healingResult.healingHistory,
-              attempts: healingResult.attempts,
-              documentationIssues: healingResult.documentationIssues
+              iterations: healingResult.iterations,
+              reason: healingResult.reason
             });
           }
         }
@@ -896,7 +928,7 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
  * @param {Object} testContext - Test context
  * @returns {Promise<Object>} Test result
  */
-async function retryEndpointTest(endpoint, newParams, config, apiClient, testContext) {
+async function retryEndpointTest(endpoint, newParams, config, apiClient, testContext, bodyOverride = null) {
   const startTime = Date.now();
   
   try {
@@ -905,8 +937,13 @@ async function retryEndpointTest(endpoint, newParams, config, apiClient, testCon
       params: { ...testContext.getParams(), ...newParams }
     };
     
-    const { config: requestConfig, tokenType, hasToken, skip, skipReason } = 
+    let { config: requestConfig, tokenType, hasToken, skip, skipReason } = 
       await buildRequestConfigAsync(endpoint, config, context);
+    
+    // Apply body override if provided (for parameter variations)
+    if (bodyOverride && requestConfig.data) {
+      requestConfig.data = bodyOverride;
+    }
     
     if (skip) {
       return buildValidationResult({
@@ -1333,11 +1370,20 @@ async function fetchMissingParams(endpoints, paramResolver, apiClient, rateLimit
     reportProgress('Phase 2: Auto-derivation', `Deriving ${endpointsNeedingDerivation.length} param(s) from list endpoints`);
     log(`Pre-flight Phase 2: Auto-deriving ${endpointsNeedingDerivation.length} uid/id param(s) from list endpoints...`);
     
-    const token = config.tokens?.staff || config.tokens?.directory || Object.values(config.tokens || {})[0];
+    // Helper to select appropriate token based on path
+    const selectTokenForPath = (path) => {
+      if (path.startsWith('/client')) {
+        return config.tokens?.client || config.tokens?.staff;
+      }
+      return config.tokens?.staff || config.tokens?.directory || Object.values(config.tokens || {})[0];
+    };
     
     for (const { originalPath, listPath, paramName, resourceKey } of endpointsNeedingDerivation) {
       try {
         log(`  Deriving ${paramName} for ${originalPath} from ${listPath}...`);
+        
+        // Select appropriate token based on path (client token for /client/* paths)
+        const token = selectTokenForPath(listPath);
         
         const requestConfig = {
           method: 'get',
@@ -1416,7 +1462,13 @@ async function fetchMissingParams(endpoints, paramResolver, apiClient, rateLimit
       log(`Pre-flight Phase 3: AI-assisted resolution for ${stillUnresolved.length} endpoint(s)...`);
       console.log(`[Phase 3] Starting AI resolution for ${stillUnresolved.length} endpoints`);
       
-      const token = config.tokens?.staff || config.tokens?.directory || Object.values(config.tokens || {})[0];
+      // Helper to select appropriate token based on path (same as Phase 2)
+      const selectTokenForPathPhase3 = (path) => {
+        if (path.startsWith('/client')) {
+          return config.tokens?.client || config.tokens?.staff;
+        }
+        return config.tokens?.staff || config.tokens?.directory || Object.values(config.tokens || {})[0];
+      };
       
       for (const { endpoint, resourceKey, paramName } of stillUnresolved) {
         try {
@@ -1449,7 +1501,8 @@ async function fetchMissingParams(endpoints, paramResolver, apiClient, rateLimit
           console.log(`[Phase 3] AI suggested: ${aiSuggestedPath}`);
           log(`    AI suggests: ${aiSuggestedPath}`);
           
-          // Try the suggested endpoint
+          // Try the suggested endpoint (use appropriate token based on path)
+          const token = selectTokenForPathPhase3(aiSuggestedPath);
           const requestConfig = {
             method: 'get',
             url: aiSuggestedPath,

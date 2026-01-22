@@ -37,9 +37,8 @@ const ResultsViewer = {
       const hasDetails = result.details && (result.details.request || result.details.reason);
       
       html += `
-        <div class="result-item result-${statusClass} ${hasDetails ? 'expandable' : ''}" 
-             ${hasDetails ? `onclick="ResultsViewer.toggleDetails(this)"` : ''}>
-          <div class="result-header">
+        <div class="result-item result-${statusClass} ${hasDetails ? 'expandable' : ''}">
+          <div class="result-header" ${hasDetails ? `onclick="ResultsViewer.toggleDetails(this.parentElement)"` : ''}>
             <span class="result-icon">${icon}</span>
             <span class="result-endpoint">${result.endpoint}</span>
             <span class="result-meta">
@@ -49,6 +48,8 @@ const ResultsViewer = {
             </span>
             <span class="result-status status-${statusClass}">${result.status}</span>
           </div>
+          ${result.summary ? `<div class="result-summary">${result.summary}</div>` : ''}
+          ${result.description ? `<div class="result-description">${this.truncateText(result.description, 200)}</div>` : ''}
           ${hasDetails ? this.renderDetails(result.details, result.status === 'PASS', result.summary, result.description) : ''}
         </div>
       `;
@@ -222,6 +223,26 @@ const ResultsViewer = {
   },
   
   /**
+   * Truncate text and strip markdown for preview display
+   * @param {string} text - Text to truncate
+   * @param {number} maxLength - Maximum length
+   * @returns {string} Truncated text
+   */
+  truncateText(text, maxLength = 150) {
+    if (!text) return '';
+    
+    // Strip markdown bold markers and clean up
+    let clean = text
+      .replace(/\*\*([^*]+)\*\*/g, '$1')
+      .replace(/\n/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    if (clean.length <= maxLength) return clean;
+    return clean.substring(0, maxLength) + '...';
+  },
+  
+  /**
    * Render healing info section
    * @param {Object} healingInfo - Healing info from result
    * @returns {string} HTML string
@@ -233,8 +254,10 @@ const ResultsViewer = {
     const statusIcon = isSuccess ? '✓' : '✗';
     const statusClass = isSuccess ? 'success' : 'failed';
     
-    // Build healing history timeline
-    const historyHtml = this.renderHealingHistory(healingInfo.healingHistory);
+    // Build healing history timeline - support both old and new formats
+    const historyHtml = healingInfo.agentLog 
+      ? this.renderAgentLog(healingInfo.agentLog)
+      : this.renderHealingHistory(healingInfo.healingHistory);
     
     return `
       <div class="healing-summary ${statusClass}">
@@ -242,22 +265,24 @@ const ResultsViewer = {
         <div class="healing-stats">
           <div class="stat">
             <span class="label">Attempts</span>
-            <span class="value">${healingInfo.attempts || 1}</span>
+            <span class="value">${healingInfo.attempts || healingInfo.iterations || 1}</span>
           </div>
-          <div class="stat">
-            <span class="label">Prerequisites</span>
-            <span class="value">${healingInfo.prerequisitesCreated?.length || 0}</span>
-          </div>
-          ${healingInfo.workflowSaved ? `
+          ${healingInfo.prerequisitesCreated?.length > 0 ? `
             <div class="stat">
-              <span class="label">Workflow</span>
-              <span class="value">💾 Saved</span>
+              <span class="label">Prerequisites</span>
+              <span class="value">${healingInfo.prerequisitesCreated.length}</span>
             </div>
           ` : ''}
-          ${healingInfo.usedCachedWorkflow ? `
-            <div class="stat">
-              <span class="label">Source</span>
-              <span class="value">📦 Cached</span>
+          ${healingInfo.summary ? `
+            <div class="stat full-width">
+              <span class="label">Summary</span>
+              <span class="value">${this.escapeHtml(healingInfo.summary)}</span>
+            </div>
+          ` : ''}
+          ${healingInfo.reason ? `
+            <div class="stat full-width">
+              <span class="label">Reason</span>
+              <span class="value">${this.escapeHtml(healingInfo.reason)}</span>
             </div>
           ` : ''}
         </div>
@@ -270,6 +295,76 @@ const ResultsViewer = {
           </div>
         ` : ''}
         ${historyHtml}
+      </div>
+    `;
+  },
+  
+  /**
+   * Render agent log (new tool-based format)
+   * @param {Array} agentLog - Array of agent log entries
+   * @returns {string} HTML string
+   */
+  renderAgentLog(agentLog) {
+    if (!agentLog || agentLog.length === 0) return '';
+    
+    const entries = agentLog.map((entry, index) => {
+      let icon, title, content, typeClass;
+      
+      switch (entry.type) {
+        case 'thought':
+          icon = '🤔';
+          title = `AI Thinking (Iteration ${entry.iteration})`;
+          content = entry.content;
+          typeClass = 'thought';
+          break;
+        case 'tool_call':
+          icon = '🔧';
+          title = `Tool: ${entry.tool}`;
+          content = JSON.stringify(entry.input, null, 2);
+          typeClass = 'tool-call';
+          break;
+        case 'tool_result':
+          const isSuccess = entry.result?.success;
+          icon = isSuccess ? '✅' : '❌';
+          title = `Result: ${entry.tool}`;
+          typeClass = isSuccess ? 'success' : 'failed';
+          // Format the result nicely
+          if (entry.result?.status) {
+            content = `HTTP ${entry.result.status}\n${JSON.stringify(entry.result.data || entry.result.error, null, 2)}`;
+          } else {
+            content = JSON.stringify(entry.result, null, 2);
+          }
+          break;
+        case 'no_action':
+          icon = '⚠️';
+          title = 'Agent Stopped';
+          content = entry.content;
+          typeClass = 'warning';
+          break;
+        default:
+          icon = '•';
+          title = entry.type;
+          content = JSON.stringify(entry, null, 2);
+          typeClass = '';
+      }
+      
+      return `
+        <div class="history-entry ${typeClass}">
+          <div class="history-icon">${icon}</div>
+          <div class="history-content">
+            <div class="history-title">${this.escapeHtml(title)}</div>
+            ${content ? `<pre class="history-code">${this.escapeHtml(content).substring(0, 500)}${content.length > 500 ? '...' : ''}</pre>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+    
+    return `
+      <div class="healing-history agent-log">
+        <h5>🤖 AI Agent Log</h5>
+        <div class="history-timeline">
+          ${entries}
+        </div>
       </div>
     `;
   },
