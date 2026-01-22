@@ -23,7 +23,8 @@ const FAILURE_REASONS = {
   NETWORK_ERROR: 'NETWORK_ERROR',
   DOC_ISSUE: 'DOC_ISSUE',
   PARAM_NAME_MISMATCH: 'PARAM_NAME_MISMATCH',
-  EXPECTED_ERROR: 'EXPECTED_ERROR' // API returned documented error response
+  EXPECTED_ERROR: 'EXPECTED_ERROR', // API returned documented error response
+  BAD_GATEWAY_FALLBACK: 'BAD_GATEWAY_FALLBACK' // Primary URL returned 502, succeeded on fallback URL
 };
 
 // Friendly message templates
@@ -74,7 +75,10 @@ const FRIENDLY_MESSAGES = {
     `Documentation uses {${original}} but API expects {${correct}}. Update the OpenAPI spec.`,
   
   [FAILURE_REASONS.EXPECTED_ERROR]: (status) =>
-    `API returned ${status} error response. This is expected behavior per documentation.`
+    `API returned ${status} error response. This is expected behavior per documentation.`,
+  
+  [FAILURE_REASONS.BAD_GATEWAY_FALLBACK]: (primaryUrl, fallbackUrl, primaryStatus) =>
+    `Primary URL (${primaryUrl}) returned bad gateway error (status ${primaryStatus || 502}). Request succeeded using fallback URL (${fallbackUrl}).`
 };
 
 /**
@@ -708,6 +712,9 @@ function getSuggestion(reason, context = {}) {
     
     case FAILURE_REASONS.SCHEMA_MISMATCH:
       return `Compare actual response with documented schema. Update either the API or documentation.`;
+    
+    case FAILURE_REASONS.BAD_GATEWAY_FALLBACK:
+      return `The primary API gateway returned 502 Bad Gateway but the fallback URL succeeded. Investigate gateway/load balancer issues on the primary URL.`;
     
     default:
       return null;

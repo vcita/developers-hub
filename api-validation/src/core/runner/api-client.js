@@ -11,7 +11,7 @@ const { generateQueryParams: aiGenerateQueryParams, generateRequestBody: aiGener
 /**
  * Create an axios instance configured for API validation
  * @param {Object} config - Configuration object
- * @returns {Object} Axios instance
+ * @returns {Object} Axios instance with additional config
  */
 function createApiClient(config) {
   const instance = axios.create({
@@ -23,6 +23,12 @@ function createApiClient(config) {
       'Accept': 'application/json'
     }
   });
+  
+  // Attach config for fallback URL access
+  instance._config = {
+    baseUrl: config.baseUrl,
+    fallbackUrl: config.fallbackUrl || null
+  };
   
   return instance;
 }
@@ -723,23 +729,113 @@ function generateValue(schema, propName = '', resolvedParams = {}) {
 }
 
 /**
- * Execute an API request
+ * Check if a response indicates a Bad Gateway error
+ * This can be either a 502 status code OR a 404 with "bad gateway" in the message
+ * @param {Object} response - Axios response object
+ * @returns {boolean} True if this is a bad gateway error
+ */
+function isBadGatewayError(response) {
+  if (!response) return false;
+  
+  // Direct 502 Bad Gateway
+  if (response.status === 502) {
+    return true;
+  }
+  
+  // 404 with "bad gateway" in the response body
+  if (response.status === 404) {
+    const data = response.data;
+    if (data) {
+      // Check various response formats for "bad gateway" message
+      const messageText = typeof data === 'string' 
+        ? data 
+        : (data.message || data.error || data.errors?.[0]?.message || JSON.stringify(data));
+      
+      if (messageText && messageText.toLowerCase().includes('bad gateway')) {
+        return true;
+      }
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * Execute an API request with optional fallback on Bad Gateway
  * @param {Object} client - Axios instance
  * @param {Object} requestConfig - Request configuration
- * @returns {Promise<Object>} Response with timing
+ * @returns {Promise<Object>} Response with timing and fallback info
  */
 async function executeRequest(client, requestConfig) {
   const startTime = Date.now();
+  const primaryUrl = client._config?.baseUrl;
+  const fallbackUrl = client._config?.fallbackUrl;
   
   try {
     const response = await client.request(requestConfig);
     const duration = Date.now() - startTime;
     
+    // Check for Bad Gateway (502 or 404 with "bad gateway" message) and attempt fallback if configured
+    if (isBadGatewayError(response) && fallbackUrl) {
+      const errorType = response.status === 502 ? '502 Bad Gateway' : `404 with "bad gateway" message`;
+      console.log(`  [Fallback] Primary URL returned ${errorType}, trying fallback URL: ${fallbackUrl}`);
+      
+      const fallbackStartTime = Date.now();
+      
+      try {
+        // Create a new request config with fallback URL
+        const fallbackRequestConfig = {
+          ...requestConfig,
+          baseURL: fallbackUrl
+        };
+        
+        const fallbackResponse = await axios.request({
+          ...fallbackRequestConfig,
+          url: fallbackUrl + requestConfig.url, // Full URL since we're not using an instance
+          timeout: client.defaults.timeout,
+          validateStatus: () => true,
+          headers: {
+            ...client.defaults.headers.common,
+            ...requestConfig.headers
+          }
+        });
+        
+        const totalDuration = Date.now() - startTime;
+        const fallbackDuration = Date.now() - fallbackStartTime;
+        
+        // Fallback succeeded - check if it returned a valid response (not another bad gateway)
+        if (!isBadGatewayError(fallbackResponse)) {
+          console.log(`  [Fallback] Fallback succeeded with status ${fallbackResponse.status} (${fallbackDuration}ms)`);
+          
+          return {
+            success: true,
+            response: fallbackResponse,
+            duration: totalDuration,
+            error: null,
+            usedFallback: true,
+            fallbackInfo: {
+              primaryUrl,
+              fallbackUrl,
+              primaryStatus: response.status,
+              fallbackStatus: fallbackResponse.status,
+              fallbackDuration
+            }
+          };
+        }
+        
+        // Fallback also returned bad gateway error, return original error
+        console.log(`  [Fallback] Fallback also returned bad gateway error (status ${fallbackResponse.status})`);
+      } catch (fallbackError) {
+        console.log(`  [Fallback] Fallback request failed: ${fallbackError.message}`);
+      }
+    }
+    
     return {
       success: true,
       response,
       duration,
-      error: null
+      error: null,
+      usedFallback: false
     };
   } catch (error) {
     const duration = Date.now() - startTime;
@@ -753,7 +849,8 @@ async function executeRequest(client, requestConfig) {
         code: error.code,
         isTimeout: error.code === 'ECONNABORTED',
         isNetworkError: error.code === 'ERR_NETWORK' || !error.response
-      }
+      },
+      usedFallback: false
     };
   }
 }

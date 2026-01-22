@@ -451,15 +451,15 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
             console.log(`  Using token: ${tokenType || 'none'}`);
           }
           
-          let { success, response, duration, error } = await rateLimiter.execute(
+          let { success, response, duration, error, usedFallback, fallbackInfo } = await rateLimiter.execute(
             () => executeRequest(apiClient, requestConfig)
           );
-          console.log(`  Response: status=${response?.status}, duration=${duration}ms, error=${error?.message || 'none'}`);
+          console.log(`  Response: status=${response?.status}, duration=${duration}ms, error=${error?.message || 'none'}${usedFallback ? ', usedFallback=true' : ''}`);
           
           // Build full request info for debugging (including actual URL and token)
           const fullRequestInfo = {
             method: requestConfig.method?.toUpperCase() || endpoint.method,
-            url: `${config.baseUrl}${requestConfig.url}`,
+            url: usedFallback ? `${fallbackInfo.fallbackUrl}${requestConfig.url}` : `${config.baseUrl}${requestConfig.url}`,
             headers: { ...requestConfig.headers },
             params: requestConfig.params,
             data: requestConfig.data
@@ -467,6 +467,21 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
           
           // Track documentation issues found during validation
           let docIssues = [];
+          
+          // Track if fallback URL was used due to bad gateway error (502 or 404 with "bad gateway" message)
+          if (usedFallback && fallbackInfo) {
+            console.log(`  [Fallback] Primary URL returned bad gateway error (status ${fallbackInfo.primaryStatus}), succeeded on fallback URL`);
+            docIssues.push({
+              type: FAILURE_REASONS.BAD_GATEWAY_FALLBACK,
+              message: `Primary URL (${fallbackInfo.primaryUrl}) returned bad gateway error (status ${fallbackInfo.primaryStatus}). Request succeeded using fallback URL (${fallbackInfo.fallbackUrl}).`,
+              suggestion: `Investigate gateway/load balancer issues on the primary URL. The fallback URL is working correctly.`,
+              primaryUrl: fallbackInfo.primaryUrl,
+              fallbackUrl: fallbackInfo.fallbackUrl,
+              primaryStatus: fallbackInfo.primaryStatus,
+              fallbackStatus: fallbackInfo.fallbackStatus,
+              fallbackDuration: fallbackInfo.fallbackDuration
+            });
+          }
           
           // Flag if fallback token was used
           if (isFallbackToken) {
