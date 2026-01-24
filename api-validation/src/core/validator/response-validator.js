@@ -15,6 +15,7 @@ const FAILURE_REASONS = {
   AUTH_FAILED: 'AUTH_FAILED',
   ENDPOINT_NOT_FOUND: 'ENDPOINT_NOT_FOUND',
   RESOURCE_NOT_FOUND: 'RESOURCE_NOT_FOUND', // Resource/entity not found (404 with valid API response)
+  VALIDATION_ERROR: 'VALIDATION_ERROR', // API returned validation error (may use wrong status code like 404)
   CONFLICT: 'CONFLICT', // 409 Conflict - operation cannot be performed due to current state
   TIMEOUT: 'TIMEOUT',
   REF_RESOLUTION_FAILED: 'REF_RESOLUTION_FAILED',
@@ -49,6 +50,9 @@ const FRIENDLY_MESSAGES = {
   
   [FAILURE_REASONS.RESOURCE_NOT_FOUND]: (resourceInfo) => 
     `Resource not found (404). The requested ${resourceInfo || 'entity'} does not exist. This is a valid API response.`,
+  
+  [FAILURE_REASONS.VALIDATION_ERROR]: (message, field) => 
+    `Validation error: ${message || 'Invalid request data'}${field ? ` (field: ${field})` : ''}. The request body or parameters may not match the expected format.`,
   
   [FAILURE_REASONS.CONFLICT]: (message) => 
     `Conflict (409). ${message || 'The operation cannot be performed due to the current state of the resource.'}`,
@@ -482,6 +486,67 @@ function buildValidationResult({
 }
 
 /**
+ * Detect if a response contains validation errors (API may use wrong status code)
+ * Some APIs return 404 for validation errors which should be recoverable
+ * @param {Object} responseData - Response body
+ * @returns {Object|null} - { isValidationError: boolean, message: string, field: string }
+ */
+function detectValidationError(responseData) {
+  if (!responseData || typeof responseData !== 'object') {
+    return null;
+  }
+  
+  // Check for common validation error patterns
+  const errors = responseData.errors || [];
+  if (!Array.isArray(errors) || errors.length === 0) {
+    return null;
+  }
+  
+  // Look for validation-related error codes or messages
+  const validationPatterns = [
+    /not valid/i,
+    /invalid/i,
+    /required/i,
+    /missing/i,
+    /must be/i,
+    /should be/i,
+    /cannot be/i,
+    /expected/i,
+    /format/i,
+    /type/i,
+    /validation/i,
+    /bad.?request/i
+  ];
+  
+  const validationCodes = ['missing', 'invalid', 'required', 'bad_request', 'validation', 'type_error'];
+  
+  for (const error of errors) {
+    const code = (error.code || '').toLowerCase();
+    const message = error.message || '';
+    
+    // Check if error code indicates validation
+    if (validationCodes.some(c => code.includes(c))) {
+      return {
+        isValidationError: true,
+        message: message,
+        field: error.field || null
+      };
+    }
+    
+    // Check if error message indicates validation
+    if (validationPatterns.some(pattern => pattern.test(message))) {
+      return {
+        isValidationError: true,
+        message: message,
+        field: error.field || null
+      };
+    }
+  }
+  
+  return null;
+}
+
+/**
  * Check if response data indicates a "resource not found" (vs endpoint not found)
  * @param {Object} responseData - Response body
  * @returns {Object|null} - { isResourceNotFound: boolean, resourceInfo: string }
@@ -568,6 +633,21 @@ function validateStatusCode(actualStatus, expectedResponses, responseData = null
   }
   
   if (actualStatus === 404) {
+    // First check if this is actually a validation error (API returns 404 for invalid data)
+    const validationCheck = detectValidationError(responseData);
+    if (validationCheck?.isValidationError) {
+      return {
+        valid: false,
+        error: {
+          reason: FAILURE_REASONS.VALIDATION_ERROR,
+          expected: expectedCodes,
+          actual: actualStatus,
+          message: validationCheck.message,
+          field: validationCheck.field
+        }
+      };
+    }
+    
     // Distinguish between endpoint not found vs resource not found
     const resourceCheck = detectResourceNotFound(responseData);
     
@@ -700,6 +780,9 @@ function getSuggestion(reason, context = {}) {
     
     case FAILURE_REASONS.ENDPOINT_NOT_FOUND:
       return `Verify the endpoint path is correct in the documentation.`;
+    
+    case FAILURE_REASONS.VALIDATION_ERROR:
+      return `Check the request body format and required fields. The API may expect different field names or structure than documented.`;
     
     case FAILURE_REASONS.RESOURCE_NOT_FOUND:
       return `The endpoint works correctly but returned 404 because the test resource doesn't exist. This is expected behavior - consider adding test data or documenting 404 responses.`;

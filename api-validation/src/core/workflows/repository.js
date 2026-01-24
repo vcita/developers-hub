@@ -110,10 +110,24 @@ function parseWorkflowFile(filePath) {
       }
     }
     
+    // Extract JSON from "UID Resolution" section (new format)
+    let uidResolution = null;
+    if (sections['UID Resolution']) {
+      const jsonMatch = sections['UID Resolution'].match(/```json\n([\s\S]*?)\n```/);
+      if (jsonMatch) {
+        try {
+          uidResolution = JSON.parse(jsonMatch[1]);
+        } catch (e) {
+          // Ignore JSON parse errors
+        }
+      }
+    }
+    
     return {
       metadata,
       sections,
       successfulRequest,
+      uidResolution,
       content
     };
   } catch (e) {
@@ -151,7 +165,10 @@ function get(endpoint) {
     domain: entry.domain,
     tags: entry.tags,
     status: entry.status,
+    skipReason: entry.skipReason || parsed.metadata?.skipReason || null,  // Include skip reason
     timesReused: entry.timesReused || 0,
+    uidResolution: parsed.uidResolution || null,  // Include UID resolution mappings
+    docFixes: parsed.sections?.['Documentation Fix Suggestions'] ? [] : [],  // Will be parsed from content
     ...parsed
   };
 }
@@ -261,23 +278,36 @@ function generateMarkdown(data) {
     howToResolve = '',
     learnings = [],
     successfulRequest = {},
-    docFixes = []
+    docFixes: rawDocFixes = [],
+    uidResolution = null,  // UID resolution mappings
+    status = 'verified',   // 'verified' or 'skip'
+    skipReason = null      // Reason for skipping (if status is 'skip')
   } = data;
+  
+  // Ensure docFixes is always an array
+  const docFixes = Array.isArray(rawDocFixes) ? rawDocFixes : [];
   
   const now = new Date().toISOString();
   
   // Build frontmatter
-  const frontmatter = [
+  const frontmatterLines = [
     '---',
     `endpoint: ${endpoint}`,
     `domain: ${domain}`,
     `tags: [${tags.join(', ')}]`,
-    `status: verified`,
+    `status: ${status}`,
     `savedAt: ${now}`,
     `verifiedAt: ${now}`,
-    `timesReused: 0`,
-    '---'
-  ].join('\n');
+    `timesReused: 0`
+  ];
+  
+  // Add skipReason if present
+  if (skipReason) {
+    frontmatterLines.push(`skipReason: ${skipReason}`);
+  }
+  
+  frontmatterLines.push('---');
+  const frontmatter = frontmatterLines.join('\n');
   
   // Build title from endpoint
   const [method, ...pathParts] = endpoint.split(' ');
@@ -294,28 +324,72 @@ function generateMarkdown(data) {
     '',
     '## Summary',
     summary || `${action} operation for ${resourceName}`,
-    '',
-    '## Prerequisites',
-    prerequisites || 'No specific prerequisites documented.',
-    '',
-    '## How to Resolve Parameters',
-    howToResolve || 'Parameters were resolved automatically.',
-    '',
-    '## Critical Learnings',
-    '',
-    ...(learnings.length > 0 
-      ? learnings.map(l => `- **${l.title || 'Note'}** - ${l.description || l}`)
-      : ['No specific learnings documented.']),
-    '',
-    '## Verified Successful Request',
-    '',
-    '```json',
-    JSON.stringify(successfulRequest, null, 2),
-    '```',
-    '',
-    '## Documentation Fix Suggestions',
     ''
   ];
+  
+  // Add skip reason section if this is a skipped endpoint
+  if (status === 'skip' && skipReason) {
+    body.push('## ⚠️ Skip Reason');
+    body.push('');
+    body.push(`**This endpoint should be SKIPPED in automated testing.**`);
+    body.push('');
+    body.push(skipReason);
+    body.push('');
+    body.push('This is typically due to a business constraint where the endpoint works correctly but cannot be tested repeatedly (e.g., one-time operations, unique constraints).');
+    body.push('');
+  }
+  
+  body.push('## Prerequisites');
+  body.push(prerequisites || 'No specific prerequisites documented.');
+  body.push('');
+  
+  // Add UID Resolution section if present
+  if (uidResolution && Object.keys(uidResolution).length > 0) {
+    body.push('## UID Resolution');
+    body.push('');
+    body.push('How to obtain required UIDs for this endpoint:');
+    body.push('');
+    body.push('| UID Field | Source Endpoint | Fallback (Create) | Used Fallback |');
+    body.push('|-----------|-----------------|-------------------|---------------|');
+    
+    for (const [field, resolution] of Object.entries(uidResolution)) {
+      const source = resolution.source_endpoint || '-';
+      const fallback = resolution.fallback_endpoint || '-';
+      const usedFallback = resolution.used_fallback ? 'Yes' : 'No';
+      body.push(`| ${field} | ${source} | ${fallback} | ${usedFallback} |`);
+    }
+    body.push('');
+    
+    // Also store as JSON for programmatic access
+    body.push('```json');
+    body.push(JSON.stringify(uidResolution, null, 2));
+    body.push('```');
+    body.push('');
+  }
+  
+  body.push('## How to Resolve Parameters');
+  body.push(howToResolve || 'Parameters were resolved automatically.');
+  body.push('');
+  body.push('## Critical Learnings');
+  body.push('');
+  
+  if (learnings.length > 0) {
+    learnings.forEach(l => {
+      body.push(`- **${l.title || 'Note'}** - ${l.description || l}`);
+    });
+  } else {
+    body.push('No specific learnings documented.');
+  }
+  
+  body.push('');
+  body.push('## Verified Successful Request');
+  body.push('');
+  body.push('```json');
+  body.push(JSON.stringify(successfulRequest, null, 2));
+  body.push('```');
+  body.push('');
+  body.push('## Documentation Fix Suggestions');
+  body.push('');
   
   if (docFixes.length > 0) {
     body.push('| Field | Issue | Suggested Fix | Severity |');
@@ -364,12 +438,13 @@ function save(endpoint, data) {
     // Write the file
     fs.writeFileSync(filePath, markdown);
     
-    // Update index
+    // Update index - include skip status if present
     index.workflows[endpoint] = {
       file: relativeFile,
       domain,
       tags,
-      status: 'verified',
+      status: data.status || 'verified',  // 'verified', 'skip', etc.
+      skipReason: data.skipReason || null,
       timesReused: 0,
       savedAt: new Date().toISOString()
     };

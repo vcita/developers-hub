@@ -38,7 +38,7 @@
     "/v3/scheduling/business_availabilities/{business_uid}": {
       "get": {
         "summary": "Get BusinessAvailability",
-        "description": "Retrieve availability time slots for a specific business within a date range\n\n **Only available for Directory Tokens**",
+        "description": "## Overview\nReturns available booking slots for a single business. This is useful for checking when a specific business can accept appointments.\n\n## When to Use\n- Checking availability for a specific business in a directory\n- Building a booking calendar for a single business\n- Verifying if a business has open slots before offering booking\n\n**available for Directory Tokens**",
         "tags": [
           "Business Availability"
         ],
@@ -50,27 +50,30 @@
             "description": "Unique identifier of the business",
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "d290f1ee-6c54-4b01-90e6-d701748f0851"
           },
           {
-            "name": "start_date",
+            "name": "date_start",
             "in": "query",
             "required": true,
-            "description": "Start date (YYYY-MM-DD)",
+            "description": "Start date in YYYY-MM-DD format",
             "schema": {
               "type": "string",
               "format": "date"
-            }
+            },
+            "example": "2025-01-20"
           },
           {
-            "name": "end_date",
+            "name": "date_end",
             "in": "query",
             "required": true,
-            "description": "End date (YYYY-MM-DD)",
+            "description": "End date in YYYY-MM-DD format. Maximum 7 days from date_start.",
             "schema": {
               "type": "string",
               "format": "date"
-            }
+            },
+            "example": "2025-01-27"
           }
         ],
         "responses": {
@@ -97,13 +100,16 @@
             }
           },
           "400": {
-            "description": "Invalid request parameters"
+            "description": "Invalid request parameters - date range exceeds 7 days or invalid date format"
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized - missing or invalid token"
+          },
+          "403": {
+            "description": "Forbidden - only Directory tokens can access this endpoint"
           },
           "404": {
-            "description": "Business not found"
+            "description": "Business not found or not in your directory"
           },
           "500": {
             "description": "Internal server error"
@@ -119,62 +125,68 @@
     "/v3/scheduling/business_availabilities": {
       "get": {
         "summary": "Get all BusinessAvailabilities",
-        "description": "Retrieve availability time slots for multiple businesses in a directory\n\n **Only available for Directory Tokens**",
+        "description": "## Overview\nReturns available booking slots for all businesses in your directory with pagination support. This endpoint is useful for building marketplace-style booking interfaces.\n\n## When to Use\n- Building a directory-wide availability view\n- Showing businesses with open slots in a search/filter interface\n- Aggregating availability across your marketplace\n\n**available for Directory Tokens**",
         "tags": [
           "Business Availability"
         ],
         "parameters": [
           {
-            "name": "start_date",
+            "name": "date_start",
             "in": "query",
             "required": true,
-            "description": "Start date (YYYY-MM-DD)",
+            "description": "Start date in YYYY-MM-DD format",
             "schema": {
               "type": "string",
               "format": "date"
-            }
+            },
+            "example": "2025-01-20"
           },
           {
-            "name": "end_date",
+            "name": "date_end",
             "in": "query",
             "required": true,
-            "description": "End date (YYYY-MM-DD)",
+            "description": "End date in YYYY-MM-DD format. Maximum 7 days from date_start.",
             "schema": {
               "type": "string",
               "format": "date"
-            }
+            },
+            "example": "2025-01-27"
           },
           {
             "name": "page",
             "in": "query",
             "required": false,
-            "description": "Page number for pagination",
+            "description": "Page number for pagination (0-based)",
             "schema": {
               "type": "integer",
+              "minimum": 0,
               "default": 0
-            }
+            },
+            "example": 0
           },
           {
             "name": "per_page",
             "required": false,
             "in": "query",
-            "description": "Number of items per page",
+            "description": "Number of items per page. Capped at maximum value.",
             "schema": {
+              "type": "integer",
               "minimum": 1,
               "maximum": 100,
-              "default": 25,
-              "type": "number"
-            }
+              "default": 25
+            },
+            "example": 25
           },
           {
             "name": "scheduling_enabled",
             "in": "query",
             "required": false,
-            "description": "Determines whether to return only accounts with online scheduling enabled or disabled. Default: true (returns accounts with online scheduling enabled)",
+            "description": "Filter by online scheduling status. When true (default), only returns businesses with online scheduling enabled. Set to false to include businesses with scheduling disabled.",
             "schema": {
               "type": "boolean",
               "default": true
-            }
+            },
+            "example": true
           }
         ],
         "responses": {
@@ -201,13 +213,19 @@
             }
           },
           "400": {
-            "description": "Invalid request parameters"
+            "description": "Invalid request parameters - date range exceeds 7 days or invalid date format"
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized - missing or invalid token"
+          },
+          "403": {
+            "description": "Forbidden - only Directory tokens can access this endpoint"
           },
           "404": {
             "description": "Directory not found"
+          },
+          "429": {
+            "description": "Too Many Requests - another request is currently processing for this directory. Please retry after a few seconds."
           },
           "500": {
             "description": "Internal server error"

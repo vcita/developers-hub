@@ -180,7 +180,7 @@ function getCacheStats() {
  * @returns {Promise<Object>} Result with new resolved params
  */
 async function executeCachedWorkflow(workflow, apiClient, config, resolvedParams, onProgress) {
-  const { executePrerequisite } = require('./ai-self-healer');
+  const { executePrerequisite } = require('./ai-agent-healer');
   
   const newParams = { ...resolvedParams };
   const createdEntities = [];

@@ -17,9 +17,7 @@ const { createParamResolver, extractPathParams, hasParamSource, getParamSource, 
 const { askAIForListEndpoint, addLearnedMapping, removeLearnedMapping, getLearnedMapping } = require('../../core/resolver/ai-resolver');
 const { validateAgainstSchema, validateStatusCode, buildValidationResult, getSuggestion, FAILURE_REASONS } = require('../../core/validator/response-validator');
 const { createReport, addResult, finalizeReport } = require('../../core/reporter/report-generator');
-const { isUnrecoverableError } = require('../../core/runner/ai-self-healer');
-const { runAgentHealer } = require('../../core/runner/ai-agent-healer');
-const { getWorkflow, saveWorkflow, executeCachedWorkflow, recordWorkflowFailure } = require('../../core/runner/workflow-cache');
+const { runAgentHealer, isUnrecoverableError } = require('../../core/runner/ai-agent-healer');
 
 // Store for active validation sessions
 const activeSessions = new Map();
@@ -725,7 +723,11 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
     }
     
     // ============== SELF-HEALING LOGIC ==============
-    // Attempt to fix FAIL/ERROR results by creating prerequisites
+    // Deterministic UID resolution approach:
+    // 1. Agent extracts required UIDs from swagger schema
+    // 2. For each UID: GET existing entity, or POST to create
+    // 3. Only after ALL UIDs resolved, retry original request
+    // 4. UID resolution steps are NOT counted as retries
     if ((result.status === 'FAIL' || result.status === 'ERROR') && config.ai?.enabled) {
       // Check if this is an unrecoverable error
       if (!isUnrecoverableError(result)) {
@@ -735,175 +737,161 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
         broadcastEvent(session, 'healing_start', {
           endpoint: endpointKey,
           originalError: `${result.httpStatus} - ${result.details?.reason || 'Unknown error'}`,
-          maxRetries: 5
+          maxRetries: 30,
+          mode: 'deterministic_uid_resolution'
         });
         
-        // Check for cached workflow first
-        const cachedWorkflow = getWorkflow(endpointKey);
-        
-        if (cachedWorkflow) {
-          // Try cached workflow
-          broadcastEvent(session, 'healing_analyzing', {
-            endpoint: endpointKey,
-            message: 'Using cached workflow...',
-            attempt: 0
-          });
-          
-          const cacheResult = await executeCachedWorkflow(
-            cachedWorkflow,
-            apiClient,
-            config,
-            testContext.getParams(),
-            (progress) => broadcastEvent(session, `healing_${progress.type}`, { 
-              endpoint: endpointKey, 
-              ...progress 
-            })
-          );
-          
-          if (cacheResult.success) {
-            // Retry with new params
-            broadcastEvent(session, 'healing_retry', {
-              endpoint: endpointKey,
-              attempt: 0,
-              message: 'Retrying with cached workflow...'
-            });
-            
-            const retryResult = await retryEndpointTest(
-              endpoint, 
-              cacheResult.newParams, 
-              config, 
-              apiClient, 
-              testContext
-            );
-            
-            if (retryResult.status === 'PASS' || retryResult.status === 'WARN') {
-              result = retryResult;
-              result.details = result.details || {};
-              result.details.healingInfo = {
-                usedCachedWorkflow: true,
-                attempts: 1,
-                prerequisitesCreated: cachedWorkflow.prerequisites.map(p => `${p.method} ${p.endpoint}`)
-              };
-              
-              broadcastEvent(session, 'healing_complete', {
-                endpoint: endpointKey,
-                success: true,
-                attempts: 1,
-                usedCache: true
-              });
-            } else {
-              // Cached workflow failed, record failure
-              recordWorkflowFailure(endpointKey);
-            }
-          }
-        }
-        
-        // If still failing, try AI Agent healing
-        if (result.status === 'FAIL' || result.status === 'ERROR') {
-          broadcastEvent(session, 'healing_start', {
-            endpoint: endpointKey,
-            message: 'Starting AI Agent healer...'
-          });
-          
-          const healingResult = await runAgentHealer({
-            endpoint,
-            result,
-            resolvedParams: testContext.getParams(),
-            allEndpoints,
-            config,
-            apiClient,
-            maxIterations: 10,
-            onProgress: (progress) => {
-              // Map agent events to SSE
-              const eventMap = {
-                'agent_start': 'healing_analyzing',
-                'agent_thinking': 'healing_analyzing',
-                'agent_thought': 'healing_analyzing',
-                'agent_tool_call': 'healing_creating',
-                'agent_tool_result': 'healing_created',
-                'agent_complete': 'healing_complete'
-              };
-              
-              broadcastEvent(session, eventMap[progress.type] || 'healing_analyzing', {
-                endpoint: endpointKey,
-                ...progress
-              });
-            }
-          });
-          
-          // Process results
-          if (healingResult.documentationIssues?.length > 0) {
-            result.details = result.details || {};
-            result.details.documentationIssues = healingResult.documentationIssues;
-            result.details.errors = [
-              ...(result.details.errors || []),
-              ...healingResult.documentationIssues.map(issue => ({
-                reason: issue.type || 'DOCUMENTATION_ISSUE',
-                message: issue.issue,
-                friendlyMessage: issue.issue,
-                suggestion: issue.suggestion,
-                field: issue.field
-              }))
-            ];
-          }
-          
-          if (healingResult.success) {
-            // Agent fixed it! Get the last successful API call from the log
-            const lastSuccess = healingResult.healingLog
-              ?.filter(l => l.type === 'tool_result' && l.result?.success && l.result?.status >= 200 && l.result?.status < 300)
-              ?.pop();
-            
-            if (lastSuccess) {
-              result.status = 'PASS';
-              result.httpStatus = lastSuccess.result.status;
-              result.details = result.details || {};
-              result.details.response = { data: lastSuccess.result.data };
-              result.details.healingInfo = {
-                attempts: healingResult.iterations,
-                summary: healingResult.summary,
-                agentLog: healingResult.healingLog,
-                docFixSuggestions: healingResult.docFixSuggestions || [],
-                savedWorkflows: healingResult.savedWorkflows || [],
-                workflowReused: healingResult.workflowReused || false,
-                workflowStatus: healingResult.savedWorkflows?.length > 0 ? 'New' : 
-                               healingResult.workflowReused ? 'Reused' : 'N/A'
-              };
-            }
-            
-            // Update resolved params with what the agent learned
-            if (healingResult.resolvedParams) {
-              testContext.setParams({ ...testContext.getParams(), ...healingResult.resolvedParams });
-            }
-            
-            broadcastEvent(session, 'healing_complete', {
-              endpoint: endpointKey,
-              success: true,
-              iterations: healingResult.iterations,
-              summary: healingResult.summary,
-              workflowSaved: healingResult.savedWorkflows?.length > 0,
-              docFixCount: healingResult.docFixSuggestions?.length || 0
-            });
-          } else {
-            // Agent couldn't fix it
-            result.details = result.details || {};
-            result.details.healingInfo = {
-              attempted: true,
-              iterations: healingResult.iterations,
-              failed: true,
-              reason: healingResult.reason,
-              agentLog: healingResult.healingLog,
-              docFixSuggestions: healingResult.docFixSuggestions || [],
-              workflowStatus: 'Failed'
+        // Run the AI Agent healer with deterministic UID resolution
+        const healingResult = await runAgentHealer({
+          endpoint,
+          result,
+          resolvedParams: testContext.getParams(),
+          allEndpoints,
+          config,
+          apiClient,
+          maxRetries: 30,  // Increased to allow source code exploration
+          onProgress: (progress) => {
+            // Map agent events to SSE
+            const eventMap = {
+              'agent_start': 'healing_analyzing',
+              'agent_thinking': 'healing_analyzing',
+              'agent_thought': 'healing_analyzing',
+              'agent_tool_call': 'healing_creating',
+              'agent_tool_result': 'healing_created',
+              'agent_complete': 'healing_complete'
             };
             
-            broadcastEvent(session, 'healing_complete', {
+            broadcastEvent(session, eventMap[progress.type] || 'healing_analyzing', {
               endpoint: endpointKey,
-              success: false,
-              iterations: healingResult.iterations,
-              reason: healingResult.reason,
-              docFixCount: healingResult.docFixSuggestions?.length || 0
+              ...progress
             });
           }
+        });
+        
+        // Process doc fix suggestions
+        if (healingResult.docFixSuggestions?.length > 0) {
+          result.details = result.details || {};
+          result.details.documentationIssues = healingResult.docFixSuggestions;
+          result.details.errors = [
+            ...(result.details.errors || []),
+            ...healingResult.docFixSuggestions.map(issue => ({
+              reason: issue.type || 'DOCUMENTATION_ISSUE',
+              message: issue.issue,
+              friendlyMessage: issue.issue,
+              suggestion: issue.suggested_fix,
+              field: issue.field
+            }))
+          ];
+        }
+        
+        if (healingResult.success) {
+          // Check for documentation issues - use for status determination
+          const hasDocIssues = healingResult.docFixSuggestions?.length > 0;
+          
+          // Agent fixed it! Get the last successful retry from the log
+          const lastSuccess = healingResult.healingLog
+            ?.filter(l => l.type === 'tool_result' && l.result?.success && l.result?.status >= 200 && l.result?.status < 300 && l.result?.isRetry)
+            ?.pop();
+          
+          if (lastSuccess) {
+            // Set status to WARN if there are documentation issues, otherwise PASS
+            result.status = hasDocIssues ? 'WARN' : 'PASS';
+            result.httpStatus = lastSuccess.result.status;
+            result.details = result.details || {};
+            result.details.response = { data: lastSuccess.result.data };
+            result.details.healingInfo = {
+              mode: 'deterministic_uid_resolution',
+              iterations: healingResult.iterations,
+              retryCount: healingResult.retryCount,
+              summary: healingResult.summary,
+              agentLog: healingResult.healingLog,
+              docFixSuggestions: healingResult.docFixSuggestions || [],
+              savedWorkflows: healingResult.savedWorkflows || [],
+              workflowStatus: healingResult.savedWorkflows?.length > 0 ? 'New' : 'N/A',
+              hasDocumentationIssues: hasDocIssues
+            };
+          }
+          
+          // Update resolved params with what the agent learned
+          if (healingResult.resolvedParams) {
+            testContext.setParams({ ...testContext.getParams(), ...healingResult.resolvedParams });
+          }
+          broadcastEvent(session, 'healing_complete', {
+            endpoint: endpointKey,
+            success: true,
+            status: hasDocIssues ? 'WARN' : 'PASS',
+            hasDocumentationIssues: hasDocIssues,
+            iterations: healingResult.iterations,
+            retryCount: healingResult.retryCount,
+            summary: healingResult.summary,
+            workflowSaved: healingResult.savedWorkflows?.length > 0,
+            docFixCount: healingResult.docFixSuggestions?.length || 0,
+            // Include updated result so UI can update in place
+            updatedResult: result
+          });
+        } else if (healingResult.skip) {
+          // Agent determined this should be skipped (business constraint)
+          // The endpoint works correctly but cannot be tested due to constraints
+          result.status = 'SKIP';
+          result.details = result.details || {};
+          result.details.healingInfo = {
+            mode: 'deterministic_uid_resolution',
+            skipped: true,
+            skipReason: healingResult.skipReason,
+            iterations: healingResult.iterations,
+            retryCount: healingResult.retryCount,
+            summary: healingResult.summary,
+            agentLog: healingResult.healingLog,
+            docFixSuggestions: healingResult.docFixSuggestions || [],
+            savedWorkflows: healingResult.savedWorkflows || [],
+            workflowStatus: healingResult.savedWorkflows?.length > 0 ? 'Cached (Skip)' : 'N/A'
+          };
+          
+          // Update resolved params with what the agent learned
+          if (healingResult.resolvedParams) {
+            testContext.setParams({ ...testContext.getParams(), ...healingResult.resolvedParams });
+          }
+          
+          broadcastEvent(session, 'healing_complete', {
+            endpoint: endpointKey,
+            success: false,
+            skipped: true,
+            skipReason: healingResult.skipReason,
+            iterations: healingResult.iterations,
+            retryCount: healingResult.retryCount,
+            summary: healingResult.summary,
+            workflowSaved: healingResult.savedWorkflows?.length > 0,
+            docFixCount: healingResult.docFixSuggestions?.length || 0,
+            // Include updated result so UI can update in place
+            updatedResult: result
+          });
+        } else {
+          // Agent couldn't fix it
+          result.details = result.details || {};
+          result.details.healingInfo = {
+            mode: 'deterministic_uid_resolution',
+            attempted: true,
+            iterations: healingResult.iterations,
+            retryCount: healingResult.retryCount,
+            failed: true,
+            reason: healingResult.reason,
+            unresolvedUids: healingResult.unresolvedUids || [],
+            agentLog: healingResult.healingLog,
+            docFixSuggestions: healingResult.docFixSuggestions || [],
+            workflowStatus: 'Failed'
+          };
+          
+          broadcastEvent(session, 'healing_complete', {
+            endpoint: endpointKey,
+            success: false,
+            iterations: healingResult.iterations,
+            retryCount: healingResult.retryCount,
+            reason: healingResult.reason,
+            unresolvedUids: healingResult.unresolvedUids || [],
+            docFixCount: healingResult.docFixSuggestions?.length || 0,
+            // Include updated result so UI can update in place (shows healing info even if failed)
+            updatedResult: result
+          });
         }
       }
     }

@@ -6,12 +6,12 @@
     "version": "3.0",
     "x-generated": {
       "sourceFiles": [
-        "jwks.json",
-        "legacy_v1_apps.json",
         "widgets_and_boards.json",
+        "legacy_v1_apps.json",
         "apps.json",
+        "legacy_token.json",
         "legacy_app_translation.json",
-        "legacy_token.json"
+        "jwks.json"
       ],
       "pathNormalizations": [
         {
@@ -51,17 +51,6 @@
           ]
         },
         {
-          "file": "legacy_app_translation.json",
-          "basePath": "/platform/v1",
-          "transformations": [
-            {
-              "original": "/apps/translations/{app_code_name}",
-              "normalized": "/platform/v1/apps/translations/{app_code_name}",
-              "basePath": "/platform/v1"
-            }
-          ]
-        },
-        {
           "file": "legacy_token.json",
           "basePath": "/oauth/service",
           "transformations": [
@@ -69,6 +58,17 @@
               "original": "/token",
               "normalized": "/oauth/service/token",
               "basePath": "/oauth/service"
+            }
+          ]
+        },
+        {
+          "file": "legacy_app_translation.json",
+          "basePath": "/platform/v1",
+          "transformations": [
+            {
+              "original": "/apps/translations/{app_code_name}",
+              "normalized": "/platform/v1/apps/translations/{app_code_name}",
+              "basePath": "/platform/v1"
             }
           ]
         }
@@ -96,47 +96,36 @@
     }
   ],
   "paths": {
-    "/v3/apps/compact_jws_tokens": {
+    "/v3/apps/widgets": {
       "post": {
-        "summary": "Create a compact JWS token",
-        "description": "Create a new compact JWS token that can be used to authenticate a staff member to an app in inTandem using a JWKS process. The token is signed by the app's private key and can be verified by inTandem's public key. Public JWKS token can be obtained at: https://api.vcita.biz/v3/apps/.well-known/jwks.json. Available for **Staff Tokens** and **AppStaffToken**.",
+        "operationId": "Widgets_create",
+        "summary": "Create a Widget",
+        "description": "## Overview\nCreate a new widget. **Only that has the app_type 'widgets'**.\n\n**available for App Tokens**",
         "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "app_code_name": {
-                    "type": "string",
-                    "description": "The code name of the app that owns this token"
-                  }
-                },
-                "required": [
-                  "app_code_name"
-                ],
-                "example": {
-                  "app_code_name": "tips"
-                }
+                "$ref": "#/components/schemas/CreateWidgetRequestDto"
               }
             }
           }
         },
         "responses": {
-          "200": {
-            "description": "A compact JWS token is successfully created.",
+          "201": {
+            "description": "",
             "content": {
               "application/json": {
                 "schema": {
                   "allOf": [
                     {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                      "$ref": "#/components/schemas/Response"
                     },
                     {
                       "properties": {
                         "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/compactJWSToken.json"
+                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/widget.json"
                         }
                       }
                     }
@@ -146,14 +135,166 @@
             }
           },
           "401": {
-            "description": "Unauthorized. The bearer token is missing, invalid or not allowed to access the requested resource."
+            "description": "Unauthorized. The bearer token is missing or invalid."
           },
-          "429": {
-            "description": "Rate limit has been reached due to the number of requests made for the same staff member in a short period of time."
+          "403": {
+            "description": "Forbidden. You do not have access to this resource."
           }
         },
         "tags": [
-          "JWKS"
+          "Widget"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "get": {
+        "operationId": "Widgets_getAll",
+        "summary": "Get all Widgets",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number of results.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 10000,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "per_page",
+            "required": false,
+            "in": "query",
+            "description": "How many items to return per page. Max: 100",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Sort by fields. Example: sort=created_at:asc,updated_at:desc",
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "updated_at:desc",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by module, Example: module=Payment",
+            "name": "module",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/MultiWidgetsResponse"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing or invalid."
+          },
+          "403": {
+            "description": "Forbidden. You do not have access to this resource."
+          }
+        },
+        "tags": [
+          "Widget"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "description": "## Overview\nGet all Widgets.\n\n## When to Use\n- Building list views and tables\n- Searching for specific records\n- Syncing data with external systems"
+      }
+    },
+    "/v3/apps/widgets/{uid}": {
+      "put": {
+        "operationId": "Widgets_update",
+        "summary": "Update Widget",
+        "description": "## Overview\nUpdate a widget. **Only that has the app_type 'widgets'**.\n\n**available for App Tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "The widget uid",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWidgetRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/widget.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing or invalid."
+          },
+          "403": {
+            "description": "Forbidden. You do not have access to this resource."
+          }
+        },
+        "tags": [
+          "Widget"
         ],
         "security": [
           {
@@ -162,10 +303,218 @@
         ]
       }
     },
-    "/v3/apps/compact_jws_tokens/bulk": {
+    "/v3/apps/staff_widgets_boards": {
       "post": {
-        "summary": "Bulk create compact JWS tokens",
-        "description": "Create multiple compact JWS tokens for a list of app code names. The response will include the success, generated token (if successful), or error details for each app code name.",
+        "operationId": "StaffWidgetsBoard_create",
+        "summary": "Create a Staff Widgets Board",
+        "description": "## Overview\nCreates a widgets board for staff member. Called automatically when a staff first access the dashboard and will fail if called again. Use update to change the StaffWidgetsBoard\n\n**Available for Staff Tokens**",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffWidgetsBoardRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/staffWidgetsBoard.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing or invalid."
+          },
+          "403": {
+            "description": "Forbidden. You do not have access to this resource."
+          }
+        },
+        "tags": [
+          "Staff Widgets Board"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "get": {
+        "operationId": "StaffWidgetsBoard_getAll",
+        "summary": "Get all Widgets Boards Of The Staff",
+        "description": "## Overview\nReturns the widgets boards for staff member.\n\n## When to Use\n- Building list views and tables\n- Searching for specific records\n- Syncing data with external systems\n\n**Available for Staff Tokens**",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number of results.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 10000,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "per_page",
+            "required": false,
+            "in": "query",
+            "description": "How many items to return per page. Max: 100",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Sort by fields. Example: sort=created_at:asc,updated_at:desc",
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "updated_at:desc",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by type, Example: type=home",
+            "name": "type",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/MultiStaffWidgetsBoardResponse"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing or invalid."
+          },
+          "403": {
+            "description": "Forbidden. You do not have access to this resource."
+          }
+        },
+        "tags": [
+          "Staff Widgets Board"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/apps/staff_widgets_boards/{uid}": {
+      "put": {
+        "operationId": "StaffWidgetsBoard_update",
+        "summary": "Update a Staff Widgets Board",
+        "description": "## Overview\nUpdate a staff widget board. **Only.\n\n**available for Staff Tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "The staff widgets board uid",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffWidgetsBoardRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/staffWidgetsBoard.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing or invalid."
+          },
+          "403": {
+            "description": "Forbidden. You do not have access to this resource."
+          }
+        },
+        "tags": [
+          "Staff Widgets Board"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/apps/staff_widgets_boards_templates": {
+      "post": {
+        "operationId": "StaffWidgetsBoardsTemplate_create",
+        "summary": "Create a Staff Widgets Boards Template",
+        "description": "## Overview\nCreate a staff widget board template. **Only.\n\n**available for Directory Tokens**",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -174,24 +523,155 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "app_code_names": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "description": "The code name of the app that owns the token"
-                    },
-                    "description": "List of app code names for which JWS tokens need to be generated"
+                  "staff_uid": {
+                    "type": "string",
+                    "description": "The unique identifier of the staff which will be used as staff widget board template"
                   }
-                },
-                "required": [
-                  "app_code_names"
-                ],
-                "example": {
-                  "app_code_names": [
-                    "tips",
-                    "helpdesk",
-                    "sales"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/staffWidgetsBoardsTemplate.json"
+                        }
+                      }
+                    }
                   ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing or invalid."
+          },
+          "403": {
+            "description": "Forbidden. You do not have access to this resource."
+          }
+        },
+        "tags": [
+          "Staff Widgets Boards Template"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "get": {
+        "operationId": "StaffWidgetsBoardsTemplate_getAll",
+        "summary": "Get all Staff Widgets Boards Templates",
+        "description": "## Overview\nGet all staff widget board templates. **Only.\n\n**available for Directory Tokens**",
+        "parameters": [
+          {
+            "description": "Filter by owner_type, Example: owner_type=directory",
+            "name": "owner_type",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "directory",
+                "business"
+              ]
+            }
+          },
+          {
+            "description": "Filter by owner_uid, Example: owner_uid=d290f1ee-6c54-4b01-90e6-d701748f0851",
+            "name": "owner_uid",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by staff_uid, Example: staff_uid=d290f1ee-6c54-4b01-90e6-d701748f0851",
+            "name": "staff_uid",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/MultiStaffWidgetsBoardsTemplatesResponse"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing or invalid."
+          },
+          "403": {
+            "description": "Forbidden. You do not have access to this resource."
+          }
+        },
+        "tags": [
+          "Staff Widgets Boards Template"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/apps/staff_widgets_boards_templates/{uid}": {
+      "put": {
+        "operationId": "StaffWidgetsBoardsTemplate_update",
+        "summary": "Update a Staff Widgets Boards Template",
+        "description": "## Overview\nUpdate a staff widget board template. **Only.\n\n**available for Directory Tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "staff_uid": {
+                    "type": "string",
+                    "description": "The unique identifier of the staff which will be used as staff widget board template"
+                  }
                 }
               }
             }
@@ -199,56 +679,81 @@
         },
         "responses": {
           "200": {
-            "description": "Bulk creation of compact JWS tokens.",
+            "description": "returns a staff widget board template entity",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "object",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
                       "properties": {
-                        "compact_jws_tokens": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "success": {
-                                "type": "boolean",
-                                "description": "Status of the creation for the entity. Possible values: true (success), false (error)."
-                              },
-                              "data": {
-                                "description": "The generated JWS token or null if failed",
-                                "$ref": "https://vcita.github.io/developers-hub/entities/apps/compactJWSToken.json"
-                              },
-                              "error": {
-                                "type": "string",
-                                "description": "Error message if token creation failed"
-                              }
-                            },
-                            "required": [
-                              "success",
-                              "entity",
-                              "error"
-                            ]
-                          }
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/staffWidgetsBoardsTemplate.json"
                         }
                       }
                     }
-                  }
+                  ]
                 }
               }
             }
           },
           "401": {
-            "description": "Unauthorized. The bearer token is missing, invalid or not allowed to access the requested resource."
+            "description": "Unauthorized. The bearer token is missing or invalid."
           },
-          "429": {
-            "description": "Rate limit has been reached due to the number of requests made for the same staff member in a short period of time."
+          "403": {
+            "description": "Forbidden. You do not have access to this resource."
           }
         },
         "tags": [
-          "JWKS"
+          "Staff Widgets Boards Template"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "StaffWidgetsBoardsTemplate_delete",
+        "summary": "Delete a Staff Widgets Boards Template",
+        "description": "## Overview\nDelete a staff widget board template. **Only.\n\n**available for Directory Tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "returns the deleted staff widget board template entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/staffWidgetsBoardsTemplate.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Staff Widgets Boards Template"
         ],
         "security": [
           {
@@ -259,7 +764,7 @@
     },
     "/platform/v1/apps": {
       "get": {
-        "description": "Retrieve a list of available apps. **Available for Staff and Directory Tokens**.",
+        "description": "## Overview\nRetrieve a list of available apps. .\n\n## When to Use\n- Building list views and tables\n- Searching for specific records\n- Syncing data with external systems\n\n**Available for Staff and Directory Tokens**",
         "parameters": [],
         "responses": {
           "201": {
@@ -344,7 +849,7 @@
         "x-auth-type": "Application & Application User"
       },
       "post": {
-        "description": "Create a new app. **Available for Directory Tokens**.",
+        "description": "## Overview\nCreate a new app.\n\n**Available for Directory Tokens**",
         "parameters": [],
         "responses": {
           "201": {
@@ -690,7 +1195,7 @@
     },
     "/platform/v1/apps/{id}": {
       "get": {
-        "description": "Retrieve an app by code name. **Available for Directory Tokens**.",
+        "description": "## Overview\nRetrieve an app by code name. .\n\n## When to Use\n- Viewing full record details\n- Building detail pages\n- Verifying record existence\n\n**Available for Directory Tokens**",
         "parameters": [
           {
             "description": "App code name",
@@ -788,7 +1293,7 @@
         "x-auth-type": "Application & Application User"
       },
       "put": {
-        "description": "Update an app by code name. **Available for Directory Tokens**.",
+        "description": "## Overview\nUpdate an app by code name. .\n\n**Available for Directory Tokens**",
         "parameters": [
           {
             "description": "App code name",
@@ -1142,7 +1647,7 @@
     },
     "/platform/v1/apps/{id}/assign": {
       "post": {
-        "description": "Assign an application to a business or directory so it appears in the App Market. **Available for Internal & Directory Tokens**.",
+        "description": "## Overview\nAssign an application to a business or directory so it appears in the App Market. .\n\n**Available for Internal & Directory Tokens**",
         "parameters": [
           {
             "description": "App code name",
@@ -1239,7 +1744,7 @@
     },
     "/platform/v1/apps/{id}/install_app": {
       "post": {
-        "description": "Install an app for the authorized business. **Available for Staff Tokens**.",
+        "description": "## Overview\nInstall an app for the authorized business. .\n\n**Available for Staff Tokens**",
         "parameters": [
           {
             "description": "App code name",
@@ -1344,7 +1849,7 @@
     },
     "/platform/v1/apps/{id}/unassign": {
       "post": {
-        "description": "Unassign an application from a business or directory. **Available for Internal & Directory Tokens**.",
+        "description": "## Overview\nUnassign an application from a business or directory. .\n\n**Available for Internal & Directory Tokens**",
         "parameters": [
           {
             "description": "App code name",
@@ -1427,7 +1932,7 @@
     },
     "/platform/v1/apps/{id}/uninstall_app": {
       "post": {
-        "description": "Uninstall an app for the authorized business. **Available for Staff Tokens**.",
+        "description": "## Overview\nUninstall an app for the authorized business. .\n\n**Available for Staff Tokens**",
         "parameters": [
           {
             "description": "App code name",
@@ -1530,676 +2035,11 @@
         }
       }
     },
-    "/v3/apps/widgets": {
-      "post": {
-        "operationId": "Widgets_create",
-        "summary": "Create a Widget",
-        "description": "Create a new widget. **Only available for App Tokens that has the app_type 'widgets'**",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateWidgetRequestDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/widget.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing or invalid."
-          },
-          "403": {
-            "description": "Forbidden. You do not have access to this resource."
-          }
-        },
-        "tags": [
-          "Widget"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      },
-      "get": {
-        "operationId": "Widgets_getAll",
-        "summary": "Get all Widgets",
-        "parameters": [
-          {
-            "name": "page",
-            "required": false,
-            "in": "query",
-            "description": "Page number of results.",
-            "schema": {
-              "minimum": 1,
-              "maximum": 10000,
-              "default": 1,
-              "type": "number"
-            }
-          },
-          {
-            "name": "per_page",
-            "required": false,
-            "in": "query",
-            "description": "How many items to return per page. Max: 100",
-            "schema": {
-              "minimum": 1,
-              "maximum": 100,
-              "default": 25,
-              "type": "number"
-            }
-          },
-          {
-            "description": "Sort by fields. Example: sort=created_at:asc,updated_at:desc",
-            "name": "sort",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "default": "updated_at:desc",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by module, Example: module=Payment",
-            "name": "module",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/MultiWidgetsResponse"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing or invalid."
-          },
-          "403": {
-            "description": "Forbidden. You do not have access to this resource."
-          }
-        },
-        "tags": [
-          "Widget"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/apps/widgets/{uid}": {
-      "put": {
-        "operationId": "Widgets_update",
-        "summary": "Update Widget",
-        "description": "Update a widget. **Only available for App Tokens that has the app_type 'widgets'**",
-        "parameters": [
-          {
-            "name": "uid",
-            "required": true,
-            "in": "path",
-            "description": "The widget uid",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateWidgetRequestDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/widget.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing or invalid."
-          },
-          "403": {
-            "description": "Forbidden. You do not have access to this resource."
-          }
-        },
-        "tags": [
-          "Widget"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/apps/staff_widgets_boards": {
-      "post": {
-        "operationId": "StaffWidgetsBoard_create",
-        "summary": "Create a Staff Widgets Board",
-        "description": "Creates a widgets board for staff member. **Available for Staff Tokens**",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/StaffWidgetsBoardRequestDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/staffWidgetsBoard.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing or invalid."
-          },
-          "403": {
-            "description": "Forbidden. You do not have access to this resource."
-          }
-        },
-        "tags": [
-          "Staff Widgets Board"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      },
-      "get": {
-        "operationId": "StaffWidgetsBoard_getAll",
-        "summary": "Get all Widgets Boards Of The Staff",
-        "description": "Returns the widgets boards for staff member. **Available for Staff Tokens**",
-        "parameters": [
-          {
-            "name": "page",
-            "required": false,
-            "in": "query",
-            "description": "Page number of results.",
-            "schema": {
-              "minimum": 1,
-              "maximum": 10000,
-              "default": 1,
-              "type": "number"
-            }
-          },
-          {
-            "name": "per_page",
-            "required": false,
-            "in": "query",
-            "description": "How many items to return per page. Max: 100",
-            "schema": {
-              "minimum": 1,
-              "maximum": 100,
-              "default": 25,
-              "type": "number"
-            }
-          },
-          {
-            "description": "Sort by fields. Example: sort=created_at:asc,updated_at:desc",
-            "name": "sort",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "default": "updated_at:desc",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by type, Example: type=home",
-            "name": "type",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/MultiStaffWidgetsBoardResponse"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing or invalid."
-          },
-          "403": {
-            "description": "Forbidden. You do not have access to this resource."
-          }
-        },
-        "tags": [
-          "Staff Widgets Board"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/apps/staff_widgets_boards/{uid}": {
-      "put": {
-        "operationId": "StaffWidgetsBoard_update",
-        "summary": "Update a Staff Widgets Board",
-        "description": "Update a staff widget board. **Only available for Staff Tokens**",
-        "parameters": [
-          {
-            "name": "uid",
-            "required": true,
-            "in": "path",
-            "description": "The staff widgets board uid",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/StaffWidgetsBoardRequestDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/staffWidgetsBoard.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing or invalid."
-          },
-          "403": {
-            "description": "Forbidden. You do not have access to this resource."
-          }
-        },
-        "tags": [
-          "Staff Widgets Board"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/apps/staff_widgets_boards_templates": {
-      "post": {
-        "operationId": "StaffWidgetsBoardsTemplate_create",
-        "summary": "Create a Staff Widgets Boards Template",
-        "description": "Create a staff widget board template. **Only available for Directory Tokens**",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "staff_uid": {
-                    "type": "string",
-                    "description": "The unique identifier of the staff which will be used as staff widget board template"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/staffWidgetsBoardsTemplate.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing or invalid."
-          },
-          "403": {
-            "description": "Forbidden. You do not have access to this resource."
-          }
-        },
-        "tags": [
-          "Staff Widgets Boards Template"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      },
-      "get": {
-        "operationId": "StaffWidgetsBoardsTemplate_getAll",
-        "summary": "Get all Staff Widgets Boards Templates",
-        "description": "Get all staff widget board templates. **Only available for Directory Tokens**",
-        "parameters": [
-          {
-            "description": "Filter by owner_type, Example: owner_type=directory",
-            "name": "owner_type",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "directory",
-                "business"
-              ]
-            }
-          },
-          {
-            "description": "Filter by owner_uid, Example: owner_uid=d290f1ee-6c54-4b01-90e6-d701748f0851",
-            "name": "owner_uid",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by staff_uid, Example: staff_uid=d290f1ee-6c54-4b01-90e6-d701748f0851",
-            "name": "staff_uid",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/MultiStaffWidgetsBoardsTemplatesResponse"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing or invalid."
-          },
-          "403": {
-            "description": "Forbidden. You do not have access to this resource."
-          }
-        },
-        "tags": [
-          "Staff Widgets Boards Template"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/apps/staff_widgets_boards_templates/{uid}": {
-      "put": {
-        "operationId": "StaffWidgetsBoardsTemplate_update",
-        "summary": "Update a Staff Widgets Boards Template",
-        "description": "Update a staff widget board template. **Only available for Directory Tokens**",
-        "parameters": [
-          {
-            "name": "uid",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "staff_uid": {
-                    "type": "string",
-                    "description": "The unique identifier of the staff which will be used as staff widget board template"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "returns a staff widget board template entity",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/staffWidgetsBoardsTemplate.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing or invalid."
-          },
-          "403": {
-            "description": "Forbidden. You do not have access to this resource."
-          }
-        },
-        "tags": [
-          "Staff Widgets Boards Template"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      },
-      "delete": {
-        "operationId": "StaffWidgetsBoardsTemplate_delete",
-        "summary": "Delete a Staff Widgets Boards Template",
-        "description": "Delete a staff widget board template. **Only available for Directory Tokens**",
-        "parameters": [
-          {
-            "name": "uid",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "returns the deleted staff widget board template entity",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/staffWidgetsBoardsTemplate.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Staff Widgets Boards Template"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
     "/v3/apps/app_assignments": {
       "get": {
         "operationId": "AppAssignments_list",
         "summary": "List App Assignments",
-        "description": "Get a list of app assignments with optional filtering. Note: assignee_uid can only be used when assignee_type is also provided. **Available for Directory and internal Tokens**",
+        "description": "## Overview\nGet a list of app assignments with optional filtering. Note: assignee_uid can only be used when assignee_type is also provided.\n\n## When to Use\n- Building list views and tables\n- Searching for specific records\n- Syncing data with external systems\n\n**Available for Directory and internal Tokens**",
         "parameters": [
           {
             "name": "app_code_name",
@@ -2301,7 +2141,7 @@
       "post": {
         "operationId": "AppAssignments_create",
         "summary": "Create an App Assignment",
-        "description": "Create a new app assignment to a business, package or directory. **Available for Directory and internal Tokens**",
+        "description": "## Overview\nCreate a new app assignment to a business, package or directory.\n\n**Available for Directory and internal Tokens**",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -2362,7 +2202,7 @@
       "delete": {
         "operationId": "AppAssignments_delete",
         "summary": "Delete an App Assignment",
-        "description": "Delete an app assignment. **Available for Directory and internal Tokens**",
+        "description": "## Overview\nDelete an app assignment.\n\n**Available for Directory and internal Tokens**",
         "parameters": [
           {
             "name": "uid",
@@ -2422,10 +2262,83 @@
         ]
       }
     },
+    "/oauth/service/token": {
+      "post": {
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Service token generated",
+            "content": {
+              "application/json": {
+                "example": {
+                  "access_token": "eade05e0ee958ed139b7431b1a630bff95260178699ddf88cbd86a32d2ac708c",
+                  "created_at": "2021-11-16T13:29:47.000Z",
+                  "expires_in": 3600,
+                  "token_type": "Bearer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid credentials"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "summary": "Generate an app access token",
+        "description": "## Overview\nGenerate an app access token for a given serivce_id (client_id) and service_secret (client_secret). These credentials are generated when an app is created and returned in the app's create response. This token can be used to create widgets or notifications for the app.",
+        "tags": [
+          "Service OAuth"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///oauth/service/token"
+        },
+        "x-auth-type": "None",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "service_id": {
+                    "description": "The Service ID",
+                    "type": "string"
+                  },
+                  "service_secret": {
+                    "description": "The Service Secret",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "service_id",
+                  "service_secret"
+                ],
+                "type": "object"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/platform/v1/apps/translations/{app_code_name}": {
       "put": {
         "summary": "Update app translations",
-        "description": "Updates the translations for an app. The translations must be provided as a CSV file with a specific format. The CSV should have columns for: Key, Context, Character Limit, en, es, fr, it, pt, de, pl, nl, en-GB, he, sl. The rows should contain: Name, Short description, App features, Long description. All English fields are required.",
+        "description": "## Overview\nUpdates the translations for an app. The translations must be provided as a CSV file with a specific format. The CSV should have columns for: Key, Context, Character Limit, en, es, fr, it, pt, de, pl, nl, en-GB, he, sl. The rows should contain: Name, Short description, App features, Long description. All English fields are required.",
         "tags": [
           "Applications"
         ],
@@ -2648,72 +2561,160 @@
         }
       }
     },
-    "/oauth/service/token": {
+    "/v3/apps/compact_jws_tokens": {
       "post": {
+        "summary": "Create a compact JWS token",
+        "description": "## Overview\nCreate a new compact JWS token that can be used to authenticate a staff member to an app in inTandem using a JWKS process. The token is signed by the app's private key and can be verified by inTandem's public key. Public JWKS token can be obtained at: https://api.vcita.biz/v3/apps/.well-known/jwks.json. Available for **Staff Tokens** and **AppStaffToken**.",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "app_code_name": {
+                    "type": "string",
+                    "description": "The code name of the app that owns this token"
+                  }
+                },
+                "required": [
+                  "app_code_name"
+                ],
+                "example": {
+                  "app_code_name": "tips"
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Service token generated",
+            "description": "A compact JWS token is successfully created.",
             "content": {
               "application/json": {
-                "example": {
-                  "access_token": "eade05e0ee958ed139b7431b1a630bff95260178699ddf88cbd86a32d2ac708c",
-                  "created_at": "2021-11-16T13:29:47.000Z",
-                  "expires_in": 3600,
-                  "token_type": "Bearer"
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/compactJWSToken.json"
+                        }
+                      }
+                    }
+                  ]
                 }
               }
             }
           },
-          "400": {
-            "description": "Invalid credentials"
-          },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized. The bearer token is missing, invalid or not allowed to access the requested resource."
+          },
+          "429": {
+            "description": "Rate limit has been reached due to the number of requests made for the same staff member in a short period of time."
           }
         },
-        "summary": "Generate an app access token",
-        "description": "Generate an app access token for a given serivce_id (client_id) and service_secret (client_secret). These credentials are generated when an app is created and returned in the app's create response. This token can be used to create widgets or notifications for the app.",
         "tags": [
-          "Service OAuth"
+          "JWKS"
         ],
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-amazon-apigateway-integration": {
-          "httpMethod": "POST",
-          "responses": {
-            "default": {
-              "statusCode": "200"
-            }
-          },
-          "type": "http_proxy",
-          "uri": "https:///oauth/service/token"
-        },
-        "x-auth-type": "None",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/apps/compact_jws_tokens/bulk": {
+      "post": {
+        "summary": "Bulk create compact JWS tokens",
+        "description": "## Overview\nCreate multiple compact JWS tokens for a list of app code names. The response will include the success, generated token (if successful), or error details for each app code name.",
+        "parameters": [],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
+                "type": "object",
                 "properties": {
-                  "service_id": {
-                    "description": "The Service ID",
-                    "type": "string"
-                  },
-                  "service_secret": {
-                    "description": "The Service Secret",
-                    "type": "string"
+                  "app_code_names": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "description": "The code name of the app that owns the token"
+                    },
+                    "description": "List of app code names for which JWS tokens need to be generated"
                   }
                 },
                 "required": [
-                  "service_id",
-                  "service_secret"
+                  "app_code_names"
                 ],
-                "type": "object"
+                "example": {
+                  "app_code_names": [
+                    "tips",
+                    "helpdesk",
+                    "sales"
+                  ]
+                }
               }
             }
           }
         },
+        "responses": {
+          "200": {
+            "description": "Bulk creation of compact JWS tokens.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "compact_jws_tokens": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "success": {
+                                "type": "boolean",
+                                "description": "Status of the creation for the entity. Possible values: true (success), false (error)."
+                              },
+                              "data": {
+                                "description": "The generated JWS token or null if failed",
+                                "$ref": "https://vcita.github.io/developers-hub/entities/apps/compactJWSToken.json"
+                              },
+                              "error": {
+                                "type": "string",
+                                "description": "Error message if token creation failed"
+                              }
+                            },
+                            "required": [
+                              "success",
+                              "entity",
+                              "error"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing, invalid or not allowed to access the requested resource."
+          },
+          "429": {
+            "description": "Rate limit has been reached due to the number of requests made for the same staff member in a short period of time."
+          }
+        },
+        "tags": [
+          "JWKS"
+        ],
         "security": [
           {
             "Bearer": []

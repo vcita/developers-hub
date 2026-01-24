@@ -59,6 +59,196 @@ const ResultsViewer = {
   },
   
   /**
+   * Add a single result to the list (for incremental rendering during test run)
+   * @param {Object} result - Single result object
+   */
+  addResult(result) {
+    const listEl = document.getElementById('results-list');
+    if (!listEl) return;
+    
+    // Create unique ID for this result item
+    const resultId = `result-${result.endpoint.replace(/[^a-zA-Z0-9]/g, '-')}`;
+    
+    // Check if this result already exists - if so, update instead of adding
+    if (document.getElementById(resultId)) {
+      this.updateResult(result);
+      return;
+    }
+    
+    this._results.push(result);
+    
+    // Remove loading message if present
+    const loadingMsg = listEl.querySelector('.results-loading');
+    if (loadingMsg) {
+      loadingMsg.remove();
+    }
+    
+    const statusClass = result.status === 'PASS' ? 'pass' : 
+                        result.status === 'FAIL' ? 'fail' :
+                        result.status === 'WARN' ? 'warn' : 
+                        result.status === 'ERROR' ? 'error' : 'skip';
+    const icon = result.status === 'PASS' ? '✓' : 
+                 result.status === 'FAIL' ? '✗' :
+                 result.status === 'WARN' ? '⚠' : 
+                 result.status === 'ERROR' ? '❌' : '○';
+    const hasDetails = result.details && (result.details.request || result.details.reason);
+    
+    const html = `
+      <div id="${resultId}" class="result-item result-${statusClass} ${hasDetails ? 'expandable' : ''}" data-status="${result.status}">
+        <div class="result-header" ${hasDetails ? `onclick="ResultsViewer.toggleDetails(this.parentElement)"` : ''}>
+          <span class="result-icon">${icon}</span>
+          <span class="result-endpoint">${result.endpoint}</span>
+          <span class="result-meta">
+            <span class="http-status">${result.httpStatus || '-'}</span>
+            <span class="token-used">${result.tokenUsed || '-'}</span>
+            <span class="duration">${result.duration}</span>
+          </span>
+          <span class="result-status status-${statusClass}">${result.status}</span>
+        </div>
+        ${result.summary ? `<div class="result-summary">${result.summary}</div>` : ''}
+        ${result.description ? `<div class="result-description">${this.truncateText(result.description, 200)}</div>` : ''}
+        ${hasDetails ? this.renderDetails(result.details, result.status === 'PASS', result.summary, result.description) : ''}
+      </div>
+    `;
+    
+    // Insert at appropriate position based on status (failures first)
+    const statusOrder = { FAIL: 0, ERROR: 1, WARN: 2, PASS: 3, SKIP: 4 };
+    const currentOrder = statusOrder[result.status] ?? 5;
+    
+    const existingItems = listEl.querySelectorAll('.result-item');
+    let insertBefore = null;
+    
+    for (const item of existingItems) {
+      const itemStatus = item.getAttribute('data-status');
+      const itemOrder = statusOrder[itemStatus] ?? 5;
+      if (itemOrder > currentOrder) {
+        insertBefore = item;
+        break;
+      }
+    }
+    
+    if (insertBefore) {
+      insertBefore.insertAdjacentHTML('beforebegin', html);
+    } else {
+      listEl.insertAdjacentHTML('beforeend', html);
+    }
+  },
+  
+  /**
+   * Update a result in place (used when healing completes)
+   * @param {Object} result - Updated result object
+   */
+  updateResult(result) {
+    const resultId = `result-${result.endpoint.replace(/[^a-zA-Z0-9]/g, '-')}`;
+    const existingEl = document.getElementById(resultId);
+    
+    if (existingEl) {
+      // Update internal storage
+      const idx = this._results.findIndex(r => r.endpoint === result.endpoint);
+      if (idx >= 0) {
+        this._results[idx] = result;
+      }
+      
+      const statusClass = result.status === 'PASS' ? 'pass' : 
+                          result.status === 'FAIL' ? 'fail' :
+                          result.status === 'WARN' ? 'warn' : 
+                          result.status === 'ERROR' ? 'error' : 'skip';
+      const icon = result.status === 'PASS' ? '✓' : 
+                   result.status === 'FAIL' ? '✗' :
+                   result.status === 'WARN' ? '⚠' : 
+                   result.status === 'ERROR' ? '❌' : '○';
+      const hasDetails = result.details && (result.details.request || result.details.reason);
+      
+      existingEl.className = `result-item result-${statusClass} ${hasDetails ? 'expandable' : ''}`;
+      existingEl.setAttribute('data-status', result.status);
+      
+      existingEl.innerHTML = `
+        <div class="result-header" ${hasDetails ? `onclick="ResultsViewer.toggleDetails(this.parentElement)"` : ''}>
+          <span class="result-icon">${icon}</span>
+          <span class="result-endpoint">${result.endpoint}</span>
+          <span class="result-meta">
+            <span class="http-status">${result.httpStatus || '-'}</span>
+            <span class="token-used">${result.tokenUsed || '-'}</span>
+            <span class="duration">${result.duration}</span>
+          </span>
+          <span class="result-status status-${statusClass}">${result.status}</span>
+        </div>
+        ${result.summary ? `<div class="result-summary">${result.summary}</div>` : ''}
+        ${result.description ? `<div class="result-description">${this.truncateText(result.description, 200)}</div>` : ''}
+        ${hasDetails ? this.renderDetails(result.details, result.status === 'PASS', result.summary, result.description) : ''}
+      `;
+      
+      // Re-sort if needed (status changed from FAIL to PASS due to healing)
+      this.sortResults();
+    } else {
+      // If not found, add it
+      this.addResult(result);
+    }
+  },
+  
+  /**
+   * Sort results list in DOM (failures first, then errors, warnings, passes, skips)
+   */
+  sortResults() {
+    const listEl = document.getElementById('results-list');
+    if (!listEl) return;
+    
+    const statusOrder = { FAIL: 0, ERROR: 1, WARN: 2, PASS: 3, SKIP: 4 };
+    const items = Array.from(listEl.querySelectorAll('.result-item'));
+    
+    items.sort((a, b) => {
+      const aStatus = a.getAttribute('data-status');
+      const bStatus = b.getAttribute('data-status');
+      return (statusOrder[aStatus] ?? 5) - (statusOrder[bStatus] ?? 5);
+    });
+    
+    // Re-append in sorted order
+    items.forEach(item => listEl.appendChild(item));
+  },
+  
+  /**
+   * Clear all results (for new test run)
+   */
+  clearResults() {
+    this._results = [];
+    const listEl = document.getElementById('results-list');
+    if (listEl) {
+      listEl.innerHTML = '';
+    }
+  },
+  
+  /**
+   * Set/remove healing indicator on a result item
+   * @param {string} endpoint - The endpoint string
+   * @param {boolean} isHealing - Whether healing is in progress
+   */
+  setResultHealing(endpoint, isHealing) {
+    const resultId = `result-${endpoint.replace(/[^a-zA-Z0-9]/g, '-')}`;
+    const resultEl = document.getElementById(resultId);
+    
+    if (resultEl) {
+      if (isHealing) {
+        resultEl.classList.add('result-healing');
+        // Add a healing badge to the header
+        const header = resultEl.querySelector('.result-header');
+        if (header && !header.querySelector('.healing-badge')) {
+          const badge = document.createElement('span');
+          badge.className = 'healing-badge';
+          badge.innerHTML = '🔄 Healing...';
+          header.appendChild(badge);
+        }
+      } else {
+        resultEl.classList.remove('result-healing');
+        // Remove the healing badge
+        const badge = resultEl.querySelector('.healing-badge');
+        if (badge) {
+          badge.remove();
+        }
+      }
+    }
+  },
+  
+  /**
    * Render result details
    * @param {Object} details - Result details
    * @param {boolean} isPass - Whether this is a passing result
