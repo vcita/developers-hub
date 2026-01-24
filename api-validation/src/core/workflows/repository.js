@@ -168,7 +168,7 @@ function get(endpoint) {
     skipReason: entry.skipReason || parsed.metadata?.skipReason || null,  // Include skip reason
     timesReused: entry.timesReused || 0,
     uidResolution: parsed.uidResolution || null,  // Include UID resolution mappings
-    docFixes: parsed.sections?.['Documentation Fix Suggestions'] ? [] : [],  // Will be parsed from content
+    // NOTE: docFixes intentionally not returned - workflows are success paths only
     ...parsed
   };
 }
@@ -278,14 +278,12 @@ function generateMarkdown(data) {
     howToResolve = '',
     learnings = [],
     successfulRequest = {},
-    docFixes: rawDocFixes = [],
     uidResolution = null,  // UID resolution mappings
     status = 'verified',   // 'verified' or 'skip'
     skipReason = null      // Reason for skipping (if status is 'skip')
+    // NOTE: docFixes intentionally NOT stored in workflows
+    // Workflows are success paths only - doc issues are transient findings
   } = data;
-  
-  // Ensure docFixes is always an array
-  const docFixes = Array.isArray(rawDocFixes) ? rawDocFixes : [];
   
   const now = new Date().toISOString();
   
@@ -387,19 +385,9 @@ function generateMarkdown(data) {
   body.push('```json');
   body.push(JSON.stringify(successfulRequest, null, 2));
   body.push('```');
-  body.push('');
-  body.push('## Documentation Fix Suggestions');
-  body.push('');
   
-  if (docFixes.length > 0) {
-    body.push('| Field | Issue | Suggested Fix | Severity |');
-    body.push('|-------|-------|---------------|----------|');
-    docFixes.forEach(fix => {
-      body.push(`| ${fix.field || '-'} | ${fix.issue || '-'} | ${fix.suggested_fix || fix.suggestedFix || '-'} | ${fix.severity || 'minor'} |`);
-    });
-  } else {
-    body.push('No documentation issues found.');
-  }
+  // NOTE: Documentation issues are NOT stored in workflows
+  // Workflows are success paths only - doc issues are reported once and not cached
   
   return frontmatter + body.join('\n');
 }
@@ -578,6 +566,9 @@ function exists(endpoint) {
   const index = loadIndex();
   return !!index.workflows[endpoint];
 }
+
+// NOTE: updateDocFixes removed - workflows no longer store doc issues
+// Workflows are success paths only - doc issues are transient findings
 
 module.exports = {
   get,

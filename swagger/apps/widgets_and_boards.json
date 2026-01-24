@@ -66,17 +66,18 @@
       },
       "StaffWidgetsBoardRequestDto": {
         "type": "object",
+        "description": "Request body for creating or updating a staff widgets board. **Note**: Each staff member can only have one widget board per unique combination of `type` and `board_layout_code_name`. Attempting to create a duplicate will return a 403 error.",
         "properties": {
           "board_layout_code_name": {
             "type": "string",
-            "description": "A string representing the board layout",
+            "description": "A string representing the board layout. Must be unique per staff member when combined with `type`.",
             "enum": [
               "MainAndSideBar2Columns"
             ]
           },
           "type": {
             "type": "string",
-            "description": "the grid frame of the layout, determines the layout frame containing the board",
+            "description": "The grid frame of the layout, determines the layout frame containing the board. Must be unique per staff member when combined with `board_layout_code_name`.",
             "enum": [
               "home"
             ]
@@ -90,17 +91,9 @@
           }
         },
         "required": [
-          "staff_uid",
-          "client_uid",
-          "from_number",
-          "to_number",
-          "direction",
-          "status",
-          "rate",
-          "provider",
-          "source_id",
-          "external_uuid",
-          "business_uid"
+          "board_layout_code_name",
+          "type",
+          "sections"
         ]
       },
       "UpdateWidgetRequestDto": {
@@ -320,10 +313,10 @@
         "properties": {
           "widget_uid": {
             "type": "string",
-            "description": "The widget uid"
+            "description": "The unique identifier of an existing Widget to include in this section. **Important**: This must be a valid UID from a Widget entity (use `GET /v3/apps/widgets` to find available widgets). Using invalid UIDs will result in a server error."
           },
           "dimensions": {
-            "description": "The sections widgets",
+            "description": "Custom dimensions for the widget in this section",
             "allOf": [
               {
                 "$ref": "#/components/schemas/CustomizedWidgetDimensionsDto"
@@ -332,7 +325,7 @@
           }
         },
         "required": [
-          "uid"
+          "widget_uid"
         ]
       }
     }
@@ -479,7 +472,7 @@
             "Bearer": []
           }
         ],
-        "description": "## Overview\nGet all Widgets.\n\n## When to Use\n- Building list views and tables\n- Searching for specific records\n- Syncing data with external systems"
+        "description": "## Overview\nGet all Widgets.\n\n## When to Use\n- Building list views and tables\n- Searching for specific records\n- Syncing data with external systems\n\n**Available for Staff Tokens**"
       }
     },
     "/v3/apps/widgets/{uid}": {
@@ -552,7 +545,7 @@
       "post": {
         "operationId": "StaffWidgetsBoard_create",
         "summary": "Create a Staff Widgets Board",
-        "description": "## Overview\nCreates a widgets board for staff member. Called automatically when a staff first access the dashboard and will fail if called again. Use update to change the StaffWidgetsBoard\n\n**Available for Staff Tokens**",
+        "description": "## Overview\nCreates a widgets board for staff member.\n\n**Important**: Each staff member can only have one widget board per unique combination of `type` and `board_layout_code_name`. Attempting to create a duplicate will return a 403 error with message 'Duplication Error: StaffWidgetsBoard Already Exist'.\n\n**Available for Staff Tokens**",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -762,7 +755,7 @@
       "post": {
         "operationId": "StaffWidgetsBoardsTemplate_create",
         "summary": "Create a Staff Widgets Boards Template",
-        "description": "## Overview\nCreate a staff widget board template. **Only.\n\n**available for Directory Tokens**",
+        "description": "## Overview\nCreate a staff widget board template.\n\n**Important**: Each staff member can only have one active widgets boards template. Creating a template when one already exists will return a 400 error with message 'Duplicate entry not allowed for active rows.'\n\n**Available for Directory Tokens**",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -799,6 +792,21 @@
                       }
                     }
                   ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request. A duplicate entry already exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": { "type": "integer", "example": 400 },
+                    "message": { "type": "string", "example": "Duplicate entry not allowed for active rows." },
+                    "error": { "type": "string", "example": "Bad Request" }
+                  }
                 }
               }
             }

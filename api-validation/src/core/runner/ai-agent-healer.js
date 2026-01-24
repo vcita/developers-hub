@@ -269,8 +269,9 @@ const TOOLS = [
               source_code_reference: { type: "string", description: "Optional: file/line in source code that clarifies the correct behavior" }
             }
           },
-          description: "Documentation issues discovered - ALWAYS include this if you found discrepancies between docs and actual behavior!"
+          description: "Documentation issues discovered - include if you found discrepancies between docs and actual behavior"
         }
+        // NOTE: fixed_issues removed - workflows no longer store doc issues
       },
       required: ["status", "summary"]
     }
@@ -806,6 +807,7 @@ async function executeTool(toolName, toolInput, context) {
       });
       
       // Save workflow for both success AND skip - so we remember this for future runs
+      // NOTE: Doc issues are NOT stored in workflows - they're transient findings
       if ((isSuccess || isSkip) && (uid_resolution || skip_reason)) {
         const workflowData = {
           summary,
@@ -814,8 +816,8 @@ async function executeTool(toolName, toolInput, context) {
           uidResolution: uid_resolution,
           successfulRequest: context.successfulRequest,
           domain: endpoint.domain,
-          tags: [],
-          docFixes: Array.isArray(doc_issues) ? doc_issues : []
+          tags: []
+          // docFixes intentionally NOT included - workflows are success paths only
         };
         
         workflowRepo.save(endpointKey, workflowData);
@@ -877,7 +879,6 @@ A previous run determined this endpoint should be skipped due to business constr
 - status: "skip"
 - skip_reason: "${existingWorkflow.skipReason || existingWorkflow.summary}"
 - summary: "Skipped based on cached workflow - ${existingWorkflow.skipReason || existingWorkflow.summary}"
-- Include any doc_issues from the cache: ${JSON.stringify(existingWorkflow.docFixes || [], null, 2)}
 
 Do NOT waste retries - just report skip immediately.
 `;
@@ -892,6 +893,8 @@ ${JSON.stringify(existingWorkflow.uidResolution, null, 2)}
 Try using these same endpoints to resolve the UIDs. If they still work, you can skip the discovery phase.
 `;
     }
+    // NOTE: Doc issues are no longer stored in workflows
+    // Workflows are success paths only - doc issues are transient findings reported once
   }
 
   return `You are an API testing agent that follows a DETERMINISTIC UID resolution workflow with SOURCE CODE EXPLORATION capabilities.

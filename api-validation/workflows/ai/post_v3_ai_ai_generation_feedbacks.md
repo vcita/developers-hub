@@ -3,14 +3,14 @@ endpoint: POST /v3/ai/ai_generation_feedbacks
 domain: ai
 tags: []
 status: pass
-savedAt: 2026-01-23T21:45:44.265Z
-verifiedAt: 2026-01-23T21:45:44.265Z
+savedAt: 2026-01-24T12:54:00.741Z
+verifiedAt: 2026-01-24T12:54:00.741Z
 timesReused: 0
 ---
 # Create Ai generation feedbacks
 
 ## Summary
-Successfully created AI generation feedback after resolving the entity_uid by creating a new AISmartReply entity. The original error was due to using an invalid entity_uid that didn't correspond to an existing AISmartReply.
+Successfully created AI generation feedback after resolving the required entity_uid. The original error was due to using a non-existent entity_uid. Created a new AISmartReply entity and used its UID to successfully create the feedback.
 
 ## Prerequisites
 No specific prerequisites documented.
@@ -21,15 +21,15 @@ How to obtain required UIDs for this endpoint:
 
 | UID Field | Source Endpoint | Fallback (Create) | Used Fallback |
 |-----------|-----------------|-------------------|---------------|
-| entity_uid | /v3/ai/ai_smart_replies | /v3/ai/ai_smart_replies | Yes |
+| entity_uid | GET /v3/ai/ai_smart_replies | POST /v3/ai/ai_smart_replies | Yes |
 
 ```json
 {
   "entity_uid": {
-    "source_endpoint": "/v3/ai/ai_smart_replies",
-    "fallback_endpoint": "/v3/ai/ai_smart_replies",
+    "source_endpoint": "GET /v3/ai/ai_smart_replies",
+    "fallback_endpoint": "POST /v3/ai/ai_smart_replies",
     "used_fallback": true,
-    "resolved_value": "3a741e1d-b2d1-49fb-86e2-33a9732c7117"
+    "resolved_value": "ab16e72d-27f3-42fd-bc87-fcbf998e8234"
   }
 }
 ```
@@ -48,17 +48,11 @@ No specific learnings documented.
   "method": "POST",
   "path": "/v3/ai/ai_generation_feedbacks",
   "body": {
-    "type": "int",
-    "value": "5",
+    "type": "text",
+    "value": "too_formal",
     "entity_type": "AISmartReply",
-    "entity_uid": "3a741e1d-b2d1-49fb-86e2-33a9732c7117",
-    "name": "[AISmartReply] Business Sent Message UID"
+    "entity_uid": "ab16e72d-27f3-42fd-bc87-fcbf998e8234",
+    "name": "[AISmartReply] Business Dismiss Reason"
   }
 }
 ```
-
-## Documentation Fix Suggestions
-
-| Field | Issue | Suggested Fix | Severity |
-|-------|-------|---------------|----------|
-| entity_uid | Documentation doesn't clarify that entity_uid must reference an existing entity of the specified entity_type. When using entity_type 'AISmartReply', the entity_uid must be a valid UID from the AISmartReply entities. | Add clarification to swagger documentation that entity_uid must reference an existing entity of the specified type, and include examples of how to obtain valid UIDs for each supported entity_type | major |

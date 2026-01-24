@@ -3,21 +3,21 @@ endpoint: POST /v3/apps/staff_widgets_boards_templates
 domain: apps
 tags: []
 status: skip
-savedAt: 2026-01-23T21:49:04.541Z
-verifiedAt: 2026-01-23T21:49:04.541Z
+savedAt: 2026-01-24T13:24:39.328Z
+verifiedAt: 2026-01-24T13:24:39.328Z
 timesReused: 0
-skipReason: Staff already has a widgets board template assigned - the system only allows one active template per staff member per directory (found existing template with uid: d1f7d98b-8569-4843-9bcf-24c5568ad622)
+skipReason: Staff UID 'guwtwt70kxgic65r' already has an active staff widgets boards template. The system enforces a constraint that prevents duplicate entries for active rows, meaning each staff can only have one active template. This is a business rule validation working correctly.
 ---
 # Create Staff widgets boards templates
 
 ## Summary
-Skipped based on cached workflow - Staff already has a widgets board template assigned - the system only allows one active template per staff member per directory (found existing template with uid: d1f7d98b-8569-4843-9bcf-24c5568ad622)
+Skipped based on cached workflow - Staff UID 'guwtwt70kxgic65r' already has an active staff widgets boards template. The system enforces a constraint that prevents duplicate entries for active rows, meaning each staff can only have one active template. This is a business rule validation working correctly.
 
 ## ⚠️ Skip Reason
 
 **This endpoint should be SKIPPED in automated testing.**
 
-Staff already has a widgets board template assigned - the system only allows one active template per staff member per directory (found existing template with uid: d1f7d98b-8569-4843-9bcf-24c5568ad622)
+Staff UID 'guwtwt70kxgic65r' already has an active staff widgets boards template. The system enforces a constraint that prevents duplicate entries for active rows, meaning each staff can only have one active template. This is a business rule validation working correctly.
 
 This is typically due to a business constraint where the endpoint works correctly but cannot be tested repeatedly (e.g., one-time operations, unique constraints).
 
@@ -36,7 +36,3 @@ No specific learnings documented.
 ```json
 null
 ```
-
-## Documentation Fix Suggestions
-
-No documentation issues found.

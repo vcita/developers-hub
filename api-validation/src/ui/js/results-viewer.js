@@ -1320,7 +1320,7 @@ const ResultsViewer = {
       
       // Generate filename with timestamp
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      const environment = AppState?.config?.environment || 'unknown';
+      const environment = AppState?.config?.environment || 'dev';
       a.download = `api-validation-${environment}-${timestamp}.csv`;
       
       document.body.appendChild(a);
@@ -1397,7 +1397,7 @@ const ResultsViewer = {
     return {
       summary: {
         timestamp: new Date().toISOString(),
-        environment: AppState?.config?.environment || 'unknown',
+        environment: AppState?.config?.environment || 'dev',
         baseUrl: AppState?.config?.baseUrl || '',
         total: results.length,
         passed,
@@ -1427,5 +1427,533 @@ const ResultsViewer = {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
     return `${minutes}m ${remainingSeconds}s`;
+  },
+
+  /**
+   * Save a comprehensive report optimized for AI agents and JIRA tickets
+   */
+  async saveFullReport() {
+    if (!this._results || this._results.length === 0) {
+      alert('No results to save. Run a validation first.');
+      return;
+    }
+    
+    // Prompt user for a test title
+    this.showReportTitleDialog();
+  },
+  
+  /**
+   * Show a dialog to get the report title from the user
+   */
+  showReportTitleDialog() {
+    // Create modal if it doesn't exist
+    let modal = document.getElementById('report-title-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'report-title-modal';
+      modal.className = 'modal';
+      modal.innerHTML = `
+        <div class="modal-content report-title-modal-content">
+          <div class="modal-header">
+            <h2>💾 Save Test Report</h2>
+            <button class="modal-close" onclick="document.getElementById('report-title-modal').classList.add('hidden')">&times;</button>
+          </div>
+          <div class="modal-body">
+            <p>Enter a title for this test run. The date will be added automatically.</p>
+            <div class="form-group">
+              <label for="report-title-input">Report Title</label>
+              <input type="text" id="report-title-input" class="form-input" 
+                placeholder="e.g., ai-endpoints, billing-api, user-auth" 
+                autocomplete="off" />
+              <small class="form-hint">Use lowercase with hyphens (e.g., "ai-endpoints")</small>
+            </div>
+            <div class="form-preview">
+              <strong>Folder preview:</strong>
+              <code id="report-folder-preview">-</code>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="document.getElementById('report-title-modal').classList.add('hidden')">Cancel</button>
+            <button class="btn btn-primary" onclick="ResultsViewer.confirmSaveReport()">Save Report</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      
+      // Add input event listener to update preview
+      const input = document.getElementById('report-title-input');
+      input.addEventListener('input', () => {
+        this.updateReportFolderPreview();
+      });
+      
+      // Handle enter key
+      input.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          this.confirmSaveReport();
+        }
+      });
+    }
+    
+    // Reset input
+    const input = document.getElementById('report-title-input');
+    input.value = '';
+    this.updateReportFolderPreview();
+    
+    // Show modal and focus input
+    modal.classList.remove('hidden');
+    setTimeout(() => input.focus(), 100);
+  },
+  
+  /**
+   * Update the folder name preview based on user input
+   */
+  updateReportFolderPreview() {
+    const input = document.getElementById('report-title-input');
+    const preview = document.getElementById('report-folder-preview');
+    
+    // Sanitize title: lowercase, replace spaces with hyphens, remove special chars
+    let title = (input.value || 'untitled')
+      .toLowerCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-]/g, '')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+    
+    if (!title) title = 'untitled';
+    
+    // Generate timestamp preview
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
+    const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '-'); // HH-MM-SS
+    
+    preview.textContent = `${title}-${dateStr}-${timeStr}`;
+  },
+  
+  /**
+   * Confirm and actually save the report
+   */
+  async confirmSaveReport() {
+    const input = document.getElementById('report-title-input');
+    
+    // Sanitize title
+    let title = (input.value || 'untitled')
+      .toLowerCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-]/g, '')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+    
+    if (!title) title = 'untitled';
+    
+    // Hide the title dialog
+    document.getElementById('report-title-modal').classList.add('hidden');
+    
+    try {
+      // Build comprehensive report object with the user-provided title
+      const report = this.buildComprehensiveReport(title);
+      
+      // Request report generation from server
+      const response = await fetch('/api/report/full', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(report)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        // Show success modal with file locations
+        this.showReportSavedModal(result);
+      } else {
+        throw new Error(result.error || 'Failed to generate report');
+      }
+      
+    } catch (error) {
+      console.error('Failed to save report:', error);
+      alert(`Failed to save report: ${error.message}`);
+    }
+  },
+
+  /**
+   * Show modal with saved report information
+   * @param {Object} result - Server response with file paths
+   */
+  showReportSavedModal(result) {
+    // Create modal if it doesn't exist
+    let modal = document.getElementById('report-saved-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'report-saved-modal';
+      modal.className = 'modal';
+      modal.innerHTML = `
+        <div class="modal-content report-saved-modal-content">
+          <div class="modal-header">
+            <h2>📊 Report Saved Successfully</h2>
+            <button class="modal-close" onclick="document.getElementById('report-saved-modal').classList.add('hidden')">&times;</button>
+          </div>
+          <div class="modal-body" id="report-saved-body"></div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+    
+    // Build content
+    const summary = result.summary || {};
+    const bodyContent = `
+      <div class="report-saved-summary">
+        <h3>Summary</h3>
+        <div class="summary-stats">
+          <span class="stat">📋 Total: ${summary.total || 0}</span>
+          <span class="stat pass">✅ Passed: ${summary.passed || 0}</span>
+          <span class="stat fail">❌ Failed: ${summary.failed || 0}</span>
+          <span class="stat">📝 Doc Issues: ${summary.documentationIssues || 0}</span>
+        </div>
+      </div>
+      
+      <div class="report-saved-location">
+        <h3>📁 Report Location</h3>
+        <code class="report-path">${result.reportDir || 'Unknown'}</code>
+      </div>
+      
+      <div class="report-saved-files">
+        <h3>Files Generated</h3>
+        <table class="files-table">
+          <thead>
+            <tr>
+              <th>File</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>ai-fixes.md</code></td>
+              <td>Documentation issues for AI agent to fix</td>
+            </tr>
+            <tr>
+              <td><code>jira-tickets.md</code></td>
+              <td>Failed tests formatted as JIRA tickets</td>
+            </tr>
+            <tr>
+              <td><code>data.json</code></td>
+              <td>Raw JSON data for automation</td>
+            </tr>
+            <tr>
+              <td><code>README.md</code></td>
+              <td>Report summary and usage instructions</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <div class="report-saved-actions">
+        <h3>Quick Actions</h3>
+        <div class="action-buttons">
+          <button class="btn btn-secondary" onclick="navigator.clipboard.writeText('${result.reportDir}'); this.textContent='Copied!'">
+            📋 Copy Path
+          </button>
+          <button class="btn btn-secondary" onclick="navigator.clipboard.writeText('cursor ${result.reportDir}/ai-fixes.md @handle_report'); this.textContent='Copied!'">
+            🤖 Copy AI Fix Command
+          </button>
+        </div>
+        <div class="action-hint">
+          <small>💡 The AI Fix command includes <code>@handle_report</code> directive which ensures:</small>
+          <ul>
+            <li>Only documentation changes (no code fixes)</li>
+            <li>Never removes endpoints</li>
+            <li>Creates JIRA tickets for code issues</li>
+          </ul>
+        </div>
+      </div>
+    `;
+    
+    document.getElementById('report-saved-body').innerHTML = bodyContent;
+    modal.classList.remove('hidden');
+  },
+
+  /**
+   * Build a comprehensive report object optimized for AI agents and JIRA
+   * @param {string} [title] - Optional report title provided by user
+   * @returns {Object} Comprehensive report object
+   */
+  buildComprehensiveReport(title = null) {
+    const results = this._results || [];
+    const timestamp = new Date().toISOString();
+    const environment = AppState?.config?.environment || 'dev';
+    
+    // Basic stats
+    const passed = results.filter(r => r.status === 'PASS').length;
+    const failed = results.filter(r => r.status === 'FAIL').length;
+    const warned = results.filter(r => r.status === 'WARN').length;
+    const errored = results.filter(r => r.status === 'ERROR').length;
+    const skipped = results.filter(r => r.status === 'SKIP').length;
+    const testable = results.length - skipped;
+    const passRate = testable > 0 ? ((passed / testable) * 100).toFixed(1) : 0;
+    
+    // Collect all documentation issues for AI fixing
+    const documentationIssues = [];
+    const failedTests = [];
+    const erroredTests = [];
+    const warnedTests = [];
+    
+    for (const result of results) {
+      const details = result.details || {};
+      const healingInfo = details.healingInfo || {};
+      
+      // Collect doc fix suggestions (verified by AI healing agent)
+      if (healingInfo.docFixSuggestions?.length > 0) {
+        for (const fix of healingInfo.docFixSuggestions) {
+          documentationIssues.push({
+            endpoint: result.endpoint,
+            method: result.method,
+            path: result.path,
+            domain: result.domain,
+            field: fix.field,
+            issue: fix.issue,
+            suggestedFix: fix.suggested_fix || fix.suggestedFix,
+            severity: fix.severity || 'minor',
+            sourceCodeReference: fix.source_code_reference,
+            swaggerFile: result.swaggerFile
+          });
+        }
+      }
+      
+      // Collect documentation issues from validation
+      if (details.documentationIssues?.length > 0) {
+        for (const issue of details.documentationIssues) {
+          documentationIssues.push({
+            endpoint: result.endpoint,
+            method: result.method,
+            path: result.path,
+            domain: result.domain,
+            field: issue.field,
+            issue: issue.message || issue.issue,
+            suggestedFix: issue.suggestion || issue.suggested_fix,
+            severity: issue.severity || 'minor',
+            swaggerFile: result.swaggerFile,
+            type: issue.type
+          });
+        }
+      }
+      
+      // Collect schema validation errors as documentation issues
+      // These indicate mismatches between API response and swagger schema
+      if (details.errors?.length > 0) {
+        for (const error of details.errors) {
+          // Skip if this error is already in documentationIssues
+          const alreadyIncluded = documentationIssues.some(
+            d => d.endpoint === result.endpoint && d.field === error.path && d.issue === error.message
+          );
+          if (alreadyIncluded) continue;
+          
+          // Determine severity based on error type
+          let severity = 'minor';
+          if (error.reason === 'SCHEMA_MISMATCH') {
+            severity = 'major';
+          } else if (error.reason === 'ENDPOINT_NOT_FOUND' || error.reason === 'SERVER_ERROR') {
+            severity = 'critical';
+          }
+          
+          // Build suggested fix based on error type
+          let suggestedFix = error.suggestion || '';
+          if (!suggestedFix && error.reason === 'SCHEMA_MISMATCH') {
+            suggestedFix = `Update swagger schema to match actual API response. Field ${error.path || '/'}: ${error.friendlyMessage || error.message}`;
+          } else if (!suggestedFix && error.reason === 'TOKEN_TYPE_NOT_DOCUMENTED') {
+            suggestedFix = 'Add token availability to the endpoint description (e.g., "Available for **Staff Tokens**")';
+          }
+          
+          documentationIssues.push({
+            endpoint: result.endpoint,
+            method: result.method,
+            path: result.path,
+            domain: result.domain,
+            field: error.path || '/',
+            issue: error.friendlyMessage || error.message,
+            suggestedFix: suggestedFix,
+            severity: severity,
+            swaggerFile: result.swaggerFile,
+            type: error.reason || 'VALIDATION_ERROR',
+            keyword: error.keyword
+          });
+        }
+      }
+      
+      // Categorize failed tests for JIRA
+      if (result.status === 'FAIL') {
+        failedTests.push(this.buildJiraItem(result));
+      } else if (result.status === 'ERROR') {
+        erroredTests.push(this.buildJiraItem(result));
+      } else if (result.status === 'WARN') {
+        warnedTests.push(this.buildJiraItem(result));
+      }
+    }
+    
+    // Group documentation issues by swagger file (for AI agent)
+    const docIssuesByFile = {};
+    for (const issue of documentationIssues) {
+      const file = issue.swaggerFile || issue.domain || 'unknown';
+      if (!docIssuesByFile[file]) {
+        docIssuesByFile[file] = [];
+      }
+      docIssuesByFile[file].push(issue);
+    }
+    
+    // Group failed tests by reason (for JIRA tickets)
+    const failuresByReason = {};
+    for (const item of [...failedTests, ...erroredTests]) {
+      const reason = item.reason || 'UNKNOWN';
+      if (!failuresByReason[reason]) {
+        failuresByReason[reason] = [];
+      }
+      failuresByReason[reason].push(item);
+    }
+    
+    // Group by domain
+    const byDomain = {};
+    for (const result of results) {
+      const domain = result.domain || 'unknown';
+      if (!byDomain[domain]) {
+        byDomain[domain] = { passed: 0, failed: 0, warned: 0, errored: 0, skipped: 0, total: 0, items: [] };
+      }
+      byDomain[domain].total++;
+      byDomain[domain].items.push({
+        endpoint: result.endpoint,
+        status: result.status,
+        httpStatus: result.httpStatus,
+        reason: result.details?.reason
+      });
+      if (result.status === 'PASS') byDomain[domain].passed++;
+      else if (result.status === 'FAIL') byDomain[domain].failed++;
+      else if (result.status === 'WARN') byDomain[domain].warned++;
+      else if (result.status === 'ERROR') byDomain[domain].errored++;
+      else if (result.status === 'SKIP') byDomain[domain].skipped++;
+    }
+    
+    return {
+      metadata: {
+        title: title || environment,  // User-provided title or fall back to environment
+        timestamp,
+        environment,
+        baseUrl: AppState?.config?.baseUrl || '',
+        generatedBy: 'API Validation Tool',
+        version: '1.0.0'
+      },
+      summary: {
+        total: results.length,
+        passed,
+        failed,
+        warned,
+        errored,
+        skipped,
+        passRate: `${passRate}%`,
+        documentationIssuesCount: documentationIssues.length
+      },
+      // Section for AI agent to fix documentation
+      forAiAgent: {
+        description: 'Documentation issues discovered during API validation. Each issue includes the endpoint, field, problem description, and suggested fix. Use this to update swagger/openapi specification files.',
+        issuesByFile: docIssuesByFile,
+        allIssues: documentationIssues
+      },
+      // Section for JIRA ticket creation
+      forJira: {
+        description: 'Failed and errored tests grouped by failure reason. Each group can become a JIRA ticket.',
+        failuresByReason,
+        failedTests,
+        erroredTests,
+        warnedTests,
+        byDomain
+      },
+      // Raw results for reference
+      rawResults: results.map(r => ({
+        endpoint: r.endpoint,
+        method: r.method,
+        path: r.path,
+        domain: r.domain,
+        status: r.status,
+        httpStatus: r.httpStatus,
+        duration: r.duration,
+        tokenUsed: r.tokenUsed,
+        reason: r.details?.reason,
+        errors: r.details?.errors,
+        healingInfo: r.details?.healingInfo ? {
+          attempted: r.details.healingInfo.attempted,
+          iterations: r.details.healingInfo.iterations,
+          retryCount: r.details.healingInfo.retryCount,
+          summary: r.details.healingInfo.summary,
+          docFixSuggestions: r.details.healingInfo.docFixSuggestions,
+          agentLog: r.details.healingInfo.agentLog // Full agent history
+        } : null
+      }))
+    };
+  },
+
+  /**
+   * Build a JIRA-friendly item from a result
+   * @param {Object} result - Test result
+   * @returns {Object} JIRA item
+   */
+  buildJiraItem(result) {
+    const details = result.details || {};
+    const healingInfo = details.healingInfo || {};
+    
+    // Build error summary
+    const errorSummary = (details.errors || [])
+      .slice(0, 3)
+      .map(e => e.friendlyMessage || e.message || e.reason)
+      .join('; ');
+    
+    return {
+      endpoint: result.endpoint,
+      method: result.method,
+      path: result.path,
+      domain: result.domain,
+      status: result.status,
+      httpStatus: result.httpStatus,
+      reason: details.reason,
+      reasonDescription: details.friendlyMessage,
+      errorSummary,
+      suggestion: details.suggestion,
+      // Healing attempt info
+      healingAttempted: healingInfo.attempted || healingInfo.iterations > 0 || false,
+      healingIterations: healingInfo.iterations,
+      healingRetryCount: healingInfo.retryCount,
+      healingFailed: healingInfo.failed,
+      healingReason: healingInfo.reason,
+      healingSummary: healingInfo.summary,
+      // Full agent log for analysis
+      agentLog: healingInfo.agentLog || [],
+      // Request/response for debugging
+      request: details.request ? {
+        method: details.request.method,
+        path: details.request.path,
+        body: details.request.body
+      } : null,
+      response: details.response ? {
+        status: details.response.status,
+        data: details.response.data
+      } : null
+    };
+  },
+
+  /**
+   * Download report files
+   * @param {Array} files - Array of file objects with name and content
+   * @param {string} reportId - Report ID for filenames
+   */
+  downloadReportFiles(files, reportId) {
+    for (const file of files) {
+      const blob = new Blob([file.content], { type: file.mimeType || 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
   }
 };
