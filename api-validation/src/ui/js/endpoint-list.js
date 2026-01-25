@@ -39,7 +39,7 @@ function renderEndpoints() {
           <span class="expand-icon">${isExpanded ? '▼' : '▶'}</span>
           <span class="domain-name">${domain.toUpperCase()}</span>
           <span class="domain-count">(${endpoints.length} endpoints, ${domainSelected} selected)</span>
-          <button class="btn btn-small" onclick="event.stopPropagation(); selectDomain('${domain}')">Select All</button>
+          <button class="btn btn-small" onclick="event.stopPropagation(); event.preventDefault(); selectDomain('${domain}')">Select All</button>
         </div>
         <div class="domain-endpoints">
     `;

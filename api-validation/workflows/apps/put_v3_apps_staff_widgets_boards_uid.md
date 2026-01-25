@@ -2,34 +2,82 @@
 endpoint: PUT /v3/apps/staff_widgets_boards/{uid}
 domain: apps
 tags: []
-status: pass
-savedAt: 2026-01-24T13:29:36.698Z
-verifiedAt: 2026-01-24T13:29:36.698Z
+status: success
+savedAt: 2026-01-25T05:34:59.650Z
+verifiedAt: 2026-01-25T05:34:59.650Z
 timesReused: 0
 ---
 # Update Staff widgets boards
 
 ## Summary
-Successfully updated Staff Widgets Board after identifying that the original request contained invalid widget UIDs. The endpoint works correctly when using valid widget UIDs from existing widgets.
+Successfully updated Staff Widgets Board after resolving widget_uid and using existing board
 
 ## Prerequisites
 No specific prerequisites documented.
 
-## UID Resolution
+## UID Resolution Procedure
 
-How to obtain required UIDs for this endpoint:
+How to dynamically obtain required UIDs for this endpoint:
 
-| UID Field | Source Endpoint | Fallback (Create) | Used Fallback |
-|-----------|-----------------|-------------------|---------------|
-| uid | GET /v3/apps/staff_widgets_boards | - | No |
+⚠️ **This test requires creating fresh test data to avoid "already exists" errors.**
+
+| UID Field | GET Endpoint | Extract From | Create Fresh | Cleanup |
+|-----------|--------------|--------------|--------------|---------|
+| widget_uid | GET /v3/apps/widgets | data.uid | ✓ POST /v3/apps/widgets | Widget cleanup not needed - widgets are scoped to test apps |
+| staff_widgets_board_uid | GET /v3/apps/staff_widgets_boards | data.staffWidgetsBoards[0].uid | - | Board cleanup not needed - existing boards are reusable |
+
+### Resolution Steps
+
+**widget_uid**:
+1. **Create fresh test entity**: `POST /v3/apps/widgets`
+   - Body template: `{"name":"Test Widget {{timestamp}}","display_name":{"en":"Test Widget {{timestamp}}"},"widget_type":"calendar","dimensions":{"height":1,"width":1,"min_width":1,"max_width":4,"min_height":1,"max_height":4},"component_data":{"name":"test-component"},"settings":{}}`
+2. Extract UID from creation response: `data.uid`
+3. Run the test with this fresh UID
+4. **Cleanup note**: Widget cleanup not needed - widgets are scoped to test apps
+
+**staff_widgets_board_uid**:
+1. Call `GET /v3/apps/staff_widgets_boards`
+2. Extract from response: `data.staffWidgetsBoards[0].uid`
 
 ```json
 {
-  "uid": {
+  "widget_uid": {
+    "source_endpoint": "GET /v3/apps/widgets",
+    "extract_from": "data.uid",
+    "fallback_endpoint": "POST /v3/apps/widgets",
+    "create_fresh": true,
+    "create_endpoint": "POST /v3/apps/widgets",
+    "create_body": {
+      "name": "Test Widget {{timestamp}}",
+      "display_name": {
+        "en": "Test Widget {{timestamp}}"
+      },
+      "widget_type": "calendar",
+      "dimensions": {
+        "height": 1,
+        "width": 1,
+        "min_width": 1,
+        "max_width": 4,
+        "min_height": 1,
+        "max_height": 4
+      },
+      "component_data": {
+        "name": "test-component"
+      },
+      "settings": {}
+    },
+    "cleanup_endpoint": null,
+    "cleanup_note": "Widget cleanup not needed - widgets are scoped to test apps"
+  },
+  "staff_widgets_board_uid": {
     "source_endpoint": "GET /v3/apps/staff_widgets_boards",
-    "resolved_value": "8a761bb7-444b-462f-813f-fe738904cd9c",
-    "used_fallback": false,
-    "fallback_endpoint": null
+    "extract_from": "data.staffWidgetsBoards[0].uid",
+    "fallback_endpoint": null,
+    "create_fresh": false,
+    "create_endpoint": null,
+    "create_body": null,
+    "cleanup_endpoint": null,
+    "cleanup_note": "Board cleanup not needed - existing boards are reusable"
   }
 }
 ```
@@ -41,24 +89,26 @@ Parameters were resolved automatically.
 
 No specific learnings documented.
 
-## Verified Successful Request
+## Request Template
+
+Use this template with dynamically resolved UIDs:
 
 ```json
 {
   "method": "PUT",
-  "path": "/v3/apps/staff_widgets_boards/8a761bb7-444b-462f-813f-fe738904cd9c",
+  "path": "/v3/apps/staff_widgets_boards/{{resolved.uid}}",
   "body": {
-    "board_layout_code_name": "MainAndSideBar2Columns",
+    "board_layout_code_name": "{{resolved.uid}}",
     "type": "home",
     "sections": [
       {
-        "code_name": "main_section",
+        "code_name": "main",
         "widgets": [
           {
-            "widget_uid": "33321644-a7c7-4062-bf85-a21bb36bc2e8",
+            "widget_uid": "{{resolved.widget_uid}}",
             "dimensions": {
-              "width": 6,
-              "height": 2
+              "height": 1,
+              "width": 1
             }
           }
         ]

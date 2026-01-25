@@ -12,7 +12,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nRetrieve a list of available apps. .\n\n## When to Use\n- Building list views and tables\n- Searching for specific records\n- Syncing data with external systems\n\n**Available for Staff and Directory Tokens**",
+        "description": "## Overview\nRetrieve a list of available apps.\n\n## When to Use\n- Building list views and tables\n- Searching for specific records\n- Syncing data with external systems\n- Finding apps with specific `app_type` (e.g., 'widgets')\n\n## Authentication\n**Available for Staff and Directory Tokens.** Response format varies by token type:\n\n### Staff Token Response\n- Returns HTTP 200 with detailed app data including full configuration\n- Response structure: `{ \"apps\": [...] }`\n\n### Directory Token Response\n- Returns HTTP 200 or 201 with simplified app data\n- Returns only apps created by/associated with the directory\n- Response may include `app_type` field useful for filtering",
         "parameters": [],
         "produces": [
           "application/json"
@@ -111,7 +111,7 @@
             "schema": {
               "properties": {
                 "app_code_name": {
-                  "description": "The app's unique code name. This will be used as the app's id for APIs. **Validation**: Must contain only alphanumeric characters (a-z, A-Z, 0-9). No spaces, underscores, hyphens, or other special characters are allowed.",
+                  "description": "The app's unique code name. This will be used as the app's id for APIs.\n\n**Validation**:\n- Must contain only alphanumeric characters (a-z, A-Z, 0-9)\n- No spaces, underscores, hyphens, or special characters allowed\n- **Must be unique across the entire system** - duplicate app_code_names will be rejected",
                   "type": "string",
                   "pattern": "^[a-zA-Z0-9]+$",
                   "required": true
@@ -298,32 +298,37 @@
                       "type": "array"
                     },
                     "prices": {
-                      "description": "Price list",
-                      "properties": {
-                        "currency": {
-                          "description": "Currency, allowed only: USD, GBP or EUR",
-                          "type": "string"
-                        },
-                        "pay_per_unit": {
-                          "description": "Unit prices",
-                          "properties": {
-                            "staff": {
-                              "description": "Price per staff",
-                              "type": "number"
-                            }
+                      "description": "Price list. **Must be an array of price objects.**",
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "currency": {
+                            "description": "Currency, allowed only: USD, GBP or EUR",
+                            "type": "string",
+                            "enum": ["USD", "GBP", "EUR"]
                           },
-                          "type": "object"
-                        },
-                        "payment_type": {
-                          "description": "Payment type, allowed: monthly, free}",
-                          "type": "string"
-                        },
-                        "price": {
-                          "description": "Price to pay",
-                          "type": "number"
+                          "pay_per_unit": {
+                            "description": "Unit prices",
+                            "properties": {
+                              "staff": {
+                                "description": "Price per staff",
+                                "type": "number"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "payment_type": {
+                            "description": "Payment type",
+                            "type": "string",
+                            "enum": ["monthly", "free"]
+                          },
+                          "price": {
+                            "description": "Price to pay",
+                            "type": "number"
+                          }
                         }
-                      },
-                      "type": "object"
+                      }
                     }
                   },
                   "type": "object"
@@ -337,7 +342,7 @@
                   "type": "boolean"
                 },
                 "supported_countries": {
-                  "description": "Countries in which the app will be available. Empty array for all countries.",
+                  "description": "Countries in which the app will be available. Use **full country names** (e.g., 'United States', 'United Kingdom', 'Israel'), not ISO codes. Use an empty array for all countries.",
                   "items": {
                     "type": "string"
                   },
@@ -366,14 +371,14 @@
                   "type": "object"
                 },
                 "scopes": {
-                  "description": "[Internal use only] Reserved for future implementation. Intended to define the complete set of OAuth scopes that this app type can potentially request or use. Currently not enforced in the system. For further details contact the support team.",
+                  "description": "[Internal use only] OAuth scopes this app can request. Valid scope formats: `openid` (for OpenID Connect), or context-based scopes like `business/clients`, `business/payments`, `business/docuforms`. Scopes can also have CRUD suffixes: `payments_read`, `payments_create`, `payments_update`, `payments_delete`. Currently not strictly enforced. For further details contact the support team.",
                   "items": {
                     "type": "string"
                   },
                   "type": "array"
                 },
                 "demand_scopes": {
-                  "description": "[Internal use only] Reserved for future implementation. Intended to define the minimum required OAuth scopes that this app type must have to function properly. Currently not enforced in the system. For further details contact the support team.",
+                  "description": "[Internal use only] Minimum required OAuth scopes for this app. Uses same format as `scopes` field: `openid`, context-based (`business/clients`), or with CRUD suffixes (`payments_read`). Currently not strictly enforced. For further details contact the support team.",
                   "items": {
                     "type": "string"
                   },
@@ -557,7 +562,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nUpdate an app by code name. .\n\n**Available for Directory Tokens**",
+        "description": "## Overview\nUpdate an app by code name.\n\n## Authentication\n**Available for Admin Tokens and Directory Tokens.**\n\n### Token Type Behavior\n- **Admin Tokens**: Can update any app, including the `trusted` field\n- **Directory Tokens**: Can only update apps created by/owned by that directory. Cannot modify the `trusted` field.\n\n## Path Parameter\nThe `{id}` in the path must be the **app_code_name** (string identifier), not the numeric app_id. Use `GET /platform/v1/apps` to find app_code_name values.\n\n## Field Restrictions\n- `trusted`: This parameter can **only be set by Admin Tokens**. Directory tokens cannot modify this field.",
         "parameters": [
           {
             "description": "App code name",
@@ -583,7 +588,7 @@
                   "type": "string"
                 },
                 "trusted": {
-                  "description": "Whether application can skip the user consent screen (true/false). When set to true, users will not see the authorization consent screen when installing or accessing the app.",
+                  "description": "Whether application can skip the user consent screen (true/false). When set to true, users will not see the authorization consent screen when installing or accessing the app. **Admin Tokens only** - Directory tokens cannot modify this field.",
                   "type": "string"
                 },
                 "url_params": {
@@ -738,7 +743,7 @@
                   "type": "boolean"
                 },
                 "supported_countries": {
-                  "description": "Countries in which the app will be available. Empty array for all countries.",
+                  "description": "Countries in which the app will be available. Use **full country names** (e.g., 'United States', 'United Kingdom', 'Israel'), not ISO codes. Use an empty array for all countries.",
                   "items": {
                     "type": "string"
                   },
@@ -767,14 +772,14 @@
                   "type": "object"
                 },
                 "scopes": {
-                  "description": "[Internal use only] Reserved for future implementation. Intended to define the complete set of OAuth scopes that this app type can potentially request or use. Currently not enforced in the system. For further details contact the support team.",
+                  "description": "[Internal use only] OAuth scopes this app can request. Valid scope formats: `openid` (for OpenID Connect), or context-based scopes like `business/clients`, `business/payments`, `business/docuforms`. Scopes can also have CRUD suffixes: `payments_read`, `payments_create`, `payments_update`, `payments_delete`. Currently not strictly enforced. For further details contact the support team.",
                   "items": {
                     "type": "string"
                   },
                   "type": "array"
                 },
                 "demand_scopes": {
-                  "description": "[Internal use only] Reserved for future implementation. Intended to define the minimum required OAuth scopes that this app type must have to function properly. Currently not enforced in the system. For further details contact the support team.",
+                  "description": "[Internal use only] Minimum required OAuth scopes for this app. Uses same format as `scopes` field: `openid`, context-based (`business/clients`), or with CRUD suffixes (`payments_read`). Currently not strictly enforced. For further details contact the support team.",
                   "items": {
                     "type": "string"
                   },
@@ -913,7 +918,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nAssign an application to a business or directory so it appears in the App Market. .\n\n**Available for Internal & Directory Tokens**",
+        "description": "## Overview\nAssign an application to a business or directory so it appears in the App Market.\n\n**⚠️ DEPRECATED**: Use `POST /v3/apps/app_assignments` instead.\n\n## Authentication\n**Available for Admin Tokens and Directory Tokens.**\n\n### Directory Token Requirements\nDirectory tokens can only assign apps they own/created:\n\n- **Assign to Directory**: Requires `is_internal: \"true\"`. The app must be owned by your directory.\n- **Assign to Business**: Requires `hide_from_market: \"true\"`. The app must be owned by your directory and the business must belong to your directory.\n\n## Path Parameter\nThe `{id}` in the path must be the **app_code_name** (string identifier), not the numeric app_id.\n\n## Migration Guide\n\n### Old Format (This Endpoint)\n```json\n{\n  \"directory_uid\": \"def456\",\n  \"is_internal\": \"true\"\n}\n```\n\n### New Format (`POST /v3/apps/app_assignments`)\n```json\n{\n  \"assignee_type\": \"directory\",\n  \"assignee_uid\": \"def456\",\n  \"app_code_name\": \"myapp\",\n  \"settings\": {\n    \"assignment_mode\": \"internal\"\n  }\n}\n```\n\n### Parameter Mapping\n| Old Parameter | New Parameter |\n|---------------|---------------|\n| `business_uid` | `assignee_uid` (with `assignee_type: \"business\"`) |\n| `directory_uid` | `assignee_uid` (with `assignee_type: \"directory\"`) |\n| `is_internal: \"true\"` | `settings.assignment_mode: \"internal\"` |\n| `pre_installed: \"true\"` | `settings.assignment_mode: \"pre_installed\"` |\n| `built_in: \"true\"` | Not supported in v3 |",
         "parameters": [
           {
             "description": "App code name",
@@ -987,7 +992,7 @@
             ]
           }
         ],
-        "summary": "Assign an app on directory or a business [Internal] - Deprecated, /v3/apps/app_assignments instead",
+        "summary": "[DEPRECATED] Assign an app to directory or business - Use POST /v3/apps/app_assignments",
         "tags": [
           "Applications"
         ],
@@ -1117,7 +1122,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nUnassign an application from a business or directory. .\n\n**Available for Internal & Directory Tokens**",
+        "description": "## Overview\nUnassign an application from a business or directory.\n\n**⚠️ DEPRECATED**: Use `DELETE /v3/apps/app_assignments/{uid}` instead.\n\n## Authentication\n**Available for Admin Tokens and Directory Tokens.**\n\n### Directory Token Requirements\n- The app must be owned by/created by your directory\n- The app must have an existing assignment to the specified business or directory\n\n## Path Parameter\nThe `{id}` in the path must be the **app_code_name** (string identifier), not the numeric app_id. Using a numeric app_id will result in a 422 error: 'Not valid uid or app'.\n\n## Request Body\nProvide either `directory_uid` OR `business_uid` (not both) to specify what to unassign from.",
         "parameters": [
           {
             "description": "App code name",

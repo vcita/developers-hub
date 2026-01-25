@@ -66,20 +66,25 @@
       },
       "StaffWidgetsBoardRequestDto": {
         "type": "object",
-        "description": "Request body for creating or updating a staff widgets board. **Note**: Each staff member can only have one widget board per unique combination of `type` and `board_layout_code_name`. Attempting to create a duplicate will return a 403 error.",
+        "description": "Request body for creating or updating a staff widgets board.\n\n**Uniqueness Constraint**: Each staff member can only have ONE board per `type` value. For example, a staff cannot have two 'home' type boards. Attempting to create a duplicate returns 403: 'Duplication Error: StaffWidgetsBoard Already Exist'.\n\n**To update an existing board**: Use `GET /v3/apps/staff_widgets_boards` to find the board's UID, then use `PUT /v3/apps/staff_widgets_boards/{uid}`.",
         "properties": {
           "board_layout_code_name": {
             "type": "string",
             "description": "A string representing the board layout. Must be unique per staff member when combined with `type`.",
             "enum": [
-              "MainAndSideBar2Columns"
+              "MainAndSideBar2Columns",
+              "MainAndSideBar3Columns",
+              "SingleColumn"
             ]
           },
           "type": {
             "type": "string",
             "description": "The grid frame of the layout, determines the layout frame containing the board. Must be unique per staff member when combined with `board_layout_code_name`.",
             "enum": [
-              "home"
+              "home",
+              "custom",
+              "dashboard",
+              "analytics"
             ]
           },
           "sections": {
@@ -254,11 +259,11 @@
           }
         },
         "required": [
-          "max_height,",
-          "min_height,",
-          "height,",
-          "max_width,",
-          "min_width,",
+          "max_height",
+          "min_height",
+          "height",
+          "max_width",
+          "min_width",
           "width"
         ]
       },
@@ -275,17 +280,19 @@
       },
       "ComponentDataDto": {
         "type": "object",
+        "description": "Component data for the widget, specifying the component name and configuration.",
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "description": "**Required.** The component name identifier for the widget."
           },
           "config": {
-            "type": "object"
+            "type": "object",
+            "description": "Optional configuration object for the widget component."
           }
         },
         "required": [
-          "name",
-          "config"
+          "name"
         ]
       },
       "SectionDto": {
@@ -293,7 +300,8 @@
         "properties": {
           "code_name": {
             "type": "string",
-            "description": "The section code name"
+            "description": "The section code name. Common values based on layout: For `MainAndSideBar2Columns` or `MainAndSideBar3Columns` layouts use 'main' and 'sidebar'. For `SingleColumn` layout use 'main'.",
+            "example": "main"
           },
           "widgets": {
             "description": "The sections widgets",
@@ -335,7 +343,7 @@
       "post": {
         "operationId": "Widgets_create",
         "summary": "Create a Widget",
-        "description": "## Overview\nCreate a new widget. **Only that has the app_type 'widgets'**.\n\n**available for App Tokens**",
+        "description": "## Overview\nCreate a new widget.\n\n## Authentication\n**Available for App Tokens only.** The app must have `app_type='widgets'` to create widgets. Apps with other types will receive 403: 'This app's type does not support widgets'.\n\n## How to Get an App Token\n1. Use `GET /platform/v1/apps` (with directory token) to find apps with `app_type='widgets'`\n2. If none exist, create one with `POST /platform/v1/apps` including `app_type: 'widgets'`\n3. Use the app's `client_id` and `client_secret` to authenticate, or use `GET /platform/v1/tokens` to list app tokens",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -479,7 +487,7 @@
       "put": {
         "operationId": "Widgets_update",
         "summary": "Update Widget",
-        "description": "## Overview\nUpdate a widget. **Only that has the app_type 'widgets'**.\n\n**available for App Tokens**",
+        "description": "## Overview\nUpdate an existing widget.\n\n## Authentication\n**Available for App Tokens only.** The app must have `app_type='widgets'`. Apps with other types will receive 403: 'This app's type does not support widgets'.\n\n## Request Body\n- `display_name`: Object with locale keys (e.g., `{\"en\": \"Widget Name\"}`)\n- `dimensions`: Must include all fields: `width`, `height`, `min_width`, `max_width`, `min_height`, `max_height`\n- `component_data`: Object with required `name` field",
         "parameters": [
           {
             "name": "uid",
@@ -545,7 +553,7 @@
       "post": {
         "operationId": "StaffWidgetsBoard_create",
         "summary": "Create a Staff Widgets Board",
-        "description": "## Overview\nCreates a widgets board for staff member.\n\n**Important**: Each staff member can only have one widget board per unique combination of `type` and `board_layout_code_name`. Attempting to create a duplicate will return a 403 error with message 'Duplication Error: StaffWidgetsBoard Already Exist'.\n\n**Available for Staff Tokens**",
+        "description": "## Overview\nCreates a widgets board for staff member.\n\n**Uniqueness Constraint**: Each staff member can only have ONE board per `type` value. For example, a staff member cannot have two boards with `type: \"home\"`. Attempting to create a duplicate returns 403 error: 'Duplication Error: StaffWidgetsBoard Already Exist'.\n\n**Testing Tip**: To reliably test this endpoint, first create a fresh staff member using `POST /platform/v1/businesses/{business_id}/staffs`, then create the board for that new staff.\n\n**Available for Staff Tokens**",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -689,13 +697,13 @@
       "put": {
         "operationId": "StaffWidgetsBoard_update",
         "summary": "Update a Staff Widgets Board",
-        "description": "## Overview\nUpdate a staff widget board. **Only.\n\n**available for Staff Tokens**",
+        "description": "## Overview\nUpdate a staff widget board.\n\n**Available for Staff Tokens**",
         "parameters": [
           {
             "name": "uid",
             "required": true,
             "in": "path",
-            "description": "The staff widgets board uid",
+            "description": "The staff widgets board UID. **Must be a valid UID from an existing Staff Widgets Board.** Use `GET /v3/apps/staff_widgets_boards` to find valid UIDs. Invalid UIDs will return 404 with message 'StaffWidgetsBoard Not Exist'.",
             "schema": {
               "type": "string"
             }
@@ -755,7 +763,7 @@
       "post": {
         "operationId": "StaffWidgetsBoardsTemplate_create",
         "summary": "Create a Staff Widgets Boards Template",
-        "description": "## Overview\nCreate a staff widget board template.\n\n**Important**: Each staff member can only have one active widgets boards template. Creating a template when one already exists will return a 400 error with message 'Duplicate entry not allowed for active rows.'\n\n**Available for Directory Tokens**",
+        "description": "## Overview\nCreate a staff widget board template.\n\n**Uniqueness Constraint**: Each staff member can only have ONE active widgets boards template. Creating a template when one already exists returns 400: 'Duplicate entry not allowed for active rows.'\n\n**To replace existing template**: First use `DELETE /v3/apps/staff_widgets_boards_templates/{uid}` to remove the existing template, then create a new one.\n\n**Available for Directory Tokens only.** Staff tokens are not supported.",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -908,7 +916,7 @@
       "put": {
         "operationId": "StaffWidgetsBoardsTemplate_update",
         "summary": "Update a Staff Widgets Boards Template",
-        "description": "## Overview\nUpdate a staff widget board template. **Only.\n\n**available for Directory Tokens**",
+        "description": "## Overview\nUpdate an existing staff widget board template.\n\n## Prerequisites\n- The `uid` path parameter must be a valid UID from an existing staff widgets boards template\n- Use `GET /v3/apps/staff_widgets_boards_templates` to find available template UIDs\n\n## Authentication\n**Available for Directory Tokens only.** Staff tokens are not supported.",
         "parameters": [
           {
             "name": "uid",

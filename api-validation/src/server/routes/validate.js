@@ -243,6 +243,50 @@ router.post('/stop/:sessionId', (req, res) => {
 });
 
 /**
+ * POST /api/validate/approve-skip
+ * Approve a skip suggestion and save it as a skip workflow
+ */
+router.post('/approve-skip', async (req, res) => {
+  try {
+    const { endpoint, skipReason, method, path: endpointPath, domain } = req.body;
+    
+    if (!endpoint || !skipReason) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        message: 'endpoint and skipReason are required'
+      });
+    }
+    
+    // Save skip workflow
+    const workflowRepo = require('../../core/workflows/repository');
+    const result = workflowRepo.save(endpoint, {
+      domain: domain || 'general',
+      status: 'skip',
+      skipReason: skipReason,
+      summary: `User-approved skip: ${skipReason}`,
+      successfulRequest: { method, path: endpointPath }
+    });
+    
+    if (result.success) {
+      console.log(`✓ Skip approved for ${endpoint}: ${skipReason}`);
+      res.json({
+        success: true,
+        message: `Skip approved and saved for ${endpoint}`,
+        workflowFile: result.file
+      });
+    } else {
+      throw new Error(result.error || 'Failed to save skip workflow');
+    }
+  } catch (error) {
+    console.error('Error approving skip:', error);
+    res.status(500).json({
+      error: 'Failed to approve skip',
+      message: error.message
+    });
+  }
+});
+
+/**
  * POST /api/validate/tokens/check
  * Validate tokens and attempt to refresh expired ones
  */
@@ -385,20 +429,28 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
       if (requiresUid) {
         const uid = testContext.getUid(resourceKey);
         if (!uid) {
-          result = {
-            endpoint: `${endpoint.method} ${endpoint.path}`,
-            domain: endpoint.domain,
-            method: endpoint.method,
-            path: endpoint.path,
-            status: 'SKIP',
-            httpStatus: null,
-            duration: '0ms',
-            tokenUsed: null,
-            details: {
-              reason: 'SKIPPED',
-              friendlyMessage: 'Required UID not available'
-            }
-          };
+          // Don't skip immediately - let the AI healer try to resolve the UID
+          // Only skip if healing is disabled
+          if (!config.ai?.enabled || !config.ai?.anthropicApiKey) {
+            result = {
+              endpoint: `${endpoint.method} ${endpoint.path}`,
+              domain: endpoint.domain,
+              method: endpoint.method,
+              path: endpoint.path,
+              status: 'SKIP',
+              httpStatus: null,
+              duration: '0ms',
+              tokenUsed: null,
+              details: {
+                reason: 'SKIPPED',
+                friendlyMessage: 'Required UID not available (healing disabled)'
+              }
+            };
+          } else {
+            // Mark that we need UID resolution - healer will handle it
+            context.needsUidResolution = true;
+            context.missingUidParam = resourceKey;
+          }
         } else {
           context.uid = uid;
         }
@@ -407,25 +459,129 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
       if (!result) {
         // Build and execute request (use async version with AI if enabled)
         const useAI = config.ai?.enabled && config.ai?.anthropicApiKey;
-        const buildResult = useAI 
+        let buildResult = useAI 
           ? await buildRequestConfigAsync(endpoint, config, context)
           : buildRequestConfig(endpoint, config, context);
+        
+        // If endpoint needs a client token and we don't have one, try to acquire it
+        if (buildResult.needsClientToken && !config.tokens?.client) {
+          console.log(`  [Token] Endpoint requires client token - attempting to acquire one...`);
+          try {
+            const axios = require('axios');
+            const baseUrl = config.baseUrl;
+            const staffToken = config.tokens?.staff || config.tokens?.directory;
+            const businessUid = config.params?.business_uid;
+            
+            if (staffToken && businessUid) {
+              // First, check if we have a specific client_uid configured
+              let clientEmail = null;
+              const configuredClientUid = config.params?.client_uid;
+              
+              if (configuredClientUid) {
+                // Try to get email from configured client
+                try {
+                  const clientResponse = await axios.get(`${baseUrl}/platform/v1/clients/${configuredClientUid}`, {
+                    headers: { 'Authorization': `Bearer ${staffToken}`, 'Content-Type': 'application/json' }
+                  });
+                  clientEmail = clientResponse.data?.data?.email;
+                  console.log(`  [Token] Configured client ${configuredClientUid} email: ${clientEmail || 'NONE'}`);
+                } catch (e) {
+                  console.log(`  [Token] Failed to fetch configured client: ${e.message}`);
+                }
+              }
+              
+              // If no email from configured client, search for a client with email
+              if (!clientEmail) {
+                const clientsResponse = await axios.get(`${baseUrl}/platform/v1/clients?per_page=50`, {
+                  headers: { 'Authorization': `Bearer ${staffToken}`, 'Content-Type': 'application/json' }
+                });
+                const clients = clientsResponse.data?.data?.clients || [];
+                console.log(`  [Token] Found ${clients.length} clients, checking for emails...`);
+                
+                // Log all clients and their emails for debugging
+                clients.forEach((c, i) => {
+                  if (i < 5) console.log(`  [Token] Client ${c.id || c.uid}: email=${c.email || 'NONE'}`);
+                });
+                
+                const clientWithEmail = clients.find(c => c.email && c.email.includes('@'));
+                if (clientWithEmail) {
+                  clientEmail = clientWithEmail.email;
+                  console.log(`  [Token] Found client with email: ${clientEmail}`);
+                } else {
+                  console.log(`  [Token] No clients with valid email found. Cannot acquire client token.`);
+                }
+              }
+              
+              if (clientEmail) {
+                // Step 2: Send login link with .dev suffix
+                const devEmail = clientEmail.endsWith('.dev') ? clientEmail : `${clientEmail}.dev`;
+                console.log(`  [Token] Sending login link to: ${devEmail}`);
+                
+                const loginResponse = await axios.post(
+                  `${baseUrl}/client_api/v1/portals/${businessUid}/authentications/send_login_link`,
+                  { email: devEmail },
+                  { headers: { 'Content-Type': 'application/json' } }
+                );
+                
+                if (loginResponse.data?.token) {
+                  // Step 3: Exchange for JWT
+                  const jwtResponse = await axios.post(
+                    `${baseUrl}/client_api/v1/portals/${businessUid}/authentications/get_jwt_token_from_authentication_token`,
+                    { auth_token: loginResponse.data.token },
+                    { headers: { 'Content-Type': 'application/json' } }
+                  );
+                  
+                  if (jwtResponse.data?.token) {
+                    console.log(`  [Token] Successfully acquired client JWT for ${clientEmail}`);
+                    config.tokens = config.tokens || {};
+                    config.tokens.client = jwtResponse.data.token;
+                    
+                    // Rebuild request config with new token
+                    buildResult = useAI 
+                      ? await buildRequestConfigAsync(endpoint, config, context)
+                      : buildRequestConfig(endpoint, config, context);
+                  } else {
+                    console.log(`  [Token] JWT exchange failed - no token in response`);
+                  }
+                } else {
+                  console.log(`  [Token] Login link response did not contain token. Environment may not support .dev suffix.`);
+                }
+              }
+            } else {
+              console.log(`  [Token] Cannot acquire client token: missing staffToken (${!!staffToken}) or businessUid (${businessUid})`);
+            }
+          } catch (tokenError) {
+            console.log(`  [Token] Failed to acquire client token: ${tokenError.message}`);
+            if (tokenError.response?.data) {
+              console.log(`  [Token] Error response: ${JSON.stringify(tokenError.response.data)}`);
+            }
+          }
+        }
+        
         const { config: requestConfig, tokenType, hasToken, skip, skipReason, isFallbackToken } = buildResult;
+        
+        // Log request body for debugging
+        if (requestConfig && requestConfig.data) {
+          console.log(`  [DEBUG] Request body generated:`, JSON.stringify(requestConfig.data, null, 2).substring(0, 500));
+        }
         
         // Handle unresolved path parameters
         if (skip) {
+          // If AI healing is enabled, mark as FAIL (not SKIP) so healer can resolve
+          const shouldHeal = config.ai?.enabled && config.ai?.anthropicApiKey;
           result = {
             endpoint: `${endpoint.method} ${endpoint.path}`,
             domain: endpoint.domain,
             method: endpoint.method,
             path: endpoint.path,
-            status: 'SKIP',
+            status: shouldHeal ? 'FAIL' : 'SKIP',  // FAIL triggers healing
             httpStatus: null,
             duration: '0ms',
             tokenUsed: tokenType,
             details: {
-              reason: 'MISSING_PATH_PARAMS',
-              friendlyMessage: skipReason
+              reason: shouldHeal ? 'MISSING_PARAMS_NEED_HEALING' : 'MISSING_PATH_PARAMS',
+              friendlyMessage: skipReason,
+              needsUidResolution: shouldHeal
             }
           };
         } else if (!hasToken && endpoint.tokenInfo.found) {
@@ -734,6 +890,11 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
         const endpointKey = `${endpoint.method} ${endpoint.path}`;
         
         // Broadcast healing start
+        console.log(`\n=== AI HEALER TRIGGERED for ${endpointKey} ===`);
+        console.log(`  Original Error: ${result.httpStatus} - ${result.details?.reason || 'Unknown error'}`);
+        console.log(`  Original Request Body:`, JSON.stringify(result.details?.request?.data, null, 2)?.substring(0, 500) || 'none');
+        console.log(`  Original Response:`, JSON.stringify(result.details?.response, null, 2)?.substring(0, 300) || 'none');
+        
         broadcastEvent(session, 'healing_start', {
           endpoint: endpointKey,
           originalError: `${result.httpStatus} - ${result.details?.reason || 'Unknown error'}`,
@@ -769,6 +930,14 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
         });
         
         // Process doc fix suggestions
+        console.log(`\n=== AI HEALER COMPLETED ===`);
+        console.log(`  Success: ${healingResult.success}`);
+        console.log(`  Summary: ${healingResult.summary}`);
+        console.log(`  Doc Issues Count: ${healingResult.docFixSuggestions?.length || 0}`);
+        if (healingResult.docFixSuggestions?.length > 0) {
+          console.log(`  Doc Issues:`, JSON.stringify(healingResult.docFixSuggestions, null, 2));
+        }
+        
         if (healingResult.docFixSuggestions?.length > 0) {
           result.details = result.details || {};
           result.details.documentationIssues = healingResult.docFixSuggestions;
@@ -829,22 +998,22 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
             // Include updated result so UI can update in place
             updatedResult: result
           });
-        } else if (healingResult.skip) {
-          // Agent determined this should be skipped (business constraint)
-          // The endpoint works correctly but cannot be tested due to constraints
-          result.status = 'SKIP';
+        } else if (healingResult.skip || healingResult.skipSuggestion) {
+          // Agent suggests this should be skipped (requires user approval)
+          // Mark as FAIL with skipSuggestion flag - user can approve skip in UI
+          result.status = 'FAIL';  // Mark as FAIL, not SKIP - user must approve
           result.details = result.details || {};
           result.details.healingInfo = {
             mode: 'deterministic_uid_resolution',
-            skipped: true,
+            skipSuggestion: true,  // Flag for UI to show "Approve Skip" button
             skipReason: healingResult.skipReason,
             iterations: healingResult.iterations,
             retryCount: healingResult.retryCount,
             summary: healingResult.summary,
             agentLog: healingResult.healingLog,
             docFixSuggestions: healingResult.docFixSuggestions || [],
-            savedWorkflows: healingResult.savedWorkflows || [],
-            workflowStatus: healingResult.savedWorkflows?.length > 0 ? 'Cached (Skip)' : 'N/A'
+            savedWorkflows: [],  // Don't save skip workflows automatically
+            workflowStatus: 'Pending Skip Approval'
           };
           
           // Update resolved params with what the agent learned
@@ -855,12 +1024,12 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
           broadcastEvent(session, 'healing_complete', {
             endpoint: endpointKey,
             success: false,
-            skipped: true,
+            skipSuggestion: true,  // UI will show "Approve Skip" button
             skipReason: healingResult.skipReason,
             iterations: healingResult.iterations,
             retryCount: healingResult.retryCount,
             summary: healingResult.summary,
-            workflowSaved: healingResult.savedWorkflows?.length > 0,
+            workflowSaved: false,
             docFixCount: healingResult.docFixSuggestions?.length || 0,
             // Include updated result so UI can update in place
             updatedResult: result

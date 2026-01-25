@@ -2,27 +2,47 @@
 endpoint: POST /platform/v1/apps/{id}/unassign
 domain: apps
 tags: []
-status: skip
-savedAt: 2026-01-24T13:30:36.890Z
-verifiedAt: 2026-01-24T13:30:36.890Z
+status: success
+savedAt: 2026-01-25T06:08:23.820Z
+verifiedAt: 2026-01-25T06:08:23.820Z
 timesReused: 0
-skipReason: App can only be unassigned by the directory that created it. Test apps in the system were not created by our test directory, so unassign operations are correctly rejected for security reasons
 ---
 # Create Unassign
 
 ## Summary
-Skipped based on cached workflow - App can only be unassigned by the directory that created it. Test apps in the system were not created by our test directory, so unassign operations are correctly rejected for security reasons
-
-## ⚠️ Skip Reason
-
-**This endpoint should be SKIPPED in automated testing.**
-
-App can only be unassigned by the directory that created it. Test apps in the system were not created by our test directory, so unassign operations are correctly rejected for security reasons
-
-This is typically due to a business constraint where the endpoint works correctly but cannot be tested repeatedly (e.g., one-time operations, unique constraints).
+Successfully unassigned app from directory. The endpoint requires app_code_name (string) in the URL path, not numeric app_id. Endpoint returned HTTP 201 with {"assignment": null} indicating successful unassignment.
 
 ## Prerequisites
 No specific prerequisites documented.
+
+## UID Resolution Procedure
+
+How to dynamically obtain required UIDs for this endpoint:
+
+| UID Field | GET Endpoint | Extract From | Create Fresh | Cleanup |
+|-----------|--------------|--------------|--------------|---------|
+| directory_uid | GET /platform/v1/directory/branding | data.uid | - | - |
+
+### Resolution Steps
+
+**directory_uid**:
+1. Call `GET /platform/v1/directory/branding`
+2. Extract from response: `data.uid`
+
+```json
+{
+  "directory_uid": {
+    "source_endpoint": "GET /platform/v1/directory/branding",
+    "extract_from": "data.uid",
+    "fallback_endpoint": null,
+    "create_fresh": false,
+    "create_endpoint": null,
+    "create_body": null,
+    "cleanup_endpoint": null,
+    "cleanup_note": null
+  }
+}
+```
 
 ## How to Resolve Parameters
 Parameters were resolved automatically.
@@ -31,8 +51,16 @@ Parameters were resolved automatically.
 
 No specific learnings documented.
 
-## Verified Successful Request
+## Request Template
+
+Use this template with dynamically resolved UIDs:
 
 ```json
-null
+{
+  "method": "POST",
+  "path": "/platform/v1/apps/{{resolved.uid}}/unassign",
+  "body": {
+    "directory_uid": "{{resolved.directory_uid}}"
+  }
+}
 ```

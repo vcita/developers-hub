@@ -11,6 +11,12 @@
  * 
  * UID resolution steps are NOT counted as retries.
  * Only the actual endpoint retries count toward max iterations.
+ * 
+ * WORKFLOW-AWARE BEHAVIOR:
+ * - If a verified workflow exists, compare AI actions against documented procedure
+ * - If AI follows the workflow successfully → PASS (no false doc issues)
+ * - If AI deviates from workflow → WARN with note to update workflow
+ * - Doc issues are filtered against existing swagger documentation
  */
 
 const Anthropic = require('@anthropic-ai/sdk');
@@ -209,45 +215,112 @@ const TOOLS = [
     }
   },
   {
+    name: "acquire_token",
+    description: "Acquire a specific type of token dynamically. Actions: 1) 'app_oauth' - Get an APP TOKEN using client_id and client_secret via POST /oauth/service/token (REQUIRED for endpoints like POST /v3/apps/widgets), 2) 'client_jwt' - Get a CLIENT TOKEN for /client/* endpoints (automatically fetches client, sends login link, exchanges for JWT), 3) 'list' - List existing tokens, 4) 'create' - Create directory/business tokens via /platform/v1/tokens.",
+    input_schema: {
+      type: "object",
+      properties: {
+        action: {
+          type: "string",
+          enum: ["app_oauth", "client_jwt", "list", "create"],
+          description: "app_oauth=get app token via OAuth (use client_id+client_secret), client_jwt=get client JWT token for /client/* endpoints, list=list existing tokens, create=create directory/business token"
+        },
+        client_id: {
+          type: "string",
+          description: "OAuth client_id (returned when creating an app via POST /platform/v1/apps). Required for action='app_oauth'."
+        },
+        client_secret: {
+          type: "string",
+          description: "OAuth client_secret (returned when creating an app via POST /platform/v1/apps). Required for action='app_oauth'."
+        },
+        client_uid: {
+          type: "string",
+          description: "Client UID for action='client_jwt'. If not provided, will fetch from GET /platform/v1/clients."
+        },
+        business_uid: {
+          type: "string",
+          description: "Business UID for action='client_jwt'. If not provided, will use config.params.business_uid."
+        },
+        app_id: {
+          type: "string",
+          description: "Numeric App ID for list/create actions. NOT the app_code_name string!"
+        },
+        app_code_name: {
+          type: "string",
+          description: "App code name - use this to look up apps, but use numeric app_id for token operations"
+        },
+        business_id: {
+          type: "string",
+          description: "Business ID to create a business token for"
+        },
+        directory_id: {
+          type: "string",
+          description: "Directory ID to filter tokens or create directory token"
+        }
+      },
+      required: ["action"]
+    }
+  },
+  {
     name: "report_result",
-    description: "Call this when you're done. Use status='pass' if test passes, status='skip' if the endpoint works correctly but cannot be tested due to business constraints (e.g., resource already exists, one-time operation), or status='fail' if it cannot be fixed. ALWAYS include doc_issues with findings!",
+    description: "Call this when you're done. Use status='pass' if test passes, status='fail' if it cannot be fixed (add skip_suggestion=true if you think it should be skippable). NEVER use status='skip' directly - skips require user approval!",
     input_schema: {
       type: "object",
       properties: {
         status: {
           type: "string",
-          enum: ["pass", "skip", "fail"],
-          description: "pass=test passes with 2xx, skip=endpoint works correctly but cannot test (business constraint like 'already exists'), fail=cannot fix"
+          enum: ["pass", "fail"],
+          description: "pass=test passes with 2xx, fail=cannot fix (use skip_suggestion if you think it should be skipped)"
         },
         summary: {
           type: "string",
           description: "Brief summary of what happened"
         },
+        skip_suggestion: {
+          type: "boolean",
+          description: "Set to true if you think this test should be skipped (requires user approval). Must also provide skip_reason."
+        },
         skip_reason: {
           type: "string",
-          description: "Required when status='skip'. Explain why the test should be skipped (e.g., 'Staff already has a business role assigned - each staff can only have one')"
+          description: "Required when skip_suggestion=true. Explain why user might want to skip this test."
         },
         uid_resolution: {
           type: "object",
-          description: "How each required UID was resolved. Keys are UID field names, values describe the resolution method.",
+          description: "PROCEDURE for resolving each UID. Do NOT include actual UID values - only document the steps to obtain them dynamically.",
           additionalProperties: {
             type: "object",
             properties: {
               source_endpoint: {
                 type: "string",
-                description: "GET endpoint used to fetch the UID"
+                description: "GET endpoint to call first (e.g., 'GET /v3/apps/widgets')"
+              },
+              extract_from: {
+                type: "string",
+                description: "How to extract the UID from the response (e.g., 'data.widgets[0].uid', 'first item uid')"
               },
               fallback_endpoint: {
                 type: "string",
-                description: "POST endpoint used to create entity if GET was empty"
+                description: "POST endpoint to create entity if GET returns empty (e.g., 'POST /v3/apps/widgets')"
               },
-              used_fallback: {
+              create_fresh: {
                 type: "boolean",
-                description: "Whether we had to create a new entity"
+                description: "If true, ALWAYS create a fresh entity for this test (don't use existing)"
               },
-              resolved_value: {
+              create_endpoint: {
                 type: "string",
-                description: "The actual UID value obtained"
+                description: "POST endpoint to create fresh test entity (e.g., 'POST /platform/v1/businesses/{business_id}/staffs')"
+              },
+              create_body: {
+                type: "object",
+                description: "Template body for creating fresh entity (use {{timestamp}} for unique values)"
+              },
+              cleanup_endpoint: {
+                type: "string",
+                description: "DELETE endpoint to cleanup after test (e.g., 'DELETE /platform/v1/staffs/{uid}')"
+              },
+              cleanup_note: {
+                type: "string",
+                description: "If no DELETE endpoint, note why cleanup isn't needed or possible"
               }
             }
           }
@@ -277,6 +350,362 @@ const TOOLS = [
     }
   }
 ];
+
+/**
+ * Check if a documentation issue is already addressed in the swagger description
+ * @param {Object} docIssue - The doc issue to check
+ * @param {Object} endpoint - The endpoint with its swagger description
+ * @param {Object} existingWorkflow - The existing workflow if any
+ * @returns {Object} { isAlreadyDocumented: boolean, reason: string }
+ */
+function checkIfDocIssueAlreadyDocumented(docIssue, endpoint, existingWorkflow) {
+  const description = (endpoint.description || '').toLowerCase();
+  const summary = (endpoint.summary || '').toLowerCase();
+  const issue = (docIssue.issue || '').toLowerCase();
+  const suggestedFix = (docIssue.suggested_fix || docIssue.suggestedFix || '').toLowerCase();
+  const field = (docIssue.field || '').toLowerCase();
+  
+  // Also check request schema descriptions if available
+  let schemaDescriptions = '';
+  if (endpoint.requestSchema) {
+    schemaDescriptions = JSON.stringify(endpoint.requestSchema).toLowerCase();
+  }
+  
+  const allDocs = description + ' ' + schemaDescriptions;
+  
+  // =====================================================
+  // FALSE POSITIVE CATEGORY 1: Test data issues
+  // These are NOT documentation issues - they're test framework problems
+  // =====================================================
+  
+  // 1a. Test used placeholder/test values - not a doc issue
+  if (issue.includes('test_string') || issue.includes('placeholder') || 
+      issue.includes('test data used') || issue.includes('used placeholder values')) {
+    return { 
+      isAlreadyDocumented: true, 
+      reason: 'Test data issue - placeholder values are not real documentation problems' 
+    };
+  }
+  
+  // 1b. Example format issues - not critical documentation problems
+  if (issue.includes('example should use') || issue.includes('example shows')) {
+    // Only a real issue if the description doesn't explain the format
+    if (allDocs.includes('must be') || allDocs.includes('valid') || allDocs.includes('format')) {
+      return { 
+        isAlreadyDocumented: true, 
+        reason: 'Example format is a minor issue - validation rules are documented' 
+      };
+    }
+  }
+  
+  // =====================================================
+  // FALSE POSITIVE CATEGORY 2: "Doesn't specify valid values" but values ARE listed
+  // =====================================================
+  
+  // 2a. Check if issue claims values aren't documented but they are
+  if (issue.includes("doesn't specify") || issue.includes("doesn't document") || 
+      issue.includes('not specified') || issue.includes('not documented')) {
+    
+    // Check if the field's valid values are actually in the description
+    // Look for patterns like "Valid values are:", "Valid values:", "[value1, value2]", etc.
+    const hasValidValuesList = /valid values[:\s]|allowed values[:\s]|\[["'][^"'\]]+["'],|valid.*are:/i.test(allDocs);
+    
+    if (hasValidValuesList) {
+      return { 
+        isAlreadyDocumented: true, 
+        reason: 'Swagger description already contains valid values list' 
+      };
+    }
+    
+    // Check for specific field mentions with their valid values
+    const fieldLower = field.toLowerCase().replace(/[^a-z_]/g, '');
+    if (fieldLower && allDocs.includes(fieldLower) && 
+        (allDocs.includes('valid') || allDocs.includes('allowed') || allDocs.includes('must be'))) {
+      return { 
+        isAlreadyDocumented: true, 
+        reason: `Field ${field} validation is already documented` 
+      };
+    }
+  }
+  
+  // 2b. Enum/scope values - check if field description contains the values list
+  const enumFields = ['scopes', 'demand_scopes', 'url_params', 'category', 'permissions', 'app_type', 'locales'];
+  for (const enumField of enumFields) {
+    if (field.includes(enumField) || issue.includes(enumField)) {
+      // Check if the description mentions valid values for this field
+      if (allDocs.includes(enumField) && 
+          (allDocs.includes('valid values') || allDocs.includes('allowed') || 
+           allDocs.includes('[') || allDocs.includes('enum'))) {
+        return { 
+          isAlreadyDocumented: true, 
+          reason: `${enumField} valid values are documented in description` 
+        };
+      }
+    }
+  }
+  
+  // =====================================================
+  // FALSE POSITIVE CATEGORY 3: OAuth/credential issues
+  // =====================================================
+  
+  // 3a. OAuth credential format issues where docs explain it
+  if (issue.includes('service_id') || issue.includes('service_secret') || 
+      issue.includes('client_id') || issue.includes('client_secret') ||
+      issue.includes('oauth') || issue.includes('credential')) {
+    if (allDocs.includes('oauth') || allDocs.includes('client_id') || 
+        allDocs.includes('credential') || allDocs.includes('post /platform/v1/apps')) {
+      return { 
+        isAlreadyDocumented: true, 
+        reason: 'OAuth credential requirements are documented' 
+      };
+    }
+  }
+  
+  // 3b. "Documentation is correct" statements from the AI itself
+  if (issue.includes('documentation is actually correct') || 
+      issue.includes('no changes needed') ||
+      suggestedFix.includes('documentation is actually correct') ||
+      suggestedFix.includes('no changes needed')) {
+    return { 
+      isAlreadyDocumented: true, 
+      reason: 'AI acknowledged documentation is correct' 
+    };
+  }
+  
+  // =====================================================
+  // FALSE POSITIVE CATEGORY 4: Minor HTTP status code differences
+  // =====================================================
+  
+  if ((issue.includes('http 200') || issue.includes('http 201')) && 
+      (issue.includes('but actually returns') || issue.includes('returns http'))) {
+    // 200 vs 201 is very minor - both indicate success
+    return { 
+      isAlreadyDocumented: true, 
+      reason: 'Minor HTTP status code difference (200 vs 201) - both indicate success' 
+    };
+  }
+  
+  // =====================================================
+  // EXISTING CHECKS (1-8) - Keep these
+  // =====================================================
+  
+  // 5. Check for uniqueness constraint issues
+  if (issue.includes('uniqueness') || issue.includes('unique') || issue.includes('only have one') || issue.includes('one board per')) {
+    if (allDocs.includes('uniqueness constraint') || allDocs.includes('only have one') || allDocs.includes('can only have one')) {
+      return { 
+        isAlreadyDocumented: true, 
+        reason: 'Swagger already documents the uniqueness constraint' 
+      };
+    }
+  }
+  
+  // 6. Check for UID validation issues
+  if (issue.includes('uid must') || issue.includes('must reference') || issue.includes('valid uid') || issue.includes('existing widget')) {
+    if (allDocs.includes('must be a valid uid') || allDocs.includes('valid uid') || 
+        allDocs.includes('existing widget') || allDocs.includes('must reference')) {
+      return { 
+        isAlreadyDocumented: true, 
+        reason: 'Swagger already documents the UID validation requirement' 
+      };
+    }
+  }
+  
+  // 7. Check for path parameter UID issues
+  if (field.includes('path') && (field.includes('uid') || field.includes('parameter'))) {
+    if (allDocs.includes('must be a valid uid') || allDocs.includes('valid uid') || 
+        allDocs.includes('use get') || allDocs.includes('find valid uid') ||
+        allDocs.includes('app_code_name') || allDocs.includes('code name')) {
+      return { 
+        isAlreadyDocumented: true, 
+        reason: 'Swagger already documents path parameter validation' 
+      };
+    }
+  }
+  
+  // 8. Authentication/token related issues
+  if (field === 'authentication' || issue.includes('token') || issue.includes('app_type')) {
+    // Check if swagger already mentions app_type requirements
+    if (issue.includes('app_type') && allDocs.includes('app_type')) {
+      return { 
+        isAlreadyDocumented: true, 
+        reason: 'Swagger description already documents app_type requirement' 
+      };
+    }
+    
+    // Check if swagger mentions the specific token requirement
+    if (issue.includes('app token') && (allDocs.includes('app token') || allDocs.includes('available for app'))) {
+      return { 
+        isAlreadyDocumented: true, 
+        reason: 'Swagger description already documents App Token requirement' 
+      };
+    }
+    
+    // Check for staff token vs app token clarifications
+    if (issue.includes('staff token') || issue.includes('directory token')) {
+      if (allDocs.includes('staff token') || allDocs.includes('directory token') || 
+          allDocs.includes('available for staff') || allDocs.includes('available for directory')) {
+        return { 
+          isAlreadyDocumented: true, 
+          reason: 'Swagger description already documents token requirements' 
+        };
+      }
+    }
+  }
+  
+  // 9. Check for specific error messages mentioned in the issue
+  const errorMessageMatch = issue.match(/['"]([^'"]+)['"]/);
+  if (errorMessageMatch) {
+    const errorMessage = errorMessageMatch[1].toLowerCase();
+    if (errorMessage.length > 5 && allDocs.includes(errorMessage)) {
+      return { 
+        isAlreadyDocumented: true, 
+        reason: `Swagger already mentions: "${errorMessageMatch[1]}"` 
+      };
+    }
+  }
+  
+  // 10. Check if the workflow already documents this requirement
+  if (existingWorkflow && existingWorkflow.status === 'success') {
+    const workflowSummary = (existingWorkflow.summary || '').toLowerCase();
+    const workflowContent = (existingWorkflow.content || '').toLowerCase();
+    
+    // If workflow summary mentions the same requirement
+    if (issue.includes('app_type') && workflowSummary.includes('app_type')) {
+      return { 
+        isAlreadyDocumented: true, 
+        reason: 'Workflow already documents this requirement - test followed documented procedure' 
+      };
+    }
+    
+    // If the workflow content explains this
+    if (workflowContent && workflowContent.includes(field)) {
+      return { 
+        isAlreadyDocumented: true, 
+        reason: 'Workflow documentation covers this field' 
+      };
+    }
+  }
+  
+  // 11. Extract key concepts from the issue and check if they're documented
+  const keyConcepts = [
+    { pattern: /each staff member can only have one/i, docCheck: /each staff member can only have one|only have one board/i },
+    { pattern: /widget_uid must/i, docCheck: /widget_uid|valid uid from a widget/i },
+    { pattern: /must be a valid/i, docCheck: /must be a valid|valid uid/i },
+    { pattern: /duplication error/i, docCheck: /duplication error|duplicate/i },
+    { pattern: /board per type/i, docCheck: /per.*type|one board|uniqueness/i },
+    { pattern: /app_code_name.*not.*app_id/i, docCheck: /app_code_name|code.?name/i },
+    { pattern: /must reference.*existing/i, docCheck: /must.*reference|existing.*uid|valid.*uid/i },
+  ];
+  
+  for (const { pattern, docCheck } of keyConcepts) {
+    if (pattern.test(issue) && docCheck.test(allDocs)) {
+      return { 
+        isAlreadyDocumented: true, 
+        reason: `Swagger already documents this concept (matched: ${pattern.source})` 
+      };
+    }
+  }
+  
+  // 12. If the suggested fix content is already in the description
+  if (suggestedFix) {
+    // Extract key phrases from suggested fix
+    const keyPhrases = suggestedFix.match(/['"]([^'"]+)['"]/g) || [];
+    for (const phrase of keyPhrases) {
+      const cleanPhrase = phrase.replace(/['"]/g, '').toLowerCase();
+      if (cleanPhrase.length > 10 && allDocs.includes(cleanPhrase)) {
+        return { 
+          isAlreadyDocumented: true, 
+          reason: `Swagger already contains: "${cleanPhrase}"` 
+        };
+      }
+    }
+  }
+  
+  // 13. Generic "field description" check - if field description exists and is substantial
+  if (field && field !== '/' && field !== 'authentication') {
+    // Check if the specific field has a description in the schema
+    const fieldPattern = new RegExp(`"${field.replace(/[^a-z_]/gi, '')}[^"]*"\\s*:\\s*\\{[^}]*"description"\\s*:`, 'i');
+    if (fieldPattern.test(schemaDescriptions)) {
+      // The field has a description - check if the issue is about something already there
+      const fieldDesc = schemaDescriptions.match(new RegExp(`"${field.replace(/[^a-z_]/gi, '')}[^"]*"[^}]*"description"\\s*:\\s*"([^"]+)"`, 'i'));
+      if (fieldDesc && fieldDesc[1]) {
+        const existingDesc = fieldDesc[1].toLowerCase();
+        // If the existing description is substantial (>50 chars) and covers validation
+        if (existingDesc.length > 50 && 
+            (existingDesc.includes('valid') || existingDesc.includes('must') || existingDesc.includes('required'))) {
+          return { 
+            isAlreadyDocumented: true, 
+            reason: `Field ${field} already has validation documentation` 
+          };
+        }
+      }
+    }
+  }
+  
+  return { isAlreadyDocumented: false, reason: null };
+}
+
+/**
+ * Check if AI actions match the documented workflow
+ * @param {Object[]} healingLog - The AI agent's action log
+ * @param {Object} existingWorkflow - The documented workflow
+ * @returns {Object} { followedWorkflow: boolean, deviations: string[] }
+ */
+function compareActionsToWorkflow(healingLog, existingWorkflow) {
+  if (!existingWorkflow || !existingWorkflow.uidResolution) {
+    return { followedWorkflow: false, deviations: ['No existing workflow to compare against'] };
+  }
+  
+  const deviations = [];
+  const workflowSteps = existingWorkflow.uidResolution;
+  
+  // Extract API calls from healing log
+  const apiCalls = healingLog
+    .filter(entry => entry.type === 'tool_call' && entry.tool === 'execute_api')
+    .map(entry => ({
+      method: entry.input?.method,
+      path: entry.input?.path,
+      purpose: entry.input?.purpose
+    }));
+  
+  // Check if the key workflow steps were followed
+  for (const [uidField, resolution] of Object.entries(workflowSteps)) {
+    // Check if source_endpoint was called
+    if (resolution.source_endpoint) {
+      const [expectedMethod, expectedPath] = resolution.source_endpoint.split(' ');
+      const wasSourceCalled = apiCalls.some(call => 
+        call.method === expectedMethod && call.path === expectedPath
+      );
+      
+      // It's OK if the source wasn't called IF the create_fresh was called instead
+      if (!wasSourceCalled && !resolution.create_fresh) {
+        deviations.push(`Expected to call ${resolution.source_endpoint} for ${uidField}`);
+      }
+    }
+    
+    // Check if create endpoint was used when create_fresh is required
+    if (resolution.create_fresh && resolution.create_body) {
+      const createEndpoint = resolution.source_endpoint || '';
+      // For OAuth tokens, we use acquire_token instead of execute_api
+      const isOAuthFlow = uidField.toLowerCase().includes('oauth') || uidField.toLowerCase().includes('token');
+      
+      if (!isOAuthFlow) {
+        const wasCreateCalled = apiCalls.some(call => 
+          call.method === 'POST' && call.purpose === 'uid_resolution'
+        );
+        
+        if (!wasCreateCalled) {
+          deviations.push(`Expected to create fresh entity for ${uidField}`);
+        }
+      }
+    }
+  }
+  
+  return {
+    followedWorkflow: deviations.length === 0,
+    deviations
+  };
+}
 
 /**
  * Extract all UID/ID fields from a schema
@@ -656,6 +1085,11 @@ async function executeTool(toolName, toolInput, context) {
           context.lastSuccessfulResponse = response.data;
         }
         
+        console.log(`  [AI Healer] execute_api ${method} ${apiPath} => ${response.status}${isRetry ? ' (retry)' : ''}`);
+        if (body) {
+          console.log(`  [AI Healer] Request body:`, JSON.stringify(body, null, 2).substring(0, 300));
+        }
+        
         return {
           success: true,
           status: response.status,
@@ -670,6 +1104,12 @@ async function executeTool(toolName, toolInput, context) {
         const status = error.response?.status;
         const is404OrRouting = status === 404 || status === 502 || status === 503;
         const fallbackAvailable = !use_fallback && fallbackUrl;
+        
+        console.log(`  [AI Healer] execute_api ${method} ${apiPath} => ERROR ${status}${isRetry ? ' (retry)' : ''}`);
+        if (body) {
+          console.log(`  [AI Healer] Request body:`, JSON.stringify(body, null, 2).substring(0, 300));
+        }
+        console.log(`  [AI Healer] Error response:`, JSON.stringify(error.response?.data, null, 2)?.substring(0, 300) || error.message);
         
         return {
           success: false,
@@ -790,29 +1230,394 @@ async function executeTool(toolName, toolInput, context) {
       }
     }
     
+    case "acquire_token": {
+      const { action, client_id, client_secret, client_uid, business_uid, app_id, app_code_name, business_id, directory_id } = toolInput;
+      
+      onProgress?.({
+        type: 'agent_action',
+        action: 'acquire_token',
+        details: action === 'client_jwt' 
+          ? `client_jwt token for client=${client_uid || 'auto'}, business=${business_uid || 'from config'}`
+          : `${action} token${client_id ? ' via OAuth' : ''} for app=${app_id || app_code_name || client_id}, business=${business_id}, directory=${directory_id}`
+      });
+      
+      const baseUrl = config.baseUrl;
+      const axios = require('axios');
+      
+      try {
+        // ACTION: app_oauth - Get app token via OAuth using client_id and client_secret
+        // This is the CORRECT way to get an app token for endpoints like POST /v3/apps/widgets
+        if (action === 'app_oauth') {
+          if (!client_id || !client_secret) {
+            return {
+              success: false,
+              error: 'client_id and client_secret are required for app_oauth action.',
+              hint: 'When you create an app via POST /platform/v1/apps, save the returned client_id and client_secret, then use them here.'
+            };
+          }
+          
+          // Use POST /oauth/service/token to get an app token
+          const response = await axios.post(`${baseUrl}/oauth/service/token`, 
+            `service_id=${encodeURIComponent(client_id)}&service_secret=${encodeURIComponent(client_secret)}`,
+            {
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+              }
+            }
+          );
+          
+          const appToken = response.data?.data?.token;
+          
+          if (appToken) {
+            // Store the acquired app token
+            context.acquiredTokens = context.acquiredTokens || {};
+            context.acquiredTokens['app'] = appToken;
+            
+            // Add to config.tokens for execute_api to use
+            config.tokens = config.tokens || {};
+            config.tokens.app = appToken;
+            
+            return {
+              success: true,
+              action: 'app_oauth',
+              token_acquired: true,
+              token_preview: `${appToken.substring(0, 20)}...`,
+              expires_in: response.data?.data?.expires_in,
+              hint: 'App token acquired via OAuth! You can now use token_type="app" in execute_api calls.'
+            };
+          } else {
+            return {
+              success: false,
+              error: 'OAuth response did not contain a token.',
+              response_data: response.data
+            };
+          }
+        }
+        
+        // ACTION: client_jwt - Get a client JWT token for /client/* endpoints
+        // Flow: 1) Get client info, 2) Send login link with .dev suffix, 3) Exchange auth token for JWT
+        if (action === 'client_jwt') {
+          const staffToken = config.tokens?.staff || config.tokens?.directory;
+          if (!staffToken) {
+            return {
+              success: false,
+              error: 'No staff or directory token configured. Cannot fetch client info.',
+              hint: 'Configure a staff or directory token in tokens.json first.'
+            };
+          }
+          
+          // Step 1: Get business_uid from config or params
+          let targetBusinessUid = toolInput.business_uid || config.params?.business_uid;
+          if (!targetBusinessUid) {
+            return {
+              success: false,
+              error: 'business_uid is required for client_jwt action.',
+              hint: 'Provide business_uid in the action params or configure params.business_uid in tokens.json.'
+            };
+          }
+          
+          // Step 2: Get client info - either from provided client_uid or fetch from API
+          let clientEmail = null;
+          let targetClientUid = toolInput.client_uid || config.params?.client_uid;
+          
+          // First, try to get email from provided/configured client
+          if (targetClientUid) {
+            try {
+              const clientResponse = await axios.get(`${baseUrl}/platform/v1/clients/${targetClientUid}`, {
+                headers: {
+                  'Authorization': `Bearer ${staffToken}`,
+                  'Content-Type': 'application/json'
+                }
+              });
+              clientEmail = clientResponse.data?.data?.email;
+              // If email contains @ it's likely valid
+              if (clientEmail && clientEmail.includes('@')) {
+                // Good, we have a valid email
+              } else {
+                // No email on configured client, will search for another
+                clientEmail = null;
+              }
+            } catch (e) {
+              // Configured client fetch failed, will try to find another
+            }
+          }
+          
+          // If no email found yet, search for a client with email
+          if (!clientEmail) {
+            try {
+              const clientsResponse = await axios.get(`${baseUrl}/platform/v1/clients?per_page=50`, {
+                headers: {
+                  'Authorization': `Bearer ${staffToken}`,
+                  'Content-Type': 'application/json'
+                }
+              });
+              const clients = clientsResponse.data?.data?.clients || [];
+              // Find client with a valid-looking email (contains @)
+              const clientWithEmail = clients.find(c => c.email && c.email.includes('@'));
+              if (clientWithEmail) {
+                targetClientUid = clientWithEmail.uid || clientWithEmail.id;
+                clientEmail = clientWithEmail.email;
+              }
+            } catch (e) {
+              // Will fall through to error below
+            }
+          }
+          
+          if (!clientEmail) {
+            return {
+              success: false,
+              error: 'No clients with valid email found in the business.',
+              hint: 'Create a client with an email first using POST /platform/v1/clients with body: {"email":"test@example.com","first_name":"Test"}'
+            };
+          }
+          
+          // Step 3: Send login link with .dev suffix to get auth token directly
+          // In dev/integration environments, adding .dev suffix returns the token
+          const devEmail = clientEmail.endsWith('.dev') ? clientEmail : `${clientEmail}.dev`;
+          let authToken = null;
+          
+          try {
+            const loginLinkResponse = await axios.post(
+              `${baseUrl}/client_api/v1/portals/${targetBusinessUid}/authentications/send_login_link`,
+              { email: devEmail },
+              {
+                headers: {
+                  'Content-Type': 'application/json'
+                }
+              }
+            );
+            authToken = loginLinkResponse.data?.token;
+            if (!authToken) {
+              return {
+                success: false,
+                error: 'Login link sent but no token returned. This may not be a dev/integration environment.',
+                hint: 'The .dev email suffix trick only works in development/integration environments.',
+                response: loginLinkResponse.data
+              };
+            }
+          } catch (e) {
+            return {
+              success: false,
+              error: `Failed to send login link: ${e.response?.data?.error || e.message}`,
+              hint: 'Verify the business_uid and client email are correct.',
+              status: e.response?.status
+            };
+          }
+          
+          // Step 4: Exchange auth token for JWT
+          let clientJwt = null;
+          try {
+            const jwtResponse = await axios.post(
+              `${baseUrl}/client_api/v1/portals/${targetBusinessUid}/authentications/get_jwt_token_from_authentication_token`,
+              { auth_token: authToken },
+              {
+                headers: {
+                  'Content-Type': 'application/json'
+                }
+              }
+            );
+            clientJwt = jwtResponse.data?.token;
+            if (!clientJwt) {
+              return {
+                success: false,
+                error: 'Auth token exchange did not return a JWT.',
+                response: jwtResponse.data
+              };
+            }
+          } catch (e) {
+            return {
+              success: false,
+              error: `Failed to exchange auth token for JWT: ${e.response?.data?.error || e.message}`,
+              status: e.response?.status
+            };
+          }
+          
+          // Step 5: Store the acquired client token
+          context.acquiredTokens = context.acquiredTokens || {};
+          context.acquiredTokens['client'] = clientJwt;
+          
+          // Add to config.tokens for execute_api to use
+          config.tokens = config.tokens || {};
+          config.tokens.client = clientJwt;
+          
+          return {
+            success: true,
+            action: 'client_jwt',
+            token_acquired: true,
+            token_preview: `${clientJwt.substring(0, 30)}...`,
+            client_uid: targetClientUid,
+            client_email: clientEmail,
+            business_uid: targetBusinessUid,
+            hint: 'Client JWT acquired! You can now use token_type="client" in execute_api calls for /client/* endpoints.'
+          };
+        }
+        
+        // For list/create actions, we need a directory token
+        const directoryToken = config.tokens?.directory;
+        if (!directoryToken) {
+          return {
+            success: false,
+            error: 'No directory token configured. Cannot list/create tokens without directory-level access.',
+            hint: 'Configure a directory token in tokens.json, OR use action="app_oauth" with client_id and client_secret.'
+          };
+        }
+        
+        if (action === 'list') {
+          // GET /platform/v1/tokens to list existing tokens
+          const params = new URLSearchParams();
+          if (app_id) params.append('app_id', app_id);
+          if (app_code_name) params.append('app_id', app_code_name);
+          if (directory_id) params.append('directory_id', directory_id);
+          
+          const response = await axios.get(`${baseUrl}/platform/v1/tokens?${params.toString()}`, {
+            headers: {
+              'Authorization': `Bearer ${directoryToken}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          const tokens = response.data?.data?.tokens || [];
+          
+          // If we found tokens, store the first one for use
+          if (tokens.length > 0) {
+            const firstToken = tokens[0];
+            if (firstToken.token) {
+              // Store the acquired token
+              context.acquiredTokens = context.acquiredTokens || {};
+              const tokenKey = app_id || app_code_name || 'app';
+              context.acquiredTokens[tokenKey] = firstToken.token;
+              
+              // Also add to config.tokens for execute_api to use
+              config.tokens = config.tokens || {};
+              config.tokens.app = firstToken.token;
+            }
+          }
+          
+          return {
+            success: true,
+            action: 'list',
+            tokens_found: tokens.length,
+            tokens: tokens.map(t => ({
+              token: t.token ? `${t.token.substring(0, 20)}...` : null,
+              app_id: t.app_id,
+              user_id: t.user_id,
+              directory_id: t.directory_id,
+              created_at: t.created_at
+            })),
+            hint: tokens.length > 0 
+              ? 'Token found! You can now use token_type="app" in execute_api calls.'
+              : 'No tokens found. For app tokens, use action="app_oauth" with client_id and client_secret from POST /platform/v1/apps.'
+          };
+        } else if (action === 'create') {
+          // POST /platform/v1/tokens to create a new directory/business token
+          // NOTE: This does NOT create app tokens! Use app_oauth for that.
+          const body = {};
+          if (app_id) body.app_id = parseInt(app_id) || app_id; // Try to parse as number
+          if (business_id) body.business_id = business_id;
+          if (directory_id) body.directory_id = directory_id;
+          
+          if (Object.keys(body).length === 0) {
+            return {
+              success: false,
+              error: 'At least one identifier (app_id, business_id, or directory_id) must be provided.',
+              hint: 'For APP tokens, use action="app_oauth" with client_id and client_secret instead!'
+            };
+          }
+          
+          const response = await axios.post(`${baseUrl}/platform/v1/tokens`, body, {
+            headers: {
+              'Authorization': `Bearer ${directoryToken}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          const newToken = response.data?.data?.token;
+          
+          if (newToken) {
+            // Store the acquired token
+            context.acquiredTokens = context.acquiredTokens || {};
+            const tokenKey = app_id || business_id || 'acquired';
+            context.acquiredTokens[tokenKey] = newToken;
+            
+            // Also add to config.tokens for execute_api to use
+            config.tokens = config.tokens || {};
+            if (business_id) {
+              config.tokens.business = newToken;
+            }
+          }
+          
+          return {
+            success: true,
+            action: 'create',
+            token_created: !!newToken,
+            token_preview: newToken ? `${newToken.substring(0, 20)}...` : null,
+            hint: newToken 
+              ? 'Token created! You can now use it in execute_api calls.'
+              : 'Token creation returned but no token found in response.',
+            note: 'For APP tokens, use action="app_oauth" with client_id and client_secret instead of "create"!'
+          };
+        }
+        
+        return {
+          success: false,
+          error: `Unknown action: ${action}. Use "app_oauth", "client_jwt", "list", or "create".`
+        };
+      } catch (error) {
+        const status = error.response?.status;
+        const errorData = error.response?.data;
+        
+        return {
+          success: false,
+          status,
+          error: errorData || error.message,
+          hint: action === 'app_oauth'
+            ? 'OAuth failed. Verify client_id and client_secret are correct (from POST /platform/v1/apps response).'
+            : status === 401 
+              ? 'Directory token may be invalid or expired. Check tokens.json configuration.'
+              : status === 404
+                ? 'The app or resource was not found. Verify the app_id exists.'
+                : status === 422
+                  ? 'Unauthorized. For APP tokens, use action="app_oauth" with client_id and client_secret!'
+                  : 'Check if the directory has permission for this operation.'
+        };
+      }
+    }
+    
     case "report_result": {
-      const { status, summary, skip_reason, uid_resolution, unresolved_uids, doc_issues } = toolInput;
+      const { status, summary, skip_reason, skip_suggestion, uid_resolution, unresolved_uids, doc_issues } = toolInput;
       const endpointKey = `${endpoint.method} ${endpoint.path}`;
       
       // Map status to result
+      // Note: Agent should NEVER use status="skip" directly anymore
+      // Instead, use status="fail" with skip_suggestion=true
       const isSuccess = status === 'pass';
-      const isSkip = status === 'skip';
+      const isSkipSuggestion = skip_suggestion === true;
       const isFail = status === 'fail';
       
       onProgress?.({
         type: 'agent_action',
         action: 'report_result',
-        details: status,
+        details: isSkipSuggestion ? 'skip_suggestion' : status,
         summary
       });
       
-      // Save workflow for both success AND skip - so we remember this for future runs
+      // Check if we have an existing workflow to compare against
+      const existingWorkflow = workflowRepo.get(endpointKey);
+      
+      // Compare AI actions to documented workflow
+      let workflowComparison = { followedWorkflow: false, deviations: [] };
+      if (existingWorkflow && existingWorkflow.status === 'success' && context.healingLog) {
+        workflowComparison = compareActionsToWorkflow(context.healingLog || [], existingWorkflow);
+        console.log(`  [AI Healer] Workflow comparison: followed=${workflowComparison.followedWorkflow}, deviations=${workflowComparison.deviations.length}`);
+      }
+      
+      // Only save workflow for SUCCESS - skip suggestions require user approval
+      // Skip workflows will be saved via the /approve-skip endpoint after user approves
       // NOTE: Doc issues are NOT stored in workflows - they're transient findings
-      if ((isSuccess || isSkip) && (uid_resolution || skip_reason)) {
+      if (isSuccess && uid_resolution) {
         const workflowData = {
           summary,
-          status,  // Store the status so we know this is a skip
-          skipReason: skip_reason || null,
+          status: 'success',
           uidResolution: uid_resolution,
           successfulRequest: context.successfulRequest,
           domain: endpoint.domain,
@@ -824,28 +1629,76 @@ async function executeTool(toolName, toolInput, context) {
         context.savedWorkflow = true;
       }
       
-      // Store doc issues - ALWAYS store them, even if the fix failed
-      // This helps improve documentation even when we can't fix the test
-      // Ensure doc_issues is an array before processing
+      // Store doc issues - but FILTER OUT issues that are already documented
+      // This prevents false positives when AI follows the documented workflow
       const docIssuesArray = Array.isArray(doc_issues) ? doc_issues : [];
-      if (docIssuesArray.length > 0) {
-        context.docFixSuggestions = docIssuesArray.map(issue => ({
+      console.log(`  [AI Healer] report_result called with status=${status}, doc_issues count=${docIssuesArray.length}`);
+      
+      // Filter doc issues to remove those already documented in swagger
+      const filteredDocIssues = [];
+      const filteredOutIssues = [];
+      
+      for (const issue of docIssuesArray) {
+        const checkResult = checkIfDocIssueAlreadyDocumented(issue, endpoint, existingWorkflow);
+        
+        if (checkResult.isAlreadyDocumented) {
+          console.log(`  [AI Healer] Doc issue filtered out (already documented): ${issue.field} - ${checkResult.reason}`);
+          filteredOutIssues.push({ ...issue, filterReason: checkResult.reason });
+        } else {
+          filteredDocIssues.push(issue);
+        }
+      }
+      
+      // If AI followed the workflow successfully, this is a clean PASS
+      // Even if AI reported doc_issues, they should be filtered out since the workflow worked
+      let finalStatus = status;
+      let finalSummary = summary;
+      
+      if (isSuccess && existingWorkflow && existingWorkflow.status === 'success') {
+        if (workflowComparison.followedWorkflow) {
+          // AI followed documented workflow - clean PASS, no doc issues
+          console.log(`  [AI Healer] ✓ AI followed documented workflow - clean PASS`);
+          finalSummary = `${summary} (followed documented workflow)`;
+          // Clear all doc issues since workflow was followed
+          filteredDocIssues.length = 0;
+        } else if (workflowComparison.deviations.length > 0 && filteredDocIssues.length === 0) {
+          // AI deviated but still succeeded - this is a WARN case
+          // The workflow might need updating
+          console.log(`  [AI Healer] ⚠ AI deviated from workflow but succeeded - consider updating workflow`);
+          context.workflowDeviation = {
+            deviations: workflowComparison.deviations,
+            suggestion: 'Consider updating the workflow to match the successful approach'
+          };
+        }
+      }
+      
+      if (filteredDocIssues.length > 0) {
+        console.log(`  [AI Healer] doc_issues after filtering:`, JSON.stringify(filteredDocIssues, null, 2));
+        context.docFixSuggestions = filteredDocIssues.map(issue => ({
           ...issue,
           endpoint: endpointKey,
-          verified: isSuccess || isSkip,
+          verified: isSuccess,  // Only verified if test passed
           verifiedAt: new Date().toISOString()
         }));
+      } else {
+        context.docFixSuggestions = [];
       }
+      
+      // Track filtered issues for reporting
+      context.filteredOutDocIssues = filteredOutIssues;
       
       return {
         done: true,
-        status,
+        status: finalStatus,
         success: isSuccess,
-        skip: isSkip,
+        skipSuggestion: isSkipSuggestion,  // Agent suggests skip (requires user approval)
         skipReason: skip_reason,
-        summary,
+        summary: finalSummary,
         unresolvedUids: unresolved_uids || [],
-        docIssuesRecorded: docIssuesArray.length
+        docIssuesRecorded: filteredDocIssues.length,
+        docIssuesFiltered: filteredOutIssues.length,
+        followedWorkflow: workflowComparison.followedWorkflow,
+        workflowDeviations: workflowComparison.deviations
       };
     }
     
@@ -864,23 +1717,44 @@ function buildSystemPrompt(endpoint, allEndpoints, config, resolvedParams) {
   const endpointKey = `${endpoint.method} ${endpoint.path}`;
   const existingWorkflow = workflowRepo.get(endpointKey);
   
+  // Include swagger description for the AI to check before reporting doc issues
+  const swaggerDescription = endpoint.description || '';
+  const swaggerSummary = endpoint.summary || '';
+  
+  let swaggerContext = '';
+  if (swaggerDescription || swaggerSummary) {
+    swaggerContext = `
+## SWAGGER DOCUMENTATION (Check Before Reporting Doc Issues!)
+
+**Summary**: ${swaggerSummary}
+
+**Description**:
+${swaggerDescription}
+
+**IMPORTANT**: Before reporting ANY doc_issues, verify the issue is NOT already documented above!
+If the swagger description already mentions the requirement you discovered, DO NOT report it as a doc_issue.
+`;
+  }
+  
   let workflowContext = '';
   if (existingWorkflow) {
     if (existingWorkflow.status === 'skip' || existingWorkflow.skipReason) {
-      // This endpoint was previously determined to be skippable
+      // This endpoint has a user-approved skip workflow
+      // User has already approved this skip, so we can use it
       workflowContext = `
-## CACHED SKIP WORKFLOW - This endpoint should be SKIPPED!
+## CACHED SKIP WORKFLOW - User Previously Approved Skip
 
-A previous run determined this endpoint should be skipped due to business constraints:
+This endpoint has a user-approved skip workflow:
 
 **Skip Reason**: ${existingWorkflow.skipReason || existingWorkflow.summary}
 
 **Action**: Call \`report_result\` immediately with:
-- status: "skip"
+- status: "fail"
+- skip_suggestion: true
 - skip_reason: "${existingWorkflow.skipReason || existingWorkflow.summary}"
-- summary: "Skipped based on cached workflow - ${existingWorkflow.skipReason || existingWorkflow.summary}"
+- summary: "Skip workflow cached - ${existingWorkflow.skipReason || existingWorkflow.summary}"
 
-Do NOT waste retries - just report skip immediately.
+Note: Skip was previously approved by user. No need to explore alternatives.
 `;
     } else if (existingWorkflow.uidResolution) {
       workflowContext = `
@@ -891,26 +1765,40 @@ A previous successful run documented how to resolve UIDs for this endpoint:
 ${JSON.stringify(existingWorkflow.uidResolution, null, 2)}
 
 Try using these same endpoints to resolve the UIDs. If they still work, you can skip the discovery phase.
+
+**IMPORTANT**: If this workflow succeeds, the test is a clean PASS.
+Do NOT report doc_issues for requirements that are already documented in the swagger description above.
 `;
     }
     // NOTE: Doc issues are no longer stored in workflows
     // Workflows are success paths only - doc issues are transient findings reported once
   }
 
-  return `You are an API testing agent that follows a DETERMINISTIC UID resolution workflow with SOURCE CODE EXPLORATION capabilities.
+  return `You are an API testing agent that follows a DETERMINISTIC UID resolution workflow with SOURCE CODE EXPLORATION and DYNAMIC TOKEN ACQUISITION capabilities.
 
 ## Your Tools
 
 1. **extract_required_uids** - Extract all UID/ID fields needed by the failing endpoint (call FIRST)
 2. **find_uid_source** - Find GET/POST endpoints that can provide a specific UID value
 3. **execute_api** - Make API calls to fetch/create entities or retry the original request
-4. **find_service_for_endpoint** - Find which microservice handles an endpoint (call BEFORE searching code!)
-5. **search_source_code** - Search backend code (use correct repository from find_service_for_endpoint!)
-6. **read_source_file** - Read specific source files for implementation details
-7. **report_result** - Report success/failure and document findings (ALWAYS include doc_issues!)
+4. **acquire_token** - Dynamically acquire tokens (app, business) when needed for privileged endpoints
+5. **find_service_for_endpoint** - Find which microservice handles an endpoint (call BEFORE searching code!)
+6. **search_source_code** - Search backend code (use correct repository from find_service_for_endpoint!)
+7. **read_source_file** - Read specific source files for implementation details
+8. **report_result** - Report success/failure and document findings (ALWAYS include doc_issues!)
 
-## Available Tokens
-${Object.keys(config.tokens || {}).join(', ')}
+## Available Tokens (USE THESE DIRECTLY!)
+
+The following tokens are ALREADY CONFIGURED and can be used with \`execute_api(token_type="...")\`:
+${Object.entries(config.tokens || {}).map(([type, token]) => {
+  if (token && typeof token === 'string' && token.length > 10) {
+    return `- **${type}**: ✓ Available (use token_type="${type}")`;
+  }
+  return null;
+}).filter(Boolean).join('\n')}
+
+**IMPORTANT**: If an endpoint requires a "directory" or "admin" token and you have one configured above,
+just use \`execute_api(..., token_type="directory")\` - you do NOT need to acquire it!
 
 ## API URLs
 - **Primary URL**: ${config.baseUrl}
@@ -919,10 +1807,77 @@ ${Object.keys(config.tokens || {}).join(', ')}
 If an API call returns 404 or routing errors (502/503), try using \`use_fallback: true\` in execute_api to use the fallback URL.
 Some legacy endpoints may only be available on the fallback URL.
 
+## Dynamic Token Acquisition (for APP tokens!)
+
+Use \`acquire_token\` when you need an **app-specific token** that's not in the configured tokens above.
+
+**When to use acquire_token**:
+- Endpoint says "Available for App Tokens only" (like POST /v3/apps/widgets) → use \`action="app_oauth"\`
+- Endpoint starts with /client/* and requires client context → use \`action="client_jwt"\`
+- You need to authenticate AS a specific app (like an app with app_type="widgets")
+- The endpoint requires OAuth app credentials
+
+**When NOT to use acquire_token**:
+- You already have a directory/admin/staff token configured - just use token_type parameter!
+- Getting 401 errors - first try using a DIFFERENT configured token type
+
+### Getting App Tokens (OAuth) - THE CORRECT WAY!
+
+**If you need an APP TOKEN** (e.g., for endpoints requiring app_type="widgets"):
+
+**STEP 1**: Create an app with the right type:
+\`\`\`
+execute_api(method="POST", path="/platform/v1/apps", token_type="directory", body={
+  "name": "Test App",
+  "app_code_name": "testapp123456",
+  "app_type": "widgets",  // or whatever type is needed
+  "redirect_uri": "https://example.com/callback"
+})
+\`\`\`
+**SAVE the returned \`client_id\` and \`client_secret\`!**
+
+**STEP 2**: Get the app token via OAuth:
+\`\`\`
+acquire_token(action="app_oauth", client_id="<client_id>", client_secret="<client_secret>")
+\`\`\`
+
+**STEP 3**: Now use token_type="app" in your API calls:
+\`\`\`
+execute_api(..., token_type="app")
+\`\`\`
+
+### Getting Client Tokens (for /client/* endpoints)
+
+**If the endpoint starts with /client/ (like /client/payments/v1/*)**, it requires a **CLIENT TOKEN** (JWT with client context):
+
+\`\`\`
+acquire_token(action="client_jwt")
+\`\`\`
+
+This automatically:
+1. Fetches a client from GET /platform/v1/clients (or uses configured client_uid)
+2. Sends a login link to get auth token (works in dev/integration environments)
+3. Exchanges auth token for client JWT
+
+**Then use token_type="client"** in your API calls:
+\`\`\`
+execute_api(..., token_type="client")
+\`\`\`
+
+You can also specify a specific client:
+\`\`\`
+acquire_token(action="client_jwt", client_uid="abc123", business_uid="xyz789")
+\`\`\`
+
+### Other Token Actions (for directory/business tokens)
+- **List tokens**: \`acquire_token(action="list", app_id="123")\` - list existing tokens
+- **Create directory token**: \`acquire_token(action="create", directory_id="123")\`
+
 ## Available Parameters (already resolved)
 \`\`\`json
 ${JSON.stringify(resolvedParams, null, 2)}
 \`\`\`
+${swaggerContext}
 ${workflowContext}
 ## MANDATORY WORKFLOW - Follow This Exactly!
 
@@ -942,12 +1897,89 @@ For EACH unresolved UID field:
 
 **CRITICAL**: Do NOT proceed to retry until ALL required UIDs have been attempted!
 
+### Phase 2.5: Token Selection (When Needed)
+
+If you encounter 401/403 errors or the endpoint documentation says it requires a specific token type:
+
+**STEP 1: Try a different CONFIGURED token first!**
+- Check the "Available Tokens" section above - you may already have the token you need!
+- If docs say "Available for Directory Tokens" and you have a directory token: \`execute_api(..., token_type="directory")\`
+- If docs say "Available for Staff Tokens" and you have a staff token: \`execute_api(..., token_type="staff")\`
+- If docs say "Available for Admin Tokens" - try directory token first, it often has similar permissions
+
+**STEP 2: If endpoint requires an APP TOKEN (like "Available for App Tokens only")**
+
+This is for endpoints that require OAuth app authentication (e.g., POST /v3/apps/widgets requires app_type="widgets"):
+
+1. **Create an app** with the required type via POST /platform/v1/apps (using directory token)
+   - SAVE the \`client_id\` and \`client_secret\` from the response!
+2. **Get app token** via OAuth: \`acquire_token(action="app_oauth", client_id="...", client_secret="...")\`
+3. **Use the app token**: \`execute_api(..., token_type="app")\`
+
+**STEP 3: If no suitable token is available AND you've tried all alternatives**
+- Report as FAIL with skip_suggestion: true
+- Provide clear reason: "Requires [token type] which cannot be acquired"
+
+### Phase 2.6: App Assignment (When Endpoint Requires Installed/Assigned App)
+
+**If an endpoint requires an app to be assigned to a business (e.g., /business/clients/v1/apps/{app_code_name}/*):**
+
+1. **Create the app** with directory token:
+   \`\`\`json
+   POST /platform/v1/apps
+   {"name":"Test App","app_code_name":"testapp{{timestamp}}","app_type":"import_clients","redirect_uri":"https://example.com/callback"}
+   \`\`\`
+   
+2. **Assign the app to the business using INTERNAL mode** (this bypasses installation requirements!):
+   \`\`\`json
+   POST /v3/apps/app_assignments
+   {
+     "app_code_name": "testapp{{timestamp}}",
+     "assignee_uid": "{{business_uid}}",
+     "assignee_type": "business",
+     "settings": {"assignment_mode": "internal"}
+   }
+   \`\`\`
+
+**IMPORTANT**: Using \`assignment_mode: "internal"\` bypasses the need for app installation. This is the correct way to test endpoints that require an installed/assigned app.
+
+**DO NOT SKIP** tests that require app assignment - use the pattern above instead!
+
 ### Phase 3: Retry Original Request (Retry counting starts here)
 
-Once all UIDs are resolved:
-1. Call \`execute_api\` with the original endpoint using resolved UIDs (purpose: "retry_original")
+Once all UIDs are resolved AND you have the right token:
+1. Call \`execute_api\` with the original endpoint using resolved UIDs and correct token_type (purpose: "retry_original")
 2. If 2xx response: Call \`report_result\` with success=true and document uid_resolution + doc_issues
-3. If still failing with unclear error: **USE SOURCE CODE EXPLORATION!**
+3. If still failing: **EXPLORE ALTERNATIVES before giving up!**
+
+### Phase 3.5: Find Alternative Entities (When Type/Permission Errors)
+
+**If you get errors like:**
+- "App type doesn't support X"
+- "Entity type not compatible"
+- "This resource doesn't allow Y"
+- 403 with type-related message
+
+**DO NOT SKIP!** Instead:
+
+1. **Find compatible entities using GET endpoints:**
+   - \`GET /platform/v1/apps\` (with directory token) → Find apps that DO support the feature
+   - \`GET /v3/apps/widgets\` → See what entities already have widgets
+   - Look at response fields like \`type\`, \`features\`, \`capabilities\`
+
+2. **Create a compatible entity if possible:**
+   - \`POST /platform/v1/apps\` with the right \`app_type\`
+   - Check source code to understand valid types
+
+3. **Document the requirements as doc_issues:**
+   - "Swagger doesn't specify which app types support widgets"
+   - "Missing prerequisite: app must have type=X"
+
+**Example workflow for "app type doesn't support widgets":**
+1. \`execute_api(GET /platform/v1/apps, token_type="directory")\` → List all apps
+2. Look for apps with widget support in the response
+3. Use that app's token or create an app with correct type
+4. If no compatible app found, report as FAIL with critical doc_issue
 
 ### Phase 4: Source Code Exploration (When Needed)
 
@@ -956,6 +1988,7 @@ Once all UIDs are resolved:
 - Validation errors that don't match documentation
 - Unclear error messages (especially 500 errors)
 - Missing required fields not documented
+- Type/permission requirements that aren't documented
 
 Then you MUST follow this process:
 
@@ -988,17 +2021,57 @@ Then you MUST follow this process:
 - The endpoint returned a 2xx response with valid data
 - The test is successful
 
-### status: "skip" (IMPORTANT!)
-Use "skip" when the endpoint is **working correctly** but cannot be tested due to business constraints:
-- **Resource already exists**: e.g., "Staff already has a business role - each staff can only have one"
-- **One-time operations**: e.g., "Account already activated - can only activate once"
-- **Unique constraints**: e.g., "Email already registered - cannot create duplicate"
-- **State-dependent**: e.g., "Invoice already paid - cannot pay again"
+### status: "skip" (⚠️ DO NOT USE - USE "fail" WITH skip_suggestion INSTEAD!)
 
-When using skip:
-1. The endpoint IS working correctly (it's enforcing business rules)
-2. Document the constraint in \`doc_issues\` if not in swagger
-3. This will be saved in workflow so future runs don't retry
+**⛔ NEVER report status="skip" directly!**
+
+Skip requires user approval. Instead, use status="fail" with a skip_suggestion.
+
+The user will review failed tests and can manually approve skips in the UI.
+
+#### When you WOULD have skipped, do this instead:
+
+Report as **FAIL** with:
+- \`status: "fail"\`
+- \`skip_suggestion: true\`
+- \`skip_reason: "Explanation of why this might need to be skipped"\`
+- \`doc_issues\`: ALWAYS include what's missing from documentation
+
+**Example:**
+\`\`\`json
+{
+  "status": "fail",
+  "summary": "Requires admin token which cannot be acquired",
+  "skip_suggestion": true,
+  "skip_reason": "This endpoint requires internal admin token. Tried: staff, directory, business tokens. All returned 401.",
+  "doc_issues": [{
+    "field": "authentication",
+    "issue": "Documentation doesn't specify this requires internal admin access",
+    "suggested_fix": "Add note: 'Available for Internal Admin Tokens only'",
+    "severity": "critical"
+  }]
+}
+\`\`\`
+
+#### Before suggesting skip, you MUST try ALL of these:
+
+**1. Try ALL configured tokens:**
+   - \`execute_api(..., token_type="staff")\`
+   - \`execute_api(..., token_type="directory")\`
+   - \`execute_api(..., token_type="business")\`
+   - \`acquire_token\` for app-specific tokens
+
+**2. Create fresh test data:**
+   - "Already exists"? Create NEW entity (staff, client, etc.)
+   - "Unique constraint"? Use unique values: \`test-{timestamp}@example.com\`
+
+**3. Find alternative entities:**
+   - "App type doesn't support X"? Use GET to find apps that DO support X
+   - Example: \`GET /platform/v1/apps\` with directory token
+
+**4. Explore source code** to understand requirements
+
+**5. ALWAYS report doc_issues** - even with skip_suggestion!
 
 ### status: "fail"
 - The endpoint has a real bug or documentation is fundamentally wrong
@@ -1006,23 +2079,89 @@ When using skip:
 
 ## Documentation Issues (doc_issues)
 
-You MUST report doc_issues when you discover:
-- Fields required in code but not documented
-- Different field names than documented
-- Different data types or formats
-- Missing enum values
-- Undocumented validation rules
-- Any behavior that differs from swagger/documentation
+**⚠️ IMPORTANT: Only report ACTUAL documentation issues, not trial-and-error discoveries!**
+
+### WORKFLOW-AWARE BEHAVIOR
+
+**If a cached workflow exists and you followed it successfully:**
+- ✓ The test is a clean PASS - the workflow documents the correct procedure
+- ✓ DO NOT report doc_issues about requirements that are ALREADY documented in the swagger
+- ✓ The system will automatically filter out issues that are already in the swagger description
+
+**Check the swagger description BEFORE reporting doc_issues!**
+- If swagger says "Available for App Tokens only. The app must have app_type='widgets'" - DON'T report this as a doc issue!
+- If swagger already documents the error message you encountered - DON'T report it as a doc issue!
+- If swagger mentions "uniqueness constraint" or "can only have one" - DON'T report uniqueness issues!
+- If swagger mentions "must be a valid UID" or "use GET to find valid UIDs" - DON'T report UID validation issues!
+- Only report issues that are GENUINELY missing from the swagger documentation
+
+**Common Already-Documented Patterns (DO NOT REPORT):**
+- Uniqueness constraints: "Each staff member can only have ONE board per type"
+- UID validation: "Must be a valid UID from an existing Widget/Board/Template"
+- Token requirements: "Available for App/Staff/Directory Tokens"
+- Error messages: If swagger mentions "Duplication Error" or similar
+
+Before reporting a doc_issue, ask yourself:
+1. Did the ORIGINAL request already have the correct format according to the swagger?
+2. Did the test fail due to TOKEN/PERMISSION issues, not format issues?
+3. Is the "fix" you discovered actually different from what the swagger documents?
+4. **NEW**: Is this requirement ALREADY documented in the swagger description?
+
+**DO NOT report doc_issues if:**
+- The original request format was correct (matched the swagger schema)
+- The failure was due to wrong token type (401/403), not request format (400)
+- The API returned a permission error, not a validation error
+- You changed the format experimentally but the original was already valid
+- **The swagger description ALREADY documents the requirement you discovered**
+- **The issue is about test data using 'test_string' or placeholder values** - that's a test framework issue, not documentation
+- **The issue is about example format** - if validation rules are documented, examples are minor
+- **The field description already lists valid values** - e.g., "Valid values are: [x, y, z]"
+- **HTTP status code is 200 vs 201** - both indicate success, this is too minor
+- **The issue mentions "documentation is actually correct" or "no changes needed"**
+
+**COMMON FALSE POSITIVES TO AVOID:**
+1. "Test data used 'test_string' which is not valid" → NOT a doc issue (test framework problem)
+2. "Doesn't specify valid values" when description says "Valid values are: [...]" → ALREADY DOCUMENTED
+3. "Example should use realistic values" → Minor, not critical
+4. "OAuth credentials must be real" when docs mention "credentials from POST /platform/v1/apps" → ALREADY DOCUMENTED
+5. "Returns HTTP 201 instead of 200" → Both are success, too minor to report
+6. Reporting issues about scopes/permissions/categories when the description already lists them → READ THE DESCRIPTION!
+
+**DO report doc_issues only when:**
+- The swagger schema is genuinely incorrect (e.g., says string but API requires object)
+- Required fields are missing from the swagger documentation
+- Token requirements are NOT documented anywhere in the swagger
+- Validation rules are undocumented (confirmed via source code or clear 400 errors)
+- **You have verified the issue is NOT in the swagger description or field descriptions**
 
 Example doc_issues format:
 \`\`\`json
 [{
-  "field": "products",
-  "issue": "Documentation says products can be null, but API requires empty array []",
-  "suggested_fix": "Update swagger to show products as required array, default []",
+  "field": "authentication",
+  "issue": "Swagger doesn't document that app tokens with app_type='widgets' are required",
+  "suggested_fix": "Add: 'Available for App Tokens only. App must have app_type=widgets.'",
   "severity": "critical",
-  "source_code_reference": "modules/payments/app/components/packages_api.rb:45"
+  "source_code_reference": "Confirmed via 403 error: 'This app's type does not support widgets'"
 }]
+\`\`\`
+
+**NOT a valid doc_issue:**
+\`\`\`json
+// DON'T report this if swagger already shows display_name as object:
+{
+  "field": "display_name",
+  "issue": "Documentation shows string but API expects object"  // WRONG if swagger is correct!
+}
+// DON'T report test data issues:
+{
+  "field": "app_code_name",
+  "issue": "Test data used 'test_string' which is not valid"  // WRONG - test framework issue!
+}
+// DON'T report if values are already documented:
+{
+  "field": "scopes",
+  "issue": "Doesn't specify valid values"  // WRONG if description says "Valid values are: ..."
+}
 \`\`\`
 
 ## Critical Rules
@@ -1034,6 +2173,21 @@ Example doc_issues format:
 - **ALWAYS** document doc_issues - even if you can't fix the test!
 - When API says "business_id", use business_uid value (the string UID)
 - Same for other entities: "service_id" usually means service_uid
+
+## ⚠️ IMPORTANT: Workflow Storage Rules
+
+When reporting uid_resolution, document the **PROCEDURE**, not specific values:
+- **DO**: \`source_endpoint: "GET /v3/apps/widgets"\`, \`extract_from: "data.widgets[0].uid"\`
+- **DON'T**: \`resolved_value: "33321644-a7c7-4062-bf85-a21bb36bc2e8"\`
+
+Only the following UIDs should come from config (not resolved dynamically):
+- business_uid, business_id
+- staff_uid, staff_id  
+- client_uid, client_id
+- directory_id
+- matter_uid
+
+All OTHER UIDs (widget_uid, board_uid, service_uid, etc.) must be resolved dynamically using the documented procedure.
 
 ## All Available API Endpoints (${allEndpoints.length} total)
 ${endpointsContext}`;
@@ -1093,6 +2247,8 @@ async function runAgentHealer(options) {
     ...resolvedParams
   };
   
+  const healingLog = [];
+  
   const context = {
     apiClient,
     config,
@@ -1105,7 +2261,10 @@ async function runAgentHealer(options) {
     successfulRequest: null,
     lastSuccessfulResponse: null,
     savedWorkflow: false,
-    docFixSuggestions: []
+    docFixSuggestions: [],
+    healingLog,  // Track actions for workflow comparison
+    filteredOutDocIssues: [],
+    workflowDeviation: null
   };
   
   const systemPrompt = buildSystemPrompt(endpoint, allEndpoints, config, allParams);
@@ -1136,7 +2295,7 @@ Follow the MANDATORY WORKFLOW:
 5. Call report_result with your findings - ALWAYS include doc_issues for any documentation discrepancies!`;
 
   const messages = [{ role: "user", content: userMessage }];
-  const healingLog = [];
+  // healingLog is now tracked in context for workflow comparison
   let iterations = 0;
   const maxIterations = 100; // High limit since UID resolution doesn't count toward retries
   
@@ -1152,7 +2311,7 @@ Follow the MANDATORY WORKFLOW:
     
     // Check retry limit
     if (context.retryCount > maxRetries) {
-      healingLog.push({
+      context.healingLog.push({
         type: 'max_retries',
         iteration: iterations,
         retryCount: context.retryCount
@@ -1182,7 +2341,7 @@ Follow the MANDATORY WORKFLOW:
     // Log any text response
     if (textBlocks.length > 0) {
       const thought = textBlocks.map(b => b.text).join('\n');
-      healingLog.push({
+      context.healingLog.push({
         type: 'thought',
         iteration: iterations,
         content: thought
@@ -1196,7 +2355,7 @@ Follow the MANDATORY WORKFLOW:
     
     // If no tool calls, Claude is done thinking
     if (toolUseBlocks.length === 0) {
-      healingLog.push({
+      context.healingLog.push({
         type: 'no_action',
         iteration: iterations,
         content: 'Agent stopped without reporting result'
@@ -1207,7 +2366,7 @@ Follow the MANDATORY WORKFLOW:
     // Execute each tool call
     const toolResults = [];
     for (const toolUse of toolUseBlocks) {
-      healingLog.push({
+      context.healingLog.push({
         type: 'tool_call',
         iteration: iterations,
         tool: toolUse.name,
@@ -1223,7 +2382,7 @@ Follow the MANDATORY WORKFLOW:
       
       const toolResult = await executeTool(toolUse.name, toolUse.input, context);
       
-      healingLog.push({
+      context.healingLog.push({
         type: 'tool_result',
         iteration: iterations,
         tool: toolUse.name,
@@ -1250,7 +2409,7 @@ Follow the MANDATORY WORKFLOW:
           type: 'agent_complete',
           status: toolResult.status,
           success: toolResult.success,
-          skip: toolResult.skip,
+          skipSuggestion: toolResult.skipSuggestion,
           summary: toolResult.summary,
           retryCount: context.retryCount,
           workflowSaved: context.savedWorkflow,
@@ -1258,17 +2417,20 @@ Follow the MANDATORY WORKFLOW:
         });
         
         return {
-          status: toolResult.status,  // 'pass', 'skip', or 'fail'
+          status: toolResult.status,  // 'pass' or 'fail' (skip_suggestion is a flag)
           success: toolResult.success,
-          skip: toolResult.skip,
+          skipSuggestion: toolResult.skipSuggestion,  // Agent suggests skip (requires user approval)
           skipReason: toolResult.skipReason,
           summary: toolResult.summary,
           reason: toolResult.success ? null : toolResult.summary,
           docFixSuggestions: context.docFixSuggestions,
+          filteredOutDocIssues: context.filteredOutDocIssues,
+          followedWorkflow: toolResult.followedWorkflow,
+          workflowDeviations: toolResult.workflowDeviations,
           savedWorkflows: context.savedWorkflow ? [{ endpoint: `${endpoint.method} ${endpoint.path}` }] : [],
           iterations,
           retryCount: context.retryCount,
-          healingLog,
+          healingLog: context.healingLog,
           resolvedParams: context.resolvedParams,
           unresolvedUids: toolResult.unresolvedUids || []
         };
@@ -1298,10 +2460,11 @@ Follow the MANDATORY WORKFLOW:
       ? `Exceeded maximum ${maxRetries} retries`
       : `Reached maximum ${maxIterations} iterations without resolution`,
     docFixSuggestions: context.docFixSuggestions,
+    filteredOutDocIssues: context.filteredOutDocIssues,
     savedWorkflows: [],
     iterations,
     retryCount: context.retryCount,
-    healingLog,
+    healingLog: context.healingLog,
     resolvedParams: context.resolvedParams
   };
 }

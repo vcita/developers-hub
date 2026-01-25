@@ -2,27 +2,54 @@
 endpoint: POST /v3/apps/staff_widgets_boards_templates
 domain: apps
 tags: []
-status: skip
-savedAt: 2026-01-24T13:24:39.328Z
-verifiedAt: 2026-01-24T13:24:39.328Z
+status: success
+savedAt: 2026-01-25T05:29:22.437Z
+verifiedAt: 2026-01-25T05:29:22.437Z
 timesReused: 0
-skipReason: Staff UID 'guwtwt70kxgic65r' already has an active staff widgets boards template. The system enforces a constraint that prevents duplicate entries for active rows, meaning each staff can only have one active template. This is a business rule validation working correctly.
 ---
 # Create Staff widgets boards templates
 
 ## Summary
-Skipped based on cached workflow - Staff UID 'guwtwt70kxgic65r' already has an active staff widgets boards template. The system enforces a constraint that prevents duplicate entries for active rows, meaning each staff can only have one active template. This is a business rule validation working correctly.
-
-## ⚠️ Skip Reason
-
-**This endpoint should be SKIPPED in automated testing.**
-
-Staff UID 'guwtwt70kxgic65r' already has an active staff widgets boards template. The system enforces a constraint that prevents duplicate entries for active rows, meaning each staff can only have one active template. This is a business rule validation working correctly.
-
-This is typically due to a business constraint where the endpoint works correctly but cannot be tested repeatedly (e.g., one-time operations, unique constraints).
+Test passed after removing existing template. The endpoint requires deleting any existing active template before creating a new one, which is documented in the swagger description.
 
 ## Prerequisites
 No specific prerequisites documented.
+
+## UID Resolution Procedure
+
+How to dynamically obtain required UIDs for this endpoint:
+
+⚠️ **This test requires creating fresh test data to avoid "already exists" errors.**
+
+| UID Field | GET Endpoint | Extract From | Create Fresh | Cleanup |
+|-----------|--------------|--------------|--------------|---------|
+| template_uid | GET /v3/apps/staff_widgets_boards_templates | data.staff_widgets_boards_templates[0].uid (for existing template) | ✓ POST /v3/apps/staff_widgets_boards_templates | DELETE /v3/apps/staff_widgets_boards_templates/{uid} |
+
+### Resolution Steps
+
+**template_uid**:
+1. **Create fresh test entity**: `POST /v3/apps/staff_widgets_boards_templates`
+   - Body template: `{"staff_uid":"{{staff_uid}}"}`
+2. Extract UID from creation response: `data.staff_widgets_boards_templates[0].uid (for existing template)`
+3. Run the test with this fresh UID
+4. **Cleanup**: `DELETE /v3/apps/staff_widgets_boards_templates/{uid}`
+
+```json
+{
+  "template_uid": {
+    "source_endpoint": "GET /v3/apps/staff_widgets_boards_templates",
+    "extract_from": "data.staff_widgets_boards_templates[0].uid (for existing template)",
+    "fallback_endpoint": null,
+    "create_fresh": true,
+    "create_endpoint": "POST /v3/apps/staff_widgets_boards_templates",
+    "create_body": {
+      "staff_uid": "{{staff_uid}}"
+    },
+    "cleanup_endpoint": "DELETE /v3/apps/staff_widgets_boards_templates/{uid}",
+    "cleanup_note": "Must delete existing template before creating new one due to uniqueness constraint"
+  }
+}
+```
 
 ## How to Resolve Parameters
 Parameters were resolved automatically.
@@ -31,8 +58,16 @@ Parameters were resolved automatically.
 
 No specific learnings documented.
 
-## Verified Successful Request
+## Request Template
+
+Use this template with dynamically resolved UIDs:
 
 ```json
-null
+{
+  "method": "POST",
+  "path": "/v3/apps/staff_widgets_boards_templates",
+  "body": {
+    "staff_uid": "{{config.params.staff_uid}}"
+  }
+}
 ```

@@ -234,16 +234,80 @@ function isPlaceholderToken(token) {
 }
 
 /**
+ * Decode a JWT token without verification (for inspection only)
+ * @param {string} token - JWT token string
+ * @returns {Object|null} Decoded payload or null if invalid
+ */
+function decodeJWT(token) {
+  if (!token || typeof token !== 'string') return null;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const payload = Buffer.from(parts[1], 'base64').toString('utf8');
+    return JSON.parse(payload);
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Check if a client JWT token is valid (not expired and matches business)
+ * @param {string} token - Client JWT token
+ * @param {Object} configParams - Config params containing business_uid
+ * @returns {Object} { valid: boolean, reason: string|null }
+ */
+function isValidClientToken(token, configParams) {
+  if (!token) return { valid: false, reason: 'no_token' };
+  
+  const decoded = decodeJWT(token);
+  if (!decoded) return { valid: false, reason: 'invalid_jwt' };
+  
+  // Check expiration
+  if (decoded.exp) {
+    const expiresAt = decoded.exp * 1000; // Convert to milliseconds
+    const now = Date.now();
+    if (now > expiresAt) {
+      const expiredAgo = Math.floor((now - expiresAt) / (1000 * 60 * 60 * 24));
+      return { valid: false, reason: `expired_${expiredAgo}_days_ago` };
+    }
+  }
+  
+  // Check if token matches configured business_uid
+  const tokenBusinessUid = decoded.extra?.business_uid;
+  const configBusinessUid = configParams?.business_uid;
+  
+  if (configBusinessUid && tokenBusinessUid && tokenBusinessUid !== configBusinessUid) {
+    return { 
+      valid: false, 
+      reason: `wrong_business_${tokenBusinessUid}_vs_${configBusinessUid}` 
+    };
+  }
+  
+  return { valid: true, reason: null };
+}
+
+/**
  * Get a valid (non-placeholder) token from config
  * @param {string} tokenType - Token type to get
  * @param {Object} configuredTokens - Token configuration object
- * @returns {string|null} Token value or null if placeholder/missing
+ * @param {Object} configParams - Config params (optional, for client token validation)
+ * @returns {string|null} Token value or null if placeholder/missing/invalid
  */
-function getValidToken(tokenType, configuredTokens) {
+function getValidToken(tokenType, configuredTokens, configParams = null) {
   const token = configuredTokens?.[tokenType];
   if (!token || isPlaceholderToken(token)) {
     return null;
   }
+  
+  // For client tokens, perform additional validation
+  if (tokenType === 'client' && configParams) {
+    const { valid, reason } = isValidClientToken(token, configParams);
+    if (!valid) {
+      console.log(`  [Token] Client token invalid: ${reason}`);
+      return null;
+    }
+  }
+  
   return token;
 }
 
@@ -258,15 +322,21 @@ const PRIVILEGED_TOKENS = ['internal', 'operator'];
  * @param {Object} options - Additional options
  * @param {boolean} options.useFallback - Use fallback token when no required tokens specified or when required token is missing
  * @param {string} options.path - Endpoint path for path-based token preference
- * @returns {Object} { tokenType: string|null, token: string|null, isFallback: boolean, shouldSkip: boolean }
+ * @param {Object} options.configParams - Config params for client token validation (business_uid, etc.)
+ * @returns {Object} { tokenType: string|null, token: string|null, isFallback: boolean, shouldSkip: boolean, needsClientToken: boolean }
  */
 function selectToken(requiredTokens, configuredTokens, options = {}) {
-  const { useFallback = true, path = '' } = options;
+  const { useFallback = true, path = '', configParams = null } = options;
+  
+  // Check if this is a client-specific endpoint (either by path or documentation)
+  const isClientPath = path.startsWith('/client');
+  const requiresClientToken = requiredTokens && requiredTokens.includes('client');
+  const isClientEndpoint = isClientPath || requiresClientToken;
   
   // Determine fallback order based on path
   // For /client/* paths, prioritize client token
   let fallbackOrder;
-  if (path.startsWith('/client')) {
+  if (isClientPath) {
     fallbackOrder = ['client', 'staff', 'directory', 'app', 'business', 'operator', 'internal'];
   } else {
     // Default priority order for fallback: staff, directory, app, business, client
@@ -276,13 +346,15 @@ function selectToken(requiredTokens, configuredTokens, options = {}) {
   // If we have required tokens, try to match them
   if (requiredTokens && requiredTokens.length > 0) {
     for (const tokenType of requiredTokens) {
-      const token = getValidToken(tokenType, configuredTokens);
+      // For client tokens, pass configParams for validation (expiry, business_uid match)
+      const token = getValidToken(tokenType, configuredTokens, tokenType === 'client' ? configParams : null);
       if (token) {
         return {
           tokenType,
           token,
           isFallback: false,
-          shouldSkip: false
+          shouldSkip: false,
+          needsClientToken: false
         };
       }
     }
@@ -296,21 +368,40 @@ function selectToken(requiredTokens, configuredTokens, options = {}) {
         token: null,
         isFallback: false,
         shouldSkip: true,
-        skipReason: `Requires ${requiredTokens.join(' or ')} token (not configured)`
+        skipReason: `Requires ${requiredTokens.join(' or ')} token (not configured)`,
+        needsClientToken: false
       };
+    }
+    
+    // If documentation explicitly requires client token and we don't have one,
+    // signal that a client token needs to be acquired (don't fall back to staff)
+    if (requiresClientToken) {
+      // Check if client is the ONLY required token type
+      const clientOnlyRequired = requiredTokens.length === 1 && requiredTokens[0] === 'client';
+      if (clientOnlyRequired || isClientPath) {
+        return {
+          tokenType: 'client',
+          token: null,
+          isFallback: false,
+          shouldSkip: false,
+          needsClientToken: true,
+          skipReason: 'Requires client token - use acquire_token(action="client_jwt") to obtain one'
+        };
+      }
     }
     
     // Required token not found/placeholder - try fallback if enabled
     if (useFallback) {
       for (const tokenType of fallbackOrder) {
-        const token = getValidToken(tokenType, configuredTokens);
+        const token = getValidToken(tokenType, configuredTokens, tokenType === 'client' ? configParams : null);
         if (token) {
           return {
             tokenType,
             token,
             isFallback: true,
             shouldSkip: false,
-            originalRequired: requiredTokens[0] // Track what was originally required
+            originalRequired: requiredTokens[0], // Track what was originally required
+            needsClientToken: isClientEndpoint && tokenType !== 'client'
           };
         }
       }
@@ -321,25 +412,33 @@ function selectToken(requiredTokens, configuredTokens, options = {}) {
       tokenType: requiredTokens[0], // Return first required for error message
       token: null,
       isFallback: false,
-      shouldSkip: false
+      shouldSkip: false,
+      needsClientToken: requiresClientToken
     };
   }
   
   // No required tokens specified - use fallback if enabled
+  // But if it's a /client/* path, prefer client token or signal we need one
   if (useFallback && configuredTokens) {
     for (const tokenType of fallbackOrder) {
-      const token = getValidToken(tokenType, configuredTokens);
+      const token = getValidToken(tokenType, configuredTokens, tokenType === 'client' ? configParams : null);
       if (token) {
         return {
           tokenType,
           token,
-          isFallback: true
+          isFallback: true,
+          needsClientToken: isClientPath && tokenType !== 'client'
         };
       }
     }
   }
   
-  return { tokenType: null, token: null, isFallback: false };
+  return { 
+    tokenType: null, 
+    token: null, 
+    isFallback: false,
+    needsClientToken: isClientPath
+  };
 }
 
 module.exports = {
@@ -351,6 +450,8 @@ module.exports = {
   selectToken,
   isPlaceholderToken,
   getValidToken,
+  isValidClientToken,
+  decodeJWT,
   TOKEN_NORMALIZATION,
   LEGACY_AUTH_TYPES
 };

@@ -2,27 +2,57 @@
 endpoint: POST /oauth/service/token
 domain: apps
 tags: []
-status: skip
-savedAt: 2026-01-24T13:25:03.021Z
-verifiedAt: 2026-01-24T13:25:03.021Z
+status: success
+savedAt: 2026-01-25T05:30:54.250Z
+verifiedAt: 2026-01-25T05:30:54.250Z
 timesReused: 0
-skipReason: Requires valid OAuth application credentials (service_id/service_secret) that exist in the Doorkeeper::Application table. The endpoint is designed to work with real OAuth apps registered in the system, not test data. Using fake credentials results in "Unknown application" error which appears as 500 response.
 ---
 # Create Token
 
 ## Summary
-Skipped based on cached workflow - Requires valid OAuth application credentials (service_id/service_secret) that exist in the Doorkeeper::Application table. The endpoint is designed to work with real OAuth apps registered in the system, not test data. Using fake credentials results in "Unknown application" error which appears as 500 response.
-
-## ⚠️ Skip Reason
-
-**This endpoint should be SKIPPED in automated testing.**
-
-Requires valid OAuth application credentials (service_id/service_secret) that exist in the Doorkeeper::Application table. The endpoint is designed to work with real OAuth apps registered in the system, not test data. Using fake credentials results in "Unknown application" error which appears as 500 response.
-
-This is typically due to a business constraint where the endpoint works correctly but cannot be tested repeatedly (e.g., one-time operations, unique constraints).
+Test passed successfully after resolving OAuth credentials. The endpoint requires valid client_id and client_secret from an actual OAuth app, not test strings.
 
 ## Prerequisites
 No specific prerequisites documented.
+
+## UID Resolution Procedure
+
+How to dynamically obtain required UIDs for this endpoint:
+
+⚠️ **This test requires creating fresh test data to avoid "already exists" errors.**
+
+| UID Field | GET Endpoint | Extract From | Create Fresh | Cleanup |
+|-----------|--------------|--------------|--------------|---------|
+| service_id | GET /platform/v1/apps | data.client_id | ✓ POST /platform/v1/apps | OAuth apps are typically long-lived resources, no cleanup needed |
+
+### Resolution Steps
+
+**service_id**:
+1. **Create fresh test entity**: `POST /platform/v1/apps`
+   - Body template: `{"name":"OAuth Token Test App","app_code_name":"oauthtest{{timestamp}}","app_type":"internal","redirect_uri":"https://example.com/oauth/callback"}`
+2. Extract UID from creation response: `data.client_id`
+3. Run the test with this fresh UID
+4. **Cleanup note**: OAuth apps are typically long-lived resources, no cleanup needed
+
+```json
+{
+  "service_id": {
+    "source_endpoint": "GET /platform/v1/apps",
+    "extract_from": "data.client_id",
+    "fallback_endpoint": "POST /platform/v1/apps",
+    "create_fresh": true,
+    "create_endpoint": "POST /platform/v1/apps",
+    "create_body": {
+      "name": "OAuth Token Test App",
+      "app_code_name": "oauthtest{{timestamp}}",
+      "app_type": "internal",
+      "redirect_uri": "https://example.com/oauth/callback"
+    },
+    "cleanup_endpoint": null,
+    "cleanup_note": "OAuth apps are typically long-lived resources, no cleanup needed"
+  }
+}
+```
 
 ## How to Resolve Parameters
 Parameters were resolved automatically.
@@ -31,8 +61,17 @@ Parameters were resolved automatically.
 
 No specific learnings documented.
 
-## Verified Successful Request
+## Request Template
+
+Use this template with dynamically resolved UIDs:
 
 ```json
-null
+{
+  "method": "POST",
+  "path": "/oauth/service/token",
+  "body": {
+    "service_id": "{{resolved.service_id}}",
+    "service_secret": "{{resolved.uid}}"
+  }
+}
 ```

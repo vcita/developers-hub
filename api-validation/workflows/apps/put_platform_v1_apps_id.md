@@ -2,24 +2,15 @@
 endpoint: PUT /platform/v1/apps/{id}
 domain: apps
 tags: []
-status: skip
-savedAt: 2026-01-24T13:29:50.496Z
-verifiedAt: 2026-01-24T13:29:50.496Z
+status: success
+savedAt: 2026-01-25T05:53:29.337Z
+verifiedAt: 2026-01-25T05:53:29.337Z
 timesReused: 0
-skipReason: The PUT /platform/v1/apps/{id} endpoint requires admin-level authorization to update apps. Staff tokens receive an AuthorizationException when attempting to update apps, which is a business constraint that prevents non-admin users from managing the app marketplace.
 ---
 # Update Apps
 
 ## Summary
-Skipped based on cached workflow - The PUT /platform/v1/apps/{id} endpoint requires admin-level authorization to update apps. Staff tokens receive an AuthorizationException when attempting to update apps, which is a business constraint that prevents non-admin users from managing the app marketplace.
-
-## ⚠️ Skip Reason
-
-**This endpoint should be SKIPPED in automated testing.**
-
-The PUT /platform/v1/apps/{id} endpoint requires admin-level authorization to update apps. Staff tokens receive an AuthorizationException when attempting to update apps, which is a business constraint that prevents non-admin users from managing the app marketplace.
-
-This is typically due to a business constraint where the endpoint works correctly but cannot be tested repeatedly (e.g., one-time operations, unique constraints).
+PUT /platform/v1/apps/{id} endpoint works correctly. Successfully updated app with empty body (HTTP 200) and with actual update data. The original "HTTP null" error appears to have been a transient network/infrastructure issue, not an API problem.
 
 ## Prerequisites
 No specific prerequisites documented.
@@ -31,8 +22,19 @@ Parameters were resolved automatically.
 
 No specific learnings documented.
 
-## Verified Successful Request
+## Request Template
+
+Use this template with dynamically resolved UIDs:
 
 ```json
-null
+{
+  "method": "PUT",
+  "path": "/platform/v1/apps/testapp123",
+  "body": {
+    "name": "Updated Test App",
+    "description": {
+      "short_description": "This is a test description"
+    }
+  }
+}
 ```

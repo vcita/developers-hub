@@ -282,7 +282,12 @@ async function generateQueryParams(endpoint, staticParams = {}, dynamicParams = 
 }
 
 /**
- * Generate request body with AI fallback to basic generation
+ * Generate request body with schema-first approach
+ * 
+ * IMPORTANT: We prefer schema-based generation over AI because:
+ * 1. Schema has the exact structure (allOf, object types, nested properties)
+ * 2. AI doesn't see the full schema and generates generic/incorrect formats
+ * 
  * @param {Object} endpoint - Endpoint object
  * @param {Object} staticParams - Static params from config
  * @param {Object} dynamicParams - Dynamically resolved params
@@ -292,8 +297,21 @@ async function generateQueryParams(endpoint, staticParams = {}, dynamicParams = 
 async function generateRequestBody(endpoint, staticParams = {}, dynamicParams = {}, aiConfig = {}) {
   const allResolved = { ...staticParams, ...dynamicParams };
   
-  // Try AI generation if enabled
+  // ALWAYS prefer schema-based generation when schema is available
+  // This ensures correct handling of allOf, object types, nested structures
+  const hasSchema = endpoint.requestSchema && 
+    (endpoint.requestSchema.properties || 
+     endpoint.requestSchema.allOf || 
+     endpoint.requestSchema.type === 'object');
+  
+  if (hasSchema) {
+    console.log('[AI Param Gen] Using schema-based body generation (schema available)');
+    return generateRequestBodyBasic(endpoint, allResolved);
+  }
+  
+  // Only use AI when no schema is available
   if (aiConfig.enabled && aiConfig.apiKey) {
+    console.log('[AI Param Gen] No schema available, trying AI generation');
     const aiResult = await generateParamsWithAI(endpoint, allResolved, { apiKey: aiConfig.apiKey });
     if (aiResult?.bodyParams && Object.keys(aiResult.bodyParams).length > 0) {
       console.log('[AI Param Gen] Using AI-generated body params');
@@ -301,7 +319,7 @@ async function generateRequestBody(endpoint, staticParams = {}, dynamicParams = 
     }
   }
   
-  // Fallback to basic generation
+  // Final fallback to basic generation
   return generateRequestBodyBasic(endpoint, allResolved);
 }
 
@@ -404,6 +422,44 @@ function isUidField(propName) {
 function generateBasicValue(schema, propName = '', resolvedParams = {}) {
   if (!schema) return null;
   
+  // Handle allOf - merge all sub-schemas and generate from merged
+  if (schema.allOf && Array.isArray(schema.allOf)) {
+    let mergedSchema = {};
+    let mergedRequired = [];
+    
+    for (const sub of schema.allOf) {
+      if (sub.type) mergedSchema.type = sub.type;
+      if (sub.format) mergedSchema.format = sub.format;
+      if (sub.properties) {
+        mergedSchema.properties = { ...mergedSchema.properties, ...sub.properties };
+      }
+      if (sub.required) {
+        mergedRequired = [...mergedRequired, ...sub.required];
+      }
+      if (sub.example !== undefined) mergedSchema.example = sub.example;
+      if (sub.default !== undefined) mergedSchema.default = sub.default;
+      if (sub.enum) mergedSchema.enum = sub.enum;
+      if (sub.items) mergedSchema.items = sub.items;
+      if (sub.minimum !== undefined) mergedSchema.minimum = sub.minimum;
+      if (sub.maximum !== undefined) mergedSchema.maximum = sub.maximum;
+    }
+    
+    if (mergedRequired.length > 0) {
+      mergedSchema.required = [...new Set(mergedRequired)];
+    }
+    
+    // Recurse with merged schema
+    return generateBasicValue(mergedSchema, propName, resolvedParams);
+  }
+  
+  // Handle oneOf/anyOf - use first option
+  if (schema.oneOf && Array.isArray(schema.oneOf) && schema.oneOf.length > 0) {
+    return generateBasicValue(schema.oneOf[0], propName, resolvedParams);
+  }
+  if (schema.anyOf && Array.isArray(schema.anyOf) && schema.anyOf.length > 0) {
+    return generateBasicValue(schema.anyOf[0], propName, resolvedParams);
+  }
+  
   // For uid/id fields, try resolved params
   if (propName && isUidField(propName)) {
     const altKey = propName.replace(/_uid$/, '_id').replace(/_id$/, '_uid');
@@ -453,6 +509,7 @@ function generateBasicValue(schema, propName = '', resolvedParams = {}) {
       return generateFromSchemaBasic(schema, schema.required || [], resolvedParams);
     
     default:
+      // If we have properties but no explicit type, treat as object
       if (schema.properties) {
         return generateFromSchemaBasic(schema, schema.required || [], resolvedParams);
       }

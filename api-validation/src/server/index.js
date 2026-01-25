@@ -291,6 +291,8 @@ app.post('/api/report/full', (req, res) => {
     });
     
     // 4. Create a summary README
+    const timestamp = report.metadata.timestamp || new Date().toISOString();
+    const environment = report.metadata.environment || 'dev';
     const readmeContent = generateReportReadme(report, timestamp, environment, files);
     const readmePath = path.join(reportDir, 'README.md');
     fs.writeFileSync(readmePath, readmeContent, 'utf8');

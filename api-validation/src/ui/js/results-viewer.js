@@ -440,18 +440,35 @@ const ResultsViewer = {
   renderHealingInfo(healingInfo) {
     if (!healingInfo) return '';
     
-    const isSuccess = !healingInfo.failed;
-    const statusIcon = isSuccess ? '✓' : '✗';
-    const statusClass = isSuccess ? 'success' : 'failed';
+    const isSuccess = !healingInfo.failed && !healingInfo.skipSuggestion;
+    const isSkipSuggestion = healingInfo.skipSuggestion;
+    const statusIcon = isSuccess ? '✓' : (isSkipSuggestion ? '⏭️' : '✗');
+    const statusClass = isSuccess ? 'success' : (isSkipSuggestion ? 'skip-suggestion' : 'failed');
+    const statusText = isSuccess ? 'Succeeded' : (isSkipSuggestion ? 'Suggests Skip' : 'Failed');
     
     // Build healing history timeline - support both old and new formats
     const historyHtml = healingInfo.agentLog 
       ? this.renderAgentLog(healingInfo.agentLog)
       : this.renderHealingHistory(healingInfo.healingHistory);
     
+    // Skip suggestion button
+    const skipSuggestionHtml = isSkipSuggestion ? `
+      <div class="skip-suggestion-box">
+        <div class="skip-reason">
+          <strong>⚠️ AI suggests this test should be skipped:</strong>
+          <p>${this.escapeHtml(healingInfo.skipReason || 'No reason provided')}</p>
+        </div>
+        <button class="btn btn-warning btn-approve-skip" onclick="event.stopPropagation(); ResultsViewer.approveSkip(this)">
+          ✓ Approve Skip
+        </button>
+        <small class="skip-note">Approving will save this as a skip workflow for future runs</small>
+      </div>
+    ` : '';
+    
     return `
       <div class="healing-summary ${statusClass}">
-        <h4>${statusIcon} Self-Healing ${isSuccess ? 'Succeeded' : 'Failed'}</h4>
+        <h4>${statusIcon} Self-Healing ${statusText}</h4>
+        ${skipSuggestionHtml}
         <div class="healing-stats">
           <div class="stat">
             <span class="label">Attempts</span>
@@ -954,6 +971,102 @@ const ResultsViewer = {
     } catch (error) {
       console.error('Retry failed:', error);
       button.innerHTML = '❌ Failed';
+      setTimeout(() => {
+        button.innerHTML = originalText;
+        button.disabled = false;
+      }, 2000);
+    }
+  },
+  
+  /**
+   * Approve a skip suggestion and save it as a workflow
+   * @param {HTMLElement} button - The approve skip button element
+   */
+  async approveSkip(button) {
+    const resultItem = button.closest('.result-item');
+    const endpointText = resultItem?.querySelector('.result-endpoint')?.textContent || '';
+    
+    // Find the result data
+    const result = this._results.find(r => r.endpoint === endpointText);
+    if (!result) {
+      alert('Could not find endpoint data');
+      return;
+    }
+    
+    const healingInfo = result.details?.healingInfo;
+    const skipReason = healingInfo?.skipReason || 'User approved skip';
+    
+    // Extract method and path from endpoint text
+    const [method, ...pathParts] = endpointText.split(' ');
+    const path = pathParts.join(' ');
+    
+    // Confirm with user
+    if (!confirm(`Approve skip for ${endpointText}?\n\nReason: ${skipReason}\n\nThis will save a skip workflow for future runs.`)) {
+      return;
+    }
+    
+    // Disable button and show loading state
+    button.disabled = true;
+    const originalText = button.innerHTML;
+    button.innerHTML = '⏳ Saving...';
+    
+    try {
+      const response = await fetch('/api/validate/approve-skip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          endpoint: endpointText,
+          method,
+          path,
+          domain: result.domain || 'general',
+          skipReason
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Update result status to SKIP
+        result.status = 'SKIP';
+        result.reason = 'EXPECTED_ERROR';
+        result.details.healingInfo.skipped = true;
+        result.details.healingInfo.skipSuggestion = false;
+        
+        // Update the result in the DOM
+        const statusBadge = resultItem.querySelector('.status-badge');
+        if (statusBadge) {
+          statusBadge.className = 'status-badge status-skip';
+          statusBadge.textContent = '⏭️ SKIP';
+        }
+        resultItem.className = resultItem.className.replace(/result-\w+/, 'result-skip');
+        
+        // Hide the approve button and show confirmation
+        const skipBox = button.closest('.skip-suggestion-box');
+        if (skipBox) {
+          skipBox.innerHTML = `
+            <div class="skip-approved">
+              ✅ Skip approved and saved to workflow
+              <small>Workflow: ${data.workflowFile}</small>
+            </div>
+          `;
+        }
+        
+        // Update summary counts
+        this.updateSummaryCounts();
+        
+        button.innerHTML = '✅ Approved';
+      } else {
+        throw new Error(data.message || 'Failed to approve skip');
+      }
+      
+    } catch (error) {
+      console.error('Approve skip failed:', error);
+      button.innerHTML = '❌ Failed';
+      alert(`Failed to approve skip: ${error.message}`);
       setTimeout(() => {
         button.innerHTML = originalText;
         button.disabled = false;

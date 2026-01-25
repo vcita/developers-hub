@@ -43,10 +43,11 @@ function createApiClient(config) {
 function buildRequestConfig(endpoint, config, context = {}) {
   // Select appropriate token (with fallback for undocumented endpoints or placeholder tokens)
   // Pass path for path-based token preference (e.g., /client/* endpoints prefer client token)
-  const { tokenType, token, isFallback, originalRequired, shouldSkip, skipReason } = selectToken(
+  // Pass configParams for client token validation (expiry, business_uid match)
+  const { tokenType, token, isFallback, originalRequired, shouldSkip, skipReason, needsClientToken } = selectToken(
     endpoint.tokenInfo.tokens, 
     config.tokens, 
-    { useFallback: true, path: endpoint.path }
+    { useFallback: true, path: endpoint.path, configParams: config.params }
   );
   
   // Skip if endpoint requires privileged tokens we don't have
@@ -238,7 +239,8 @@ function buildRequestConfig(endpoint, config, context = {}) {
     tokenType,
     hasToken: !!token,
     isFallbackToken: isFallback,
-    originalRequired // Track what token was originally required (if fallback used)
+    originalRequired, // Track what token was originally required (if fallback used)
+    needsClientToken // Signal that a client token should be acquired
   };
 }
 
@@ -251,10 +253,11 @@ function buildRequestConfig(endpoint, config, context = {}) {
  */
 async function buildRequestConfigAsync(endpoint, config, context = {}) {
   // Select appropriate token
-  const { tokenType, token, isFallback, originalRequired, shouldSkip, skipReason } = selectToken(
+  // Pass configParams for client token validation (expiry, business_uid match)
+  const { tokenType, token, isFallback, originalRequired, shouldSkip, skipReason, needsClientToken } = selectToken(
     endpoint.tokenInfo.tokens, 
     config.tokens, 
-    { useFallback: true, path: endpoint.path }
+    { useFallback: true, path: endpoint.path, configParams: config.params }
   );
   
   // Skip if endpoint requires privileged tokens we don't have
@@ -392,7 +395,8 @@ async function buildRequestConfigAsync(endpoint, config, context = {}) {
     tokenType,
     hasToken: !!token,
     isFallbackToken: isFallback,
-    originalRequired
+    originalRequired,
+    needsClientToken
   };
 }
 

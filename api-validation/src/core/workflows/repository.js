@@ -341,26 +341,81 @@ function generateMarkdown(data) {
   body.push(prerequisites || 'No specific prerequisites documented.');
   body.push('');
   
-  // Add UID Resolution section if present
+  // Add UID Resolution section if present - PROCEDURES ONLY, NO VALUES
   if (uidResolution && Object.keys(uidResolution).length > 0) {
-    body.push('## UID Resolution');
+    body.push('## UID Resolution Procedure');
     body.push('');
-    body.push('How to obtain required UIDs for this endpoint:');
+    body.push('How to dynamically obtain required UIDs for this endpoint:');
     body.push('');
-    body.push('| UID Field | Source Endpoint | Fallback (Create) | Used Fallback |');
-    body.push('|-----------|-----------------|-------------------|---------------|');
     
+    // Check if any fields require fresh data creation
+    const hasFreshDataCreation = Object.values(uidResolution).some(r => r.create_fresh || r.create_endpoint);
+    
+    if (hasFreshDataCreation) {
+      body.push('⚠️ **This test requires creating fresh test data to avoid "already exists" errors.**');
+      body.push('');
+    }
+    
+    body.push('| UID Field | GET Endpoint | Extract From | Create Fresh | Cleanup |');
+    body.push('|-----------|--------------|--------------|--------------|---------|');
+    
+    // Strip out any hardcoded values, keep only procedures
+    const procedureData = {};
     for (const [field, resolution] of Object.entries(uidResolution)) {
       const source = resolution.source_endpoint || '-';
-      const fallback = resolution.fallback_endpoint || '-';
-      const usedFallback = resolution.used_fallback ? 'Yes' : 'No';
-      body.push(`| ${field} | ${source} | ${fallback} | ${usedFallback} |`);
+      const extractFrom = resolution.extract_from || 'data[0].uid or data[0].id';
+      const createFresh = resolution.create_fresh ? `✓ ${resolution.create_endpoint || 'Yes'}` : '-';
+      const cleanup = resolution.cleanup_endpoint || resolution.cleanup_note || '-';
+      body.push(`| ${field} | ${source} | ${extractFrom} | ${createFresh} | ${cleanup} |`);
+      
+      // Store procedure-only data (no resolved_value)
+      procedureData[field] = {
+        source_endpoint: resolution.source_endpoint || null,
+        extract_from: resolution.extract_from || 'first item uid',
+        fallback_endpoint: resolution.fallback_endpoint || null,
+        create_fresh: resolution.create_fresh || false,
+        create_endpoint: resolution.create_endpoint || null,
+        create_body: resolution.create_body || null,
+        cleanup_endpoint: resolution.cleanup_endpoint || null,
+        cleanup_note: resolution.cleanup_note || null
+      };
     }
     body.push('');
     
-    // Also store as JSON for programmatic access
+    body.push('### Resolution Steps');
+    body.push('');
+    for (const [field, resolution] of Object.entries(uidResolution)) {
+      body.push(`**${field}**:`);
+      
+      if (resolution.create_fresh || resolution.create_endpoint) {
+        // Fresh data creation workflow
+        body.push(`1. **Create fresh test entity**: \`${resolution.create_endpoint}\``);
+        if (resolution.create_body) {
+          body.push(`   - Body template: \`${JSON.stringify(resolution.create_body)}\``);
+        }
+        body.push(`2. Extract UID from creation response: \`${resolution.extract_from || 'data.uid'}\``);
+        body.push(`3. Run the test with this fresh UID`);
+        if (resolution.cleanup_endpoint) {
+          body.push(`4. **Cleanup**: \`${resolution.cleanup_endpoint}\``);
+        } else if (resolution.cleanup_note) {
+          body.push(`4. **Cleanup note**: ${resolution.cleanup_note}`);
+        }
+      } else {
+        // Standard resolution workflow
+        if (resolution.source_endpoint) {
+          body.push(`1. Call \`${resolution.source_endpoint}\``);
+          body.push(`2. Extract from response: \`${resolution.extract_from || 'data[0].uid'}\``);
+        }
+        if (resolution.fallback_endpoint) {
+          body.push(`3. If empty, create via \`${resolution.fallback_endpoint}\``);
+        }
+      }
+      body.push('');
+    }
+    
+    // Store procedure-only JSON (no hardcoded UIDs)
     body.push('```json');
-    body.push(JSON.stringify(uidResolution, null, 2));
+    body.push(JSON.stringify(procedureData, null, 2));
     body.push('```');
     body.push('');
   }
@@ -380,16 +435,98 @@ function generateMarkdown(data) {
   }
   
   body.push('');
-  body.push('## Verified Successful Request');
+  body.push('## Request Template');
   body.push('');
+  body.push('Use this template with dynamically resolved UIDs:');
+  body.push('');
+  
+  // Sanitize the successful request to replace hardcoded UIDs with placeholders
+  const sanitizedRequest = sanitizeRequestForTemplate(successfulRequest);
   body.push('```json');
-  body.push(JSON.stringify(successfulRequest, null, 2));
+  body.push(JSON.stringify(sanitizedRequest, null, 2));
   body.push('```');
   
   // NOTE: Documentation issues are NOT stored in workflows
   // Workflows are success paths only - doc issues are reported once and not cached
   
   return frontmatter + body.join('\n');
+}
+
+/**
+ * Replace hardcoded UIDs with placeholders for workflow templates
+ * UIDs from config (business_uid, staff_uid, client_uid, etc.) are kept as config references
+ * Other UIDs are replaced with descriptive placeholders
+ */
+function sanitizeRequestForTemplate(request) {
+  if (!request) return request;
+  
+  // Config params that should reference config
+  const configParams = ['business_uid', 'business_id', 'staff_uid', 'staff_id', 'client_uid', 'client_id', 'directory_id', 'matter_uid'];
+  
+  // Patterns that look like UIDs (not in config)
+  const uidPatterns = [
+    /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i,  // UUID
+    /^[a-z0-9]{16,}$/i,  // Long alphanumeric strings (like vcita UIDs)
+  ];
+  
+  function sanitize(obj, keyPath = '') {
+    if (obj === null || obj === undefined) return obj;
+    
+    if (Array.isArray(obj)) {
+      return obj.map((item, i) => sanitize(item, `${keyPath}[${i}]`));
+    }
+    
+    if (typeof obj === 'object') {
+      const result = {};
+      for (const [key, value] of Object.entries(obj)) {
+        const fullKey = keyPath ? `${keyPath}.${key}` : key;
+        
+        // Check if this is a UID field
+        if (typeof value === 'string' && (key.endsWith('_uid') || key.endsWith('_id') || key === 'uid' || key === 'id')) {
+          // Is it a config param?
+          if (configParams.includes(key)) {
+            result[key] = `{{config.params.${key}}}`;
+          } else if (uidPatterns.some(p => p.test(value))) {
+            // It's a dynamically resolved UID
+            result[key] = `{{resolved.${key}}}`;
+          } else {
+            result[key] = value;
+          }
+        } else {
+          result[key] = sanitize(value, fullKey);
+        }
+      }
+      return result;
+    }
+    
+    // Check if string value looks like a UID
+    if (typeof obj === 'string' && uidPatterns.some(p => p.test(obj))) {
+      return '{{resolved.uid}}';
+    }
+    
+    return obj;
+  }
+  
+  // Sanitize the request
+  const sanitized = { ...request };
+  
+  // Sanitize path (replace UUID-like segments)
+  if (sanitized.path) {
+    sanitized.path = sanitized.path.replace(
+      /\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/gi,
+      '/{{resolved.uid}}'
+    ).replace(
+      /\/([a-z0-9]{16,})(?=\/|$)/gi,
+      '/{{resolved.uid}}'
+    );
+  }
+  
+  // Sanitize body
+  if (sanitized.body) {
+    sanitized.body = sanitize(sanitized.body);
+  }
+  
+  return sanitized;
 }
 
 /**
