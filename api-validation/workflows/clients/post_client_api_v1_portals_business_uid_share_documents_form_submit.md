@@ -3,8 +3,8 @@ endpoint: POST /client_api/v1/portals/{business_uid}/share_documents_form/submit
 domain: clients
 tags: [client-api, portals, share-documents-form]
 status: skip
-savedAt: 2026-01-25T21:10:12.706Z
-verifiedAt: 2026-01-25T21:10:12.706Z
+savedAt: 2026-01-25T22:22:24.995Z
+verifiedAt: 2026-01-25T22:22:24.995Z
 timesReused: 0
 skipReason: This endpoint requires actual multipart/form-data file uploads with binary content. The API testing framework cannot properly simulate real file uploads - it can only send JSON data. The backend expects file objects with content_type method, not string content.
 ---

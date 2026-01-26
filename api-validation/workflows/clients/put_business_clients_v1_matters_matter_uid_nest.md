@@ -3,14 +3,14 @@ endpoint: PUT /business/clients/v1/matters/{matter_uid}/nest
 domain: clients
 tags: []
 status: success
-savedAt: 2026-01-25T21:03:51.422Z
-verifiedAt: 2026-01-25T21:03:51.422Z
+savedAt: 2026-01-26T05:32:51.457Z
+verifiedAt: 2026-01-26T05:32:51.457Z
 timesReused: 0
 ---
 # Update Nest
 
 ## Summary
-Successfully nested matter under another contact person. The endpoint requires a contact_uid in the request body to specify which contact person the matter should be nested under.
+Successfully nested matter under another contact person. The endpoint required a contact_uid in the request body, which was resolved by fetching existing clients from GET /platform/v1/clients.
 
 ## Prerequisites
 No specific prerequisites documented.
@@ -19,19 +19,15 @@ No specific prerequisites documented.
 
 How to dynamically obtain required UIDs for this endpoint:
 
-⚠️ **This test requires creating fresh test data to avoid "already exists" errors.**
-
 | UID Field | GET Endpoint | Extract From | Create Fresh | Cleanup |
 |-----------|--------------|--------------|--------------|---------|
-| contact_uid | GET /platform/v1/clients | data.clients[0].id | - | No cleanup needed - uses existing clients |
+| contact_uid | GET /platform/v1/clients | data.clients[0].id | - | No cleanup needed - used existing client |
 
 ### Resolution Steps
 
 **contact_uid**:
-1. **Create fresh test entity**: `POST /platform/v1/clients`
-2. Extract UID from creation response: `data.clients[0].id`
-3. Run the test with this fresh UID
-4. **Cleanup note**: No cleanup needed - uses existing clients
+1. Call `GET /platform/v1/clients`
+2. Extract from response: `data.clients[0].id`
 
 ```json
 {
@@ -40,10 +36,10 @@ How to dynamically obtain required UIDs for this endpoint:
     "extract_from": "data.clients[0].id",
     "fallback_endpoint": null,
     "create_fresh": false,
-    "create_endpoint": "POST /platform/v1/clients",
+    "create_endpoint": null,
     "create_body": null,
     "cleanup_endpoint": null,
-    "cleanup_note": "No cleanup needed - uses existing clients"
+    "cleanup_note": "No cleanup needed - used existing client"
   }
 }
 ```

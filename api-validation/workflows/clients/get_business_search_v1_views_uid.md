@@ -3,14 +3,14 @@ endpoint: GET /business/search/v1/views/{uid}
 domain: clients
 tags: []
 status: success
-savedAt: 2026-01-25T20:58:20.245Z
-verifiedAt: 2026-01-25T20:58:20.245Z
+savedAt: 2026-01-26T05:28:17.806Z
+verifiedAt: 2026-01-26T05:28:17.806Z
 timesReused: 0
 ---
 # Get Views
 
 ## Summary
-Test passed successfully after resolving UID. The endpoint GET /business/search/v1/views/{uid} works correctly when provided with a valid view UID.
+Successfully retrieved a specific view by UID. The original failure was due to using a non-existent view UID. Using a valid UID (n0r6yxumbcp7bstu) from GET /business/search/v1/views returned the expected view details.
 
 ## Prerequisites
 No specific prerequisites documented.
@@ -21,7 +21,7 @@ How to dynamically obtain required UIDs for this endpoint:
 
 | UID Field | GET Endpoint | Extract From | Create Fresh | Cleanup |
 |-----------|--------------|--------------|--------------|---------|
-| uid | GET /business/search/v1/views | data[0].uid | - | DELETE /business/search/v1/views/{uid} |
+| uid | GET /business/search/v1/views | data[0].uid | - | - |
 
 ### Resolution Steps
 
@@ -38,24 +38,9 @@ How to dynamically obtain required UIDs for this endpoint:
     "fallback_endpoint": "POST /business/search/v1/views",
     "create_fresh": false,
     "create_endpoint": null,
-    "create_body": {
-      "name": "Test View {{timestamp}}",
-      "description": "A test view",
-      "columns": [
-        {
-          "label": "First Name",
-          "type": "string",
-          "identifier": "first_name",
-          "sortable": true,
-          "sort_options": {}
-        }
-      ],
-      "filter": "[]",
-      "level": "staff",
-      "pinned": false
-    },
-    "cleanup_endpoint": "DELETE /business/search/v1/views/{uid}",
-    "cleanup_note": "Views can be deleted using the DELETE endpoint"
+    "create_body": null,
+    "cleanup_endpoint": null,
+    "cleanup_note": null
   }
 }
 ```

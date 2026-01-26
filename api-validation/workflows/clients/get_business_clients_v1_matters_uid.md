@@ -3,14 +3,14 @@ endpoint: GET /business/clients/v1/matters/{uid}
 domain: clients
 tags: []
 status: success
-savedAt: 2026-01-25T20:58:53.399Z
-verifiedAt: 2026-01-25T20:58:53.399Z
+savedAt: 2026-01-26T05:28:51.365Z
+verifiedAt: 2026-01-26T05:28:51.365Z
 timesReused: 0
 ---
 # Get Matters
 
 ## Summary
-Successfully retrieved matter details using valid matter UID. The original UID 'n0r6yxumbcp7bstu' was not a valid matter UID, but the test passes when using an actual matter UID like 'dqbqxo258gmaqctk'.
+Successfully retrieved matter details using a valid matter UID. The original configured UID was invalid/non-existent, but using an existing matter UID (srwoxbmlnlrpadbj) from GET /business/clients/v1/contacts/{client_uid}/matters returned a complete matter object with all expected fields.
 
 ## Prerequisites
 No specific prerequisites documented.
@@ -21,7 +21,7 @@ How to dynamically obtain required UIDs for this endpoint:
 
 | UID Field | GET Endpoint | Extract From | Create Fresh | Cleanup |
 |-----------|--------------|--------------|--------------|---------|
-| uid | GET /business/clients/v1/contacts/{client_uid}/matters | data.matters[0].uid | - | Matters can be soft-deleted but cleanup endpoint not clearly documented |
+| uid | GET /business/clients/v1/contacts/{client_uid}/matters | data.matters[0].uid | - | - |
 
 ### Resolution Steps
 
@@ -40,12 +40,17 @@ How to dynamically obtain required UIDs for this endpoint:
     "create_endpoint": null,
     "create_body": {
       "display_name": "Test Matter {{timestamp}}",
+      "fields": [
+        {
+          "value": "Test Matter {{timestamp}}"
+        }
+      ],
       "tags": [
-        "test"
+        "test-tag"
       ]
     },
     "cleanup_endpoint": null,
-    "cleanup_note": "Matters can be soft-deleted but cleanup endpoint not clearly documented"
+    "cleanup_note": null
   }
 }
 ```

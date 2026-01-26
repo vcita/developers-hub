@@ -1,16 +1,16 @@
 ---
-endpoint: GET /client/payments/v1/product_orders
+endpoint: GET /client/payments/v1/invoices
 domain: clients
 tags: []
 status: success
-savedAt: 2026-01-25T23:16:29.094Z
-verifiedAt: 2026-01-25T23:16:29.094Z
+savedAt: 2026-01-26T05:22:48.274Z
+verifiedAt: 2026-01-26T05:22:48.274Z
 timesReused: 0
 ---
-# Get Product orders
+# Get Invoices
 
 ## Summary
-Test passes successfully with client token. The endpoint requires client authentication as documented and returns product orders data correctly.
+Test passes successfully. The endpoint requires client token authentication as documented. Using token_type='client' returns HTTP 200 with a valid list of invoices.
 
 ## Prerequisites
 No specific prerequisites documented.
@@ -29,6 +29,6 @@ Use this template with dynamically resolved UIDs:
 ```json
 {
   "method": "GET",
-  "path": "/client/payments/v1/product_orders?matter_uid=8gvnry2logdo5ykv"
+  "path": "/client/payments/v1/invoices"
 }
 ```

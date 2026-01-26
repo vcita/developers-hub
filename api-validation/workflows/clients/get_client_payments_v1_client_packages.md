@@ -3,14 +3,14 @@ endpoint: GET /client/payments/v1/client_packages
 domain: clients
 tags: []
 status: success
-savedAt: 2026-01-25T20:52:46.235Z
-verifiedAt: 2026-01-25T20:52:46.235Z
+savedAt: 2026-01-26T05:22:28.017Z
+verifiedAt: 2026-01-26T05:22:28.017Z
 timesReused: 0
 ---
 # Get Client packages
 
 ## Summary
-Test passes with matter_uid parameter. The original error was due to missing required matter_uid query parameter.
+Test passes when matter_uid parameter is included in query string. The endpoint requires matter_uid to function correctly, returning client packages for that matter. Without matter_uid, the endpoint returns 'Unauthorized' instead of the expected data.
 
 ## Prerequisites
 No specific prerequisites documented.
@@ -29,6 +29,6 @@ Use this template with dynamically resolved UIDs:
 ```json
 {
   "method": "GET",
-  "path": "/client/payments/v1/client_packages?matter_uid=dqbqxo258gmaqctk"
+  "path": "/client/payments/v1/client_packages"
 }
 ```

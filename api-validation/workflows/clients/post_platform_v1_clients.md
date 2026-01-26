@@ -3,14 +3,14 @@ endpoint: POST /platform/v1/clients
 domain: clients
 tags: []
 status: success
-savedAt: 2026-01-25T20:47:59.779Z
-verifiedAt: 2026-01-25T20:47:59.779Z
+savedAt: 2026-01-26T05:16:50.249Z
+verifiedAt: 2026-01-26T05:16:50.249Z
 timesReused: 0
 ---
 # Create Clients
 
 ## Summary
-Successfully created a client after resolving staff_id format and email uniqueness issues. The endpoint returns HTTP 201 with client data and JWT token.
+Successfully created client after resolving staff_id validation and uniqueness constraint. Used staff_uid instead of staff_id and unique email address.
 
 ## Prerequisites
 No specific prerequisites documented.
@@ -31,22 +31,22 @@ Use this template with dynamically resolved UIDs:
   "method": "POST",
   "path": "/platform/v1/clients",
   "body": {
-    "address": "123 Main St",
-    "custom_field1": "Custom Value 1",
-    "custom_field2": "Custom Value 2",
-    "custom_field3": "Custom Value 3",
-    "email": "client1735671695@example.com",
+    "address": "123 Test Street",
+    "custom_field1": "test_value_1",
+    "custom_field2": "test_value_2",
+    "custom_field3": "test_value_3",
+    "email": "test1734632001@example.com",
     "first_name": "John",
     "last_name": "Doe",
     "opt_in_transactional_sms": true,
     "phone": "+1234567890",
-    "source_campaign": "Test Campaign",
-    "source_channel": "web",
-    "source_name": "Website Form",
-    "source_url": "https://example.com/contact",
+    "source_campaign": "test_campaign",
+    "source_channel": "test_channel",
+    "source_name": "test_source",
+    "source_url": "https://test.example.com",
     "staff_id": "{{config.params.staff_id}}",
     "status": "lead",
-    "tags": "new,test"
+    "tags": "test_tag"
   }
 }
 ```

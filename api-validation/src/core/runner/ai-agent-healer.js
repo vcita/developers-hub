@@ -486,10 +486,58 @@ function checkIfDocIssueAlreadyDocumented(docIssue, endpoint, existingWorkflow) 
   }
   
   // =====================================================
-  // EXISTING CHECKS (1-8) - Keep these
+  // FALSE POSITIVE CATEGORY 5: WORKFLOW ISSUES (not documentation issues)
+  // These are resolved by updating the workflow, not the documentation
   // =====================================================
   
-  // 5. Check for uniqueness constraint issues
+  // 5a. UID/resource existence issues - these are WORKFLOW issues, not doc issues
+  // "Resources must exist to be updated" is OBVIOUS and doesn't need documentation
+  // "Request didn't include required params" is a test issue, not doc issue
+  const workflowIssuePatterns = [
+    // Resource/UID existence
+    'must be from existing', 'must exist', 'does not exist', "doesn't exist",
+    'not found', '404', 'uid validation', 'uids must be', 'must reference existing',
+    'existing resources', 'placeholder', 'valid uid', 'real uid', 'actual uid',
+    'doesn\'t clearly specify that', 'used placeholder values', 'test data used',
+    // Missing parameters in test request (not doc issue if params ARE documented)
+    'original test request didn\'t include', 'request didn\'t include', 
+    'request was missing', 'missing the mandatory', 'wasn\'t included',
+    'weren\'t included', 'not provided in request', 'required query parameters',
+    // Successfully resolved via workflow
+    'after providing required', 'after adding', 'resolved by providing'
+  ];
+  
+  for (const pattern of workflowIssuePatterns) {
+    if (issue.includes(pattern)) {
+      return { 
+        isAlreadyDocumented: true, 
+        reason: `Workflow issue, not documentation issue: "${pattern}" - resolved via UID resolution` 
+      };
+    }
+  }
+  
+  // 5b. If test passed and there's a successful workflow, UID-related issues are workflow issues
+  if (existingWorkflow) {
+    const workflowSummary = (existingWorkflow.summary || '').toLowerCase();
+    const workflowStatus = (existingWorkflow.status || '').toLowerCase();
+    
+    // If workflow is successful and issue is about UIDs/resolution
+    if ((workflowStatus === 'success' || workflowSummary.includes('pass')) && existingWorkflow.uidResolution) {
+      if (issue.includes('uid') || issue.includes('id') || issue.includes('doesn\'t specify') ||
+          issue.includes('doesn\'t clearly') || issue.includes('validation')) {
+        return { 
+          isAlreadyDocumented: true, 
+          reason: 'Workflow documents UID resolution - this is a workflow issue, not a doc issue' 
+        };
+      }
+    }
+  }
+  
+  // =====================================================
+  // FALSE POSITIVE CATEGORY 6: Uniqueness constraints
+  // =====================================================
+  
+  // Check for uniqueness constraint issues
   if (issue.includes('uniqueness') || issue.includes('unique') || issue.includes('only have one') || issue.includes('one board per')) {
     if (allDocs.includes('uniqueness constraint') || allDocs.includes('only have one') || allDocs.includes('can only have one')) {
       return { 
@@ -499,7 +547,11 @@ function checkIfDocIssueAlreadyDocumented(docIssue, endpoint, existingWorkflow) 
     }
   }
   
-  // 6. Check for UID validation issues
+  // =====================================================
+  // FALSE POSITIVE CATEGORY 7: UID validation already documented
+  // =====================================================
+  
+  // Check for UID validation issues
   if (issue.includes('uid must') || issue.includes('must reference') || issue.includes('valid uid') || issue.includes('existing widget')) {
     if (allDocs.includes('must be a valid uid') || allDocs.includes('valid uid') || 
         allDocs.includes('existing widget') || allDocs.includes('must reference')) {
@@ -510,7 +562,11 @@ function checkIfDocIssueAlreadyDocumented(docIssue, endpoint, existingWorkflow) 
     }
   }
   
-  // 7. Check for path parameter UID issues
+  // =====================================================
+  // FALSE POSITIVE CATEGORY 8: Path parameter UID issues
+  // =====================================================
+  
+  // Check for path parameter UID issues
   if (field.includes('path') && (field.includes('uid') || field.includes('parameter'))) {
     if (allDocs.includes('must be a valid uid') || allDocs.includes('valid uid') || 
         allDocs.includes('use get') || allDocs.includes('find valid uid') ||
@@ -522,7 +578,11 @@ function checkIfDocIssueAlreadyDocumented(docIssue, endpoint, existingWorkflow) 
     }
   }
   
-  // 8. Authentication/token related issues
+  // =====================================================
+  // FALSE POSITIVE CATEGORY 9: Authentication/token issues
+  // =====================================================
+  
+  // Authentication/token related issues
   if (field === 'authentication' || issue.includes('token') || issue.includes('app_type')) {
     // Check if swagger already mentions app_type requirements
     if (issue.includes('app_type') && allDocs.includes('app_type')) {
@@ -2079,7 +2139,83 @@ Report as **FAIL** with:
 
 ## Documentation Issues (doc_issues)
 
-**⚠️ IMPORTANT: Only report ACTUAL documentation issues, not trial-and-error discoveries!**
+**⚠️ CRITICAL PRINCIPLE: Workflow Issues ≠ Documentation Issues**
+
+### THE GOLDEN RULE
+
+**If an issue can be fixed by updating the WORKFLOW (not the documentation), then:**
+1. ✅ Mark the test as **PASS**
+2. ✅ Document the resolution in **uid_resolution**
+3. ❌ Do NOT report any **doc_issues**
+
+**Workflow issues include:**
+- UIDs/IDs need to exist before they can be used → Just document how to get valid UIDs
+- Resources must be created before update/delete → Just document the creation step
+- Placeholder values don't work → Just document what real values to use
+- Need to call GET before POST → Just document the sequence
+
+**Documentation issues are ONLY:**
+- Schema is genuinely wrong (says string, actually needs object)
+- Required fields are completely undocumented
+- Token requirements are missing from swagger
+- Error codes/messages not documented anywhere
+
+### FEW-SHOT EXAMPLES
+
+**EXAMPLE 1: UID Resolution - PASS, no doc_issues**
+\`\`\`
+Original request: POST /business/search/v1/views/bulk with body: { "views": [{"uid": "view_uid_1"}, {"uid": "view_uid_2"}] }
+Error: 404 "view does not exist"
+
+AI's Actions:
+1. GET /business/search/v1/views → Found real UIDs: "n0r6yxumbcp7bstu", "v4ihloen6ktmyidx"
+2. Retry with real UIDs → HTTP 201 Success
+
+Correct report_result:
+{
+  "status": "pass",
+  "summary": "Test passes. Placeholder UIDs replaced with real view UIDs from GET endpoint.",
+  "uid_resolution": { "view_uids": { "source_endpoint": "GET /business/search/v1/views", "extract_from": "data[].uid" } },
+  "doc_issues": []  // ← EMPTY! This is a workflow issue, not a doc issue
+}
+\`\`\`
+
+**EXAMPLE 2: Wrong token type - PASS after workflow fix, no doc_issues**
+\`\`\`
+Original request: POST /v3/apps/widgets with staff token
+Error: 403 "Requires app token"
+
+AI's Actions:
+1. acquire_token(action="app_oauth") → Got app token
+2. Retry with app token → HTTP 201 Success
+
+Correct report_result:
+{
+  "status": "pass",
+  "summary": "Test passes after acquiring app token via OAuth.",
+  "uid_resolution": { "app_token": { "source_endpoint": "POST /oauth/service/token" } },
+  "doc_issues": []  // ← EMPTY! Swagger already says "Available for App Tokens"
+}
+\`\`\`
+
+**EXAMPLE 3: Real documentation issue - WARN with doc_issues**
+\`\`\`
+Swagger says: { "email": { "type": "string" } }
+API actually requires: { "email": { "type": "string", "format": "email" } }
+Error: 422 "Invalid email format" for "test_string"
+
+Correct report_result:
+{
+  "status": "pass",
+  "summary": "Test passes with valid email format.",
+  "doc_issues": [{
+    "field": "email",
+    "issue": "Swagger doesn't specify email format validation",
+    "suggested_fix": "Add format: 'email' to the email field schema",
+    "severity": "minor"
+  }]
+}
+\`\`\`
 
 ### WORKFLOW-AWARE BEHAVIOR
 

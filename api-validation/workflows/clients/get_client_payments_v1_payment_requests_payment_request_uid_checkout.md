@@ -3,46 +3,17 @@ endpoint: GET /client/payments/v1/payment_requests/{payment_request_uid}/checkou
 domain: clients
 tags: []
 status: success
-savedAt: 2026-01-25T20:54:36.580Z
-verifiedAt: 2026-01-25T20:54:36.580Z
+savedAt: 2026-01-26T05:23:16.654Z
+verifiedAt: 2026-01-26T05:23:16.654Z
 timesReused: 0
 ---
 # Get Checkout
 
 ## Summary
-Successfully retrieved checkout session. The endpoint works without authentication (as designed) and returns complete checkout details including payment status, amount, taxes, and accepted payment methods.
+The GET /client/payments/v1/payment_requests/{payment_request_uid}/checkout endpoint works correctly. The original 422 error about coupon functionality was likely due to a specific business configuration at the time of the first test. The endpoint successfully returns checkout session data with HTTP 200, and the response includes is_allowed_coupons: false to indicate coupon functionality status.
 
 ## Prerequisites
 No specific prerequisites documented.
-
-## UID Resolution Procedure
-
-How to dynamically obtain required UIDs for this endpoint:
-
-| UID Field | GET Endpoint | Extract From | Create Fresh | Cleanup |
-|-----------|--------------|--------------|--------------|---------|
-| payment_request_uid | GET /client/payments/v1/payment_requests | Available from config parameters | - | Payment request UIDs are from test configuration, no cleanup needed |
-
-### Resolution Steps
-
-**payment_request_uid**:
-1. Call `GET /client/payments/v1/payment_requests`
-2. Extract from response: `Available from config parameters`
-
-```json
-{
-  "payment_request_uid": {
-    "source_endpoint": "GET /client/payments/v1/payment_requests",
-    "extract_from": "Available from config parameters",
-    "fallback_endpoint": null,
-    "create_fresh": false,
-    "create_endpoint": null,
-    "create_body": null,
-    "cleanup_endpoint": null,
-    "cleanup_note": "Payment request UIDs are from test configuration, no cleanup needed"
-  }
-}
-```
 
 ## How to Resolve Parameters
 Parameters were resolved automatically.

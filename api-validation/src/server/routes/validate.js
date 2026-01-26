@@ -18,6 +18,7 @@ const { askAIForListEndpoint, addLearnedMapping, removeLearnedMapping, getLearne
 const { validateAgainstSchema, validateStatusCode, buildValidationResult, getSuggestion, FAILURE_REASONS } = require('../../core/validator/response-validator');
 const { createReport, addResult, finalizeReport } = require('../../core/reporter/report-generator');
 const { runAgentHealer, isUnrecoverableError } = require('../../core/runner/ai-agent-healer');
+const workflowRepo = require('../../core/workflows/repository');
 
 // Store for active validation sessions
 const activeSessions = new Map();
@@ -393,7 +394,18 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
       break;
     }
     
-    const { endpoint, phase, captureUid, requiresUid, skip, skipReason, resourceKey } = testItem;
+    let { endpoint, phase, captureUid, requiresUid, skip, skipReason, resourceKey } = testItem;
+    
+    // Check for user-approved skip workflows BEFORE running the test
+    if (!skip) {
+      const endpointKey = `${endpoint.method} ${endpoint.path}`;
+      const existingWorkflow = workflowRepo.get(endpointKey);
+      if (existingWorkflow && existingWorkflow.status === 'skip') {
+        skip = true;
+        skipReason = existingWorkflow.skipReason || existingWorkflow.summary || 'User-approved skip workflow';
+        console.log(`⏭️ Skipping ${endpointKey}: ${skipReason}`);
+      }
+    }
     
     console.log(`Testing: ${endpoint.method} ${endpoint.path}`);
     

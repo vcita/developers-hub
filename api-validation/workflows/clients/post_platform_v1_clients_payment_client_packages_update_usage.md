@@ -3,14 +3,14 @@ endpoint: POST /platform/v1/clients/payment/client_packages/update_usage
 domain: clients
 tags: []
 status: success
-savedAt: 2026-01-25T20:49:52.326Z
-verifiedAt: 2026-01-25T20:49:52.326Z
+savedAt: 2026-01-25T23:12:26.084Z
+verifiedAt: 2026-01-25T23:12:26.084Z
 timesReused: 0
 ---
 # Create Update usage
 
 ## Summary
-Successfully resolved authentication and UID issues. Endpoint works with client token and returns expected 422 error when prerequisites aren't met.
+Endpoint works correctly. Using a valid payment_status_id and client token, the endpoint returns 422 with expected business logic error 'There is no package to use' when client has no suitable packages.
 
 ## Prerequisites
 No specific prerequisites documented.
@@ -21,31 +21,25 @@ How to dynamically obtain required UIDs for this endpoint:
 
 | UID Field | GET Endpoint | Extract From | Create Fresh | Cleanup |
 |-----------|--------------|--------------|--------------|---------|
-| payment_status_id | GET /client/payments/v1/payment_requests | data.payment_requests[0].uid | - | DELETE /platform/v1/payment/client_packages/{uid} |
+| payment_status_id | GET /business/payments/v1/payment_requests | data.payment_requests[0].uid | - | PaymentStatus entities are managed by the payment system and shouldn't be deleted during testing |
 
 ### Resolution Steps
 
 **payment_status_id**:
-1. Call `GET /client/payments/v1/payment_requests`
+1. Call `GET /business/payments/v1/payment_requests`
 2. Extract from response: `data.payment_requests[0].uid`
-3. If empty, create via `POST /platform/v1/payment/client_packages`
 
 ```json
 {
   "payment_status_id": {
-    "source_endpoint": "GET /client/payments/v1/payment_requests",
+    "source_endpoint": "GET /business/payments/v1/payment_requests",
     "extract_from": "data.payment_requests[0].uid",
-    "fallback_endpoint": "POST /platform/v1/payment/client_packages",
+    "fallback_endpoint": null,
     "create_fresh": false,
     "create_endpoint": null,
-    "create_body": {
-      "client_uid": "3lf5pm2472o5g895",
-      "package_id": "d6l0y9icbn5v34re",
-      "matter_uid": "dqbqxo258gmaqctk",
-      "valid_from": "2024-01-01"
-    },
-    "cleanup_endpoint": "DELETE /platform/v1/payment/client_packages/{uid}",
-    "cleanup_note": "Client packages can be deleted via business payments API"
+    "create_body": null,
+    "cleanup_endpoint": null,
+    "cleanup_note": "PaymentStatus entities are managed by the payment system and shouldn't be deleted during testing"
   }
 }
 ```
