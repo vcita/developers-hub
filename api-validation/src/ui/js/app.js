@@ -439,10 +439,141 @@ async function checkTokens() {
   }
 }
 
+/**
+ * Open the paste endpoints modal
+ */
+function openPasteModal() {
+  const modal = document.getElementById('paste-endpoints-modal');
+  const input = document.getElementById('paste-endpoints-input');
+  const preview = document.getElementById('paste-preview');
+  
+  if (modal) {
+    modal.classList.remove('hidden');
+  }
+  if (input) {
+    input.value = '';
+    input.focus();
+    // Add live preview on input
+    input.oninput = updatePastePreview;
+  }
+  if (preview) {
+    preview.classList.add('hidden');
+  }
+}
+
+/**
+ * Close the paste endpoints modal
+ */
+function closePasteModal() {
+  const modal = document.getElementById('paste-endpoints-modal');
+  if (modal) {
+    modal.classList.add('hidden');
+  }
+}
+
+/**
+ * Update paste preview with match count
+ */
+function updatePastePreview() {
+  const input = document.getElementById('paste-endpoints-input');
+  const preview = document.getElementById('paste-preview');
+  const countEl = document.getElementById('paste-match-count');
+  
+  if (!input || !preview || !countEl) return;
+  
+  const text = input.value.trim();
+  if (!text) {
+    preview.classList.add('hidden');
+    return;
+  }
+  
+  const matchedEndpoints = parseAndMatchEndpoints(text);
+  
+  preview.classList.remove('hidden');
+  countEl.textContent = `${matchedEndpoints.length} endpoint${matchedEndpoints.length !== 1 ? 's' : ''}`;
+  countEl.className = matchedEndpoints.length > 0 ? 'preview-count match' : 'preview-count no-match';
+}
+
+/**
+ * Parse comma-separated endpoints and match them to available endpoints
+ */
+function parseAndMatchEndpoints(text) {
+  // Split by comma, handling various formats
+  const parts = text.split(',').map(p => p.trim()).filter(p => p);
+  
+  const matched = [];
+  
+  for (const part of parts) {
+    // Parse "METHOD /path" format
+    const match = part.match(/^(GET|POST|PUT|PATCH|DELETE)\s+(.+)$/i);
+    if (match) {
+      const method = match[1].toUpperCase();
+      const path = match[2].trim();
+      
+      // Find matching endpoint
+      const endpoint = AppState.endpoints.find(e => 
+        e.method.toUpperCase() === method && 
+        (e.path === path || e.path === path.replace(/\/$/, '')) // Handle trailing slash
+      );
+      
+      if (endpoint) {
+        matched.push(endpoint);
+      }
+    } else {
+      // Try to match just by path (any method)
+      const pathOnly = part.trim();
+      const endpoints = AppState.endpoints.filter(e => 
+        e.path === pathOnly || e.path === pathOnly.replace(/\/$/, '')
+      );
+      matched.push(...endpoints);
+    }
+  }
+  
+  return matched;
+}
+
+/**
+ * Apply pasted endpoints - select them in the UI
+ */
+function applyPastedEndpoints() {
+  const input = document.getElementById('paste-endpoints-input');
+  if (!input) return;
+  
+  const text = input.value.trim();
+  if (!text) {
+    alert('Please paste a list of endpoints');
+    return;
+  }
+  
+  const matchedEndpoints = parseAndMatchEndpoints(text);
+  
+  if (matchedEndpoints.length === 0) {
+    alert('No matching endpoints found. Make sure the format is correct:\nGET /v1/path, POST /v1/other-path');
+    return;
+  }
+  
+  // Clear current selection and add matched endpoints
+  AppState.selectedEndpoints.clear();
+  for (const endpoint of matchedEndpoints) {
+    AppState.selectedEndpoints.add(endpoint.id);
+  }
+  
+  // Re-render and close modal
+  renderEndpoints();
+  updateSelectedCount();
+  closePasteModal();
+  
+  // Show success message
+  console.log(`Selected ${matchedEndpoints.length} endpoints from pasted list`);
+}
+
 // Expose functions to window.App for onclick handlers
 window.App = {
   reloadSwaggers,
-  checkTokens
+  checkTokens,
+  openPasteModal,
+  closePasteModal,
+  applyPastedEndpoints
 };
 
 // Initialize on DOM ready

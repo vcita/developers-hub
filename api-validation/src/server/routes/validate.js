@@ -15,7 +15,7 @@ const { createApiClient, buildRequestConfig, buildRequestConfigAsync, executeReq
 const { createRateLimiter } = require('../../core/runner/rate-limiter');
 const { createParamResolver, extractPathParams, hasParamSource, getParamSource, getNestedValue, deriveListEndpoint, generateResourceKey, smartExtractUid, isStaticParam, getListEndpoint, resolveParamByContext } = require('../../core/runner/param-resolver');
 const { askAIForListEndpoint, addLearnedMapping, removeLearnedMapping, getLearnedMapping } = require('../../core/resolver/ai-resolver');
-const { validateAgainstSchema, validateStatusCode, buildValidationResult, getSuggestion, FAILURE_REASONS } = require('../../core/validator/response-validator');
+const { validateAgainstSchema, validateStatusCode, buildValidationResult, getSuggestion, detectSwaggerTypeMismatch, FAILURE_REASONS } = require('../../core/validator/response-validator');
 const { createReport, addResult, finalizeReport } = require('../../core/reporter/report-generator');
 const { runAgentHealer, isUnrecoverableError } = require('../../core/runner/ai-agent-healer');
 const workflowRepo = require('../../core/workflows/repository');
@@ -847,8 +847,36 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
                 }
               } else {
                 // Non-2xx response (but status IS documented)
-                if (schemaValidation.valid) {
-                  // ERROR: API returned documented error with correct schema
+                // First, check if this is a swagger type mismatch (validation error due to wrong type in swagger)
+                const typeMismatch = detectSwaggerTypeMismatch(
+                  response.data, 
+                  fullRequestInfo.data, 
+                  endpoint.requestSchema
+                );
+                
+                if (typeMismatch) {
+                  // FAIL: Swagger has wrong type definition - this is a documentation bug
+                  result = buildValidationResult({
+                    endpoint,
+                    status: 'FAIL',
+                    httpStatus: response.status,
+                    duration,
+                    tokenUsed: tokenType,
+                    reason: FAILURE_REASONS.SWAGGER_TYPE_MISMATCH,
+                    errors: [{
+                      reason: FAILURE_REASONS.SWAGGER_TYPE_MISMATCH,
+                      field: typeMismatch.field,
+                      swaggerType: typeMismatch.swaggerType,
+                      apiExpectedType: typeMismatch.apiExpectedType,
+                      message: typeMismatch.message,
+                      friendlyMessage: `Swagger type mismatch: Field '${typeMismatch.field}' is defined as '${typeMismatch.swaggerType}' in swagger, but API expects '${typeMismatch.apiExpectedType}'.`
+                    }],
+                    request: fullRequestInfo,
+                    response: { status: response.status, headers: response.headers, data: response.data },
+                    suggestion: typeMismatch.suggestion || getSuggestion(FAILURE_REASONS.SWAGGER_TYPE_MISMATCH, typeMismatch)
+                  });
+                } else if (schemaValidation.valid) {
+                  // ERROR: API returned documented error with correct schema (no type mismatch detected)
                   result = buildValidationResult({
                     endpoint,
                     status: 'ERROR',

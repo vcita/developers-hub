@@ -25,6 +25,11 @@ const fs = require('fs');
 const path = require('path');
 const workflowRepo = require('../workflows/repository');
 const { groupByResource, parseResourcePath, getCrudOperation } = require('../orchestrator/resource-grouper');
+const { 
+  detectSwaggerTypeMismatch, 
+  applyTypeConversions, 
+  convertValueToType 
+} = require('../validator/response-validator');
 
 let anthropicClient = null;
 
@@ -1941,6 +1946,40 @@ ${swaggerContext}
 ${workflowContext}
 ## MANDATORY WORKFLOW - Follow This Exactly!
 
+### Phase 0: Check for Swagger Type Mismatch (Immediate Doc Issue!)
+
+**BEFORE doing anything else**, check if the error indicates a SWAGGER_TYPE_MISMATCH:
+
+Look for error messages like:
+- "amount must be a number" (but swagger says type: string)
+- "field X must be an integer" (but swagger says type: string)
+- "expected boolean" (but swagger says type: string)
+
+**If you see this pattern:**
+1. This is a SWAGGER DOCUMENTATION BUG - the type definition in the swagger is wrong
+2. DO NOT try to fix this by changing the request - the swagger needs to be updated
+3. Call \`report_result\` IMMEDIATELY with:
+   - status: "fail"
+   - summary: "Swagger type mismatch: Field 'X' is defined as 'string' but API expects 'number'"
+   - doc_issues: [{
+       field: "the field name",
+       issue: "Type mismatch - swagger says string but API expects number",
+       suggested_fix: "Change type from 'string' to 'number' in swagger schema"
+     }]
+
+**Example**: If you get error "amount must be a number" and the request had "amount": "test_string":
+\`\`\`json
+{
+  "status": "fail",
+  "summary": "Swagger type mismatch: amount is defined as string but API expects number",
+  "doc_issues": [{
+    "field": "amount",
+    "issue": "Type mismatch - swagger defines amount as type 'string' but the API requires a number",
+    "suggested_fix": "Update swagger to change 'amount' field from type: 'string' to type: 'number'"
+  }]
+}
+\`\`\`
+
 ### Phase 1: UID Discovery (No retry counting)
 
 1. **FIRST**: Call \`extract_required_uids\` to get all UID/ID fields needed
@@ -2368,6 +2407,184 @@ async function runAgentHealer(options) {
     maxRetries = 30,  // Increased to allow more exploration attempts
     onProgress
   } = options;
+  
+  // SMART TYPE MISMATCH HANDLING: Instead of short-circuiting, convert types and retry
+  // This allows us to discover ALL type mismatches in one validation run
+  if (result.details?.reason === 'SWAGGER_TYPE_MISMATCH') {
+    const collectedTypeMismatches = [];
+    const healingLog = [];
+    let currentRequestBody = result.details?.request?.data || {};
+    let lastResponse = result;
+    let retryCount = 0;
+    const maxTypeRetries = 10; // Limit retries for type mismatches
+    
+    onProgress?.({
+      type: 'agent_action',
+      action: 'type_mismatch_retry',
+      details: 'Detected type mismatch - will convert and retry to find all issues'
+    });
+    
+    // Collect initial type mismatch(es)
+    const errors = result.details?.errors || [];
+    for (const err of errors) {
+      if (err.field && err.swaggerType && err.apiExpectedType) {
+        collectedTypeMismatches.push({
+          field: err.field,
+          swaggerType: err.swaggerType,
+          apiExpectedType: err.apiExpectedType,
+          message: err.message || err.friendlyMessage
+        });
+      }
+    }
+    
+    // Retry loop: convert types and keep retrying until 200 or no more type mismatches
+    while (retryCount < maxTypeRetries) {
+      retryCount++;
+      
+      // Apply all collected type conversions to the request body
+      const convertedBody = applyTypeConversions(currentRequestBody, collectedTypeMismatches);
+      
+      healingLog.push({
+        type: 'type_conversion_applied',
+        iteration: retryCount,
+        conversions: collectedTypeMismatches.map(m => ({
+          field: m.field,
+          from: m.swaggerType,
+          to: m.apiExpectedType
+        }))
+      });
+      
+      onProgress?.({
+        type: 'agent_action',
+        action: 'type_mismatch_retry',
+        details: `Retry ${retryCount}: Converted ${collectedTypeMismatches.length} field(s) and retrying`
+      });
+      
+      // Retry the API call with converted types
+      try {
+        const token = config.tokens?.[endpoint.tokenType || 'staff'] || config.tokens?.staff;
+        const response = await apiClient.request({
+          method: endpoint.method.toLowerCase(),
+          url: endpoint.path,
+          data: convertedBody,
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        // SUCCESS! We got a 200-level response
+        const isSuccess = response.status >= 200 && response.status < 300;
+        if (isSuccess) {
+          healingLog.push({
+            type: 'type_conversion_success',
+            iteration: retryCount,
+            status: response.status,
+            totalMismatches: collectedTypeMismatches.length
+          });
+          
+          onProgress?.({
+            type: 'agent_complete',
+            status: 'pass',
+            success: true,
+            summary: `Request succeeded after fixing ${collectedTypeMismatches.length} type mismatch(es)`,
+            docIssuesCount: collectedTypeMismatches.length
+          });
+          
+          // Return success but with doc fix suggestions for ALL collected mismatches
+          return {
+            status: 'pass',
+            success: true,
+            skipSuggestion: false,
+            summary: `Request succeeded after type conversion. Found ${collectedTypeMismatches.length} swagger type mismatch(es) that need fixing.`,
+            reason: 'SWAGGER_TYPE_MISMATCH',
+            docFixSuggestions: collectedTypeMismatches.map(m => ({
+              field: m.field,
+              issue: `Type mismatch - swagger defines field as '${m.swaggerType}' but API expects '${m.apiExpectedType}'`,
+              suggested_fix: `Update swagger schema to change '${m.field}' from type '${m.swaggerType}' to type '${m.apiExpectedType}'`,
+              apiErrorMessage: m.message
+            })),
+            filteredOutDocIssues: [],
+            savedWorkflows: [],
+            iterations: retryCount,
+            retryCount: retryCount,
+            healingLog,
+            resolvedParams: resolvedParams
+          };
+        }
+      } catch (error) {
+        const responseData = error.response?.data;
+        const requestSchema = endpoint.requestBody?.content?.['application/json']?.schema;
+        
+        // Check for more type mismatches in the error response
+        const newMismatches = detectSwaggerTypeMismatch(responseData, convertedBody, requestSchema, true);
+        
+        if (newMismatches && newMismatches.length > 0) {
+          // Filter out already collected mismatches
+          const existingFields = new Set(collectedTypeMismatches.map(m => m.field));
+          const uniqueNewMismatches = newMismatches.filter(m => !existingFields.has(m.field));
+          
+          if (uniqueNewMismatches.length > 0) {
+            // Found more type mismatches - add them and continue
+            collectedTypeMismatches.push(...uniqueNewMismatches);
+            currentRequestBody = convertedBody;
+            
+            healingLog.push({
+              type: 'new_type_mismatches_found',
+              iteration: retryCount,
+              newMismatches: uniqueNewMismatches.map(m => m.field)
+            });
+            
+            onProgress?.({
+              type: 'agent_action',
+              action: 'type_mismatch_found',
+              details: `Found ${uniqueNewMismatches.length} more type mismatch(es): ${uniqueNewMismatches.map(m => m.field).join(', ')}`
+            });
+            
+            continue; // Retry with the new conversions
+          }
+        }
+        
+        // No more type mismatches found, but still failing - break out
+        healingLog.push({
+          type: 'type_conversion_failed',
+          iteration: retryCount,
+          status: error.response?.status,
+          error: responseData
+        });
+        break;
+      }
+    }
+    
+    // Exhausted retries or no more type mismatches to fix
+    onProgress?.({
+      type: 'agent_complete',
+      status: 'fail',
+      success: false,
+      summary: `Found ${collectedTypeMismatches.length} swagger type mismatch(es)`,
+      docIssuesCount: collectedTypeMismatches.length
+    });
+    
+    return {
+      status: 'fail',
+      success: false,
+      skipSuggestion: false,
+      summary: `Found ${collectedTypeMismatches.length} swagger type mismatch(es): ${collectedTypeMismatches.map(m => m.field).join(', ')}`,
+      reason: 'SWAGGER_TYPE_MISMATCH',
+      docFixSuggestions: collectedTypeMismatches.map(m => ({
+        field: m.field,
+        issue: `Type mismatch - swagger defines field as '${m.swaggerType}' but API expects '${m.apiExpectedType}'`,
+        suggested_fix: `Update swagger schema to change '${m.field}' from type '${m.swaggerType}' to type '${m.apiExpectedType}'`,
+        apiErrorMessage: m.message
+      })),
+      filteredOutDocIssues: [],
+      savedWorkflows: [],
+      iterations: retryCount,
+      retryCount: retryCount,
+      healingLog,
+      resolvedParams: resolvedParams
+    };
+  }
   
   const client = initializeClient(config.ai?.anthropicApiKey);
   if (!client) {
