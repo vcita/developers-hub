@@ -23,7 +23,7 @@ const app = express();
 const PORT = process.env.PORT || 3500;
 
 // Middleware
-app.use(express.json({ limit: '10mb' })); // Increased limit for large validation reports
+app.use(express.json({ limit: '50mb' })); // Increased limit for large validation reports
 app.use(express.static(path.join(__dirname, '../ui')));
 
 // CORS for development

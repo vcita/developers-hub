@@ -26,6 +26,7 @@ const ResultsViewer = {
     let html = '';
     
     for (const result of sorted) {
+      const resultId = `result-${result.endpoint.replace(/[^a-zA-Z0-9]/g, '-')}`;
       const statusClass = result.status === 'PASS' ? 'pass' : 
                           result.status === 'FAIL' ? 'fail' :
                           result.status === 'WARN' ? 'warn' : 
@@ -37,7 +38,7 @@ const ResultsViewer = {
       const hasDetails = result.details && (result.details.request || result.details.reason);
       
       html += `
-        <div class="result-item result-${statusClass} ${hasDetails ? 'expandable' : ''}">
+        <div id="${resultId}" class="result-item result-${statusClass} ${hasDetails ? 'expandable' : ''}" data-status="${result.status}">
           <div class="result-header" ${hasDetails ? `onclick="ResultsViewer.toggleDetails(this.parentElement)"` : ''}>
             <span class="result-icon">${icon}</span>
             <span class="result-endpoint">${result.endpoint}</span>
@@ -293,8 +294,17 @@ const ResultsViewer = {
             <button class="btn btn-small" onclick="event.stopPropagation(); ResultsViewer.copyAsCurl(this)">
               Copy as cURL
             </button>
+            <button class="btn btn-small" onclick="event.stopPropagation(); ResultsViewer.copyJiraPrompt(this)">
+              📋 JIRA Prompt
+            </button>
+            <button class="btn btn-small btn-fix" onclick="event.stopPropagation(); ResultsViewer.copyFixPrompt(this)">
+              🔧 Fix It
+            </button>
             <button class="btn btn-small btn-retry" onclick="event.stopPropagation(); ResultsViewer.retryEndpoint(this)">
               🔄 Retry
+            </button>
+            <button class="btn btn-small btn-skip" onclick="event.stopPropagation(); ResultsViewer.skipEndpoint(this)">
+              ⏭️ Skip
             </button>
           </div>
         </div>
@@ -336,13 +346,12 @@ const ResultsViewer = {
               <div class="detail-label">Schema Errors:</div>
               <div class="detail-value errors">
                 <ul>
-                  ${details.errors.filter(e => e.reason !== 'PARAM_NAME_MISMATCH').slice(0, 5).map(e => `
+                  ${details.errors.filter(e => e.reason !== 'PARAM_NAME_MISMATCH').map(e => `
                     <li>
                       <code>${e.path || '/'}</code>: ${e.friendlyMessage || e.message}
                       ${e.keyword ? `<span class="error-keyword">(${e.keyword})</span>` : ''}
                     </li>
                   `).join('')}
-                  ${details.errors.filter(e => e.reason !== 'PARAM_NAME_MISMATCH').length > 5 ? `<li class="more-errors">... and ${details.errors.filter(e => e.reason !== 'PARAM_NAME_MISMATCH').length - 5} more errors</li>` : ''}
                 </ul>
               </div>
             </div>
@@ -374,8 +383,14 @@ const ResultsViewer = {
           <button class="btn btn-small" onclick="event.stopPropagation(); ResultsViewer.copyAsCurl(this)">
             Copy as cURL
           </button>
+          <button class="btn btn-small" onclick="event.stopPropagation(); ResultsViewer.copyJiraPrompt(this)">
+            📋 JIRA Prompt
+          </button>
           <button class="btn btn-small btn-retry" onclick="event.stopPropagation(); ResultsViewer.retryEndpoint(this)">
             🔄 Retry
+          </button>
+          <button class="btn btn-small btn-skip" onclick="event.stopPropagation(); ResultsViewer.skipEndpoint(this)">
+            ⏭️ Skip
           </button>
         </div>
       </div>
@@ -855,6 +870,200 @@ const ResultsViewer = {
   },
   
   /**
+   * Copy JIRA ticket creation prompt to clipboard
+   * @param {HTMLElement} button - Button element clicked
+   */
+  async copyJiraPrompt(button) {
+    const resultItem = button.closest('.result-item');
+    const endpointText = resultItem?.querySelector('.result-endpoint')?.textContent || '';
+    
+    // Find the result data
+    const result = this._results.find(r => r.endpoint === endpointText);
+    if (!result) {
+      alert('Could not find endpoint data');
+      return;
+    }
+    
+    const details = result.details || {};
+    const healingInfo = details.healingInfo || {};
+    const request = details.request || {};
+    const response = details.response || {};
+    
+    // Build error list
+    const errors = (details.errors || [])
+      .slice(0, 5)
+      .map(e => `- ${e.path || '/'}: ${e.friendlyMessage || e.message}`)
+      .join('\n');
+    
+    // Build the prompt
+    const prompt = `Create a JIRA ticket for the following API validation failure.
+
+## Epic
+Associate this ticket with epic: https://myvcita.atlassian.net/browse/VCITA2-11611
+
+## Failure Details
+
+**Endpoint**: ${result.endpoint}
+**HTTP Status**: ${result.httpStatus || 'N/A'}
+**Status**: ${result.status}
+**Failure Reason**: ${details.reason || 'Unknown'}
+
+## Error Description
+${details.friendlyMessage || 'No details available'}
+
+${errors ? `## Validation Errors\n${errors}\n` : ''}
+${details.suggestion ? `## Suggested Fix\n${details.suggestion}\n` : ''}
+${healingInfo.attempted || healingInfo.iterations > 0 ? `## Self-Healing Attempt
+- Attempted: ${healingInfo.attempted || healingInfo.iterations > 0}
+- Iterations: ${healingInfo.iterations || 0}
+- Result: ${healingInfo.summary || healingInfo.reason || 'No summary'}
+` : ''}
+${request.method ? `## Request Details
+- Method: ${request.method}
+- Path: ${request.path || request.url || 'N/A'}
+${request.body || request.data ? `- Body: ${JSON.stringify(request.body || request.data, null, 2)}` : ''}
+` : ''}
+${response.status ? `## Response Details
+- Status: ${response.status}
+- Data: ${typeof response.data === 'object' ? JSON.stringify(response.data, null, 2) : response.data || 'N/A'}
+` : ''}
+## Instructions
+1. Investigate the root cause of this failure
+2. Determine if this is a documentation issue (swagger fix) or code bug
+3. If it's a documentation issue, update the swagger file
+4. If it's a code bug, fix the backend code
+5. Retest the endpoint after the fix
+
+## Token Used
+${result.tokenUsed || 'Unknown'}
+
+## Swagger File
+${result.swaggerFile || 'Unknown'}`;
+
+    try {
+      await navigator.clipboard.writeText(prompt);
+      
+      // Visual feedback
+      const originalText = button.textContent;
+      button.textContent = '✓ Copied!';
+      button.style.backgroundColor = '#4caf50';
+      button.style.color = 'white';
+      
+      setTimeout(() => {
+        button.textContent = originalText;
+        button.style.backgroundColor = '';
+        button.style.color = '';
+      }, 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+      // Fallback: show in a textarea modal
+      const textarea = document.createElement('textarea');
+      textarea.value = prompt;
+      textarea.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:80%;height:60%;z-index:10000;padding:20px;font-family:monospace;font-size:12px;';
+      document.body.appendChild(textarea);
+      textarea.select();
+      alert('Press Ctrl+C to copy, then click OK to close');
+      document.body.removeChild(textarea);
+    }
+  },
+  
+  /**
+   * Copy fix documentation prompt to clipboard
+   * @param {HTMLElement} button - Button element clicked
+   */
+  async copyFixPrompt(button) {
+    const resultItem = button.closest('.result-item');
+    const endpointText = resultItem?.querySelector('.result-endpoint')?.textContent || '';
+    
+    // Find the result data
+    const result = this._results.find(r => r.endpoint === endpointText);
+    if (!result) {
+      alert('Could not find endpoint data');
+      return;
+    }
+    
+    const details = result.details || {};
+    const request = details.request || {};
+    const response = details.response || {};
+    
+    // Build error list
+    const errors = (details.errors || [])
+      .slice(0, 5)
+      .map(e => `- ${e.path || '/'}: ${e.friendlyMessage || e.message}`)
+      .join('\n');
+    
+    // Truncate response data if too long
+    let responseData = response.data;
+    if (typeof responseData === 'object') {
+      const jsonStr = JSON.stringify(responseData, null, 2);
+      responseData = jsonStr.length > 1000 ? jsonStr.substring(0, 1000) + '... [truncated]' : jsonStr;
+    }
+    
+    // Build the prompt
+    const prompt = `fix this documentation error. make sure to dig deep into the code
+
+## Failure Details
+
+**Endpoint**: ${result.endpoint}
+**HTTP Status**: ${result.httpStatus || 'N/A'}
+**Status**: ${result.status}
+**Failure Reason**: ${details.reason || 'Unknown'}
+
+## Error Description
+${details.friendlyMessage || 'No details available'}
+
+${errors ? `## Validation Errors\n${errors}\n` : ''}
+${details.suggestion ? `## Suggested Fix\n${details.suggestion}\n` : ''}
+${request.method ? `## Request Details
+- Method: ${request.method}
+- Path: ${request.path || request.url || 'N/A'}
+${request.body || request.data ? `- Body: ${JSON.stringify(request.body || request.data, null, 2)}` : ''}
+` : ''}
+${response.status ? `## Response Details
+- Status: ${response.status}
+- Data: ${responseData || 'N/A'}
+` : ''}
+## Instructions
+1. Investigate the root cause of this failure
+2. Determine if this is a documentation issue (swagger fix) or code bug
+3. If it's a documentation issue, update the swagger file
+4. If it's a code bug, fix the backend code
+5. Retest the endpoint after the fix
+
+## Token Used
+${result.tokenUsed || 'Unknown'}
+
+## Swagger File
+${result.swaggerFile || 'Unknown'}`;
+
+    try {
+      await navigator.clipboard.writeText(prompt);
+      
+      // Visual feedback
+      const originalText = button.textContent;
+      button.textContent = '✓ Copied!';
+      button.style.backgroundColor = '#4caf50';
+      button.style.color = 'white';
+      
+      setTimeout(() => {
+        button.textContent = originalText;
+        button.style.backgroundColor = '';
+        button.style.color = '';
+      }, 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+      // Fallback: show in a textarea modal
+      const textarea = document.createElement('textarea');
+      textarea.value = prompt;
+      textarea.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:80%;height:60%;z-index:10000;padding:20px;font-family:monospace;font-size:12px;';
+      document.body.appendChild(textarea);
+      textarea.select();
+      alert('Press Ctrl+C to copy, then click OK to close');
+      document.body.removeChild(textarea);
+    }
+  },
+  
+  /**
    * Retry a single endpoint with full self-healing
    * @param {HTMLElement} button - The retry button element
    */
@@ -881,9 +1090,24 @@ const ResultsViewer = {
     // Disable button and show loading state
     button.disabled = true;
     const originalText = button.innerHTML;
-    button.innerHTML = '⏳ Retrying...';
+    button.innerHTML = '📄 Reloading Swagger...';
     
     try {
+      // First, reload swagger files to pick up any documentation changes
+      const reloadResponse = await fetch('/api/reload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (reloadResponse.ok) {
+        const reloadData = await reloadResponse.json();
+        console.log(`Swagger reloaded: ${reloadData.endpointsLoaded} endpoints from ${reloadData.domains?.length || 0} domains`);
+      } else {
+        console.warn('Failed to reload swagger files, proceeding with cached version');
+      }
+      
+      button.innerHTML = '⏳ Retrying...';
+      
       // Start validation for just this endpoint
       const response = await fetch('/api/validate', {
         method: 'POST',
@@ -935,28 +1159,40 @@ const ResultsViewer = {
         const index = this._results.findIndex(r => r.endpoint === endpointText);
         if (index !== -1) {
           this._results[index] = newResult;
+        } else {
+          // If not found, add it
+          this._results.push(newResult);
         }
         
-        // Re-render all results
-        this.render(this._results);
+        // Update just this result (not entire list) to preserve DOM references
+        this.updateResult(newResult);
         
-        // Show status
+        // Update summary counts immediately
+        this.updateSummaryCounts();
+        
+        // Find the new button after DOM update
+        const newResultId = `result-${newResult.endpoint.replace(/[^a-zA-Z0-9]/g, '-')}`;
+        const newResultEl = document.getElementById(newResultId);
+        const newButton = newResultEl?.querySelector('.btn-retry');
+        
+        // Show status on the new button
         const statusIcon = newResult.status === 'PASS' ? '✅' : 
                           newResult.status === 'WARN' ? '⚠️' :
                           newResult.status === 'ERROR' ? '🔶' : '❌';
-        button.innerHTML = `${statusIcon} ${newResult.status}`;
         
-        setTimeout(() => {
-          button.innerHTML = originalText;
-          button.disabled = false;
-        }, 2000);
+        if (newButton) {
+          newButton.innerHTML = `${statusIcon} ${newResult.status}`;
+          newButton.disabled = true;
+          
+          setTimeout(() => {
+            newButton.innerHTML = originalText;
+            newButton.disabled = false;
+          }, 2000);
+        }
       });
       
       eventSource.addEventListener('complete', () => {
         eventSource.close();
-        
-        // Update summary counts
-        this.updateSummaryCounts();
       });
       
       eventSource.addEventListener('error', () => {
@@ -1067,6 +1303,109 @@ const ResultsViewer = {
       console.error('Approve skip failed:', error);
       button.innerHTML = '❌ Failed';
       alert(`Failed to approve skip: ${error.message}`);
+      setTimeout(() => {
+        button.innerHTML = originalText;
+        button.disabled = false;
+      }, 2000);
+    }
+  },
+  
+  /**
+   * Skip an endpoint manually (available for all endpoints)
+   * @param {HTMLElement} button - The skip button element
+   */
+  async skipEndpoint(button) {
+    const resultItem = button.closest('.result-item');
+    const endpointText = resultItem?.querySelector('.result-endpoint')?.textContent || '';
+    
+    // Find the result data
+    const result = this._results.find(r => r.endpoint === endpointText);
+    if (!result) {
+      alert('Could not find endpoint data');
+      return;
+    }
+    
+    // Extract method and path from endpoint text
+    const [method, ...pathParts] = endpointText.split(' ');
+    const path = pathParts.join(' ');
+    
+    // Prompt user for skip reason
+    const skipReason = prompt(
+      `Enter reason for skipping ${endpointText}:\n\n(This will save a skip workflow for future runs)`,
+      'Manual skip - endpoint not ready for testing'
+    );
+    
+    if (!skipReason) {
+      return; // User cancelled
+    }
+    
+    // Disable button and show loading state
+    button.disabled = true;
+    const originalText = button.innerHTML;
+    button.innerHTML = '⏳ Saving...';
+    
+    try {
+      const response = await fetch('/api/validate/approve-skip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          endpoint: endpointText,
+          method,
+          path,
+          domain: result.domain || 'general',
+          skipReason
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Update result status to SKIP
+        result.status = 'SKIP';
+        result.reason = 'USER_SKIPPED';
+        if (!result.details) result.details = {};
+        if (!result.details.healingInfo) result.details.healingInfo = {};
+        result.details.healingInfo.skipped = true;
+        result.details.healingInfo.skipReason = skipReason;
+        
+        // Update the result in the DOM
+        resultItem.className = resultItem.className.replace(/result-(pass|fail|warn|error)/, 'result-skip');
+        resultItem.setAttribute('data-status', 'SKIP');
+        
+        const statusBadge = resultItem.querySelector('.result-status');
+        if (statusBadge) {
+          statusBadge.className = 'result-status status-skip';
+          statusBadge.textContent = 'SKIP';
+        }
+        
+        const iconSpan = resultItem.querySelector('.result-icon');
+        if (iconSpan) {
+          iconSpan.textContent = '○';
+        }
+        
+        // Update summary counts
+        this.updateSummaryCounts();
+        
+        // Re-sort results (skips go to end)
+        this.sortResults();
+        
+        button.innerHTML = '✅ Skipped';
+        setTimeout(() => {
+          button.innerHTML = originalText;
+          button.disabled = false;
+        }, 2000);
+      } else {
+        throw new Error(data.message || 'Failed to skip endpoint');
+      }
+      
+    } catch (error) {
+      console.error('Skip endpoint failed:', error);
+      button.innerHTML = '❌ Failed';
+      alert(`Failed to skip endpoint: ${error.message}`);
       setTimeout(() => {
         button.innerHTML = originalText;
         button.disabled = false;

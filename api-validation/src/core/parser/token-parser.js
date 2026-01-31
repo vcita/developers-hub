@@ -23,12 +23,15 @@ const TOKEN_NORMALIZATION = {
   'application tokens': 'app',
   'application token': 'app',
   'application': 'app',
-  'internal tokens': 'internal',
-  'internal token': 'internal',
-  'internal': 'internal',
+  'internal tokens': 'admin',  // "internal" in docs means admin token
+  'internal token': 'admin',
+  'internal': 'admin',
   'operator tokens': 'operator',
   'operator token': 'operator',
   'operator': 'operator',
+  'admin tokens': 'admin',
+  'admin token': 'admin',
+  'admin': 'admin',
   'appstaff': 'app'
 };
 
@@ -313,7 +316,7 @@ function getValidToken(tokenType, configuredTokens, configParams = null) {
 
 // Privileged token types that should NOT use fallback
 // These tokens have special permissions that other tokens don't have
-const PRIVILEGED_TOKENS = ['internal', 'operator'];
+const PRIVILEGED_TOKENS = ['operator', 'admin'];  // internal now maps to admin
 
 /**
  * Get the first available token type that matches configured tokens
@@ -337,10 +340,10 @@ function selectToken(requiredTokens, configuredTokens, options = {}) {
   // For /client/* paths, prioritize client token
   let fallbackOrder;
   if (isClientPath) {
-    fallbackOrder = ['client', 'staff', 'directory', 'app', 'business', 'operator', 'internal'];
+    fallbackOrder = ['client', 'staff', 'directory', 'app', 'business', 'operator', 'admin'];
   } else {
     // Default priority order for fallback: staff, directory, app, business, client
-    fallbackOrder = ['staff', 'directory', 'app', 'business', 'client', 'operator', 'internal'];
+    fallbackOrder = ['staff', 'directory', 'app', 'business', 'client', 'operator', 'admin'];
   }
   
   // If we have required tokens, try to match them

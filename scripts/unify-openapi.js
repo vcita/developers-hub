@@ -637,6 +637,11 @@ async function processDomain(domainPath, domainName) {
   const pathConflicts = [];
   const componentConflicts = [];
   
+  // Track which file each path came from (for security scheme assignment)
+  const pathSourceFiles = {};
+  // Track security schemes from each source file
+  const fileSecuritySchemes = {};
+  
   // Process each file
   for (const filePath of jsonFiles) {
     const fileName = path.basename(filePath);
@@ -650,12 +655,22 @@ async function processDomain(domainPath, domainName) {
         continue;
       }
       
+      // Extract security scheme from source file
+      const sourceSecurityScheme = content.components?.securitySchemes?.Bearer || 
+                                    content.securityDefinitions?.Bearer || null;
+      
       validFiles.push({
         path: filePath,
         name: fileName,
         content: content,
-        modificationTime: await getFileModificationTime(filePath)
+        modificationTime: await getFileModificationTime(filePath),
+        securityScheme: sourceSecurityScheme
       });
+      
+      // Store the file's security scheme for later reference
+      if (sourceSecurityScheme) {
+        fileSecuritySchemes[fileName] = sourceSecurityScheme;
+      }
       
     } catch (error) {
       log.error(`Error reading ${fileName}: ${error.message}`);
@@ -722,6 +737,8 @@ async function processDomain(domainPath, domainName) {
         log.warn(`Path conflict: ${pathKey} - using ${file.name} over existing`);
       }
       allPaths[pathKey] = pathValue;
+      // Track which file this path came from
+      pathSourceFiles[pathKey] = file.name;
     }
     
     // Merge components (convert Swagger 2.0 definitions if needed)
@@ -737,26 +754,121 @@ async function processDomain(domainPath, domainName) {
     mergedTags = mergeTags(mergedTags, file.content.tags);
   }
 
-  // Ensure Bearer security scheme is added to components
+  // Security scheme handling:
+  // 1. Always add a default Bearer scheme
+  // 2. For each source file, compare its security scheme to the default
+  // 3. If different, create a named custom scheme and use it for that file's endpoints
+  
   if (!mergedComponents.securitySchemes) {
     mergedComponents.securitySchemes = {};
   }
-  mergedComponents.securitySchemes.Bearer = {
+  
+  // Default Bearer scheme
+  const defaultBearerScheme = {
     type: 'http',
     scheme: 'bearer',
     bearerFormat: 'JWT',
-    description: 'JWT Bearer token authentication'
+    description: 'Provide a valid bearer token in the Authorization header. Example: \'Authorization: Bearer {app_token}\''
   };
+  
+  mergedComponents.securitySchemes.Bearer = defaultBearerScheme;
+  
+  // Helper function to check if two security schemes are equivalent
+  function areSecuritySchemesEqual(scheme1, scheme2) {
+    if (!scheme1 || !scheme2) return false;
+    // Compare the key properties that define equivalence
+    return scheme1.type === scheme2.type &&
+           scheme1.scheme === scheme2.scheme &&
+           scheme1.bearerFormat === scheme2.bearerFormat &&
+           scheme1.description === scheme2.description;
+  }
+  
+  // Helper function to generate a clean scheme name from file name
+  function generateSchemeName(fileName) {
+    // Remove extension and convert to PascalCase
+    const baseName = fileName.replace('.json', '').replace(/-/g, '_');
+    const parts = baseName.split('_');
+    return parts.map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('');
+  }
+  
+  // Map files to their security scheme names
+  const fileToSchemeName = {};
+  
+  // Process each file's security scheme
+  for (const [fileName, scheme] of Object.entries(fileSecuritySchemes)) {
+    if (areSecuritySchemesEqual(scheme, defaultBearerScheme)) {
+      // Same as default, use Bearer
+      fileToSchemeName[fileName] = 'Bearer';
+    } else {
+      // Different scheme - create a custom named scheme
+      const customSchemeName = generateSchemeName(fileName);
+      
+      // Check if this exact scheme already exists under a different name
+      let existingSchemeName = null;
+      for (const [existingName, existingScheme] of Object.entries(mergedComponents.securitySchemes)) {
+        if (existingName !== 'Bearer' && areSecuritySchemesEqual(scheme, existingScheme)) {
+          existingSchemeName = existingName;
+          break;
+        }
+      }
+      
+      if (existingSchemeName) {
+        // Reuse existing custom scheme
+        fileToSchemeName[fileName] = existingSchemeName;
+        log.verbose(`File ${fileName} reusing existing security scheme: ${existingSchemeName}`);
+      } else {
+        // Add new custom scheme
+        mergedComponents.securitySchemes[customSchemeName] = scheme;
+        fileToSchemeName[fileName] = customSchemeName;
+        log.info(`Added custom security scheme '${customSchemeName}' for ${fileName}`);
+        log.verbose(`  Description: ${scheme.description?.substring(0, 60)}...`);
+      }
+    }
+  }
 
-  // Add Bearer security to all paths
+  // Helper function to check if an operation has an explicit Authorization header parameter
+  function hasExplicitAuthorizationParam(operation) {
+    if (!operation.parameters) return false;
+    return operation.parameters.some(param => 
+      param.name?.toLowerCase() === 'authorization' && param.in === 'header'
+    );
+  }
+
+  // Add security to all paths based on their source file's security scheme
+  // Skip adding security scheme if:
+  // 1. Endpoint has explicit Authorization header parameter
+  // 2. Endpoint already has a security array defined (including empty array for no-auth endpoints)
   const pathsWithSecurity = {};
   for (const [pathKey, pathMethods] of Object.entries(allPaths)) {
     pathsWithSecurity[pathKey] = {};
+    
+    // Determine which security scheme to use based on source file
+    const sourceFile = pathSourceFiles[pathKey];
+    const securityScheme = fileToSchemeName[sourceFile] || 'Bearer';
+    
     for (const [method, operation] of Object.entries(pathMethods)) {
-      pathsWithSecurity[pathKey][method] = {
-        ...operation,
-        security: [{ Bearer: [] }]
-      };
+      // Check if operation already has a security definition (preserve it)
+      if (operation.security !== undefined) {
+        // Preserve existing security definition (including empty array for no-auth endpoints)
+        log.verbose(`Path ${pathKey} ${method.toUpperCase()} - preserving existing security definition`);
+        pathsWithSecurity[pathKey][method] = operation;
+      } else if (hasExplicitAuthorizationParam(operation)) {
+        // Don't add security scheme - the explicit parameter handles auth
+        log.verbose(`Path ${pathKey} ${method.toUpperCase()} - skipping security scheme (has explicit Authorization param)`);
+        pathsWithSecurity[pathKey][method] = {
+          ...operation,
+          security: []  // Empty security array means no security scheme applied
+        };
+      } else {
+        // Add security scheme
+        if (securityScheme !== 'Bearer') {
+          log.verbose(`Path ${pathKey} (from ${sourceFile}) using ${securityScheme} security scheme`);
+        }
+        pathsWithSecurity[pathKey][method] = {
+          ...operation,
+          security: [{ [securityScheme]: [] }]
+        };
+      }
     }
   }
   

@@ -3,14 +3,14 @@ endpoint: PUT /business/payments/v1/scheduled_payments_rules/{uid}
 domain: sales
 tags: []
 status: success
-savedAt: 2026-01-27T05:23:47.773Z
-verifiedAt: 2026-01-27T05:23:47.773Z
+savedAt: 2026-01-27T05:47:09.538Z
+verifiedAt: 2026-01-27T05:47:09.538Z
 timesReused: 0
 ---
 # Update Scheduled payments rules
 
 ## Summary
-Test passes after resolving UID and providing correct request body format. The endpoint requires request body to be wrapped in 'scheduled_payments_rule' field.
+Test passes after using an active scheduled payment rule. The original UID referred to a cancelled rule, but UPDATE operations require the rule to have status='active'.
 
 ## Prerequisites
 No specific prerequisites documented.
@@ -19,49 +19,42 @@ No specific prerequisites documented.
 
 How to dynamically obtain required UIDs for this endpoint:
 
-⚠️ **This test requires creating fresh test data to avoid "already exists" errors.**
-
 | UID Field | GET Endpoint | Extract From | Create Fresh | Cleanup |
 |-----------|--------------|--------------|--------------|---------|
-| uid | POST /business/payments/rules | data.scheduled_payments_rule.uid | ✓ POST /business/payments/v1/scheduled_payments_rules | PUT /business/payments/v1/scheduled_payments_rules/{uid}/cancel |
+| scheduled_payments_rule_uid | GET /business/payments/v1/scheduled_payments_rules | data.scheduled_payments_rules.find(rule => rule.status === 'active').uid | - | Can be cancelled via PUT /business/payments/v1/scheduled_payments_rules/{uid}/cancel |
 
 ### Resolution Steps
 
-**uid**:
-1. **Create fresh test entity**: `POST /business/payments/v1/scheduled_payments_rules`
-   - Body template: `{"scheduled_payments_rule":{"staff_uid":"{{staff_uid}}","matter_uid":"{{matter_uid}}","name":"Test Recurring Payment {{timestamp}}","description":"Test recurring payment for update","amount":"50.00","currency":"USD","start_date":"2026-02-01","frequency_type":"monthly","cycles":12,"payment_method":{"type":"card","uid":"{{payment_method_uid}}"},"send_receipt":true}}`
-2. Extract UID from creation response: `data.scheduled_payments_rule.uid`
-3. Run the test with this fresh UID
-4. **Cleanup**: `PUT /business/payments/v1/scheduled_payments_rules/{uid}/cancel`
+**scheduled_payments_rule_uid**:
+1. Call `GET /business/payments/v1/scheduled_payments_rules`
+2. Extract from response: `data.scheduled_payments_rules.find(rule => rule.status === 'active').uid`
+3. If empty, create via `POST /business/payments/v1/scheduled_payments_rules`
 
 ```json
 {
-  "uid": {
-    "source_endpoint": "POST /business/payments/rules",
-    "extract_from": "data.scheduled_payments_rule.uid",
-    "fallback_endpoint": null,
-    "create_fresh": true,
-    "create_endpoint": "POST /business/payments/v1/scheduled_payments_rules",
+  "scheduled_payments_rule_uid": {
+    "source_endpoint": "GET /business/payments/v1/scheduled_payments_rules",
+    "extract_from": "data.scheduled_payments_rules.find(rule => rule.status === 'active').uid",
+    "fallback_endpoint": "POST /business/payments/v1/scheduled_payments_rules",
+    "create_fresh": false,
+    "create_endpoint": null,
     "create_body": {
       "scheduled_payments_rule": {
-        "staff_uid": "{{staff_uid}}",
-        "matter_uid": "{{matter_uid}}",
-        "name": "Test Recurring Payment {{timestamp}}",
-        "description": "Test recurring payment for update",
-        "amount": "50.00",
-        "currency": "USD",
+        "name": "Test Active Payment Rule {{timestamp}}",
+        "description": "Test payment rule for update operations",
+        "amount": "100.0",
         "start_date": "2026-02-01",
         "frequency_type": "monthly",
         "cycles": 12,
+        "matter_uid": "{{matter_uid}}",
         "payment_method": {
           "type": "card",
           "uid": "{{payment_method_uid}}"
-        },
-        "send_receipt": true
+        }
       }
     },
-    "cleanup_endpoint": "PUT /business/payments/v1/scheduled_payments_rules/{uid}/cancel",
-    "cleanup_note": null
+    "cleanup_endpoint": null,
+    "cleanup_note": "Can be cancelled via PUT /business/payments/v1/scheduled_payments_rules/{uid}/cancel"
   }
 }
 ```
@@ -82,7 +75,12 @@ Use this template with dynamically resolved UIDs:
   "method": "PUT",
   "path": "/business/payments/v1/scheduled_payments_rules/{{resolved.uid}}",
   "body": {
-    "scheduled_payments_rule": {}
+    "scheduled_payments_rule": {
+      "payment_method": {
+        "type": "card",
+        "uid": "{{resolved.uid}}"
+      }
+    }
   }
 }
 ```

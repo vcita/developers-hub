@@ -66,13 +66,57 @@ function parseWorkflowFile(filePath) {
     
     // Simple YAML parsing (key: value)
     const metadata = {};
+    let currentKey = null;
+    let currentArray = null;
+    
     frontmatter.split('\n').forEach(line => {
+      // Check for array item with key-value pair (e.g., "  - path: /data/offerings/*/type")
+      const arrayItemWithKV = line.match(/^\s+-\s+(\w+):\s*(.*)$/);
+      if (currentArray && arrayItemWithKV) {
+        // Start a new object with the first key-value pair
+        const [, key, value] = arrayItemWithKV;
+        const newItem = { [key]: value };
+        currentArray.push(newItem);
+        return;
+      }
+      
+      // Check for array item (starts with "  - " followed by simple value)
+      if (currentArray && line.match(/^\s+-\s+[^:]+$/)) {
+        // This is an array item with simple string value
+        const itemContent = line.replace(/^\s+-\s+/, '').trim();
+        currentArray.push(itemContent);
+        return;
+      }
+      
+      // Check for nested object property (starts with "    " - more indentation than array item)
+      if (currentArray && currentArray.length > 0 && line.match(/^\s{4,}\w+:/)) {
+        // This is a property of the current array item
+        const propMatch = line.match(/^\s+(\w+):\s*(.*)$/);
+        if (propMatch) {
+          const lastItem = currentArray[currentArray.length - 1];
+          if (typeof lastItem === 'string') {
+            // Convert string to object (shouldn't happen with new logic, but keeping for safety)
+            currentArray[currentArray.length - 1] = { path: lastItem };
+          }
+          currentArray[currentArray.length - 1][propMatch[1]] = propMatch[2];
+        }
+        return;
+      }
+      
+      // Regular key: value line
       const match = line.match(/^(\w+):\s*(.*)$/);
       if (match) {
         const [, key, value] = match;
+        currentKey = key;
+        currentArray = null;
+        
         // Handle arrays like [tag1, tag2]
         if (value.startsWith('[') && value.endsWith(']')) {
           metadata[key] = value.slice(1, -1).split(',').map(s => s.trim());
+        } else if (value === '' || value === undefined) {
+          // Start of a multi-line array (knownDataIssues:)
+          metadata[key] = [];
+          currentArray = metadata[key];
         } else {
           metadata[key] = value;
         }
@@ -166,11 +210,71 @@ function get(endpoint) {
     tags: entry.tags,
     status: entry.status,
     skipReason: entry.skipReason || parsed.metadata?.skipReason || null,  // Include skip reason
+    knownIssues: parsed.metadata?.knownIssues || [],  // Include known issues to suppress in validation
     timesReused: entry.timesReused || 0,
     uidResolution: parsed.uidResolution || null,  // Include UID resolution mappings
     // NOTE: docFixes intentionally not returned - workflows are success paths only
     ...parsed
   };
+}
+
+/**
+ * Check if a validation error matches a known issue pattern
+ * @param {Object} error - Validation error with path property
+ * @param {Array} knownIssues - Array of known issue objects with path patterns
+ * @returns {boolean} True if error matches a known issue
+ */
+function matchesKnownIssue(error, knownIssues) {
+  if (!error || !knownIssues || knownIssues.length === 0) {
+    return false;
+  }
+  
+  const errorPath = error.path || error.instancePath || '';
+  
+  for (const issue of knownIssues) {
+    const pattern = issue.path || issue;
+    if (typeof pattern !== 'string') continue;
+    
+    // Convert pattern like "/data/offerings/*/type" to regex
+    // * matches any array index like [0], [11], etc.
+    const regexPattern = pattern
+      .replace(/\//g, '\\/')  // Escape forward slashes
+      .replace(/\*/g, '\\d+');  // * matches array indices (digits)
+    
+    const regex = new RegExp(`^${regexPattern}$`);
+    
+    if (regex.test(errorPath)) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * Filter out validation errors that match known issues
+ * @param {Array} errors - Array of validation errors
+ * @param {Array} knownIssues - Array of known issue patterns
+ * @returns {Object} { filteredErrors: Array, suppressedCount: number }
+ */
+function filterKnownIssues(errors, knownIssues) {
+  if (!errors || errors.length === 0 || !knownIssues || knownIssues.length === 0) {
+    return { filteredErrors: errors || [], suppressedCount: 0 };
+  }
+  
+  const filteredErrors = [];
+  let suppressedCount = 0;
+  
+  for (const error of errors) {
+    if (matchesKnownIssue(error, knownIssues)) {
+      suppressedCount++;
+      console.log(`  [KnownIssue] Suppressed error at path: ${error.path || error.instancePath}`);
+    } else {
+      filteredErrors.push(error);
+    }
+  }
+  
+  return { filteredErrors, suppressedCount };
 }
 
 /**
@@ -718,5 +822,7 @@ module.exports = {
   loadIndex,
   parseWorkflowFile,
   generateMarkdown,
+  matchesKnownIssue,
+  filterKnownIssues,
   WORKFLOWS_DIR
 };

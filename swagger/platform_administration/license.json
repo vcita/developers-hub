@@ -18,14 +18,37 @@
     }
   ],
   "components": {
-    "securitySchemes": {
-      "Bearer": {
-        "type": "http",
-        "scheme": "bearer",
-        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
-      }
-    },
     "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "description": "Standard error response format.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": false
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string",
+                  "description": "Human-readable error message."
+                },
+                "code": {
+                  "type": "string",
+                  "description": "Error code for programmatic handling."
+                },
+                "field": {
+                  "type": "string",
+                  "description": "The field that caused the error (if applicable)."
+                }
+              }
+            }
+          }
+        }
+      },
       "FeaturesPackageList": {
         "type": "object",
         "properties": {
@@ -65,7 +88,7 @@
           },
           "SKU": {
             "type": "string",
-            "description": "The unique code of the single SKU this offering represents. Offerings support exactly one SKU; to combine multiple SKUs, use a bundledOffering or similar higher-level abstraction.",
+            "description": "The unique code of the single SKU this offering represents. Obtain valid SKU values by calling `GET /v3/license/skus` and using the `code_name` field from the response. The SKU type must match the offering type: use SKUs from `GET /v3/license/skus?type=package` for package offerings, `GET /v3/license/skus?type=addon` for addon offerings, and `GET /v3/license/skus?type=app` for app offerings. Offerings support exactly one SKU; to combine multiple SKUs, use a bundledOffering or similar higher-level abstraction.",
             "example": "premium"
           },
           "display_name": {
@@ -81,7 +104,7 @@
           },
           "payment_type": {
             "type": "string",
-            "description": "The payment type field defines the payment options available for an offering,**external**: Payment is not done by the platform (typically an API call from the partner), **free**: No payment is required; **single_charge**: A single, one-time payment is required to obtain the offering; **monthly**: A recurring payment made on a monthly basis; **annual**: A recurring payment made on a yearly basis; **bundle**: A subscription bundled with another subscriptio. If an offeing is defined as bundled it can not be sold as a separated subscription",
+            "description": "The payment type field defines the payment options available for an offering. Possible values:\n- **external**: Payment is managed outside the platform (typically via partner API). When using this type, the `prices` array must be empty (`[]`).\n- **free**: No payment is required. When using this type, the `price` value in the `prices` array must be `0` or `-1`.\n- **single_charge**: A single, one-time payment is required to obtain the offering.\n- **monthly**: A recurring payment made on a monthly basis.\n- **annual**: A recurring payment made on a yearly basis.\n- **bundle**: A subscription bundled with another subscription. Bundled offerings cannot be sold separately.",
             "enum": [
               "free",
               "monthly",
@@ -109,16 +132,17 @@
           },
           "prices": {
             "type": "array",
+            "description": "Array of price objects for different currencies. **For `external` payment type**: Must be an empty array (`[]`). The system will automatically populate default prices with `-1.00` for all supported currencies, indicating that pricing is managed externally by the partner. **For `free` payment type**: The `price` value must be `0` or `-1`.",
             "items": {
               "type": "object",
               "properties": {
                 "price": {
                   "type": "number",
-                  "description": "Cost of the directory offering"
+                  "description": "Cost of the offering. Must be >= 0 for paid payment types (`monthly`, `annual`, `single_charge`). Must be `0` or `-1` for `free` payment type."
                 },
                 "currency": {
                   "type": "string",
-                  "description": "The currency used for the price. Supported currencies: USD; EUR; GBP.",
+                  "description": "The currency used for the price. Supported currencies: USD, EUR, GBP, CHF.",
                   "enum": [
                     "USD",
                     "EUR",
@@ -149,26 +173,30 @@
             "items": {
               "type": "string",
               "enum": [
-                "business-management",
-                "no-payments",
-                "no-marketing",
-                "no-scheduling",
-                "connect",
+                "base",
                 "free",
-                "ghost",
                 "trial",
+                "ghost",
+                "business_management",
+                "sandbox",
+                "no_marketing",
+                "no_payments",
+                "no_scheduling",
+                "connect",
+                "limited-core",
+                "core",
+                "core-trial",
                 "test"
               ]
             },
-            "description": "A list of tags to be used for reporting purposes",
+            "description": "A list of tags to be used for reporting purposes. Tags categorize offerings for analytics and billing reports.",
             "example": [
-              "business-management",
+              "base",
               "free"
             ]
           }
         },
         "required": [
-          "uid",
           "type",
           "SKU",
           "display_name",
@@ -220,19 +248,25 @@
             "items": {
               "type": "string",
               "enum": [
-                "business-management",
-                "no-payments",
-                "no-marketing",
-                "no-scheduling",
-                "connect",
+                "base",
                 "free",
+                "trial",
                 "ghost",
-                "trial"
+                "business_management",
+                "sandbox",
+                "no_marketing",
+                "no_payments",
+                "no_scheduling",
+                "connect",
+                "limited-core",
+                "core",
+                "core-trial",
+                "test"
               ]
             },
-            "description": "A list of tags to be used for reporting purposes",
+            "description": "A list of tags to be used for reporting purposes. Tags categorize offerings for analytics and billing reports.",
             "example": [
-              "business-management",
+              "base",
               "free"
             ]
           }
@@ -268,7 +302,7 @@
       "BundledOfferingList": {
         "type": "object",
         "properties": {
-          "offering_bundles": {
+          "bundled_offerings": {
             "description": "List of BundledOfferings",
             "type": "array",
             "items": {
@@ -319,12 +353,14 @@
           "directory_uid": {
             "type": "string",
             "description": "Unique identifier for a directory. Defines which directory is authorized to sell this Offering.",
-            "example": "98ees428fq9f65tyh"
+            "example": "98ees428fq9f65tyh",
+            "x-reference-to": "directory"
           },
           "offering_uid": {
             "type": "string",
             "description": "Unique identifier for an Offering. Defines an offering the directory is authorized to sell.",
-            "example": "3f12fb61-98ee-428f-9f65-18bba589cb95"
+            "example": "3f12fb61-98ee-428f-9f65-18bba589cb95",
+            "x-reference-to": "offering"
           }
         },
         "required": [
@@ -334,30 +370,34 @@
       },
       "CreateBundledOfferingDTO": {
         "type": "object",
+        "description": "Request body for creating a bundled offering relationship. A bundled offering links a parent offering (the main product being sold) with a child offering (included for free when the parent is purchased).",
         "properties": {
           "offering_uid": {
             "type": "string",
-            "description": "Unique identifier of the offering which the bundled item is being added to",
-            "example": "bc33f12d-98ee-428f-9f65-12bca589cb21"
+            "description": "Unique identifier of the parent offering to which the bundled item is being added. This must be an existing Offering UID obtained from `GET /v3/license/offerings`. The parent offering must be of type `package` or `app` - other types are not allowed. This value must be different from `bundled_offering_uid` (an offering cannot be bundled to itself).",
+            "example": "bc33f12d-98ee-428f-9f65-12bca589cb21",
+            "x-reference-to": "offering"
           },
           "bundled_offering_uid": {
             "type": "string",
-            "description": "The bundled Offering unique identifier",
-            "example": "bc33f12d-98ee-428f-9f65-18bba589cb95"
+            "description": "Unique identifier of the child offering to be bundled. This must be an existing Offering UID obtained from `GET /v3/license/offerings`. The child offering cannot be of type `package` - only `app` and `addon` types are allowed as bundled items. **Important**: This value must be different from `offering_uid` - an offering cannot be bundled to itself. Providing the same UID for both fields will result in a 400 error with message \"Can't bundle an offering to itself\".",
+            "example": "bc33f12d-98ee-428f-9f65-18bba589cb95",
+            "x-reference-to": "offering"
           }
         },
         "required": [
           "offering_uid",
-          "bundled_offering"
+          "bundled_offering_uid"
         ]
       },
       "CreateSubscriptionDTO": {
         "type": "object",
+        "description": "Request body for creating a new subscription. The `buyer_uid` is automatically determined from the authenticated token - it cannot be specified in the request body. For Staff tokens, this is the staff member's UID. Note: Only Directory or Internal tokens are allowed to set a custom price override.",
         "properties": {
           "offering_uid": {
             "type": "string",
             "description": "The underlying directory offering uid. Must be a valid offering_uid either from vcita or from the offering GET API.",
-            "example": ""
+            "example": "bc33f12d-98ee-428f-9f65-18bba589cb95"
           },
           "purchase_currency": {
             "type": "string",
@@ -369,42 +409,20 @@
             ],
             "example": "USD"
           },
-          "charged_by": {
+          "business_cart": {
             "type": "string",
-            "description": "Who charges for this subscription",
-            "enum": [
-              "partner",
-              "platform"
-            ]
-          },
-          "price": {
-            "type": "number",
-            "format": "decimal",
-            "description": "Optional. The actual amount charged to the customer. When provided, this overrides the standard offering price. This parameter is restricted to directory/admin tokens only and requires payment_type to be 'external'. When price is provided, the system stores both original_price (from the offering) and price (the discounted amount).",
-            "example": 0.0
-          },
-          "discount_code_name": {
-            "type": "string",
-            "description": "Optional. String identifier for the coupon/discount type (e.g., 'percent', 'fixed_amount'). Used for tracking and reporting purposes.",
-            "example": "fixed_amount"
+            "description": "Optional. The business cart identifier to associate with this subscription."
           },
           "coupon_code": {
             "type": "string",
             "description": "Optional. Discount identifier used for tracking and Recurly integration. This is the coupon code that will be applied to the subscription.",
             "example": "MAVCFREE"
           },
-          "payment_type": {
-            "type": "string",
-            "description": "The payment type field defines the payment options available for an offering. When price override is used, this must be set to 'external'. **external**: Payment is not done by the platform (typically an API call from the partner); **free**: No payment is required; **single_charge**: A single, one-time payment is required to obtain the offering; **monthly**: A recurring payment made on a monthly basis; **annual**: A recurring payment made on a yearly basis; **bundle**: A subscription bundled with another subscription",
-            "enum": [
-              "free",
-              "monthly",
-              "annual",
-              "single_charge",
-              "external",
-              "bundle"
-            ],
-            "example": "external"
+          "price": {
+            "type": "number",
+            "format": "decimal",
+            "description": "Optional. The actual amount charged to the customer. When provided, this overrides the standard offering price. **Important**: This parameter is restricted to directory/admin tokens only. Staff tokens cannot set custom prices.",
+            "example": 0
           }
         },
         "required": [
@@ -414,10 +432,6 @@
         "example": {
           "offering_uid": "bc33f12d-98ee-428f-9f65-18bba589cb95",
           "purchase_currency": "USD",
-          "charged_by": "partner",
-          "payment_type": "external",
-          "price": 0.0,
-          "discount_code_name": "fixed_amount",
           "coupon_code": "MAVCFREE"
         }
       },
@@ -453,6 +467,14 @@
             }
           }
         }
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
       }
     }
   },
@@ -574,7 +596,7 @@
         "tags": [
           "Offering"
         ],
-        "description": "## Overview\nList all Offerings in scope."
+        "description": "## Overview\nList all Offerings in scope.\n\nAvailable for **Staff and Directory and Internal tokens**."
       },
       "post": {
         "requestBody": {
@@ -589,7 +611,7 @@
         },
         "responses": {
           "201": {
-            "description": "",
+            "description": "Offering created successfully.",
             "content": {
               "application/json": {
                 "schema": {
@@ -609,10 +631,34 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad Request - Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "invalid_price_for_free": {
+                    "summary": "Invalid price for free payment type",
+                    "value": {
+                      "success": false,
+                      "errors": [
+                        {
+                          "message": "price should be 0 or -1 for this payment type",
+                          "code": "bad_request"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "summary": "Create an Offering",
-        "description": "## Overview\nCreate a new Offering Available for **internal Token only**.",
+        "description": "## Overview\nCreate a new Offering. Available for **Internal tokens only**.\n\n## Prerequisites\nBefore creating an offering, obtain a valid SKU by calling `GET /v3/license/skus`. Use the `code_name` field from the response as the `SKU` value. The SKU type must match the offering type (e.g., use `GET /v3/license/skus?type=package` for package offerings).\n\n**Note on External Payment Type:**\nWhen creating an offering with `payment_type: external`, the `prices` array must be empty (`[]`). The system will automatically populate default prices with `-1.00` for all supported currencies, indicating that pricing is managed externally by the partner.\n\n**Note on Free Payment Type:**\nWhen creating an offering with `payment_type: free`, the `price` value in the `prices` array must be `0` or `-1`.",
         "security": [
           {
             "Bearer": []
@@ -660,7 +706,7 @@
           }
         },
         "summary": "Retrieve an Offering",
-        "description": "## Overview\nRetrieve an Offering.",
+        "description": "## Overview\nRetrieve an Offering by its unique identifier.\n\nAvailable for **Staff, Directory, and Internal tokens**.",
         "security": [
           {
             "Bearer": []
@@ -716,7 +762,7 @@
           }
         },
         "summary": "Update an Offering",
-        "description": "## Overview\nUpdate an Offering Available for **internal Token only**.",
+        "description": "## Overview\nUpdate an Offering. Available for **Admin tokens only**.",
         "security": [
           {
             "Bearer": []
@@ -768,6 +814,7 @@
     "/license/directory_offerings": {
       "get": {
         "summary": "List all DirectoryOfferings",
+        "description": "## Overview\nList all DirectoryOfferings in scope.\n\nAvailable for **Internal Tokens only**.",
         "parameters": [
           {
             "in": "query",
@@ -838,8 +885,7 @@
         ],
         "tags": [
           "Directory Offering"
-        ],
-        "description": "## Overview\nList all DirectoryOfferings in scope."
+        ]
       },
       "post": {
         "requestBody": {
@@ -854,7 +900,7 @@
         },
         "responses": {
           "201": {
-            "description": "",
+            "description": "DirectoryOffering created successfully.",
             "content": {
               "application/json": {
                 "schema": {
@@ -874,10 +920,74 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad Request - Returned when required fields are missing/empty or when a DirectoryOffering already exists for the given directory and offering combination.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "message": {
+                            "type": "string",
+                            "description": "Human-readable error message describing the issue."
+                          },
+                          "code": {
+                            "type": "string",
+                            "description": "Machine-readable error code."
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "validation_error": {
+                    "summary": "Missing required fields",
+                    "description": "Returned when required fields (directory_uid or offering_uid) are missing or empty.",
+                    "value": {
+                      "success": false,
+                      "errors": [
+                        {
+                          "message": "directory_uid should not be empty",
+                          "code": "bad_request"
+                        },
+                        {
+                          "message": "offering_uid should not be empty",
+                          "code": "bad_request"
+                        }
+                      ]
+                    }
+                  },
+                  "already_exists": {
+                    "summary": "DirectoryOffering already exists",
+                    "description": "Returned when a DirectoryOffering with the same directory_uid and offering_uid combination already exists.",
+                    "value": {
+                      "success": false,
+                      "errors": [
+                        {
+                          "message": "directoryOffering with uid [uid] already exists",
+                          "code": "bad_request"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "summary": "Create a DirectoryOffering",
-        "description": "## Overview\nCreate a new DirectoryOffering for a sepcific partner and Offering Available for **internal Token only**.",
+        "description": "## Overview\nCreate a new DirectoryOffering for a specific partner and Offering.\n\nAvailable for **Internal Tokens only**.\n\n**Important**: Each directory can only have one DirectoryOffering per `offering_uid`. The combination of `directory_uid` and `offering_uid` must be unique. Attempting to create a duplicate will return a 400 error.",
         "security": [
           {
             "Bearer": []
@@ -925,7 +1035,7 @@
           }
         },
         "summary": "Retrieve a DirectoryOffering",
-        "description": "## Overview\nRetrieve a DirectoryOffering.",
+        "description": "## Overview\nRetrieve a DirectoryOffering.\n\nAvailable for **Internal Tokens only**.",
         "security": [
           {
             "Bearer": []
@@ -963,7 +1073,7 @@
           }
         },
         "summary": "Delete a DirectoryOffering",
-        "description": "## Overview\nDelete a DirectoryOffering Available for **internal Token only.**.",
+        "description": "## Overview\nDelete a DirectoryOffering.\n\nAvailable for **Internal Tokens only**.",
         "security": [
           {
             "Bearer": []
@@ -976,8 +1086,9 @@
     },
     "/license/directory_offerings/bulk": {
       "post": {
-        "summary": "Bulk create DirectoryOfferings (not implemented yet)",
-        "description": "## Overview\nCreate multiple DirectoryOfferings Available for **Directory, and internal Tokens**.",
+        "summary": "Bulk create DirectoryOfferings",
+        "description": "## Overview\nCreate multiple DirectoryOfferings.\n\nAvailable for **Internal Tokens only**.\n\n> **Note**: This endpoint is not yet implemented.",
+        "deprecated": true,
         "requestBody": {
           "content": {
             "application/json": {
@@ -1106,7 +1217,7 @@
         "tags": [
           "Bundled Offering"
         ],
-        "description": "## Overview\nList all BundledOfferings in scope."
+        "description": "## Overview\nList all BundledOfferings in scope.\n\nAvailable for **Staff, Directory, and Internal tokens**."
       },
       "post": {
         "requestBody": {
@@ -1116,11 +1227,12 @@
                 "$ref": "#/components/schemas/CreateBundledOfferingDTO"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "201": {
-            "description": "",
+            "description": "BundledOffering created successfully.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1132,9 +1244,147 @@
                       "properties": {
                         "data": {
                           "type": "object",
-                          "$ref": "https://vcita.github.io/developers-hub/entities/license/bundledOffering.json"
+                          "properties": {
+                            "bundled_offering": {
+                              "$ref": "https://vcita.github.io/developers-hub/entities/license/bundledOffering.json"
+                            }
+                          }
                         }
                       }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Validation error. Returned when the request fails business rule validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "self_bundling": {
+                    "summary": "Cannot bundle offering to itself",
+                    "description": "Returned when offering_uid and bundled_offering_uid have the same value.",
+                    "value": {
+                      "success": false,
+                      "errors": [
+                        {
+                          "message": "Can't bundle an offering to itself",
+                          "code": "bad_request"
+                        }
+                      ]
+                    }
+                  },
+                  "invalid_parent_type": {
+                    "summary": "Parent offering type not allowed",
+                    "description": "Returned when the parent offering (offering_uid) is not of type 'package' or 'app'.",
+                    "value": {
+                      "success": false,
+                      "errors": [
+                        {
+                          "message": "Parent offering can only be of type package/app",
+                          "code": "bad_request"
+                        }
+                      ]
+                    }
+                  },
+                  "invalid_child_type": {
+                    "summary": "Child offering type not allowed",
+                    "description": "Returned when the bundled offering (bundled_offering_uid) is of type 'package'. Only 'app' and 'addon' types can be bundled.",
+                    "value": {
+                      "success": false,
+                      "errors": [
+                        {
+                          "message": "Child offering cannot be of type package",
+                          "code": "bad_request"
+                        }
+                      ]
+                    }
+                  },
+                  "staff_slot_limit": {
+                    "summary": "Staff slot limit exceeded",
+                    "description": "Returned when attempting to bundle more than one staff_slot offering to the same parent offering.",
+                    "value": {
+                      "success": false,
+                      "errors": [
+                        {
+                          "message": "Only one staff slot offering can be bundled to a parent offering",
+                          "code": "bad_request"
+                        }
+                      ]
+                    }
+                  },
+                  "directory_consistency": {
+                    "summary": "Directory offering consistency error",
+                    "description": "Returned when the bundled offering does not exist in the same directory as the parent offering.",
+                    "value": {
+                      "success": false,
+                      "errors": [
+                        {
+                          "message": "Bundled offering must exist in directory [directory_uid] where parent offering exists",
+                          "code": "bad_request"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - One or both offerings do not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "offering_not_found": {
+                    "summary": "Parent offering not found",
+                    "description": "Returned when the offering_uid does not correspond to an existing offering.",
+                    "value": {
+                      "success": false,
+                      "errors": [
+                        {
+                          "message": "offering doesn't exist",
+                          "code": "not_found"
+                        }
+                      ]
+                    }
+                  },
+                  "bundled_offering_not_found": {
+                    "summary": "Bundled offering not found",
+                    "description": "Returned when the bundled_offering_uid does not correspond to an existing offering.",
+                    "value": {
+                      "success": false,
+                      "errors": [
+                        {
+                          "message": "bundled_offering doesn't exist",
+                          "code": "not_found"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict - A bundled offering with this combination already exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "There is already a bundledOffering for this offering",
+                      "code": "unexpected"
                     }
                   ]
                 }
@@ -1143,7 +1393,7 @@
           }
         },
         "summary": "Create a BundledOffering",
-        "description": "## Overview\nCreate a new BundledOffering for a sepcific offering Available for **internal Token only**.",
+        "description": "## Overview\nCreate a new BundledOffering that links a parent offering with a child offering. When a customer purchases the parent offering, the bundled (child) offering is automatically included.\n\nAvailable for **Internal tokens only**.\n\n## Validation Rules\n\nThe following validation rules are enforced:\n\n1. **Self-bundling not allowed**: The `offering_uid` and `bundled_offering_uid` must be different. An offering cannot be bundled to itself.\n\n2. **Parent offering type restriction**: The parent offering (`offering_uid`) must be of type `package` or `app`. Other offering types cannot have bundled items.\n\n3. **Child offering type restriction**: The bundled offering (`bundled_offering_uid`) cannot be of type `package`. Only `app` and `addon` offerings can be bundled.\n\n4. **No duplicate bundles**: Each parent-child combination must be unique. Attempting to create a duplicate returns HTTP 409.\n\n5. **Single staff slot per parent**: Only one `staff_slot` addon can be bundled to each parent offering.\n\n6. **Directory consistency**: If the parent offering exists in a directory, the bundled offering must also exist in the same directory.\n\n## Prerequisites\n\nBefore creating a bundled offering, obtain valid offering UIDs by calling `GET /v3/license/offerings`.",
         "security": [
           {
             "Bearer": []
@@ -1348,7 +1598,7 @@
         "tags": [
           "Subscription"
         ],
-        "description": "## Overview\nList all Subscriptions in scope."
+        "description": "## Overview\nList all Subscriptions in scope.\n\nAvailable for **Staff and App tokens**.\n\n**Note:** App tokens can only view subscriptions for their own app."
       },
       "post": {
         "requestBody": {
@@ -1386,7 +1636,7 @@
           }
         },
         "summary": "Create a Subscription",
-        "description": "## Overview\nCreate a new Subscription for a business. Supports discounted and free plans using coupons.",
+        "description": "## Overview\nCreate a new Subscription for a business. Supports discounted and free plans using coupons.\n\nAvailable for **Staff tokens**.\n\n### Token Permissions\n\n| Token Type | Allowed | Restrictions |\n|------------|---------|-------------|\n| **Staff** | Yes | Cannot set custom pricing. For `external` payment type offerings, must use a Staff token created by a Directory token. |\n| **Directory** | No | Must create a Staff token first via `POST /platform/v1/tokens` |\n| **Internal** | No | Must create a Staff token first |\n| **Billing App** | Yes | Cannot set custom pricing |\n| **Regular App** | No | Not allowed |\n\n### Important: External Payment Type Offerings\n\nOfferings with `payment_type = external` require a **Staff token created by a Directory token**:\n\n1. Use `POST /platform/v1/tokens` with a Directory token to create a Staff token for the target business.\n2. Use that Staff token to call this endpoint.\n\nThe `buyer_uid` in the subscription is automatically derived from the authenticated Staff token's identity.",
         "security": [
           {
             "Bearer": []
@@ -1485,7 +1735,7 @@
           }
         },
         "summary": "Retrieve a Subscription",
-        "description": "## Overview\nRetrieve a Subscription by its unique identifier.",
+        "description": "## Overview\nRetrieve a Subscription by its unique identifier.\n\nAvailable for **Staff and App tokens**.\n\n**Note:** App tokens can only view subscriptions for their own app.",
         "security": [
           {
             "Bearer": []
@@ -1550,37 +1800,6 @@
       }
     },
     "/license/business_carts": {
-      "get": {
-        "summary": "Get all BusinessCarts (coming soon)",
-        "responses": {
-          "200": {
-            "description": "List of BusinessCarts",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "type": "object",
-                          "$ref": "#/components/schemas/BusinessCartList"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "description": "## Overview\nRetrieve a list of BusinessCarts.",
-        "tags": [
-          "Business Cart"
-        ]
-      },
       "post": {
         "summary": "Create a BusinessCart",
         "requestBody": {
@@ -1592,11 +1811,11 @@
                 "properties": {
                   "business_cart": {
                     "type": "object",
-                    "description": "The business cart object to create",
+                    "description": "Container object for the business cart data.",
                     "properties": {
                       "offering_uid": {
                         "type": "string",
-                        "description": "Unique identifier of the underlying Offering"
+                        "description": "Unique identifier of the Offering to add to the cart. Obtain this value by calling `GET /v3/license/offerings` (e.g., 'bc33f12d-98ee-428f-9f65-18bba589cb95')."
                       }
                     },
                     "required": [
@@ -1607,6 +1826,11 @@
                 "required": [
                   "business_cart"
                 ]
+              },
+              "example": {
+                "business_cart": {
+                  "offering_uid": "bc33f12d-98ee-428f-9f65-18bba589cb95"
+                }
               }
             }
           }
@@ -1623,7 +1847,7 @@
             }
           }
         },
-        "description": "## Overview\nCreate a new BusinessCart Available for **Staff, App, and Directory tokens**.",
+        "description": "## Overview\nCreate a new BusinessCart for the business.\n\n## Prerequisites\nBefore creating a cart, obtain a valid `offering_uid` by calling `GET /v3/license/offerings`.\n\nAvailable for **Staff Tokens**.",
         "tags": [
           "Business Cart"
         ]
@@ -1655,52 +1879,7 @@
             }
           }
         },
-        "description": "## Overview\nRetrieve a BusinessCart.",
-        "tags": [
-          "Business Cart"
-        ]
-      },
-      "put": {
-        "summary": "Update a BusinessCart",
-        "parameters": [
-          {
-            "name": "uid",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "properties": {
-                  "subscription_uid": {
-                    "type": "string",
-                    "description": "Unique identifier of the corresponding Subscription"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "BusinessCart updated successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "https://vcita.github.io/developers-hub/entities/license/businessCart.json"
-                }
-              }
-            }
-          }
-        },
-        "description": "## Overview\nUpdate a BusinessCart with the corresponding Subscription Available for **Staff, App, and Directory tokens**.",
+        "description": "## Overview\nRetrieve a BusinessCart.\n\nAvailable for **Staff Tokens**.",
         "tags": [
           "Business Cart"
         ]
@@ -1709,6 +1888,7 @@
     "/license/skus": {
       "get": {
         "summary": "List all SKUs",
+        "description": "## Overview\nList all SKUs in scope.\n\nAvailable for **Internal Tokens only**.",
         "parameters": [
           {
             "in": "query",
@@ -1791,8 +1971,7 @@
         ],
         "tags": [
           "SKU"
-        ],
-        "description": "## Overview\nList all SKUs in scope."
+        ]
       }
     },
     "/license/features_packages": {
@@ -1801,7 +1980,7 @@
           "Features Packages"
         ],
         "summary": "Get all Features Packages",
-        "description": "## Overview\nRetrieve a list of Features Packages.",
+        "description": "## Overview\nRetrieve a list of Features Packages.\n\n**Available for Staff tokens**",
         "security": [
           {
             "Bearer": []

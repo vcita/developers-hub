@@ -14,13 +14,6 @@
     }
   ],
   "components": {
-    "securitySchemes": {
-      "Bearer": {
-        "type": "http",
-        "scheme": "bearer",
-        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
-      }
-    },
     "schemas": {
       "BusinessRolesList": {
         "type": "object",
@@ -82,13 +75,21 @@
           }
         }
       }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+      }
     }
   },
   "paths": {
     "/v3/access_control/business_roles": {
       "get": {
         "summary": "Get all BusinessRoles",
-        "description": "## Overview\nGet a list of BusinessRoles.",
+        "description": "Get a list of BusinessRoles\n\nAvailable for **Staff Tokens**",
         "parameters": [
           {
             "name": "page",
@@ -160,7 +161,7 @@
       },
       "post": {
         "summary": "Create a BusinessRole",
-        "description": "## Overview\nCreate a new role for a business Available for **Staff Tokens**.",
+        "description": "Create a new role for a business.\n\n**Permission Hierarchy Validation:**\nPermissions follow a hierarchy structure where category permissions (e.g., `payments.manage`) must be enabled before their extended permissions (e.g., `payments.invoices.export`) can be used. Extended permissions have three parts in their key (e.g., `category.subcategory.action`), while category permissions have two parts (e.g., `category.manage`). If you attempt to enable an extended permission without its corresponding category permission, the API will return a 400 error.\n\nAvailable for **Staff Tokens**",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -171,7 +172,7 @@
                 "properties": {
                   "code": {
                     "type": "string",
-                    "description": "A unique readable code for the role"
+                    "description": "A unique readable code for the role. Must be unique across all business roles. Common codes like 'admin', 'owner', 'staff', 'manager' typically already exist as default system roles. Use a unique code (e.g., 'custom_role_123') to avoid conflicts."
                   },
                   "name": {
                     "type": "string",
@@ -211,21 +212,33 @@
                   "permissions"
                 ],
                 "example": {
-                  "code": "admin",
-                  "name": "Admin",
-                  "description": "Admin role. Typically has access to all features in the system",
+                  "code": "custom_billing_role",
+                  "name": "Billing Manager",
+                  "description": "Custom role for managing billing and payment operations",
                   "is_editable": true,
                   "permissions": [
-                    {
-                      "key": "payments.invoices.export",
-                      "allow": true
-                    },
                     {
                       "key": "payments.manage",
                       "allow": true
                     },
                     {
-                      "key": "reports.manage",
+                      "key": "payments.invoices.export",
+                      "allow": true
+                    },
+                    {
+                      "key": "payments.invoices.import",
+                      "allow": true
+                    },
+                    {
+                      "key": "payments.invoices.view",
+                      "allow": true
+                    },
+                    {
+                      "key": "payments.invoices.delete",
+                      "allow": true
+                    },
+                    {
+                      "key": "payments.invoices.create",
                       "allow": true
                     }
                   ]
@@ -236,7 +249,7 @@
         },
         "responses": {
           "200": {
-            "description": "",
+            "description": "BusinessRole created successfully.",
             "content": {
               "application/json": {
                 "schema": {
@@ -251,6 +264,128 @@
                           "$ref": "https://vcita.github.io/developers-hub/entities/access_control/businessRole.json"
                         }
                       }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Permission hierarchy validation failed. Extended permissions require their category permission to be enabled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "message": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": [
+                        "Permission payments.invoices.export must have category payments.manage permission enabled"
+                      ],
+                      "code": "bad_request"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - The staff role configuration feature is not enabled for this business. Contact your administrator to enable the roles_and_permissions feature.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "message": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "The staff role configuration feature is disabled",
+                      "code": "unexpected"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error - May occur when attempting to create a role with a code that already exists. Use GET /v3/access_control/business_roles to check existing codes before creating a new role.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "message": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "Internal server error",
+                      "code": "unexpected"
                     }
                   ]
                 }
@@ -271,7 +406,7 @@
     "/v3/access_control/business_roles/{uid}": {
       "get": {
         "summary": "Retrieve a BusinessRole",
-        "description": "## Overview\nRetrieve a specific BusinessRole based on it’s unique identifier (UID).",
+        "description": "Retrieve a specific BusinessRole  based on it’s unique identifier (UID)\n\nAvailable for **Staff Tokens**",
         "parameters": [
           {
             "name": "uid",
@@ -319,7 +454,7 @@
       },
       "put": {
         "summary": "Update a BusinessRole",
-        "description": "## Overview\nCreate a new role for a business Available for **Staff Tokens**.",
+        "description": "Create a new role for a business\n\nAvailable for **Staff Tokens**",
         "parameters": [
           {
             "name": "uid",
@@ -406,7 +541,7 @@
       },
       "delete": {
         "summary": "Delete a BusinessRole",
-        "description": "## Overview\nDelete a specific BusinessRole based on it’s unique identifier (UID) Available for **Staff Tokens**.",
+        "description": "Delete a specific BusinessRole  based on it’s unique identifier (UID)\n\nAvailable for **Staff Tokens**",
         "parameters": [
           {
             "name": "uid",
@@ -448,7 +583,7 @@
     "/v3/access_control/permissions": {
       "get": {
         "summary": "Get all Permissions",
-        "description": "## Overview\nGet a list of Permissions.",
+        "description": "Get a list of Permissions.\n\n**Note:** This endpoint returns an empty list if the `roles_and_permissions` feature is not enabled for the business. The presence of permissions in the response indicates that the business can use the Business Roles and Staff Permissions endpoints.\n\n**Permission Types:**\n- **Category permissions** (2 parts): e.g., `payments.manage` - Parent permissions that control access to a feature category\n- **Extended permissions** (3 parts): e.g., `payments.invoices.export` - Child permissions that require their category permission to be enabled\n\nAvailable for **Staff Tokens**",
         "parameters": [
           {
             "name": "page",
@@ -522,7 +657,7 @@
     "/v3/access_control/staff_business_roles": {
       "get": {
         "summary": "Get all StaffBusinessRoles",
-        "description": "## Overview\nGet a list of StaffBusinessRoles.",
+        "description": "Get a list of StaffBusinessRoles\n\nAvailable for **Staff Tokens**",
         "parameters": [
           {
             "name": "staff_uid",
@@ -612,7 +747,7 @@
       },
       "post": {
         "summary": "Create a StaffBusinessRole",
-        "description": "## Overview\nCreate a new StaffBusinessRole for a staff. This is called automatically when a staff is created and will fail if called again. Use update to change the StaffBusinessRole Available for **Staff Tokens**.",
+        "description": "Create a new StaffBusinessRole for a staff\n\nAvailable for **Staff Tokens**",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -679,7 +814,7 @@
     "/v3/access_control/staff_business_roles/{staff_uid}": {
       "get": {
         "summary": "Retrieve a StaffBusinessRole",
-        "description": "## Overview\nRetrieve a StaffBusinessRole based on the unique identifier of staff_uid (staff_uid).",
+        "description": "Retrieve a StaffBusinessRole based on the unique identifier of staff_uid (staff_uid)\n\nAvailable for **Staff Tokens**",
         "parameters": [
           {
             "name": "staff_uid",
@@ -727,7 +862,7 @@
       },
       "put": {
         "summary": "Update a StaffBusinessRole",
-        "description": "## Overview\nUpdate the business role for a staff member. **All overrides will be removed** and user will need to reapply them if the old role is reassigned Available for **Staff Tokens**.",
+        "description": "Update the business role for a staff member. **All overrides will be removed** and user will need to reapply them if the old role is reassigned. You can not change the role of the business owner.\n\nAvailable for **Staff Tokens**",
         "parameters": [
           {
             "name": "staff_uid",
@@ -800,7 +935,7 @@
     "/v3/access_control/staff_permission_overrides_lists/{staff_uid}": {
       "get": {
         "summary": "Retrieve a Staff Permissions Overrides List",
-        "description": "## Overview\nRetrieve a StaffPermissionOverrideList based on a staff member's unique identifier (staff_uid).",
+        "description": "Retrieve a StaffPermissionOverrideList based on a staff member's unique identifier (staff_uid)\n\nAvailable for **Staff Tokens**",
         "parameters": [
           {
             "name": "staff_uid",
@@ -848,7 +983,7 @@
       },
       "put": {
         "summary": "Update a Staff Permissions Overrides List",
-        "description": "## Overview\nUpdate a Staff Permission Overrides List based on staff UID and a list of permissions. The list supplied will append new permissions and override exsiting permissions assigned to this staff.",
+        "description": "Update a Staff Permission Overrides List based on staff UID and a list of permissions. The list supplied will append new permissions and override exsiting permissions assigned to this staff.\n\nAvailable for **Staff Tokens**",
         "parameters": [
           {
             "name": "staff_uid",
@@ -958,7 +1093,7 @@
       },
       "delete": {
         "summary": "Remove all permission overrides",
-        "description": "## Overview\nRemoves all assigned overrides based on a staff member's unique identifier (staff_uid) Available for **Staff Tokens**.",
+        "description": "Removes all assigned overrides based on a staff member's unique identifier (staff_uid).\n\nThis will return user to its original Business Role defaults\n\nAvailable for **Staff Tokens**",
         "parameters": [
           {
             "name": "staff_uid",
@@ -1000,7 +1135,7 @@
     "/v3/access_control/staff_permission_overrides_lists/": {
       "get": {
         "summary": "Get all Staff Permission Overrides Lists",
-        "description": "## Overview\nGet a list of all StaffPermissionOverrideList in the business (if used by a user that has permissions to view and manage permissions to staff in the business).",
+        "description": "Get a list of all StaffPermissionOverrideList in the business (if used by a user that has permissions to view and manage permissions to staff in the business)\n\nAvailable for **Staff Tokens**",
         "parameters": [
           {
             "name": "page",
@@ -1074,7 +1209,7 @@
     "/v3/access_control/staff_permissions/": {
       "get": {
         "summary": "Get All StaffPermissions",
-        "description": "## Overview\nGet a list of staff Permissions. You must filter the list using a list of permissions keys Used to validate if a user can or can not access features.",
+        "description": "Get a list of staff Permissions. You must filter the list using a list of permissions keys\nUsed to validate if a user can or can not access features\n\nAvailable for **Staff Tokens**",
         "parameters": [
           {
             "name": "keys",

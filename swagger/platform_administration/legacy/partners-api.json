@@ -9,33 +9,24 @@
       "url": "https://api.vcita.biz"
     }
   ],
-  "components": {
-    "securitySchemes": {
-      "Bearer": {
-        "type": "http",
-        "scheme": "bearer",
-        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
-      }
-    }
-  },
-  "security": [
-    {}
-  ],
+  "components": {},
+  "security": [],
   "paths": {
     "/v1/partners/accounts": {
       "post": {
         "summary": "Account Creation",
-        "description": "## Overview\nCreate a new account under your directory. Most account details are cloned from an existing template to allow quick setup Available for **Staff, App, and Directory tokens**.",
+        "description": "## Overview\nCreate a new account under your directory. Most account details are cloned from an existing template to allow quick setup.\n\nAvailable for **Directory tokens only**.\n\n## Authentication\nUses HTTP Token authentication. Format: `Authorization: Token token=\"{DIRECTORY_TOKEN}\"`\n\nThe token must be a Doorkeeper OAuth token with `directory` scope.",
         "operationId": "account-creation-1",
         "parameters": [
           {
             "name": "Authorization",
             "in": "header",
-            "description": "Token token=\"aaaabbbbccccddddeeeeffff11112222\"",
+            "description": "HTTP Token authentication. Format: `Token token=\"{DIRECTORY_TOKEN}\"`. The token must have `directory` scope.",
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "Token token=\"aaaabbbbccccddddeeeeffff11112222\""
           }
         ],
         "requestBody": {
@@ -209,7 +200,7 @@
           }
         },
         "tags": [
-          "Account [Deprecated]"
+          "Partners API"
         ],
         "security": [
           {
@@ -219,13 +210,13 @@
         "deprecated": false
       }
     },
-    "/v1/partners/accounts/{business_id}/change_package": {
+    "/v1/partners/accounts/{business_uid}/change_package": {
       "get": {
         "summary": "Account Manipulation",
-        "description": "## Overview\nUpdate billing info and/or package to an existing account under your directory.",
+        "description": "## Overview\nUpdate billing info and/or package to an existing account under your directory.\n\nAvailable for **Directory tokens only**.\n\n> **Deprecation Notice**: This is a legacy endpoint. For new integrations, please use the [Subscription endpoints](/docs/platform_administration/license) instead.\n\n## Authentication\nUses HTTP Token authentication. Format: `Authorization: Token token=\"{DIRECTORY_TOKEN}\"`\n\nThe token must be a Doorkeeper OAuth token with `directory` scope.\n\n> **Note**: The `business_uid` parameter must correspond to a business that is a member of the directory associated with the directory token.\n\n## Package Options\nUse one of the following available packages: `platinum20`, `business20`.\n\nPackage names are managed in the database and may vary by directory. To obtain the complete list of available package names for your directory, please contact the support team.",
         "operationId": "account-manipulation",
         "tags": [
-          "Account [Deprecated]"
+          "Partners API"
         ],
         "security": [
           {
@@ -263,20 +254,22 @@
           {
             "name": "Authorization",
             "in": "header",
-            "description": "Token token=\"aaaabbbbccccddddeeeeffff11112222\"",
+            "description": "HTTP Token authentication. Format: `Token token=\"{DIRECTORY_TOKEN}\"`. The token must have `directory` scope.",
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "Token token=\"aaaabbbbccccddddeeeeffff11112222\""
           },
           {
-            "name": "business_id",
+            "name": "business_uid",
             "in": "path",
-            "description": "The relevant business_id",
+            "description": "The business UID (alphanumeric string like '88pzdbz1hmkdoel4'), not the numeric database ID. The business must be a member of the directory associated with the directory token.",
             "schema": {
               "type": "string"
             },
-            "required": true
+            "required": true,
+            "example": "88pzdbz1hmkdoel4"
           },
           {
             "name": "add_sms_credits",
@@ -342,16 +335,16 @@
             }
           }
         },
-        "deprecated": false
+        "deprecated": true
       }
     },
-    "/v1/partners/accounts/{business_id}/set_setup_completed": {
+    "/v1/partners/accounts/{business_uid}/set_setup_completed": {
       "post": {
         "summary": "Set Setup Completed",
-        "description": "## Overview\nSuspend the account \"to do\" list (onboarding) If you want to edit the account settings.",
-        "operationId": "reopen-an-account-1",
+        "description": "## Overview\nMark an account's setup/onboarding as completed. This suspends the account's \"to do\" list (onboarding wizard).\n\nAvailable for **Directory tokens only**.\n\n## Authentication\nUses HTTP Token authentication (not Bearer). Format: `Authorization: Token token=\"{DIRECTORY_TOKEN}\"`\n\nThe token must be a Doorkeeper OAuth token with `directory` scope.\n\n## How It Works\n1. The endpoint looks up the business in the directory's members using `pivots.uid`\n2. Calls `member.setup_completed!` to mark setup as done\n3. Updates the member's `setup` attribute to `setup_completed`\n\n> **Important**: The `business_uid` must be the business UID (alphanumeric like '88pzdbz1hmkdoel4'), NOT a numeric database ID. The business must be a member of the directory associated with the token.",
+        "operationId": "set-setup-completed",
         "tags": [
-          "Account [Deprecated]"
+          "Partners API"
         ],
         "security": [
           {
@@ -360,22 +353,25 @@
         ],
         "parameters": [
           {
-            "name": "business_id",
+            "name": "business_uid",
             "in": "path",
-            "description": "The relevant business_id",
+            "description": "The business UID (alphanumeric string like '88pzdbz1hmkdoel4'). This maps to `pivots.uid` in the database. The business must be a member of the directory associated with the directory token.",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "pattern": "^[a-z0-9]{16}$"
             },
-            "required": true
+            "required": true,
+            "example": "88pzdbz1hmkdoel4"
           },
           {
             "name": "Authorization",
             "in": "header",
-            "description": "Token token=\"aaaabbbbccccddddeeeeffff11112222\"",
+            "description": "HTTP Token authentication. Format: `Token token=\"{DIRECTORY_TOKEN}\"`. The token must have `directory` scope.",
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "Token token=\"aaaabbbbccccddddeeeeffff11112222\""
           }
         ],
         "responses": {
@@ -432,13 +428,13 @@
         "deprecated": false
       }
     },
-    "/v1/partners/accounts/{business_id}/change_addons": {
+    "/v1/partners/accounts/{business_uid}/change_addons": {
       "get": {
         "summary": "Add/Remove staff",
-        "description": "## Overview\nAdd or remove the staff members quota from accounts under your directory.",
+        "description": "## Overview\nAdd or remove the staff members quota from accounts under your directory.\n\nAvailable for **Directory tokens only**. This endpoint is only available for manually billed directory accounts.\n\n## Authentication\nUses HTTP Token authentication. Format: `Authorization: Token token=\"{DIRECTORY_TOKEN}\"`\n\nThe token must be a Doorkeeper OAuth token with `directory` scope.\n\n> **Note**: The `business_uid` parameter should contain the business UID (alphanumeric like '88pzdbz1hmkdoel4'), not the numeric database ID.",
         "operationId": "addremove-staff",
         "tags": [
-          "Account [Deprecated]"
+          "Partners API"
         ],
         "security": [
           {
@@ -447,13 +443,14 @@
         ],
         "parameters": [
           {
-            "name": "business_id",
+            "name": "business_uid",
             "in": "path",
-            "description": "The relevant business_id",
+            "description": "The business UID (alphanumeric string like '88pzdbz1hmkdoel4'). The business must be a member of the directory associated with the directory token.",
             "schema": {
               "type": "string"
             },
-            "required": true
+            "required": true,
+            "example": "88pzdbz1hmkdoel4"
           },
           {
             "name": "staff",
@@ -467,11 +464,12 @@
           {
             "name": "Authorization",
             "in": "header",
-            "description": "Token token=\"aaaabbbbccccddddeeeeffff11112222\"",
+            "description": "HTTP Token authentication. Format: `Token token=\"{DIRECTORY_TOKEN}\"`. The token must have `directory` scope.",
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "Token token=\"aaaabbbbccccddddeeeeffff11112222\""
           }
         ],
         "responses": {
@@ -528,13 +526,13 @@
         "deprecated": false
       }
     },
-    "/v1/partners/accounts/{business_id}/close": {
+    "/v1/partners/accounts/{business_uid}/close": {
       "post": {
         "summary": "Close an Account",
-        "description": "## Overview\nClose an existing account under your directory Available for **Staff, App, and Directory tokens**.",
+        "description": "## Overview\nClose an existing account under your directory.\n\nAvailable for **Directory tokens only**.\n\n## Authentication\nUses HTTP Token authentication. Format: `Authorization: Token token=\"{DIRECTORY_TOKEN}\"`\n\nThe token must be a Doorkeeper OAuth token with `directory` scope.\n\n> **Note**: The `business_uid` must be the business UID (alphanumeric like '88pzdbz1hmkdoel4'), not a numeric database ID.",
         "operationId": "close-an-account",
         "tags": [
-          "Account [Deprecated]"
+          "Partners API"
         ],
         "security": [
           {
@@ -543,22 +541,24 @@
         ],
         "parameters": [
           {
-            "name": "business_id",
+            "name": "business_uid",
             "in": "path",
-            "description": "The relevant business_id",
+            "description": "The business UID (alphanumeric string like '88pzdbz1hmkdoel4'). The business must be a member of the directory associated with the directory token.",
             "schema": {
               "type": "string"
             },
-            "required": true
+            "required": true,
+            "example": "88pzdbz1hmkdoel4"
           },
           {
             "name": "Authorization",
             "in": "header",
-            "description": "Token token=\"aaaabbbbccccddddeeeeffff11112222\"",
+            "description": "HTTP Token authentication. Format: `Token token=\"{DIRECTORY_TOKEN}\"`. The token must have `directory` scope.",
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "Token token=\"aaaabbbbccccddddeeeeffff11112222\""
           }
         ],
         "responses": {
@@ -611,13 +611,13 @@
         "deprecated": false
       }
     },
-    "/v1/partners/accounts/{business_id}/reopen": {
+    "/v1/partners/accounts/{business_uid}/reopen": {
       "post": {
         "summary": "Reopen an Account",
-        "description": "## Overview\nReopen closed account under your directory Available for **Staff, App, and Directory tokens**.",
+        "description": "## Overview\nReopen a closed account under your directory.\n\nAvailable for **Directory tokens only**.\n\n## Authentication\nUses HTTP Token authentication. Format: `Authorization: Token token=\"{DIRECTORY_TOKEN}\"`\n\nThe token must be a Doorkeeper OAuth token with `directory` scope.\n\n> **Note**: The `business_uid` must be the business UID (alphanumeric like '88pzdbz1hmkdoel4'), not a numeric database ID.",
         "operationId": "reopen-an-account",
         "tags": [
-          "Account [Deprecated]"
+          "Partners API"
         ],
         "security": [
           {
@@ -626,22 +626,24 @@
         ],
         "parameters": [
           {
-            "name": "business_id",
+            "name": "business_uid",
             "in": "path",
-            "description": "The relevant business_id",
+            "description": "The business UID (alphanumeric string like '88pzdbz1hmkdoel4'). The business must be a member of the directory associated with the directory token.",
             "schema": {
               "type": "string"
             },
-            "required": true
+            "required": true,
+            "example": "88pzdbz1hmkdoel4"
           },
           {
             "name": "Authorization",
             "in": "header",
-            "description": "Token token=\"aaaabbbbccccddddeeeeffff11112222\"",
+            "description": "HTTP Token authentication. Format: `Token token=\"{DIRECTORY_TOKEN}\"`. The token must have `directory` scope.",
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "Token token=\"aaaabbbbccccddddeeeeffff11112222\""
           }
         ],
         "responses": {
@@ -697,10 +699,10 @@
     "/v1/partners/leads": {
       "post": {
         "summary": "Lead Injection",
-        "description": "## Overview\nLead Injection Available for **Staff, App, and Directory tokens**.",
+        "description": "## Overview\nInject a lead into a business account under your directory.\n\nAvailable for **Directory tokens only**.\n\n## Authentication\nUses HTTP Token authentication. Format: `Authorization: Token token=\"{DIRECTORY_TOKEN}\"`\n\nThe token must be a Doorkeeper OAuth token with `directory` scope.",
         "operationId": "lead-injection-1",
         "tags": [
-          "Lead"
+          "Partners API"
         ],
         "security": [
           {
@@ -711,10 +713,12 @@
           {
             "name": "Authorization",
             "in": "header",
-            "description": "Token token=\"aaaabbbbccccddddeeeeffff11112222\"",
+            "description": "HTTP Token authentication. Format: `Token token=\"{DIRECTORY_TOKEN}\"`. The token must have `directory` scope.",
+            "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "Token token=\"aaaabbbbccccddddeeeeffff11112222\""
           }
         ],
         "requestBody": {
@@ -849,10 +853,10 @@
     "/v1/partners/reports/business": {
       "get": {
         "summary": "Business Info",
-        "description": "## Overview\nQuery the one business basic information. If the email address already exist in our server you'll receive \"status:existing\".",
+        "description": "## Overview\nQuery a business's basic information. If the email address already exists in our server you'll receive \"status:existing\".\n\nAvailable for **Directory tokens only**.\n\n## Authentication\nUses HTTP Token authentication. Format: `Authorization: Token token=\"{DIRECTORY_TOKEN}\"`\n\nThe token must be a Doorkeeper OAuth token with `directory` scope.",
         "operationId": "business-info",
         "tags": [
-          "Business Reports"
+          "Partners API"
         ],
         "security": [
           {
@@ -872,11 +876,12 @@
           {
             "name": "Authorization",
             "in": "header",
-            "description": "Token token=\"aaaabbbbccccddddeeeeffff11112222\"",
+            "description": "HTTP Token authentication. Format: `Token token=\"{DIRECTORY_TOKEN}\"`. The token must have `directory` scope.",
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "Token token=\"aaaabbbbccccddddeeeeffff11112222\""
           }
         ],
         "responses": {
@@ -923,10 +928,10 @@
     "/v1/partners/reports/engagements": {
       "get": {
         "summary": "Engagements Report",
-        "description": "## Overview\nQuery for a list of all the conversations (a.k.a engagements) for a given date range. Conversations will be sorted by date of creation. The GET request will be answered by a JSON containing an array of engagement objects.",
+        "description": "## Overview\nQuery for a list of all the conversations (a.k.a engagements) for a given date range. Conversations will be sorted by date of creation. The GET request will be answered by a JSON containing an array of engagement objects.\n\nAvailable for **Directory tokens only**.\n\n## Authentication\nUses HTTP Token authentication. Format: `Authorization: Token token=\"{DIRECTORY_TOKEN}\"`\n\nThe token must be a Doorkeeper OAuth token with `directory` scope.",
         "operationId": "engagements-report",
         "tags": [
-          "Business Reports"
+          "Partners API"
         ],
         "security": [
           {
@@ -937,19 +942,21 @@
           {
             "name": "business_id",
             "in": "query",
-            "description": "business_id",
+            "description": "The business UID (alphanumeric string like '88pzdbz1hmkdoel4') to filter engagements for a specific business.",
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "88pzdbz1hmkdoel4"
           },
           {
             "name": "Authorization",
             "in": "header",
-            "description": "Token token=\"aaaabbbbccccddddeeeeffff11112222\"",
+            "description": "HTTP Token authentication. Format: `Token token=\"{DIRECTORY_TOKEN}\"`. The token must have `directory` scope.",
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "Token token=\"aaaabbbbccccddddeeeeffff11112222\""
           },
           {
             "name": "fromDate",
@@ -1016,20 +1023,26 @@
     "/v1/partners/reports/impressions": {
       "get": {
         "summary": "Widget Impressions Report",
-        "description": "## Overview\nQuery for the number of impressions per day for a given date range. The GET request will answered by a JSON of an array of impressions_daily objects. Each impressions_daily object provides information about the number of impressions we had for a specified business account.",
+        "description": "## Overview\nQuery for the number of impressions per day for a given date range. The GET request will be answered by a JSON of an array of impressions_daily objects. Each impressions_daily object provides information about the number of impressions we had for a specified business account.\n\nAvailable for **Directory tokens only**.\n\n## Authentication\nUses HTTP Token authentication. Format: `Authorization: Token token=\"{DIRECTORY_TOKEN}\"`\n\nThe token must be a Doorkeeper OAuth token with `directory` scope.",
         "operationId": "widget-impressions-report",
         "tags": [
-          "Business Reports"
+          "Partners API"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
         ],
         "parameters": [
           {
             "name": "Authorization",
             "in": "header",
-            "description": "Token token=\"aaaabbbbccccddddeeeeffff11112222\"",
+            "description": "HTTP Token authentication. Format: `Token token=\"{DIRECTORY_TOKEN}\"`. The token must have `directory` scope.",
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "example": "Token token=\"aaaabbbbccccddddeeeeffff11112222\""
           },
           {
             "name": "fromDate",
@@ -1093,13 +1106,13 @@
         "deprecated": false
       }
     },
-    "/v1/partners/sso/token/{uid}": {
+    "/v1/partners/sso/token": {
       "get": {
-        "summary": "SSO API",
-        "description": "## Overview\nCreate a one time token for account login.",
+        "summary": "Create SSO Token",
+        "description": "## Overview\nCreate a one-time token for Single Sign On (SSO) login.\n\nAvailable for **Directory tokens only**.\n\n## Authentication\nUses HTTP Token authentication. Format: `Authorization: Token token=\"{DIRECTORY_TOKEN}\"`\n\nThe token must be a Doorkeeper OAuth token with `directory` scope.\n\n## SSO Process\n\n**Step 1**: Call this endpoint to create a one-time SSO token.\n\n**Step 2**: Build the SSO login URL using the token:\n`https://api.vcita.com/v1/partners/sso/login?staff_uid={STAFF_UID}&sso_token={SSO_TOKEN}`\n\n## Deep Links\nTo redirect users to a specific page after login, append the `redirect_to` query param:\n`https://api.vcita.com/v1/partners/sso/login?staff_uid=xxxzzz111&sso_token={SSO_TOKEN}&redirect_to=/app/invoices/ru7q9qlt7cp4hfni`\n\n## Impersonation\nTo create an impersonation session, include the `operator_uid` parameter. This adds the operator as the `actor_uid` with `actor_type` as `operator`.\n\n> **Note**: The returned token is valid for 30 minutes. The `expires_at` value is in microseconds.",
         "operationId": "sso-api",
         "tags": [
-          "Tokens"
+          "Partners API"
         ],
         "security": [
           {
@@ -1108,23 +1121,44 @@
         ],
         "parameters": [
           {
-            "name": "uid",
-            "in": "path",
-            "description": "The business/staff/operator uid that you'd like to receive a one time token for login (admin access)",
+            "name": "Authorization",
+            "in": "header",
+            "description": "HTTP Token authentication. Format: `Token token=\"{DIRECTORY_TOKEN}\"`. The token must have `directory` scope.",
+            "required": true,
             "schema": {
               "type": "string"
             },
-            "required": true
+            "example": "Token token=\"aaaabbbbccccddddeeeeffff11112222\""
+          },
+          {
+            "name": "staff_uid",
+            "in": "query",
+            "description": "The staff UID to create the SSO token for. Use this to log in users as specific staff members. If you want admin access, use the business owner's staff_uid.",
+            "schema": {
+              "type": "string"
+            },
+            "required": true,
+            "example": "stf_abc123xyz"
+          },
+          {
+            "name": "operator_uid",
+            "in": "query",
+            "description": "Optional. The operator UID for impersonation sessions. When provided, the operator is set as the `actor_uid` with `actor_type` as `operator`, simulating an impersonation session.",
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "example": "op_xyz789abc"
           }
         ],
         "responses": {
           "200": {
-            "description": "200",
+            "description": "SSO token created successfully.",
             "content": {
               "application/json": {
                 "examples": {
                   "Result": {
-                    "value": "{\n    \"sso_token\": \"aaabbbcccddd111222333444\",\n    \"expires_at\": 123456789\n}"
+                    "value": "{\n    \"sso_token\": \"aaabbbcccddd111222333444\",\n    \"expires_at\": 1666169052\n}"
                   }
                 },
                 "schema": {
@@ -1132,12 +1166,13 @@
                   "properties": {
                     "sso_token": {
                       "type": "string",
+                      "description": "The one-time SSO token to use in the login URL.",
                       "example": "aaabbbcccddd111222333444"
                     },
                     "expires_at": {
                       "type": "integer",
-                      "example": 123456789,
-                      "default": 0
+                      "description": "Token expiration timestamp in microseconds. The token is valid for 30 minutes from creation.",
+                      "example": 1666169052
                     }
                   }
                 }
@@ -1145,7 +1180,7 @@
             }
           },
           "401": {
-            "description": "401",
+            "description": "Unauthorized - Invalid or missing directory token.",
             "content": {
               "application/json": {
                 "examples": {
@@ -1157,7 +1192,7 @@
             }
           },
           "422": {
-            "description": "422",
+            "description": "Unprocessable Entity - Invalid parameters.",
             "content": {
               "application/json": {
                 "examples": {

@@ -1,6 +1,11 @@
 /**
  * AI Parameter Generator
- * Uses AI to intelligently fill request parameters based on documentation
+ * Uses AI to intelligently fill ALL request parameters (path, query, body) based on documentation
+ * 
+ * NEW UNIFIED FLOW:
+ * Step 1: Resolve UIDs/IDs/Reference Keys (done externally)
+ * Step 2: AI fills ALL values (path, query, body)
+ * Step 3: Quick type validation (string/array/object)
  */
 
 const Anthropic = require('@anthropic-ai/sdk');
@@ -17,26 +22,60 @@ function initializeClient(apiKey) {
 }
 
 /**
- * Generate request parameters using AI
+ * UNIFIED: Generate ALL parameters using AI-first approach
+ * This is the main entry point for parameter generation.
+ * 
  * @param {Object} endpoint - Endpoint object with path, method, parameters, requestSchema
- * @param {Object} resolvedParams - Already resolved parameters (business_uid, client_uid, etc.)
- * @param {Object} options - Options including apiKey
- * @returns {Promise<Object>} { queryParams, bodyParams }
+ * @param {Object} resolvedUids - Pre-resolved UIDs/IDs/reference keys from Step 1
+ * @param {Object} aiConfig - AI configuration { enabled, apiKey }
+ * @returns {Promise<Object>} { pathParams, queryParams, bodyParams }
  */
-async function generateParamsWithAI(endpoint, resolvedParams = {}, options = {}) {
-  // Initialize client if needed
-  if (!anthropicClient && options.apiKey) {
-    initializeClient(options.apiKey);
+async function generateAllParams(endpoint, resolvedUids = {}, aiConfig = {}) {
+  console.log(`[AI Param Gen] Generating all params for ${endpoint.method} ${endpoint.path}`);
+  
+  // Step 2: AI fills ALL values (path, query, body)
+  if (aiConfig.enabled && aiConfig.apiKey) {
+    // Initialize client if needed
+    if (!anthropicClient) {
+      initializeClient(aiConfig.apiKey);
+    }
+    
+    const aiResult = await generateWithAI(endpoint, resolvedUids, aiConfig);
+    
+    if (aiResult) {
+      // Step 3: Quick type validation
+      const validated = validateTypes(aiResult, endpoint);
+      console.log('[AI Param Gen] AI generation successful');
+      return validated;
+    }
+  }
+  
+  // Fallback to basic generation only if AI unavailable or fails
+  console.log('[AI Param Gen] Falling back to basic generation');
+  return generateAllParamsBasic(endpoint, resolvedUids);
+}
+
+/**
+ * Generate parameters using AI
+ * @param {Object} endpoint - Endpoint object
+ * @param {Object} resolvedUids - Pre-resolved UIDs
+ * @param {Object} aiConfig - AI configuration
+ * @returns {Promise<Object|null>} Generated params or null
+ */
+async function generateWithAI(endpoint, resolvedUids, aiConfig) {
+  if (!anthropicClient && aiConfig.apiKey) {
+    initializeClient(aiConfig.apiKey);
   }
   
   if (!anthropicClient) {
-    console.log('[AI Param Gen] No API key - falling back to basic generation');
+    console.log('[AI Param Gen] No API key - cannot use AI generation');
     return null;
   }
   
   try {
-    // Build context for AI
-    const context = buildAIContext(endpoint, resolvedParams);
+    // Build rich context for AI
+    const context = buildUnifiedContext(endpoint, resolvedUids);
+    const prompt = buildUnifiedPrompt(context);
     
     const response = await anthropicClient.messages.create({
       model: 'claude-sonnet-4-20250514',
@@ -44,7 +83,7 @@ async function generateParamsWithAI(endpoint, resolvedParams = {}, options = {})
       messages: [
         {
           role: 'user',
-          content: buildPrompt(context)
+          content: prompt
         }
       ]
     });
@@ -80,61 +119,96 @@ async function generateParamsWithAI(endpoint, resolvedParams = {}, options = {})
 }
 
 /**
- * Build context object for AI
+ * Build unified context for AI - includes ALL parameter types
  */
-function buildAIContext(endpoint, resolvedParams) {
+function buildUnifiedContext(endpoint, resolvedUids) {
   const requestSchema = endpoint.requestSchema;
+  
+  // Extract path parameters from the path
+  const pathParamNames = (endpoint.path.match(/\{([a-z_]+)\}/g) || [])
+    .map(m => m.slice(1, -1));
+  
+  // Get path parameter schemas
+  const pathParams = (endpoint.parameters?.path || []).map(p => formatParamSchema(p));
+  
+  // Add any path params that aren't in the schema
+  for (const paramName of pathParamNames) {
+    if (!pathParams.find(p => p.name === paramName)) {
+      pathParams.push({
+        name: paramName,
+        required: true,
+        type: 'string',
+        description: `Path parameter: ${paramName}`
+      });
+    }
+  }
   
   return {
     method: endpoint.method,
     path: endpoint.path,
     summary: endpoint.summary || '',
     description: endpoint.description || '',
-    queryParameters: formatQueryParams(endpoint.parameters?.query || []),
-    requestBodySchema: requestSchema ? formatSchema(requestSchema) : null,
-    // Include root-level example if available - this is critical for POST/PUT requests
+    pathParameters: pathParams,
+    queryParameters: (endpoint.parameters?.query || []).map(p => formatParamSchema(p)),
+    requestBodySchema: requestSchema ? formatSchemaFull(requestSchema) : null,
     requestBodyExample: requestSchema?.example || null,
-    resolvedParams: resolvedParams,
+    resolvedUids: resolvedUids,
     currentDate: new Date().toISOString()
   };
 }
 
 /**
- * Format query parameters for AI context
+ * Format a single parameter schema with ALL constraint fields
  */
-function formatQueryParams(params) {
-  return params.map(p => ({
-    name: p.name,
-    required: p.required || false,
-    description: p.description || '',
-    type: p.schema?.type || 'string',
-    format: p.schema?.format || null,
-    enum: p.schema?.enum || null,
-    default: p.schema?.default,
-    example: p.example || p.schema?.example,
-    minimum: p.schema?.minimum,
-    maximum: p.schema?.maximum
-  }));
+function formatParamSchema(param) {
+  const schema = param.schema || {};
+  return {
+    name: param.name,
+    required: param.required || false,
+    description: param.description || '',
+    type: schema.type || 'string',
+    format: schema.format || null,
+    pattern: schema.pattern || null,
+    enum: schema.enum || null,
+    default: schema.default,
+    example: param.example || schema.example,
+    minimum: schema.minimum,
+    maximum: schema.maximum,
+    minLength: schema.minLength,
+    maxLength: schema.maxLength,
+    minItems: schema.minItems,
+    maxItems: schema.maxItems
+  };
 }
 
 /**
- * Format schema for AI context (simplified view)
+ * Format schema for AI context - preserves ALL constraint fields including pattern
  */
-function formatSchema(schema, depth = 0) {
-  if (depth > 3) return { type: 'object', note: '(nested object)' };
+function formatSchemaFull(schema, depth = 0) {
+  if (depth > 4) return { type: 'object', note: '(nested object - depth limit reached)' };
   
   if (schema.allOf) {
-    const merged = {};
+    const merged = { type: 'object', properties: {}, required: [] };
     for (const sub of schema.allOf) {
-      Object.assign(merged, formatSchema(sub, depth + 1));
+      const formatted = formatSchemaFull(sub, depth + 1);
+      if (formatted.properties) {
+        Object.assign(merged.properties, formatted.properties);
+      }
+      if (formatted.required) {
+        merged.required = [...merged.required, ...formatted.required];
+      }
+      // Copy other fields
+      if (formatted.description) merged.description = formatted.description;
+      if (formatted.example !== undefined) merged.example = formatted.example;
     }
+    merged.required = [...new Set(merged.required)];
     return merged;
   }
   
   if (schema.oneOf || schema.anyOf) {
     const options = schema.oneOf || schema.anyOf;
     return {
-      oneOf: options.map(o => formatSchema(o, depth + 1))
+      oneOf: options.map(o => formatSchemaFull(o, depth + 1))
     };
   }
   
@@ -146,45 +220,73 @@ function formatSchema(schema, depth = 0) {
     };
     
     for (const [key, prop] of Object.entries(schema.properties || {})) {
-      result.properties[key] = {
-        type: prop.type,
-        format: prop.format,
-        description: prop.description,
-        enum: prop.enum,
-        default: prop.default,
-        example: prop.example,
-        minimum: prop.minimum,
-        maximum: prop.maximum
-      };
-      
       if (prop.type === 'object' || prop.properties) {
-        result.properties[key] = formatSchema(prop, depth + 1);
-      }
-      if (prop.type === 'array' && prop.items) {
-        result.properties[key].items = formatSchema(prop.items, depth + 1);
+        result.properties[key] = formatSchemaFull(prop, depth + 1);
+      } else if (prop.type === 'array' && prop.items) {
+        result.properties[key] = {
+          type: 'array',
+          description: prop.description,
+          items: formatSchemaFull(prop.items, depth + 1),
+          example: prop.example,
+          minItems: prop.minItems,
+          maxItems: prop.maxItems,
+          uniqueItems: prop.uniqueItems
+        };
+      } else {
+        // Include ALL constraint fields - this is critical for AI reasoning
+        result.properties[key] = {
+          type: prop.type,
+          format: prop.format,
+          description: prop.description,
+          pattern: prop.pattern,        // CRITICAL: Include pattern constraint
+          enum: prop.enum,
+          default: prop.default,
+          example: prop.example,
+          minimum: prop.minimum,
+          maximum: prop.maximum,
+          minLength: prop.minLength,
+          maxLength: prop.maxLength,
+          nullable: prop.nullable
+        };
       }
     }
     
     return result;
   }
   
+  if (schema.type === 'array') {
+    return {
+      type: 'array',
+      description: schema.description,
+      items: schema.items ? formatSchemaFull(schema.items, depth + 1) : { type: 'string' },
+      example: schema.example,
+      minItems: schema.minItems,
+      maxItems: schema.maxItems,
+      uniqueItems: schema.uniqueItems
+    };
+  }
+  
+  // Primitive types - include all constraints
   return {
     type: schema.type,
     format: schema.format,
     description: schema.description,
+    pattern: schema.pattern,
     enum: schema.enum,
     default: schema.default,
     example: schema.example,
     minimum: schema.minimum,
-    maximum: schema.maximum
+    maximum: schema.maximum,
+    minLength: schema.minLength,
+    maxLength: schema.maxLength
   };
 }
 
 /**
- * Build the AI prompt
+ * Build the unified AI prompt for ALL parameter types
  */
-function buildPrompt(context) {
-  return `You are an API testing assistant. Generate valid parameter values for an API endpoint based on its documentation.
+function buildUnifiedPrompt(context) {
+  return `You are generating test parameters for an API endpoint. Generate realistic, valid values for ALL parameter types.
 
 ## Endpoint Information
 - **Method**: ${context.method}
@@ -193,13 +295,18 @@ function buildPrompt(context) {
 - **Description**: ${context.description}
 - **Current Date/Time**: ${context.currentDate}
 
-## Available Resolved Parameters
-These are real values from the test system that should be used for uid/id fields:
+## Pre-Resolved UIDs (MUST use these for uid/id fields)
+These are real values from the test system. Use them for any matching uid/id fields:
 \`\`\`json
-${JSON.stringify(context.resolvedParams, null, 2)}
+${JSON.stringify(context.resolvedUids, null, 2)}
 \`\`\`
 
-## Query Parameters Schema
+## Path Parameters
+\`\`\`json
+${JSON.stringify(context.pathParameters, null, 2)}
+\`\`\`
+
+## Query Parameters
 \`\`\`json
 ${JSON.stringify(context.queryParameters, null, 2)}
 \`\`\`
@@ -207,42 +314,48 @@ ${JSON.stringify(context.queryParameters, null, 2)}
 ${context.requestBodySchema ? `## Request Body Schema
 \`\`\`json
 ${JSON.stringify(context.requestBodySchema, null, 2)}
-\`\`\`` : ''}
+\`\`\`` : '## Request Body Schema\nNo request body required.'}
 
-${context.requestBodyExample ? `## REQUEST BODY EXAMPLE (USE THIS!)
-This is a complete, valid example from the documentation. **USE THIS EXACT STRUCTURE** and only modify uid/id fields with resolved params:
+${context.requestBodyExample ? `## Request Body Example (USE THIS!)
 \`\`\`json
 ${JSON.stringify(context.requestBodyExample, null, 2)}
 \`\`\`` : ''}
 
-## CRITICAL INSTRUCTIONS - READ CAREFULLY
+## CRITICAL INSTRUCTIONS - MINIMAL HAPPY PATH
 
-1. **FOR POST/PUT/PATCH - USE THE REQUEST BODY EXAMPLE**: If a "REQUEST BODY EXAMPLE" section is provided above, USE IT AS YOUR BASE. Copy the entire structure and only replace uid/id fields with values from resolved parameters. Do NOT modify other values.
+**GOAL: Generate the BARE MINIMUM parameters needed for a successful request. We want the happy path, not comprehensive coverage.**
 
-2. **USE EXAMPLES EXACTLY AS PROVIDED** - If a parameter has an "example" value in the schema, USE THAT EXACT VALUE. Do NOT invent similar-looking values. Examples are real, valid values from the production system.
+1. **ONLY REQUIRED FIELDS**: Include ONLY fields marked as "required". Do NOT include optional query params or body fields unless they are in the "required" array. Empty objects {} are valid if nothing is required.
 
-3. **For array parameters with an example**: If the example is a single value like "payments.invoices.export", use an array containing ONLY that value: ["payments.invoices.export"]. Do NOT generate additional similar-looking values.
+2. **UIDs/IDs**: For ANY field ending in _uid, _id, or named uid/id, ONLY use values from "Pre-Resolved UIDs". If no match, use null.
 
-4. **For uid/id fields**: Use matching values from resolved parameters if available. Otherwise, use the example value if provided.
+3. **Pattern Constraints**: When a field has a "pattern" property, generate a value that MATCHES the regex pattern.
+   - Read the description - it explains what the pattern means
+   - Example: pattern "^[a-z]{2}(-[A-Z]{2})?$" → use "en" or "en-GB"
 
-5. **For date/time fields**: Use appropriate values relative to the current date (${context.currentDate}).
+4. **Examples**: If a required field has an "example" value, USE IT EXACTLY.
+   - **EXCEPTION - Email fields**: For POST requests, email fields must be UNIQUE. Generate a unique email using the current timestamp: \`test.{timestamp}@example.com\` where {timestamp} is the epoch milliseconds from Current Date/Time.
+   - **EXCEPTION - Code/identifier fields**: For POST requests creating resources, fields named "code" that are described as "unique" MUST be unique. Generate a unique code using the timestamp: \`test_{resource}_{timestamp}\` (e.g., \`test_role_1706455200000\`). Do NOT use common codes like "admin", "owner", "staff", "manager".
 
-6. **For enums**: Select the first enum value unless the context suggests otherwise.
+5. **Enums**: If a field has an "enum" array, select the first value.
 
-7. **For strings with formats** (email, uri, etc.): Generate valid examples only if no example is provided.
+6. **Arrays**: For required arrays, generate exactly 1 item that matches the items schema.
 
-8. **Do NOT invent reference data**: If a field requires system-specific identifiers (like permission keys, feature names, etc.) and no example is provided, use a generic placeholder like "test" or skip the field if optional.
+7. **Dates**: Use dates relative to ${context.currentDate}.
 
-9. **Pagination**: Use page=1 and per_page=10 unless specified otherwise.
+8. **GET requests**: Do NOT add pagination params (page, per_page) unless they are required. Keep query params minimal.
 
-10. **Omit read-only fields from POST requests**: Do not include uid, created_at, updated_at in request bodies for POST - these are server-generated.
+9. **POST/PUT bodies**: Only include required body fields. Do NOT include uid, created_at, updated_at.
 
-11. **NEVER INVENT uid/id VALUES**: For any field ending in _uid or _id (like client_uid, staff_uid, business_uid), ONLY use values from the "Available Resolved Parameters" section above. If no matching value exists in resolved parameters, set the field to null. Do NOT generate fake UIDs like "d290f1ee-6c54-4b01-90e6-d701748f0851" or similar.
+10. **IMPORTANT**: When in doubt, OMIT the field. Less is more. We want the simplest valid request.
 
 ## Response Format
-Return ONLY a JSON object with this structure (no explanation):
+Return ONLY a JSON object with this exact structure (no explanation):
 \`\`\`json
 {
+  "pathParams": {
+    "param_name": "value"
+  },
   "queryParams": {
     "param_name": "value"
   },
@@ -252,87 +365,134 @@ Return ONLY a JSON object with this structure (no explanation):
 }
 \`\`\`
 
-If there are no query params needed, use empty object for queryParams.
-If there's no request body needed, use empty object for bodyParams.
+Use empty objects {} for any section with no parameters.
 `;
 }
 
 /**
- * Generate query parameters with AI fallback to basic generation
- * @param {Object} endpoint - Endpoint object
- * @param {Object} staticParams - Static params from config
- * @param {Object} dynamicParams - Dynamically resolved params
- * @param {Object} aiConfig - AI configuration { enabled, apiKey }
- * @returns {Promise<Object>} Query parameters object
+ * Step 3: Quick type validation
+ * Ensures structural correctness without value validation
  */
-async function generateQueryParams(endpoint, staticParams = {}, dynamicParams = {}, aiConfig = {}) {
-  const allResolved = { ...staticParams, ...dynamicParams };
+function validateTypes(params, endpoint) {
+  const result = {
+    pathParams: params.pathParams || {},
+    queryParams: params.queryParams || {},
+    bodyParams: params.bodyParams || {}
+  };
   
-  // Try AI generation if enabled
-  if (aiConfig.enabled && aiConfig.apiKey) {
-    const aiResult = await generateParamsWithAI(endpoint, allResolved, { apiKey: aiConfig.apiKey });
-    if (aiResult?.queryParams && Object.keys(aiResult.queryParams).length > 0) {
-      console.log('[AI Param Gen] Using AI-generated query params');
-      return aiResult.queryParams;
+  // Validate path params are strings
+  for (const [key, value] of Object.entries(result.pathParams)) {
+    if (value !== null && value !== undefined && typeof value !== 'string') {
+      result.pathParams[key] = String(value);
     }
   }
   
-  // Fallback to basic generation
-  return generateQueryParamsBasic(endpoint, staticParams, dynamicParams);
+  // Validate query params are primitives or arrays
+  for (const [key, value] of Object.entries(result.queryParams)) {
+    if (value !== null && value !== undefined) {
+      if (typeof value === 'object' && !Array.isArray(value)) {
+        // Convert objects to JSON strings
+        result.queryParams[key] = JSON.stringify(value);
+      }
+    }
+  }
+  
+  // Validate body structure matches schema expectations
+  const schema = endpoint.requestSchema;
+  if (schema && result.bodyParams) {
+    result.bodyParams = validateBodyTypes(result.bodyParams, schema);
+  }
+  
+  return result;
 }
 
 /**
- * Generate request body with schema-first approach
- * 
- * IMPORTANT: We prefer schema-based generation over AI because:
- * 1. Schema has the exact structure (allOf, object types, nested properties)
- * 2. AI doesn't see the full schema and generates generic/incorrect formats
- * 
- * @param {Object} endpoint - Endpoint object
- * @param {Object} staticParams - Static params from config
- * @param {Object} dynamicParams - Dynamically resolved params
- * @param {Object} aiConfig - AI configuration { enabled, apiKey }
- * @returns {Promise<Object>} Request body object
+ * Validate body params match schema types
  */
-async function generateRequestBody(endpoint, staticParams = {}, dynamicParams = {}, aiConfig = {}) {
-  const allResolved = { ...staticParams, ...dynamicParams };
+function validateBodyTypes(body, schema) {
+  if (!body || typeof body !== 'object') return body;
   
-  // ALWAYS prefer schema-based generation when schema is available
-  // This ensures correct handling of allOf, object types, nested structures
-  const hasSchema = endpoint.requestSchema && 
-    (endpoint.requestSchema.properties || 
-     endpoint.requestSchema.allOf || 
-     endpoint.requestSchema.type === 'object');
+  const properties = schema.properties || {};
   
-  if (hasSchema) {
-    console.log('[AI Param Gen] Using schema-based body generation (schema available)');
-    return generateRequestBodyBasic(endpoint, allResolved);
-  }
-  
-  // Only use AI when no schema is available
-  if (aiConfig.enabled && aiConfig.apiKey) {
-    console.log('[AI Param Gen] No schema available, trying AI generation');
-    const aiResult = await generateParamsWithAI(endpoint, allResolved, { apiKey: aiConfig.apiKey });
-    if (aiResult?.bodyParams && Object.keys(aiResult.bodyParams).length > 0) {
-      console.log('[AI Param Gen] Using AI-generated body params');
-      return aiResult.bodyParams;
+  for (const [key, value] of Object.entries(body)) {
+    const propSchema = properties[key];
+    if (!propSchema) continue;
+    
+    // Ensure arrays are arrays
+    if (propSchema.type === 'array' && !Array.isArray(value)) {
+      if (value !== null && value !== undefined) {
+        body[key] = [value];
+      } else {
+        body[key] = [];
+      }
+    }
+    
+    // Ensure objects are objects
+    if (propSchema.type === 'object' && typeof value !== 'object') {
+      body[key] = {};
+    }
+    
+    // Ensure strings are strings
+    if (propSchema.type === 'string' && typeof value !== 'string' && value !== null) {
+      body[key] = String(value);
     }
   }
   
-  // Final fallback to basic generation
-  return generateRequestBodyBasic(endpoint, allResolved);
+  return body;
 }
 
-// ============== Basic (Non-AI) Generation Functions ==============
+// ============== Basic (Non-AI) Generation Functions - FALLBACK ONLY ==============
+
+/**
+ * Basic generation for ALL params (fallback when AI unavailable)
+ */
+function generateAllParamsBasic(endpoint, resolvedUids = {}) {
+  return {
+    pathParams: generatePathParamsBasic(endpoint, resolvedUids),
+    queryParams: generateQueryParamsBasic(endpoint, resolvedUids, resolvedUids),
+    bodyParams: generateRequestBodyBasic(endpoint, resolvedUids)
+  };
+}
+
+/**
+ * Basic path param generation
+ */
+function generatePathParamsBasic(endpoint, resolvedUids = {}) {
+  const pathParams = {};
+  const pathParamNames = (endpoint.path.match(/\{([a-z_]+)\}/g) || [])
+    .map(m => m.slice(1, -1));
+  
+  for (const paramName of pathParamNames) {
+    if (resolvedUids[paramName]) {
+      pathParams[paramName] = resolvedUids[paramName];
+    } else {
+      // Try alternate forms (uid vs id)
+      const altKey = paramName.replace(/_uid$/, '_id').replace(/_id$/, '_uid');
+      if (resolvedUids[altKey]) {
+        pathParams[paramName] = resolvedUids[altKey];
+      } else {
+        pathParams[paramName] = 'UNRESOLVED_' + paramName;
+      }
+    }
+  }
+  
+  return pathParams;
+}
 
 /**
  * Basic query param generation (non-AI fallback)
+ * MINIMAL: Only include REQUIRED query params for happy path
  */
 function generateQueryParamsBasic(endpoint, staticParams = {}, dynamicParams = {}) {
   const queryParams = {};
   const endpointQueryParams = endpoint.parameters?.query || [];
   
   for (const param of endpointQueryParams) {
+    // ONLY process if param is REQUIRED or explicitly provided
+    if (!param.required && !dynamicParams[param.name] && !staticParams[param.name]) {
+      continue; // Skip optional params for minimal happy path
+    }
+    
     // Priority: dynamic > static > default > example > generate
     if (dynamicParams[param.name]) {
       queryParams[param.name] = dynamicParams[param.name];
@@ -342,8 +502,10 @@ function generateQueryParamsBasic(endpoint, staticParams = {}, dynamicParams = {
       queryParams[param.name] = param.schema.default;
     } else if (param.example !== undefined) {
       queryParams[param.name] = param.example;
+    } else if (param.schema?.example !== undefined) {
+      queryParams[param.name] = param.schema.example;
     } else if (param.required) {
-      queryParams[param.name] = generateBasicValue(param.schema, param.name);
+      queryParams[param.name] = generateBasicValue(param.schema, param.name, dynamicParams);
     }
   }
   
@@ -394,12 +556,15 @@ function generateFromSchemaBasic(schema, requiredFields = [], resolvedParams = {
         } else if (resolvedParams[altKey]) {
           obj[propName] = resolvedParams[altKey];
         } else if (isRequired) {
-          obj[propName] = generateBasicValue(propSchema, propName);
+          obj[propName] = generateBasicValue(propSchema, propName, resolvedParams);
         }
         continue;
       }
       
-      obj[propName] = generateBasicValue(propSchema, propName, resolvedParams);
+      // MINIMAL: Only include REQUIRED fields for happy path
+      if (isRequired) {
+        obj[propName] = generateBasicValue(propSchema, propName, resolvedParams);
+      }
     }
     
     return obj;
@@ -417,7 +582,7 @@ function isUidField(propName) {
 }
 
 /**
- * Generate basic value from schema
+ * Generate basic value from schema (fallback)
  */
 function generateBasicValue(schema, propName = '', resolvedParams = {}) {
   if (!schema) return null;
@@ -448,7 +613,6 @@ function generateBasicValue(schema, propName = '', resolvedParams = {}) {
       mergedSchema.required = [...new Set(mergedRequired)];
     }
     
-    // Recurse with merged schema
     return generateBasicValue(mergedSchema, propName, resolvedParams);
   }
   
@@ -467,7 +631,7 @@ function generateBasicValue(schema, propName = '', resolvedParams = {}) {
     if (resolvedParams[altKey]) return resolvedParams[altKey];
   }
   
-  // Use example/default/enum if available
+  // Use example/default/enum if available - ALWAYS prefer these
   if (schema.example !== undefined) return schema.example;
   if (schema.default !== undefined) return schema.default;
   if (schema.enum?.length > 0) return schema.enum[0];
@@ -486,7 +650,7 @@ function generateBasicValue(schema, propName = '', resolvedParams = {}) {
         return now.toISOString();
       }
       if (format === 'date') return new Date().toISOString().split('T')[0];
-      if (format === 'email') return 'test@example.com';
+      if (format === 'email') return `test.${Date.now()}@example.com`;
       if (format === 'uuid') return '00000000-0000-0000-0000-000000000000';
       if (format === 'uri') return 'https://example.com';
       return 'test_string';
@@ -499,7 +663,15 @@ function generateBasicValue(schema, propName = '', resolvedParams = {}) {
       return true;
     
     case 'array':
+      // Try to use array-level example first
+      if (schema.example && Array.isArray(schema.example)) {
+        return schema.example;
+      }
       if (schema.items) {
+        // Try items example
+        if (schema.items.example !== undefined) {
+          return [schema.items.example];
+        }
         const item = generateBasicValue(schema.items, '', resolvedParams);
         return item !== null ? [item] : [];
       }
@@ -517,8 +689,38 @@ function generateBasicValue(schema, propName = '', resolvedParams = {}) {
   }
 }
 
+// ============== Legacy API - kept for backwards compatibility ==============
+
+/**
+ * @deprecated Use generateAllParams instead
+ */
+async function generateQueryParams(endpoint, staticParams = {}, dynamicParams = {}, aiConfig = {}) {
+  const allResolved = { ...staticParams, ...dynamicParams };
+  const result = await generateAllParams(endpoint, allResolved, aiConfig);
+  return result.queryParams;
+}
+
+/**
+ * @deprecated Use generateAllParams instead
+ */
+async function generateRequestBody(endpoint, staticParams = {}, dynamicParams = {}, aiConfig = {}) {
+  const allResolved = { ...staticParams, ...dynamicParams };
+  const result = await generateAllParams(endpoint, allResolved, aiConfig);
+  return result.bodyParams;
+}
+
+/**
+ * @deprecated Use generateParamsWithAI via generateAllParams instead
+ */
+async function generateParamsWithAI(endpoint, resolvedParams = {}, options = {}) {
+  return generateWithAI(endpoint, resolvedParams, options);
+}
+
 module.exports = {
   initializeClient,
+  // New unified API
+  generateAllParams,
+  // Legacy API (deprecated but maintained for compatibility)
   generateParamsWithAI,
   generateQueryParams,
   generateRequestBody,

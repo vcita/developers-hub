@@ -610,6 +610,84 @@ function detectResourceNotFound(responseData) {
 }
 
 /**
+ * Check if 404 response indicates a true endpoint/routing error (path doesn't exist)
+ * vs a missing resource/entity (path exists but entity not found)
+ * 
+ * This function looks for explicit routing error messages that indicate
+ * the API path itself is wrong, not just a missing resource.
+ * 
+ * @param {Object} responseData - Response body
+ * @returns {Object|null} - { isEndpointNotFound: boolean, routingInfo: string }
+ */
+function detectEndpointNotFound(responseData) {
+  if (!responseData || typeof responseData !== 'object') {
+    return null;
+  }
+  
+  // Extract message from various response formats
+  let errorMessage = '';
+  if (typeof responseData === 'string') {
+    errorMessage = responseData;
+  } else if (responseData.message) {
+    errorMessage = responseData.message;
+  } else if (responseData.error) {
+    errorMessage = typeof responseData.error === 'string' 
+      ? responseData.error 
+      : responseData.error.message || '';
+  } else if (responseData.errors && Array.isArray(responseData.errors) && responseData.errors.length > 0) {
+    errorMessage = responseData.errors[0].message || responseData.errors[0].code || '';
+  }
+  
+  // Patterns that indicate routing/path errors (NOT resource errors)
+  const routingErrorPatterns = [
+    /route not found/i,
+    /endpoint not found/i,
+    /cannot (get|post|put|patch|delete)/i,
+    /no route/i,
+    /path not found/i,
+    /not implemented/i,
+    /unknown route/i,
+    /unknown endpoint/i,
+    /invalid path/i,
+    /method not allowed/i,
+    /api not found/i,
+    /service not available/i,
+    /no matching route/i,
+    /^\s*<!DOCTYPE/i,  // HTML error page (often from proxy/gateway)
+    /Bad Gateway/i,
+    /502/,
+    /503/
+  ];
+  
+  const isEndpointNotFound = routingErrorPatterns.some(pattern => pattern.test(errorMessage));
+  
+  if (isEndpointNotFound) {
+    return { 
+      isEndpointNotFound: true, 
+      routingInfo: errorMessage.substring(0, 200) 
+    };
+  }
+  
+  // Also check if response looks like a generic gateway/proxy error
+  // These typically don't have our API's error structure
+  const hasNoApiStructure = !responseData.success && 
+                            !responseData.errors && 
+                            !responseData.error && 
+                            !responseData.data &&
+                            !responseData.code;
+  
+  // If we get a raw HTML page or no API structure with certain messages, it's likely routing
+  if (hasNoApiStructure && responseData.statusCode === 404) {
+    return {
+      isEndpointNotFound: true,
+      routingInfo: 'No API response structure - likely gateway/proxy error'
+    };
+  }
+  
+  return null;
+}
+
+/**
  * Detect if an API validation error indicates a swagger type mismatch
  * This catches cases where swagger defines a field as one type (e.g., string) 
  * but the API actually expects a different type (e.g., number)
@@ -875,6 +953,21 @@ function validateStatusCode(actualStatus, expectedResponses, responseData = null
       };
     }
     
+    // Check for explicit routing/endpoint errors FIRST
+    // These indicate the path itself is wrong (not a missing resource)
+    const endpointNotFoundCheck = detectEndpointNotFound(responseData);
+    if (endpointNotFoundCheck?.isEndpointNotFound) {
+      return {
+        valid: false,
+        error: {
+          reason: FAILURE_REASONS.ENDPOINT_NOT_FOUND,
+          expected: expectedCodes,
+          actual: actualStatus,
+          routingInfo: endpointNotFoundCheck.routingInfo
+        }
+      };
+    }
+    
     // Distinguish between endpoint not found vs resource not found
     const resourceCheck = detectResourceNotFound(responseData);
     
@@ -890,12 +983,16 @@ function validateStatusCode(actualStatus, expectedResponses, responseData = null
       };
     }
     
+    // DEFAULT: Assume it's a resource not found (missing UID/entity)
+    // This is more common than a truly missing endpoint - if the endpoint path was wrong,
+    // most API gateways return explicit "route not found" messages
     return {
       valid: false,
       error: {
-        reason: FAILURE_REASONS.ENDPOINT_NOT_FOUND,
+        reason: FAILURE_REASONS.RESOURCE_NOT_FOUND,
         expected: expectedCodes,
-        actual: actualStatus
+        actual: actualStatus,
+        resourceInfo: 'unknown resource (404 without explicit error message)'
       }
     };
   }

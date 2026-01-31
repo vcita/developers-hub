@@ -17,11 +17,38 @@ const { createParamResolver, extractPathParams, hasParamSource, getParamSource, 
 const { askAIForListEndpoint, addLearnedMapping, removeLearnedMapping, getLearnedMapping } = require('../../core/resolver/ai-resolver');
 const { validateAgainstSchema, validateStatusCode, buildValidationResult, getSuggestion, detectSwaggerTypeMismatch, FAILURE_REASONS } = require('../../core/validator/response-validator');
 const { createReport, addResult, finalizeReport } = require('../../core/reporter/report-generator');
-const { runAgentHealer, isUnrecoverableError } = require('../../core/runner/ai-agent-healer');
+const { runAgentHealer, isUnrecoverableError, extractUidFieldsFromSchema, findUidSourceEndpoints } = require('../../core/runner/ai-agent-healer');
 const workflowRepo = require('../../core/workflows/repository');
+const { filterKnownIssues } = workflowRepo;
 
 // Store for active validation sessions
 const activeSessions = new Map();
+
+/**
+ * Check if AI is properly configured based on provider
+ * @param {Object} config - Application config
+ * @returns {boolean} - True if AI is enabled and has the required API key
+ */
+function isAIConfigured(config) {
+  if (!config.ai?.enabled) return false;
+  const provider = config.ai?.provider || 'anthropic';
+  const apiKey = provider === 'openai' 
+    ? config.ai?.openaiApiKey 
+    : config.ai?.anthropicApiKey;
+  return !!apiKey;
+}
+
+/**
+ * Get the appropriate API key based on provider config
+ * @param {Object} config - Application config
+ * @returns {string|null} - The API key for the configured provider
+ */
+function getAIApiKey(config) {
+  const provider = config.ai?.provider || 'anthropic';
+  return provider === 'openai' 
+    ? config.ai?.openaiApiKey 
+    : config.ai?.anthropicApiKey;
+}
 
 /**
  * POST /api/validate
@@ -443,7 +470,7 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
         if (!uid) {
           // Don't skip immediately - let the AI healer try to resolve the UID
           // Only skip if healing is disabled
-          if (!config.ai?.enabled || !config.ai?.anthropicApiKey) {
+          if (!isAIConfigured(config)) {
             result = {
               endpoint: `${endpoint.method} ${endpoint.path}`,
               domain: endpoint.domain,
@@ -470,7 +497,7 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
       
       if (!result) {
         // Build and execute request (use async version with AI if enabled)
-        const useAI = config.ai?.enabled && config.ai?.anthropicApiKey;
+        const useAI = isAIConfigured(config);
         let buildResult = useAI 
           ? await buildRequestConfigAsync(endpoint, config, context)
           : buildRequestConfig(endpoint, config, context);
@@ -580,7 +607,7 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
         // Handle unresolved path parameters
         if (skip) {
           // If AI healing is enabled, mark as FAIL (not SKIP) so healer can resolve
-          const shouldHeal = config.ai?.enabled && config.ai?.anthropicApiKey;
+          const shouldHeal = isAIConfigured(config);
           result = {
             endpoint: `${endpoint.method} ${endpoint.path}`,
             domain: endpoint.domain,
@@ -761,6 +788,24 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
               let schemaValidation = { valid: true, errors: [], warnings: [] };
               if (responseSchema && response.data) {
                 schemaValidation = validateAgainstSchema(response.data, responseSchema);
+              }
+              
+              // Check for known issues from workflow and filter them out
+              const endpointKey = `${endpoint.method} ${endpoint.path}`;
+              const existingWorkflowForFilter = workflowRepo.get(endpointKey);
+              const knownIssues = existingWorkflowForFilter?.knownIssues || [];
+              
+              let suppressedCount = 0;
+              if (knownIssues.length > 0 && schemaValidation.errors?.length > 0) {
+                const filterResult = filterKnownIssues(schemaValidation.errors, knownIssues);
+                schemaValidation.errors = filterResult.filteredErrors;
+                suppressedCount = filterResult.suppressedCount;
+                
+                // If all errors were known issues, mark validation as valid
+                if (schemaValidation.errors.length === 0 && suppressedCount > 0) {
+                  schemaValidation.valid = true;
+                  console.log(`  [KnownIssue] All ${suppressedCount} schema error(s) matched known issues - treating as PASS`);
+                }
               }
               
               // Combine schema errors with doc issues
@@ -1648,9 +1693,157 @@ async function fetchMissingParams(endpoints, paramResolver, apiClient, rateLimit
   }
   
   
+  // ========== PHASE 2.5: Request Body Reference Field Resolution ==========
+  // Resolves reference fields in POST/PUT request bodies BEFORE making the initial call
+  reportProgress('Phase 2.5: Body References', 'Analyzing request body schemas...');
+  log(`Pre-flight Phase 2.5: Resolving request body reference fields...`);
+  
+  // Find POST/PUT endpoints with request bodies (use requestSchema like existing code)
+  const endpointsWithBodies = endpoints.filter(ep => 
+    ['POST', 'PUT', 'PATCH'].includes(ep.method) && ep.requestSchema
+  );
+  
+  console.log(`[Phase 2.5] Found ${endpointsWithBodies.length} endpoint(s) with request bodies`);
+  
+  if (endpointsWithBodies.length > 0) {
+    const bodyRefFields = new Set(); // Track unique reference fields across all endpoints
+    
+    for (const endpoint of endpointsWithBodies) {
+      const schema = endpoint.requestSchema;
+      const requiredFields = schema.required || [];
+      
+      console.log(`[Phase 2.5] Processing ${endpoint.method} ${endpoint.path}`);
+      console.log(`[Phase 2.5]   Schema properties: ${schema.properties ? Object.keys(schema.properties).join(', ') : 'none'}`);
+      console.log(`[Phase 2.5]   Required fields: ${requiredFields.join(', ') || 'none'}`);
+      
+      // Extract reference fields from the schema
+      const uidFields = extractUidFieldsFromSchema(schema, requiredFields, '');
+      console.log(`[Phase 2.5]   Extracted UID fields: ${uidFields.map(f => f.path || f.field).join(', ') || 'none'}`);
+      
+      for (const field of uidFields) {
+        // Skip if already resolved or it's for the current entity being created
+        const fieldName = field.path || field.field;
+        console.log(`[Phase 2.5]   Checking field: ${fieldName}`);
+        
+        if (resolvedParams[fieldName] || allResolved[fieldName]) {
+          console.log(`[Phase 2.5]     -> Already resolved, skipping`);
+          continue;
+        }
+        
+        // Skip self-referential fields (e.g., creating a business_role doesn't need business_role_uid pre-resolved)
+        const pathResource = endpoint.path.split('/').filter(p => p && !p.startsWith('{') && p !== 'v3').pop();
+        if (fieldName === `${pathResource}_uid`) {
+          console.log(`[Phase 2.5]     -> Self-referential (${pathResource}_uid), skipping`);
+          continue;
+        }
+        
+        console.log(`[Phase 2.5]     -> Adding to resolution queue`);
+        bodyRefFields.add(JSON.stringify({ ...field, endpoint: endpoint.path }));
+      }
+    }
+    
+    const uniqueRefFields = Array.from(bodyRefFields).map(f => JSON.parse(f));
+    console.log(`[Phase 2.5] Unique body ref fields to resolve: ${uniqueRefFields.length}`);
+    
+    if (uniqueRefFields.length > 0) {
+      totalParamsToResolve += uniqueRefFields.length;
+      console.log(`[Phase 2.5] Resolving ${uniqueRefFields.length} body reference field(s)...`);
+      log(`  Found ${uniqueRefFields.length} body reference field(s) to resolve`);
+      
+      // Helper to select appropriate token based on path
+      const selectTokenForPath = (path) => {
+        if (path.startsWith('/client')) {
+          return config.tokens?.client || config.tokens?.staff;
+        }
+        return config.tokens?.staff || config.tokens?.directory || Object.values(config.tokens || {})[0];
+      };
+      
+      for (const fieldInfo of uniqueRefFields) {
+        const fieldName = fieldInfo.path || fieldInfo.field;
+        console.log(`[Phase 2.5] Resolving body reference: ${fieldName}...`);
+        log(`  Resolving body reference: ${fieldName}...`);
+        
+        // Find source endpoints for this reference field
+        // Returns { found, resourceName, getEndpoint, postEndpoint }
+        const sourceResult = findUidSourceEndpoints(fieldName, allEndpoints);
+        
+        if (!sourceResult.found || !sourceResult.getEndpoint) {
+          console.log(`[Phase 2.5]   ✗ No source endpoint found for ${fieldName}`);
+          log(`    ✗ No source endpoint found for ${fieldName}`);
+          continue;
+        }
+        
+        console.log(`[Phase 2.5]   Found source: ${sourceResult.getEndpoint}`);
+        
+        // Parse the GET endpoint (format: "GET /v3/access_control/business_roles")
+        const [method, ...pathParts] = sourceResult.getEndpoint.split(' ');
+        let sourcePath = pathParts.join(' ');
+        
+        // Substitute known params in the source path
+        for (const [param, value] of Object.entries({ ...staticParams, ...resolvedParams })) {
+          sourcePath = sourcePath.replace(`{${param}}`, value);
+        }
+        
+        // Skip if path still has unresolved params
+        const unresolvedInPath = extractPathParams(sourcePath);
+        if (unresolvedInPath.length > 0) {
+          console.log(`[Phase 2.5]   Skipping ${sourcePath}: has unresolved params ${unresolvedInPath.join(', ')}`);
+          log(`    Skipping ${sourcePath}: has unresolved params ${unresolvedInPath.join(', ')}`);
+          continue;
+        }
+        
+        // Make the request
+        const token = selectTokenForPath(sourcePath);
+        const requestConfig = {
+          method: 'get',
+          url: sourcePath,
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+          params: { page: 1, per_page: 1 }
+        };
+        
+        console.log(`[Phase 2.5]   Making request to: ${sourcePath}`);
+        
+        try {
+          const { response, error } = await rateLimiter.execute(
+            () => executeRequest(apiClient, requestConfig)
+          );
+          
+          if (response && response.status >= 200 && response.status < 300 && response.data) {
+            // Extract the UID from the response
+            const value = smartExtractUid(response.data, fieldName);
+            
+            if (value) {
+              resolvedParams[fieldName] = value;
+              resolvedCount++;
+              console.log(`[Phase 2.5]   ✓ Resolved ${fieldName}=${value} from ${sourcePath}`);
+              reportProgress('Phase 2.5: Body References', `✓ Resolved ${fieldName}`);
+              log(`    ✓ Got ${fieldName}=${value} from ${sourcePath}`);
+            } else {
+              console.log(`[Phase 2.5]   ✗ Could not extract ${fieldName} from response`);
+              log(`    ✗ Could not extract ${fieldName} from ${sourcePath}`);
+            }
+          } else {
+            console.log(`[Phase 2.5]   ✗ Request failed: ${response?.status || error?.message || 'unknown'}`);
+            log(`    ✗ Request to ${sourcePath} failed: ${response?.status || error?.message || 'unknown'}`);
+          }
+        } catch (err) {
+          console.log(`[Phase 2.5]   ✗ Error: ${err.message}`);
+          log(`    ✗ Error resolving ${fieldName} from ${sourcePath}: ${err.message}`);
+        }
+      }
+    } else {
+      log(`  No body reference fields need resolution`);
+    }
+  } else {
+    log(`  No POST/PUT endpoints with request bodies`);
+  }
+  
+  // Update allResolved to include Phase 2.5 results for Phase 3
+  Object.assign(allResolved, resolvedParams);
+  
   // ========== PHASE 3: AI-Assisted Resolution for remaining unresolved endpoints ==========
   // Only runs if AI is enabled and we have endpoints that still need UIDs
-  const aiEnabled = config.ai?.enabled && config.ai?.anthropicApiKey;
+  const aiEnabled = isAIConfigured(config);
   
   if (aiEnabled && allEndpoints && allEndpoints.length > 0) {
     reportProgress('Phase 3: AI Resolution', 'Checking for unresolved parameters...');
@@ -1707,7 +1900,7 @@ async function fetchMissingParams(endpoints, paramResolver, apiClient, rateLimit
               endpoint.path,
               paramName,
               allEndpoints,
-              config.ai.anthropicApiKey
+              getAIApiKey(config)
             );
           } else {
             console.log(`[Phase 3] Using learned mapping: ${endpoint.path} → ${learnedPath}`);

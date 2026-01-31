@@ -20,6 +20,7 @@
  */
 
 const Anthropic = require('@anthropic-ai/sdk');
+const OpenAI = require('openai');
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -32,6 +33,7 @@ const {
 } = require('../validator/response-validator');
 
 let anthropicClient = null;
+let openaiClient = null;
 
 // Repository paths for source code access
 const GITHUB_BASE = process.env.GITHUB_BASE_PATH || '/Users/ram.almog/Documents/GitHub';
@@ -83,12 +85,40 @@ const APIGW_ROUTING = {
   '/v3/business_administration': 'core'
 };
 
-function initializeClient(apiKey) {
+function initializeClient(apiKey, provider = 'anthropic') {
   if (!apiKey) return null;
+  
+  if (provider === 'openai') {
+    if (!openaiClient) {
+      openaiClient = new OpenAI({ 
+        apiKey,
+        organization: null,  // Explicitly disable organization
+        project: null        // Explicitly disable project
+      });
+    }
+    return { client: openaiClient, provider: 'openai' };
+  }
+  
+  // Default to Anthropic
   if (!anthropicClient) {
     anthropicClient = new Anthropic({ apiKey });
   }
-  return anthropicClient;
+  return { client: anthropicClient, provider: 'anthropic' };
+}
+
+/**
+ * Get the appropriate API key based on provider config
+ */
+function getAIConfig(config) {
+  const provider = config.ai?.provider || 'anthropic';
+  const apiKey = provider === 'openai' 
+    ? config.ai?.openaiApiKey 
+    : config.ai?.anthropicApiKey;
+  const model = provider === 'openai'
+    ? (config.ai?.model?.openai || 'gpt-4o')
+    : (config.ai?.model?.anthropic || 'claude-sonnet-4-20250514');
+  
+  return { provider, apiKey, model };
 }
 
 /**
@@ -139,8 +169,12 @@ const TOOLS = [
         },
         token_type: {
           type: "string",
-          enum: ["staff", "directory", "client", "business", "app"],
-          description: "Which token to use. Default is 'staff'."
+          enum: ["staff", "directory", "client", "business", "app", "admin"],
+          description: "Which token to use. Default is 'staff'. IMPORTANT: In swagger documentation, 'Internal Token' means 'admin' token. Use 'admin' for endpoints that say 'Available for Internal Tokens only'."
+        },
+        on_behalf_of: {
+          type: "string",
+          description: "Business UID to use with X-On-Behalf-Of header. ONLY use this when the endpoint's swagger documentation explicitly mentions 'X-On-Behalf-Of' or 'directory token'. Do NOT use this as a fallback when other auth methods fail - that would mask the real authentication issue."
         },
         purpose: {
           type: "string",
@@ -660,6 +694,9 @@ function checkIfDocIssueAlreadyDocumented(docIssue, endpoint, existingWorkflow) 
     { pattern: /board per type/i, docCheck: /per.*type|one board|uniqueness/i },
     { pattern: /app_code_name.*not.*app_id/i, docCheck: /app_code_name|code.?name/i },
     { pattern: /must reference.*existing/i, docCheck: /must.*reference|existing.*uid|valid.*uid/i },
+    // "already exists" patterns - match documented uniqueness constraints
+    { pattern: /already exists/i, docCheck: /must be unique|duplicate|already exists|combination.*unique|unique.*combination/i },
+    { pattern: /with uid .* already exists/i, docCheck: /duplicate.*400|400.*duplicate|unique|already exists/i },
   ];
   
   for (const { pattern, docCheck } of keyConcepts) {
@@ -773,12 +810,99 @@ function compareActionsToWorkflow(healingLog, existingWorkflow) {
 }
 
 /**
- * Extract all UID/ID fields from a schema
+ * Check if a field name matches common reference field patterns
+ * @param {string} propName - Property name
+ * @returns {boolean}
+ */
+function isReferenceFieldByName(propName) {
+  const lower = propName.toLowerCase();
+  
+  // Standard UID/ID patterns
+  if (lower.endsWith('_uid') || lower.endsWith('_id')) return true;
+  if (lower === 'uid' || lower === 'id') return true;
+  
+  // Common reference field names that typically reference other entities
+  const referenceFieldPatterns = [
+    'key',           // permission key, config key, etc.
+    'code',          // role code, status code, etc.
+    'type',          // entity type references
+    'role',          // role references
+    'permission',    // permission references
+    'status',        // status references (when enum-like)
+    'category',      // category references
+    'tag',           // tag references
+  ];
+  
+  // Check if field name matches or ends with these patterns
+  for (const pattern of referenceFieldPatterns) {
+    if (lower === pattern || lower.endsWith(`_${pattern}`)) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * Check if a field description indicates it's a reference to another entity
+ * @param {string} description - Field description
+ * @returns {{ isReference: boolean, referenceType: string|null }}
+ */
+function isReferenceFieldByDescription(description) {
+  if (!description) return { isReference: false, referenceType: null };
+  
+  const lower = description.toLowerCase();
+  
+  // Patterns that indicate a reference field
+  const referencePatterns = [
+    /reference\s+to\s+(\w+)/i,
+    /identifier\s+of\s+(?:the\s+)?(\w+)/i,
+    /must\s+be\s+(?:a\s+)?valid\s+(\w+)/i,
+    /(?:unique\s+)?(?:identifier|id|uid)\s+(?:of|for)\s+(?:the\s+)?(\w+)/i,
+    /one\s+of\s+the\s+(?:available\s+)?(\w+)/i,
+    /existing\s+(\w+)\s+(?:uid|id|identifier)/i,
+    /from\s+(?:the\s+)?(\w+)\s+(?:list|table|entity)/i,
+    /belongs\s+to\s+(?:a\s+)?(\w+)/i,
+    /foreign\s+key\s+to\s+(\w+)/i,
+  ];
+  
+  for (const pattern of referencePatterns) {
+    const match = description.match(pattern);
+    if (match) {
+      return { isReference: true, referenceType: match[1] || null };
+    }
+  }
+  
+  // Check for simpler indicators without capturing the type
+  const simpleIndicators = [
+    'must exist',
+    'valid identifier',
+    'valid uid',
+    'valid id',
+    'references',
+    'refers to',
+    'linked to',
+    'associated with',
+    'must match',
+  ];
+  
+  for (const indicator of simpleIndicators) {
+    if (lower.includes(indicator)) {
+      return { isReference: true, referenceType: null };
+    }
+  }
+  
+  return { isReference: false, referenceType: null };
+}
+
+/**
+ * Extract all UID/ID/reference fields from a schema
  * @param {Object} schema - JSON schema
  * @param {string[]} requiredFields - Required field names
- * @returns {Object[]} Array of { field, required, type }
+ * @param {string} parentPath - Parent path for nested fields
+ * @returns {Object[]} Array of { field, required, type, description, detectionMethod, needsDocumentation }
  */
-function extractUidFieldsFromSchema(schema, requiredFields = []) {
+function extractUidFieldsFromSchema(schema, requiredFields = [], parentPath = '') {
   const uidFields = [];
   
   if (!schema) return uidFields;
@@ -790,7 +914,7 @@ function extractUidFieldsFromSchema(schema, requiredFields = []) {
       if (subSchema.required) {
         mergedRequired = [...mergedRequired, ...subSchema.required];
       }
-      uidFields.push(...extractUidFieldsFromSchema(subSchema, mergedRequired));
+      uidFields.push(...extractUidFieldsFromSchema(subSchema, mergedRequired, parentPath));
     }
     return uidFields;
   }
@@ -800,31 +924,59 @@ function extractUidFieldsFromSchema(schema, requiredFields = []) {
     const required = schema.required || requiredFields;
     
     for (const [propName, propSchema] of Object.entries(schema.properties)) {
-      const isUidField = propName.endsWith('_uid') || propName.endsWith('_id') || 
-                        propName === 'uid' || propName === 'id';
+      const fullPath = parentPath ? `${parentPath}.${propName}` : propName;
       
-      if (isUidField) {
-        // Skip read-only fields like 'uid' or 'id' that are auto-generated
-        if (propName === 'uid' || propName === 'id') {
-          // These are usually the entity's own ID, not a reference
-          continue;
+      // Check for explicit x-reference-to annotation (best practice)
+      const hasExplicitRef = propSchema['x-reference-to'];
+      
+      // Check by field name pattern
+      const isRefByName = isReferenceFieldByName(propName);
+      
+      // Check by description content
+      const { isReference: isRefByDesc, referenceType } = isReferenceFieldByDescription(propSchema.description);
+      
+      // Skip auto-generated entity IDs (uid, id at root level without parent)
+      const isAutoGenerated = !parentPath && (propName === 'uid' || propName === 'id');
+      
+      if (!isAutoGenerated && (hasExplicitRef || isRefByName || isRefByDesc)) {
+        // Determine detection method for documentation suggestions
+        let detectionMethod = 'explicit'; // x-reference-to
+        let needsDocumentation = false;
+        
+        if (!hasExplicitRef) {
+          if (isRefByName && !isRefByDesc) {
+            detectionMethod = 'name_pattern';
+            needsDocumentation = true; // Suggest adding x-reference-to
+          } else if (isRefByDesc) {
+            detectionMethod = 'description';
+            needsDocumentation = true; // Suggest adding x-reference-to for clarity
+          }
         }
         
         uidFields.push({
-          field: propName,
+          field: fullPath,
           required: required.includes(propName),
           type: propSchema.type || 'string',
-          description: propSchema.description || ''
+          description: propSchema.description || '',
+          detectionMethod,
+          needsDocumentation,
+          referenceTarget: hasExplicitRef || referenceType || null
         });
       }
       
       // Recursively check nested objects
       if (propSchema.type === 'object' && propSchema.properties) {
-        const nested = extractUidFieldsFromSchema(propSchema, propSchema.required || []);
-        uidFields.push(...nested.map(f => ({
-          ...f,
-          field: `${propName}.${f.field}`
-        })));
+        const nested = extractUidFieldsFromSchema(propSchema, propSchema.required || [], fullPath);
+        uidFields.push(...nested);
+      }
+      
+      // Handle arrays with object items
+      if (propSchema.type === 'array' && propSchema.items) {
+        const itemSchema = propSchema.items;
+        if (itemSchema.type === 'object' && itemSchema.properties) {
+          const nested = extractUidFieldsFromSchema(itemSchema, itemSchema.required || [], `${fullPath}[]`);
+          uidFields.push(...nested);
+        }
       }
     }
   }
@@ -856,7 +1008,11 @@ function uidFieldToResourceName(uidField) {
     'form': 'forms',
     'payment': 'payments',
     'category': 'categories',
-    'tag': 'tags'
+    'tag': 'tags',
+    'business_role': 'business_roles',
+    'staff_business_role': 'staff_business_roles',
+    'permission': 'permissions',
+    'staff_permission': 'staff_permissions'
   };
   
   if (specialMappings[resourceName]) {
@@ -880,37 +1036,58 @@ function uidFieldToResourceName(uidField) {
 function findUidSourceEndpoints(uidField, allEndpoints) {
   const resourceName = uidFieldToResourceName(uidField);
   
+  console.log(`  [find_uid_source] Looking for resource: ${resourceName} (from field: ${uidField})`);
+  console.log(`  [find_uid_source] Total endpoints available: ${allEndpoints?.length || 0}`);
+  
   // Group endpoints by resource
   const grouped = groupByResource(allEndpoints);
+  const groupKeys = Object.keys(grouped);
+  console.log(`  [find_uid_source] Grouped into ${groupKeys.length} groups: ${groupKeys.slice(0, 10).join(', ')}${groupKeys.length > 10 ? '...' : ''}`);
   
   // Find matching resource group
   let matchingGroup = null;
+  let matchedKey = null;
   for (const [key, group] of Object.entries(grouped)) {
     if (group.resource === resourceName || 
         group.resource === resourceName.replace(/s$/, '') ||
         key.toLowerCase().includes(resourceName.toLowerCase())) {
       matchingGroup = group;
+      matchedKey = key;
+      console.log(`  [find_uid_source] Direct match found: ${key} (resource: ${group.resource})`);
       break;
     }
   }
   
   // If no direct match, try fuzzy matching
   if (!matchingGroup) {
+    console.log(`  [find_uid_source] No direct match, trying fuzzy matching...`);
     for (const [key, group] of Object.entries(grouped)) {
       const singularResource = resourceName.replace(/s$/, '');
       if (group.resource.includes(singularResource) || 
           singularResource.includes(group.resource)) {
         matchingGroup = group;
+        matchedKey = key;
+        console.log(`  [find_uid_source] Fuzzy match found: ${key} (resource: ${group.resource})`);
         break;
       }
     }
   }
   
   if (!matchingGroup) {
+    console.log(`  [find_uid_source] NO MATCH FOUND for ${resourceName}`);
+    // Log groups that contain similar names for debugging
+    const similar = groupKeys.filter(k => 
+      k.toLowerCase().includes(resourceName.substring(0, 5).toLowerCase()) ||
+      resourceName.toLowerCase().includes(k.split('/').pop().substring(0, 5).toLowerCase())
+    );
+    if (similar.length > 0) {
+      console.log(`  [find_uid_source] Similar groups that might be related: ${similar.join(', ')}`);
+    }
     return {
       found: false,
       resourceName,
-      message: `No endpoints found for resource '${resourceName}'`
+      message: `No endpoints found for resource '${resourceName}'`,
+      availableGroups: groupKeys.slice(0, 20)
     };
   }
   
@@ -918,8 +1095,11 @@ function findUidSourceEndpoints(uidField, allEndpoints) {
   let getEndpoint = null;
   let postEndpoint = null;
   
+  console.log(`  [find_uid_source] Matched group ${matchedKey} has ${matchingGroup.endpoints.length} endpoints`);
+  
   for (const ep of matchingGroup.endpoints) {
     const operation = getCrudOperation(ep);
+    console.log(`  [find_uid_source]   - ${ep.method} ${ep.path} (operation: ${operation})`);
     
     if (operation === 'list' && !getEndpoint) {
       getEndpoint = `${ep.method} ${ep.path}`;
@@ -928,6 +1108,8 @@ function findUidSourceEndpoints(uidField, allEndpoints) {
       postEndpoint = `${ep.method} ${ep.path}`;
     }
   }
+  
+  console.log(`  [find_uid_source] Result: GET=${getEndpoint}, POST=${postEndpoint}`);
   
   return {
     found: true,
@@ -977,11 +1159,22 @@ async function executeTool(toolName, toolInput, context) {
       onProgress?.({
         type: 'agent_action',
         action: 'extract_required_uids',
-        details: 'Analyzing swagger schema for required UIDs'
+        details: 'Analyzing swagger schema for required UIDs and reference fields'
       });
       
       const schema = endpoint.requestSchema;
+      console.log(`  [extract_required_uids] Endpoint: ${endpoint.method} ${endpoint.path}`);
+      console.log(`  [extract_required_uids] Schema exists: ${!!schema}`);
+      if (schema) {
+        console.log(`  [extract_required_uids] Schema type: ${schema.type}`);
+        console.log(`  [extract_required_uids] Schema has properties: ${!!schema.properties}`);
+        if (schema.properties) {
+          console.log(`  [extract_required_uids] Properties: ${Object.keys(schema.properties).join(', ')}`);
+        }
+        console.log(`  [extract_required_uids] Schema required: ${JSON.stringify(schema.required || [])}`);
+      }
       const uidFields = extractUidFieldsFromSchema(schema, schema?.required || []);
+      console.log(`  [extract_required_uids] Found ${uidFields.length} UID fields: ${uidFields.map(f => f.field).join(', ') || 'none'}`);
       
       // Also check path parameters
       const pathParams = endpoint.path.match(/\{([^}]+)\}/g) || [];
@@ -995,7 +1188,9 @@ async function executeTool(toolName, toolInput, context) {
               required: true,
               type: 'string',
               description: 'Path parameter',
-              isPathParam: true
+              isPathParam: true,
+              detectionMethod: 'path_param',
+              needsDocumentation: false
             });
           }
         }
@@ -1004,28 +1199,60 @@ async function executeTool(toolName, toolInput, context) {
       // Check which UIDs we already have resolved
       const resolvedUids = [];
       const unresolvedUids = [];
+      const documentationSuggestions = [];
       
       for (const uidField of uidFields) {
         const fieldName = uidField.field;
-        const altFieldName = fieldName.replace(/_uid$/, '_id').replace(/_id$/, '_uid');
+        // For nested fields like permissions[].key, extract the base name
+        const baseName = fieldName.replace(/\[\]\./, '_').replace(/\./g, '_');
+        const altFieldName = baseName.replace(/_uid$/, '_id').replace(/_id$/, '_uid');
         
-        if (resolvedParams[fieldName] || resolvedParams[altFieldName]) {
+        if (resolvedParams[fieldName] || resolvedParams[baseName] || resolvedParams[altFieldName]) {
           resolvedUids.push({
             ...uidField,
-            currentValue: resolvedParams[fieldName] || resolvedParams[altFieldName]
+            currentValue: resolvedParams[fieldName] || resolvedParams[baseName] || resolvedParams[altFieldName]
           });
         } else {
           unresolvedUids.push(uidField);
         }
+        
+        // Collect documentation suggestions for fields detected by heuristics
+        if (uidField.needsDocumentation) {
+          const suggestion = {
+            field: uidField.field,
+            detectedBy: uidField.detectionMethod,
+            suggestion: `Add "x-reference-to": "${uidField.referenceTarget || '<entity_name>'}" to the swagger schema for field "${uidField.field}"`,
+            example: uidField.referenceTarget 
+              ? `"${fieldName.split('.').pop()}": { "type": "string", "x-reference-to": "${uidField.referenceTarget}", "description": "..." }`
+              : `"${fieldName.split('.').pop()}": { "type": "string", "x-reference-to": "permissions", "description": "Reference to a valid permission key" }`
+          };
+          documentationSuggestions.push(suggestion);
+        }
+      }
+      
+      let note = '';
+      if (unresolvedUids.length === 0) {
+        note = 'All required UIDs/references are already resolved! You can retry the original request.';
+      } else {
+        note = `You need to resolve ${unresolvedUids.length} UID/reference field(s) before retrying.`;
+      }
+      
+      if (documentationSuggestions.length > 0) {
+        note += `\n\n⚠️ DOCUMENTATION ISSUE: ${documentationSuggestions.length} field(s) were detected as references using heuristics. `;
+        note += 'Consider adding explicit "x-reference-to" annotations in the swagger schema for better documentation.';
+      }
+      
+      // Store documentation suggestions in context for later inclusion in doc_issues
+      if (documentationSuggestions.length > 0) {
+        context.referenceFieldDocSuggestions = documentationSuggestions;
       }
       
       return {
         totalUidFields: uidFields.length,
         alreadyResolved: resolvedUids,
         needsResolution: unresolvedUids,
-        note: unresolvedUids.length === 0 
-          ? 'All required UIDs are already resolved! You can retry the original request.'
-          : `You need to resolve ${unresolvedUids.length} UID(s) before retrying.`
+        documentationSuggestions: documentationSuggestions.length > 0 ? documentationSuggestions : undefined,
+        note
       };
     }
     
@@ -1096,7 +1323,7 @@ async function executeTool(toolName, toolInput, context) {
     }
     
     case "execute_api": {
-      const { method, path: apiPath, body, token_type = 'staff', purpose, use_fallback = false } = toolInput;
+      const { method, path: apiPath, body, token_type = 'staff', on_behalf_of, purpose, use_fallback = false } = toolInput;
       
       // Track whether this counts as a retry
       const isRetry = purpose === 'retry_original';
@@ -1112,24 +1339,38 @@ async function executeTool(toolName, toolInput, context) {
       onProgress?.({
         type: 'agent_action',
         action: 'execute_api',
-        details: `${method} ${apiPath}${use_fallback ? ' (fallback)' : ''}`,
+        details: `${method} ${apiPath}${use_fallback ? ' (fallback)' : ''}${on_behalf_of ? ` (on-behalf-of: ${on_behalf_of})` : ''}`,
         purpose,
         isRetry,
-        useFallback: use_fallback
+        useFallback: use_fallback,
+        onBehalfOf: on_behalf_of
       });
       
       try {
         const token = config.tokens?.[token_type] || config.tokens?.staff;
+        // Admin tokens use "Admin" prefix, all others use "Bearer"
+        const authPrefix = token_type === 'admin' ? 'Admin' : 'Bearer';
+        
+        // Build headers
+        const headers = {
+          'Authorization': `${authPrefix} ${token}`,
+          'Content-Type': 'application/json'
+        };
+        
+        // Add X-On-Behalf-Of header when explicitly requested
+        // Required for directory tokens acting on behalf of a specific business
+        // See: https://developers.intandem.tech/docs/directory-owners-partners
+        if (on_behalf_of) {
+          headers['X-On-Behalf-Of'] = on_behalf_of;
+          console.log(`  [AI Healer] Using X-On-Behalf-Of header: ${on_behalf_of}`);
+        }
         
         // Build full URL if using fallback
         const requestConfig = {
           method: method.toLowerCase(),
           url: use_fallback ? `${baseUrl}${apiPath}` : apiPath,
           data: body,
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
+          headers
         };
         
         // If using fallback, we need to use axios directly with full URL
@@ -1170,11 +1411,36 @@ async function executeTool(toolName, toolInput, context) {
         const is404OrRouting = status === 404 || status === 502 || status === 503;
         const fallbackAvailable = !use_fallback && fallbackUrl;
         
-        console.log(`  [AI Healer] execute_api ${method} ${apiPath} => ERROR ${status}${isRetry ? ' (retry)' : ''}`);
+        // Check for "already exists" errors - these indicate uniqueness constraint violations
+        const errorData = error.response?.data;
+        const errorMessage = typeof errorData === 'object' 
+          ? (errorData?.errors?.[0]?.message || errorData?.message || JSON.stringify(errorData))
+          : (errorData || error.message);
+        const isAlreadyExistsError = /already exists/i.test(errorMessage);
+        
+        console.log(`  [AI Healer] execute_api ${method} ${apiPath} => ERROR ${status}${isRetry ? ' (retry)' : ''}${isAlreadyExistsError ? ' (ALREADY_EXISTS)' : ''}`);
         if (body) {
           console.log(`  [AI Healer] Request body:`, JSON.stringify(body, null, 2).substring(0, 300));
         }
         console.log(`  [AI Healer] Error response:`, JSON.stringify(error.response?.data, null, 2)?.substring(0, 300) || error.message);
+        
+        // Build context-specific hint based on error type
+        let hint;
+        
+        // SPECIAL HANDLING: "already exists" errors on POST endpoints
+        if (isAlreadyExistsError && method.toUpperCase() === 'POST') {
+          hint = `ALREADY EXISTS: This error indicates the entity already exists due to a uniqueness constraint. This is EXPECTED BEHAVIOR if documented in swagger! Check if swagger documents uniqueness constraint (e.g., "combination must be unique", "duplicate will return 400"). If documented: (1) Try a DIFFERENT combination - get another UID from a LIST endpoint that isn't already used, OR (2) Report PASS - the endpoint correctly enforces the documented uniqueness constraint. Do NOT suggest skip for this - it's not an infrastructure issue!`;
+        } else if (status === 404) {
+          if (fallbackAvailable) {
+            hint = `Got 404 error. First, try use_fallback=true to use fallback API URL (${fallbackUrl}). If that also fails, INVESTIGATE by calling find_service_for_endpoint to find which service handles this path, then search_source_code for "NotFoundException" or "DoesNotExist" to understand what entity is missing.`;
+          } else {
+            hint = `Got 404 error. This usually means a required entity/UID doesn't exist, NOT that the endpoint path is wrong. INVESTIGATE: 1) Call find_service_for_endpoint to find which microservice handles this endpoint. 2) Call search_source_code with query="NotFoundException" or "DoesNotExist" to find what entity is being looked up. 3) Read the controller/service to understand prerequisites. 4) Create the missing entity first, then retry.`;
+          }
+        } else if (is404OrRouting && fallbackAvailable) {
+          hint = `Got ${status} error. Try again with use_fallback=true to use the fallback API URL (${fallbackUrl}).`;
+        } else {
+          hint = 'If the error is unclear or unexpected, use search_source_code to explore the backend implementation and understand the expected format.';
+        }
         
         return {
           success: false,
@@ -1184,9 +1450,10 @@ async function executeTool(toolName, toolInput, context) {
           retryCount: context.retryCount || 0,
           usedFallback: use_fallback,
           baseUrl: baseUrl,
-          hint: is404OrRouting && fallbackAvailable
-            ? `Got ${status} error. Try again with use_fallback=true to use the fallback API URL (${fallbackUrl}).`
-            : 'If the error is unclear or unexpected, use search_source_code to explore the backend implementation and understand the expected format.'
+          hint,
+          // Flag to help AI recognize uniqueness constraint errors
+          isAlreadyExistsError: isAlreadyExistsError,
+          errorType: isAlreadyExistsError ? 'UNIQUENESS_CONSTRAINT' : undefined
         };
       }
     }
@@ -1697,6 +1964,22 @@ async function executeTool(toolName, toolInput, context) {
       // Store doc issues - but FILTER OUT issues that are already documented
       // This prevents false positives when AI follows the documented workflow
       const docIssuesArray = Array.isArray(doc_issues) ? doc_issues : [];
+      
+      // Add reference field documentation suggestions from extract_required_uids
+      if (context.referenceFieldDocSuggestions && context.referenceFieldDocSuggestions.length > 0) {
+        for (const suggestion of context.referenceFieldDocSuggestions) {
+          docIssuesArray.push({
+            type: 'missing_reference_annotation',
+            field: suggestion.field,
+            issue: `Reference field detected by ${suggestion.detectedBy} heuristic - consider adding explicit x-reference-to annotation`,
+            suggestion: suggestion.suggestion,
+            example: suggestion.example,
+            severity: 'warning'
+          });
+        }
+        console.log(`  [AI Healer] Added ${context.referenceFieldDocSuggestions.length} reference field documentation suggestions`);
+      }
+      
       console.log(`  [AI Healer] report_result called with status=${status}, doc_issues count=${docIssuesArray.length}`);
       
       // Filter doc issues to remove those already documented in swagger
@@ -1839,22 +2122,32 @@ Do NOT report doc_issues for requirements that are already documented in the swa
     // Workflows are success paths only - doc issues are transient findings reported once
   }
 
-  return `You are an API testing agent that follows a DETERMINISTIC UID resolution workflow with SOURCE CODE EXPLORATION and DYNAMIC TOKEN ACQUISITION capabilities.
+  return `You are an API testing agent with a simple error handling philosophy.
+
+## CORE PRINCIPLE
+
+**Assume endpoints fundamentally work. Most errors are documentation issues.**
 
 ## Your Tools
 
-1. **extract_required_uids** - Extract all UID/ID fields needed by the failing endpoint (call FIRST)
+1. **extract_required_uids** - Extract all UID/ID fields needed by the failing endpoint
 2. **find_uid_source** - Find GET/POST endpoints that can provide a specific UID value
 3. **execute_api** - Make API calls to fetch/create entities or retry the original request
-4. **acquire_token** - Dynamically acquire tokens (app, business) when needed for privileged endpoints
-5. **find_service_for_endpoint** - Find which microservice handles an endpoint (call BEFORE searching code!)
-6. **search_source_code** - Search backend code (use correct repository from find_service_for_endpoint!)
-7. **read_source_file** - Read specific source files for implementation details
-8. **report_result** - Report success/failure and document findings (ALWAYS include doc_issues!)
+4. **acquire_token** - Dynamically acquire tokens when needed
+5. **find_service_for_endpoint** - Find which microservice handles an endpoint
+6. **search_source_code** - Search backend code for implementation details
+7. **read_source_file** - Read specific source files
+8. **report_result** - Report success/failure and document findings
 
-## Available Tokens (USE THESE DIRECTLY!)
+## API Documentation Terminology
 
-The following tokens are ALREADY CONFIGURED and can be used with \`execute_api(token_type="...")\`:
+**IMPORTANT**: In swagger/OpenAPI documentation:
+- "**Internal Token**" means "**admin**" token (use token_type="admin")
+- "Internal" and "Admin" are interchangeable terms for the same token type
+- If documentation says "Available for Internal Tokens only", use token_type="admin"
+
+## Available Tokens
+
 ${Object.entries(config.tokens || {}).map(([type, token]) => {
   if (token && typeof token === 'string' && token.length > 10) {
     return `- **${type}**: ✓ Available (use token_type="${type}")`;
@@ -1862,81 +2155,9 @@ ${Object.entries(config.tokens || {}).map(([type, token]) => {
   return null;
 }).filter(Boolean).join('\n')}
 
-**IMPORTANT**: If an endpoint requires a "directory" or "admin" token and you have one configured above,
-just use \`execute_api(..., token_type="directory")\` - you do NOT need to acquire it!
-
 ## API URLs
 - **Primary URL**: ${config.baseUrl}
 - **Fallback URL**: ${config.fallbackUrl || 'Not configured'}
-
-If an API call returns 404 or routing errors (502/503), try using \`use_fallback: true\` in execute_api to use the fallback URL.
-Some legacy endpoints may only be available on the fallback URL.
-
-## Dynamic Token Acquisition (for APP tokens!)
-
-Use \`acquire_token\` when you need an **app-specific token** that's not in the configured tokens above.
-
-**When to use acquire_token**:
-- Endpoint says "Available for App Tokens only" (like POST /v3/apps/widgets) → use \`action="app_oauth"\`
-- Endpoint starts with /client/* and requires client context → use \`action="client_jwt"\`
-- You need to authenticate AS a specific app (like an app with app_type="widgets")
-- The endpoint requires OAuth app credentials
-
-**When NOT to use acquire_token**:
-- You already have a directory/admin/staff token configured - just use token_type parameter!
-- Getting 401 errors - first try using a DIFFERENT configured token type
-
-### Getting App Tokens (OAuth) - THE CORRECT WAY!
-
-**If you need an APP TOKEN** (e.g., for endpoints requiring app_type="widgets"):
-
-**STEP 1**: Create an app with the right type:
-\`\`\`
-execute_api(method="POST", path="/platform/v1/apps", token_type="directory", body={
-  "name": "Test App",
-  "app_code_name": "testapp123456",
-  "app_type": "widgets",  // or whatever type is needed
-  "redirect_uri": "https://example.com/callback"
-})
-\`\`\`
-**SAVE the returned \`client_id\` and \`client_secret\`!**
-
-**STEP 2**: Get the app token via OAuth:
-\`\`\`
-acquire_token(action="app_oauth", client_id="<client_id>", client_secret="<client_secret>")
-\`\`\`
-
-**STEP 3**: Now use token_type="app" in your API calls:
-\`\`\`
-execute_api(..., token_type="app")
-\`\`\`
-
-### Getting Client Tokens (for /client/* endpoints)
-
-**If the endpoint starts with /client/ (like /client/payments/v1/*)**, it requires a **CLIENT TOKEN** (JWT with client context):
-
-\`\`\`
-acquire_token(action="client_jwt")
-\`\`\`
-
-This automatically:
-1. Fetches a client from GET /platform/v1/clients (or uses configured client_uid)
-2. Sends a login link to get auth token (works in dev/integration environments)
-3. Exchanges auth token for client JWT
-
-**Then use token_type="client"** in your API calls:
-\`\`\`
-execute_api(..., token_type="client")
-\`\`\`
-
-You can also specify a specific client:
-\`\`\`
-acquire_token(action="client_jwt", client_uid="abc123", business_uid="xyz789")
-\`\`\`
-
-### Other Token Actions (for directory/business tokens)
-- **List tokens**: \`acquire_token(action="list", app_id="123")\` - list existing tokens
-- **Create directory token**: \`acquire_token(action="create", directory_id="123")\`
 
 ## Available Parameters (already resolved)
 \`\`\`json
@@ -1944,425 +2165,229 @@ ${JSON.stringify(resolvedParams, null, 2)}
 \`\`\`
 ${swaggerContext}
 ${workflowContext}
-## MANDATORY WORKFLOW - Follow This Exactly!
 
-### Phase 0: Check for Swagger Type Mismatch (Immediate Doc Issue!)
+## SIMPLIFIED WORKFLOW
 
-**BEFORE doing anything else**, check if the error indicates a SWAGGER_TYPE_MISMATCH:
+### Step 1: Resolve UIDs
+1. Call \`extract_required_uids\` to identify needed UIDs
+2. For each unresolved UID, use \`find_uid_source\` then \`execute_api\` to get valid values
+3. UIDs resolution calls use purpose: "uid_resolution" (not counted as retries)
 
-Look for error messages like:
-- "amount must be a number" (but swagger says type: string)
-- "field X must be an integer" (but swagger says type: string)
-- "expected boolean" (but swagger says type: string)
+### Step 2: Retry with Valid Data
+1. Once UIDs are resolved, retry the original request with purpose: "retry_original"
+2. If successful (2xx), report PASS
 
-**If you see this pattern:**
-1. This is a SWAGGER DOCUMENTATION BUG - the type definition in the swagger is wrong
-2. DO NOT try to fix this by changing the request - the swagger needs to be updated
-3. Call \`report_result\` IMMEDIATELY with:
-   - status: "fail"
-   - summary: "Swagger type mismatch: Field 'X' is defined as 'string' but API expects 'number'"
-   - doc_issues: [{
-       field: "the field name",
-       issue: "Type mismatch - swagger says string but API expects number",
-       suggested_fix: "Change type from 'string' to 'number' in swagger schema"
-     }]
+### Minimal Request Bodies (PUT/PATCH/POST)
 
-**Example**: If you get error "amount must be a number" and the request had "amount": "test_string":
-\`\`\`json
-{
-  "status": "fail",
-  "summary": "Swagger type mismatch: amount is defined as string but API expects number",
-  "doc_issues": [{
-    "field": "amount",
-    "issue": "Type mismatch - swagger defines amount as type 'string' but the API requires a number",
-    "suggested_fix": "Update swagger to change 'amount' field from type: 'string' to type: 'number'"
-  }]
-}
+**IMPORTANT**: When constructing request bodies for mutation endpoints:
+- **Prefer minimal changes** - update only ONE or TWO fields, not all fields from the schema
+- **Use simple, safe fields first** - prefer \`display_name\`, \`name\`, \`description\` over complex/sensitive fields
+- **Avoid** fields that have special handling: \`email\` (notifications), \`role\` (permissions), \`status\` (state machines)
+- **Avoid** fields that reference other entities unless explicitly testing that relationship
+
+This reduces the chance of triggering validation edge cases and makes failures easier to diagnose.
+
+### Step 3: Handle Errors
+
+**ERROR HANDLING PHILOSOPHY:**
+
+When the endpoint returns an error, assume it's a **documentation issue** unless it's one of these 2 exceptions:
+
+#### Exception 1: BAD GATEWAY (Infrastructure Issue)
+- Response message contains "bad gateway", "502 Bad Gateway", or similar
+- This is infrastructure/routing, NOT an endpoint issue
+- Action: Report FAIL with skip_suggestion: true, reason: "Infrastructure issue - bad gateway"
+
+#### Exception 2: UNDOCUMENTED AUTHENTICATION (401/403 with no token docs)
+
+**When swagger does NOT specify which token to use:**
+
+1. **Default to staff token** - try with token_type="staff" first
+2. **If staff fails (401/403)** - search source code to find correct token:
+   - \`find_service_for_endpoint\` to locate the service
+   - \`search_source_code\` for authentication/authorization logic
+   - Look for: \`@Auth\`, \`requiresToken\`, \`authorize\`, permission checks
+3. **Try the correct token** - use the token found in source code
+4. **Complete the test** - aim for PASS, not skip
+5. **Document the finding** - report doc_issue: "Token requirement not documented. Source code shows requires [token_type] token."
+
+**Example flow:**
+\`\`\`
+1. POST /v3/some/endpoint fails with 401 (no token docs in swagger)
+2. Try staff token → 401
+3. find_service_for_endpoint → "subscriptionsmng"
+4. search_source_code(repo="subscriptionsmng", pattern="@Auth|authorize") 
+   → Found: requires directory token
+5. execute_api(..., token_type="directory") → 201 Success
+6. report_result(status="pass", doc_issues=[{
+     field: "authentication",
+     issue: "Token requirement not documented",
+     suggested_fix: "Add: 'Available for Directory tokens only'"
+   }])
 \`\`\`
 
-### Phase 1: UID Discovery (No retry counting)
+**If swagger DOES specify token** (e.g., "Available for Staff tokens") and it fails:
+- That's a regular doc issue, NOT this exception
+- Investigate reference fields and scope first (see ALL OTHER ERRORS below)
 
-1. **FIRST**: Call \`extract_required_uids\` to get all UID/ID fields needed
-2. Review which UIDs are already resolved vs need resolution
+#### Exception 3: PERMISSION-BASED 403 ERRORS
 
-### Phase 2: UID Resolution (No retry counting)
+**When you get a 403 with a valid token, investigate permissions before assuming it's a documentation issue:**
 
-For EACH unresolved UID field:
-1. Call \`find_uid_source\` with the UID field name
-2. Call \`execute_api\` with GET on the list endpoint (purpose: "uid_resolution")
-3. If response has data, extract the UID from the first item
-4. If response is empty, call \`execute_api\` with POST to create entity (purpose: "uid_resolution")
-5. Continue to next UID - do NOT stop until you've attempted ALL required UIDs
+1. **Check actual staff permissions** - call \`GET /v3/access_control/staff_permissions/\` to see what permissions the token's user actually has
+2. **Check feature flags** - call \`GET /platform/v1/businesses/{business_id}/features\` to verify the feature is enabled for the business
+3. **Check for self-modification constraints** - some endpoints don't allow users to modify their own data:
+   - Staff cannot change their own role (PUT /v3/access_control/staff_business_roles/{staff_uid} where staff_uid matches the token owner)
+   - Business owners cannot be demoted or have their role changed
+   - If the path parameter UID matches the token's user UID, this might be a self-modification restriction
 
-**CRITICAL**: Do NOT proceed to retry until ALL required UIDs have been attempted!
+**Example flow for 403 errors:**
+\`\`\`
+1. PUT /v3/access_control/staff_business_roles/abc123 fails with 403
+2. GET /v3/access_control/staff_permissions/ → check if user has 'account.staff.manage'
+3. If permission exists but still 403 → check if abc123 is the same as the token owner's UID
+4. If self-modification detected → report doc_issue about constraint, or suggest skip with clear reason
+5. If permission missing → that's the issue, document it
+\`\`\`
 
-### Phase 2.5: Token Selection (When Needed)
+#### Exception 4: 404 ERRORS ON PUT/PATCH/DELETE ENDPOINTS
 
-If you encounter 401/403 errors or the endpoint documentation says it requires a specific token type:
+**A 404 on a mutation endpoint (PUT/PATCH/DELETE) usually means the UID is invalid. ALWAYS resolve UIDs first!**
 
-**STEP 1: Try a different CONFIGURED token first!**
-- Check the "Available Tokens" section above - you may already have the token you need!
-- If docs say "Available for Directory Tokens" and you have a directory token: \`execute_api(..., token_type="directory")\`
-- If docs say "Available for Staff Tokens" and you have a staff token: \`execute_api(..., token_type="staff")\`
-- If docs say "Available for Admin Tokens" - try directory token first, it often has similar permissions
+**CRITICAL: READ THE ERROR MESSAGE CAREFULLY!** The error response often tells you EXACTLY what's wrong:
+- "Subscription X is not active for this business" → need an ACTIVE subscription for THIS business
+- "Resource not found" → need to get a valid UID from the LIST endpoint
+- "X does not belong to this business" → need a resource owned by the test business
 
-**STEP 2: If endpoint requires an APP TOKEN (like "Available for App Tokens only")**
+**Before reporting a 404 as a documentation issue:**
+1. **Read the error message** - it often tells you the exact constraint (status, ownership, etc.)
+2. **Call the LIST endpoint with appropriate filters**:
+   - If error says "not active" → \`GET /v3/license/subscriptions?status=active\`
+   - If error says "not found" → \`GET /v3/license/subscriptions\` to get any valid UID
+   - If error mentions business ownership → ensure you're using the right business context
+3. **Retry with the correctly filtered UID**
 
-This is for endpoints that require OAuth app authentication (e.g., POST /v3/apps/widgets requires app_type="widgets"):
+**Example flow:**
+\`\`\`
+1. PUT /v3/license/subscriptions/some-uid → 404 "Subscription X is not active for this business"
+2. READ THE MESSAGE! It says "not active for this business"
+3. GET /v3/license/subscriptions?status=active → find an ACTIVE subscription
+4. PUT /v3/license/subscriptions/active-subscription-uid → 200 Success
+5. Report PASS
+\`\`\`
 
-1. **Create an app** with the required type via POST /platform/v1/apps (using directory token)
-   - SAVE the \`client_id\` and \`client_secret\` from the response!
-2. **Get app token** via OAuth: \`acquire_token(action="app_oauth", client_id="...", client_secret="...")\`
-3. **Use the app token**: \`execute_api(..., token_type="app")\`
+**Only report 404 as documentation issue if:**
+- You already resolved the UID with the correct filters (based on error message) AND it still returns 404
+- The LIST endpoint returns empty (no resources matching the criteria exist to test with)
 
-**STEP 3: If no suitable token is available AND you've tried all alternatives**
-- Report as FAIL with skip_suggestion: true
-- Provide clear reason: "Requires [token type] which cannot be acquired"
+#### Exception 5: "ALREADY EXISTS" ERRORS ON POST ENDPOINTS (400)
 
-### Phase 2.6: App Assignment (When Endpoint Requires Installed/Assigned App)
+**When a POST endpoint returns 400 with "already exists" message:**
 
-**If an endpoint requires an app to be assigned to a business (e.g., /business/clients/v1/apps/{app_code_name}/*):**
+This typically means the endpoint has a uniqueness constraint (documented in swagger). **This is NOT a failure - the endpoint is working correctly!**
 
-1. **Create the app** with directory token:
-   \`\`\`json
-   POST /platform/v1/apps
-   {"name":"Test App","app_code_name":"testapp{{timestamp}}","app_type":"import_clients","redirect_uri":"https://example.com/callback"}
-   \`\`\`
-   
-2. **Assign the app to the business using INTERNAL mode** (this bypasses installation requirements!):
-   \`\`\`json
-   POST /v3/apps/app_assignments
-   {
-     "app_code_name": "testapp{{timestamp}}",
-     "assignee_uid": "{{business_uid}}",
-     "assignee_type": "business",
-     "settings": {"assignment_mode": "internal"}
-   }
-   \`\`\`
+**How to handle:**
+1. **READ THE ERROR MESSAGE** - it tells you the uniqueness constraint
+2. **Check swagger documentation** - if it documents the uniqueness constraint (e.g., "combination must be unique", "duplicate will return 400"), this is expected behavior
+3. **Try to create a non-duplicate:**
+   - Identify which field(s) cause uniqueness (e.g., "directory_uid + offering_uid must be unique")
+   - Fetch a DIFFERENT value for one of the unique fields from a LIST endpoint
+   - Retry with the new combination
+4. **If you CANNOT find a non-duplicate combination** (all combinations already exist):
+   - This is still a PASS - the endpoint correctly enforces the documented constraint
+   - Report status="pass" with summary="Endpoint correctly enforces uniqueness constraint as documented"
 
-**IMPORTANT**: Using \`assignment_mode: "internal"\` bypasses the need for app installation. This is the correct way to test endpoints that require an installed/assigned app.
+**Example flow:**
+\`\`\`
+1. POST /v3/license/directory_offerings → 400 "directoryOffering already exists"
+2. READ SWAGGER: "combination of directory_uid and offering_uid must be unique"
+3. This error MATCHES the documented behavior → endpoint works correctly!
+4. GET /v3/license/offerings → find an offering_uid NOT yet linked to this directory
+5. Retry with new offering_uid → 201 Success OR
+6. If all offerings already linked → report PASS (constraint works as documented)
+\`\`\`
 
-**DO NOT SKIP** tests that require app assignment - use the pattern above instead!
+**CRITICAL: Do NOT report "already exists" as:**
+- A skip_suggestion (this is NOT an infrastructure issue)
+- A documentation issue (if the constraint IS documented)
+- A failure (the endpoint IS working correctly)
 
-### Phase 3: Retry Original Request (Retry counting starts here)
+#### ALL OTHER ERRORS → Documentation Issue
+For ANY other error (400, 422, 500, etc.) or 404 after UID resolution:
+1. Analyze the error message
+2. Compare to swagger documentation
+3. Report as doc_issue with suggested fix
+4. Status: PASS if you can work around it, FAIL if you cannot
 
-Once all UIDs are resolved AND you have the right token:
-1. Call \`execute_api\` with the original endpoint using resolved UIDs and correct token_type (purpose: "retry_original")
-2. If 2xx response: Call \`report_result\` with success=true and document uid_resolution + doc_issues
-3. If still failing: **EXPLORE ALTERNATIVES before giving up!**
+### Step 4: Source Code Escalation (When Needed)
 
-### Phase 3.5: Find Alternative Entities (When Type/Permission Errors)
+**If swagger analysis alone doesn't explain the error:**
 
-**If you get errors like:**
-- "App type doesn't support X"
-- "Entity type not compatible"
-- "This resource doesn't allow Y"
-- 403 with type-related message
+1. Use \`find_service_for_endpoint\` to identify which microservice handles the endpoint
+2. Use \`search_source_code\` to investigate:
+   - Validation rules in the controller
+   - Required fields not in swagger
+   - Business logic constraints
+   - Actual authentication requirements
+3. Use findings to either:
+   - Fix the request and retry → PASS with doc_issues
+   - Report accurate doc_issues with source code references → FAIL
 
-**DO NOT SKIP!** Instead:
-
-1. **Find compatible entities using GET endpoints:**
-   - \`GET /platform/v1/apps\` (with directory token) → Find apps that DO support the feature
-   - \`GET /v3/apps/widgets\` → See what entities already have widgets
-   - Look at response fields like \`type\`, \`features\`, \`capabilities\`
-
-2. **Create a compatible entity if possible:**
-   - \`POST /platform/v1/apps\` with the right \`app_type\`
-   - Check source code to understand valid types
-
-3. **Document the requirements as doc_issues:**
-   - "Swagger doesn't specify which app types support widgets"
-   - "Missing prerequisite: app must have type=X"
-
-**Example workflow for "app type doesn't support widgets":**
-1. \`execute_api(GET /platform/v1/apps, token_type="directory")\` → List all apps
-2. Look for apps with widget support in the response
-3. Use that app's token or create an app with correct type
-4. If no compatible app found, report as FAIL with critical doc_issue
-
-### Phase 4: Source Code Exploration (When Needed)
-
-**IMPORTANT**: If you encounter:
-- Unknown or unexpected request format
-- Validation errors that don't match documentation
-- Unclear error messages (especially 500 errors)
-- Missing required fields not documented
-- Type/permission requirements that aren't documented
-
-Then you MUST follow this process:
-
-1. **FIRST**: Call \`find_service_for_endpoint\` with the endpoint path to discover which microservice handles it
-   - Different endpoints are served by different services (subscriptionsmng, voicecalls, core, etc.)
-   - The API gateway routes requests to the appropriate service
-   
-2. Call \`search_source_code\` with the **correct repository** returned by find_service_for_endpoint
-   - For /v3/license/* → use repository="subscriptionsmng"
-   - For /v3/communication/voice_* → use repository="voicecalls"
-   - For /v3/access_control/* → use repository="permissionsmanager"
-   - For /platform/v1/* → use repository="core"
-   
-3. Call \`read_source_file\` to examine the controller, DTO, and service files
-4. Retry with the correct format based on source code
-5. **ALWAYS** document your findings in \`doc_issues\` - this helps fix the documentation!
-
-### Phase 5: Report Results
-
-**ALWAYS** call \`report_result\` with:
-- \`status\`: "pass", "skip", or "fail"
-- \`summary\`: what happened
-- \`skip_reason\`: required if status="skip" - explain the business constraint
-- \`uid_resolution\`: how UIDs were resolved
-- \`doc_issues\`: **CRITICAL** - include ANY discrepancies you found between docs and actual behavior!
-
-## When to Use Each Status
+## Reporting Results
 
 ### status: "pass"
-- The endpoint returned a 2xx response with valid data
-- The test is successful
-
-### status: "skip" (⚠️ DO NOT USE - USE "fail" WITH skip_suggestion INSTEAD!)
-
-**⛔ NEVER report status="skip" directly!**
-
-Skip requires user approval. Instead, use status="fail" with a skip_suggestion.
-
-The user will review failed tests and can manually approve skips in the UI.
-
-#### When you WOULD have skipped, do this instead:
-
-Report as **FAIL** with:
-- \`status: "fail"\`
-- \`skip_suggestion: true\`
-- \`skip_reason: "Explanation of why this might need to be skipped"\`
-- \`doc_issues\`: ALWAYS include what's missing from documentation
-
-**Example:**
-\`\`\`json
-{
-  "status": "fail",
-  "summary": "Requires admin token which cannot be acquired",
-  "skip_suggestion": true,
-  "skip_reason": "This endpoint requires internal admin token. Tried: staff, directory, business tokens. All returned 401.",
-  "doc_issues": [{
-    "field": "authentication",
-    "issue": "Documentation doesn't specify this requires internal admin access",
-    "suggested_fix": "Add note: 'Available for Internal Admin Tokens only'",
-    "severity": "critical"
-  }]
-}
-\`\`\`
-
-#### Before suggesting skip, you MUST try ALL of these:
-
-**1. Try ALL configured tokens:**
-   - \`execute_api(..., token_type="staff")\`
-   - \`execute_api(..., token_type="directory")\`
-   - \`execute_api(..., token_type="business")\`
-   - \`acquire_token\` for app-specific tokens
-
-**2. Create fresh test data:**
-   - "Already exists"? Create NEW entity (staff, client, etc.)
-   - "Unique constraint"? Use unique values: \`test-{timestamp}@example.com\`
-
-**3. Find alternative entities:**
-   - "App type doesn't support X"? Use GET to find apps that DO support X
-   - Example: \`GET /platform/v1/apps\` with directory token
-
-**4. Explore source code** to understand requirements
-
-**5. ALWAYS report doc_issues** - even with skip_suggestion!
+- Endpoint returned 2xx with valid data
+- May include doc_issues for discrepancies found
 
 ### status: "fail"
-- The endpoint has a real bug or documentation is fundamentally wrong
-- Cannot make progress even after trying all options
+Use with \`skip_suggestion: true\` when:
+- Bad gateway / infrastructure issue (only real infrastructure failure)
+- Cannot resolve after exhaustive source code investigation
+- Complex prerequisites that require external actions (e.g., payment card on file)
+
+**Note:** Undocumented authentication is NOT a skip reason - investigate source code and find the correct token!
+
+**Always include \`doc_issues\`** - document what's wrong with the swagger!
 
 ## Documentation Issues (doc_issues)
 
-**⚠️ CRITICAL PRINCIPLE: Workflow Issues ≠ Documentation Issues**
+**Report doc_issues when:**
+- Schema type is wrong (swagger says string, API needs number)
+- Required fields are undocumented
+- Validation rules are not documented
+- Error responses don't match swagger
 
-### THE GOLDEN RULE
+**Do NOT report doc_issues for:**
+- Test data issues ("test_string" not being valid) - that's test framework
+- Workflow issues (need to call GET before POST) - that's uid_resolution
+- Already documented requirements - check swagger first!
 
-**If an issue can be fixed by updating the WORKFLOW (not the documentation), then:**
-1. ✅ Mark the test as **PASS**
-2. ✅ Document the resolution in **uid_resolution**
-3. ❌ Do NOT report any **doc_issues**
-
-**Workflow issues include:**
-- UIDs/IDs need to exist before they can be used → Just document how to get valid UIDs
-- Resources must be created before update/delete → Just document the creation step
-- Placeholder values don't work → Just document what real values to use
-- Need to call GET before POST → Just document the sequence
-
-**Documentation issues are ONLY:**
-- Schema is genuinely wrong (says string, actually needs object)
-- Required fields are completely undocumented
-- Token requirements are missing from swagger
-- Error codes/messages not documented anywhere
-
-### FEW-SHOT EXAMPLES
-
-**EXAMPLE 1: UID Resolution - PASS, no doc_issues**
-\`\`\`
-Original request: POST /business/search/v1/views/bulk with body: { "views": [{"uid": "view_uid_1"}, {"uid": "view_uid_2"}] }
-Error: 404 "view does not exist"
-
-AI's Actions:
-1. GET /business/search/v1/views → Found real UIDs: "n0r6yxumbcp7bstu", "v4ihloen6ktmyidx"
-2. Retry with real UIDs → HTTP 201 Success
-
-Correct report_result:
-{
-  "status": "pass",
-  "summary": "Test passes. Placeholder UIDs replaced with real view UIDs from GET endpoint.",
-  "uid_resolution": { "view_uids": { "source_endpoint": "GET /business/search/v1/views", "extract_from": "data[].uid" } },
-  "doc_issues": []  // ← EMPTY! This is a workflow issue, not a doc issue
-}
-\`\`\`
-
-**EXAMPLE 2: Wrong token type - PASS after workflow fix, no doc_issues**
-\`\`\`
-Original request: POST /v3/apps/widgets with staff token
-Error: 403 "Requires app token"
-
-AI's Actions:
-1. acquire_token(action="app_oauth") → Got app token
-2. Retry with app token → HTTP 201 Success
-
-Correct report_result:
-{
-  "status": "pass",
-  "summary": "Test passes after acquiring app token via OAuth.",
-  "uid_resolution": { "app_token": { "source_endpoint": "POST /oauth/service/token" } },
-  "doc_issues": []  // ← EMPTY! Swagger already says "Available for App Tokens"
-}
-\`\`\`
-
-**EXAMPLE 3: Real documentation issue - WARN with doc_issues**
-\`\`\`
-Swagger says: { "email": { "type": "string" } }
-API actually requires: { "email": { "type": "string", "format": "email" } }
-Error: 422 "Invalid email format" for "test_string"
-
-Correct report_result:
-{
-  "status": "pass",
-  "summary": "Test passes with valid email format.",
-  "doc_issues": [{
-    "field": "email",
-    "issue": "Swagger doesn't specify email format validation",
-    "suggested_fix": "Add format: 'email' to the email field schema",
-    "severity": "minor"
-  }]
-}
-\`\`\`
-
-### WORKFLOW-AWARE BEHAVIOR
-
-**If a cached workflow exists and you followed it successfully:**
-- ✓ The test is a clean PASS - the workflow documents the correct procedure
-- ✓ DO NOT report doc_issues about requirements that are ALREADY documented in the swagger
-- ✓ The system will automatically filter out issues that are already in the swagger description
-
-**Check the swagger description BEFORE reporting doc_issues!**
-- If swagger says "Available for App Tokens only. The app must have app_type='widgets'" - DON'T report this as a doc issue!
-- If swagger already documents the error message you encountered - DON'T report it as a doc issue!
-- If swagger mentions "uniqueness constraint" or "can only have one" - DON'T report uniqueness issues!
-- If swagger mentions "must be a valid UID" or "use GET to find valid UIDs" - DON'T report UID validation issues!
-- Only report issues that are GENUINELY missing from the swagger documentation
-
-**Common Already-Documented Patterns (DO NOT REPORT):**
-- Uniqueness constraints: "Each staff member can only have ONE board per type"
-- UID validation: "Must be a valid UID from an existing Widget/Board/Template"
-- Token requirements: "Available for App/Staff/Directory Tokens"
-- Error messages: If swagger mentions "Duplication Error" or similar
-
-Before reporting a doc_issue, ask yourself:
-1. Did the ORIGINAL request already have the correct format according to the swagger?
-2. Did the test fail due to TOKEN/PERMISSION issues, not format issues?
-3. Is the "fix" you discovered actually different from what the swagger documents?
-4. **NEW**: Is this requirement ALREADY documented in the swagger description?
-
-**DO NOT report doc_issues if:**
-- The original request format was correct (matched the swagger schema)
-- The failure was due to wrong token type (401/403), not request format (400)
-- The API returned a permission error, not a validation error
-- You changed the format experimentally but the original was already valid
-- **The swagger description ALREADY documents the requirement you discovered**
-- **The issue is about test data using 'test_string' or placeholder values** - that's a test framework issue, not documentation
-- **The issue is about example format** - if validation rules are documented, examples are minor
-- **The field description already lists valid values** - e.g., "Valid values are: [x, y, z]"
-- **HTTP status code is 200 vs 201** - both indicate success, this is too minor
-- **The issue mentions "documentation is actually correct" or "no changes needed"**
-
-**COMMON FALSE POSITIVES TO AVOID:**
-1. "Test data used 'test_string' which is not valid" → NOT a doc issue (test framework problem)
-2. "Doesn't specify valid values" when description says "Valid values are: [...]" → ALREADY DOCUMENTED
-3. "Example should use realistic values" → Minor, not critical
-4. "OAuth credentials must be real" when docs mention "credentials from POST /platform/v1/apps" → ALREADY DOCUMENTED
-5. "Returns HTTP 201 instead of 200" → Both are success, too minor to report
-6. Reporting issues about scopes/permissions/categories when the description already lists them → READ THE DESCRIPTION!
-
-**DO report doc_issues only when:**
-- The swagger schema is genuinely incorrect (e.g., says string but API requires object)
-- Required fields are missing from the swagger documentation
-- Token requirements are NOT documented anywhere in the swagger
-- Validation rules are undocumented (confirmed via source code or clear 400 errors)
-- **You have verified the issue is NOT in the swagger description or field descriptions**
-
-Example doc_issues format:
+Example doc_issue:
 \`\`\`json
-[{
-  "field": "authentication",
-  "issue": "Swagger doesn't document that app tokens with app_type='widgets' are required",
-  "suggested_fix": "Add: 'Available for App Tokens only. App must have app_type=widgets.'",
-  "severity": "critical",
-  "source_code_reference": "Confirmed via 403 error: 'This app's type does not support widgets'"
-}]
+{
+  "field": "supported_languages",
+  "issue": "Pattern constraint not documented - requires ISO 639-1 codes",
+  "suggested_fix": "Add pattern: '^[a-z]{2}(-[A-Z]{2})?$' and update description",
+  "severity": "minor"
+}
 \`\`\`
 
-**NOT a valid doc_issue:**
-\`\`\`json
-// DON'T report this if swagger already shows display_name as object:
-{
-  "field": "display_name",
-  "issue": "Documentation shows string but API expects object"  // WRONG if swagger is correct!
-}
-// DON'T report test data issues:
-{
-  "field": "app_code_name",
-  "issue": "Test data used 'test_string' which is not valid"  // WRONG - test framework issue!
-}
-// DON'T report if values are already documented:
-{
-  "field": "scopes",
-  "issue": "Doesn't specify valid values"  // WRONG if description says "Valid values are: ..."
-}
-\`\`\`
+## Token Acquisition (When Needed)
+
+**For App Tokens** (endpoints requiring app_type):
+1. Create app: \`POST /platform/v1/apps\` with directory token
+2. Get token: \`acquire_token(action="app_oauth", client_id="...", client_secret="...")\`
+3. Use: \`execute_api(..., token_type="app")\`
+
+**For Client Tokens** (/client/* endpoints):
+\`acquire_token(action="client_jwt")\` then \`token_type="client"\`
 
 ## Critical Rules
 
-- **ALWAYS** call \`extract_required_uids\` first
-- **NEVER** retry the original endpoint before resolving UIDs
-- **ALWAYS** try GET first, then POST as fallback for UIDs
-- **ALWAYS** use search_source_code when errors are unclear
-- **ALWAYS** document doc_issues - even if you can't fix the test!
 - When API says "business_id", use business_uid value (the string UID)
-- Same for other entities: "service_id" usually means service_uid
-
-## ⚠️ IMPORTANT: Workflow Storage Rules
-
-When reporting uid_resolution, document the **PROCEDURE**, not specific values:
-- **DO**: \`source_endpoint: "GET /v3/apps/widgets"\`, \`extract_from: "data.widgets[0].uid"\`
-- **DON'T**: \`resolved_value: "33321644-a7c7-4062-bf85-a21bb36bc2e8"\`
-
-Only the following UIDs should come from config (not resolved dynamically):
-- business_uid, business_id
-- staff_uid, staff_id  
-- client_uid, client_id
-- directory_id
-- matter_uid
-
-All OTHER UIDs (widget_uid, board_uid, service_uid, etc.) must be resolved dynamically using the documented procedure.
+- Try fallback URL (\`use_fallback: true\`) if primary returns routing errors
+- Document uid_resolution as PROCEDURE, not specific values
+- **NEVER use X-On-Behalf-Of as a fallback** when other auth methods fail. Only use \`on_behalf_of\` when the endpoint's swagger documentation explicitly mentions "X-On-Behalf-Of" or "directory token". If staff token returns 401, report it as an auth failure - don't try directory+X-On-Behalf-Of to "work around" the issue.
 
 ## All Available API Endpoints (${allEndpoints.length} total)
 ${endpointsContext}`;
@@ -2462,13 +2487,16 @@ async function runAgentHealer(options) {
       
       // Retry the API call with converted types
       try {
-        const token = config.tokens?.[endpoint.tokenType || 'staff'] || config.tokens?.staff;
+        const tokenType = endpoint.tokenType || 'staff';
+        const token = config.tokens?.[tokenType] || config.tokens?.staff;
+        // Admin tokens use "Admin" prefix, all others use "Bearer"
+        const authPrefix = tokenType === 'admin' ? 'Admin' : 'Bearer';
         const response = await apiClient.request({
           method: endpoint.method.toLowerCase(),
           url: endpoint.path,
           data: convertedBody,
           headers: {
-            'Authorization': `Bearer ${token}`,
+            'Authorization': `${authPrefix} ${token}`,
             'Content-Type': 'application/json'
           }
         });
@@ -2586,13 +2614,16 @@ async function runAgentHealer(options) {
     };
   }
   
-  const client = initializeClient(config.ai?.anthropicApiKey);
-  if (!client) {
+  const aiConfig = getAIConfig(config);
+  const clientInfo = initializeClient(aiConfig.apiKey, aiConfig.provider);
+  if (!clientInfo) {
     return {
       success: false,
       reason: 'No AI API key configured'
     };
   }
+  const { client, provider } = clientInfo;
+  const aiModel = aiConfig.model;
   
   // Build initial context
   const allParams = {
@@ -2678,18 +2709,85 @@ Follow the MANDATORY WORKFLOW:
       retryCount: context.retryCount
     });
     
-    // Call Claude
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 4000,
-      system: systemPrompt,
-      tools: TOOLS,
-      messages
-    });
+    // Call AI provider
+    let response;
+    let toolUseBlocks;
+    let textBlocks;
     
-    // Check if Claude wants to use tools
-    const toolUseBlocks = response.content.filter(block => block.type === 'tool_use');
-    const textBlocks = response.content.filter(block => block.type === 'text');
+    if (provider === 'openai') {
+      // OpenAI format
+      const openaiTools = TOOLS.map(tool => ({
+        type: 'function',
+        function: {
+          name: tool.name,
+          description: tool.description,
+          parameters: tool.input_schema
+        }
+      }));
+      
+      // Format messages for OpenAI, preserving tool_calls and tool_call_id
+      const openaiMessages = messages.map(m => {
+        if (m.role === 'assistant' && m.tool_calls) {
+          // Assistant message with tool calls - preserve structure
+          return {
+            role: 'assistant',
+            content: m.content,
+            tool_calls: m.tool_calls
+          };
+        } else if (m.role === 'tool') {
+          // Tool result message - preserve tool_call_id
+          return {
+            role: 'tool',
+            tool_call_id: m.tool_call_id,
+            content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
+          };
+        } else {
+          // User or other messages
+          return {
+            role: m.role,
+            content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content)
+          };
+        }
+      });
+      
+      const openaiResponse = await client.chat.completions.create({
+        model: aiModel,
+        max_completion_tokens: 4000,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          ...openaiMessages
+        ],
+        tools: openaiTools,
+        tool_choice: 'auto'
+      });
+      
+      const choice = openaiResponse.choices[0];
+      const message = choice.message;
+      
+      // Convert OpenAI format to unified format
+      toolUseBlocks = (message.tool_calls || []).map(tc => ({
+        type: 'tool_use',
+        id: tc.id,
+        name: tc.function.name,
+        input: JSON.parse(tc.function.arguments || '{}')
+      }));
+      
+      textBlocks = message.content ? [{ type: 'text', text: message.content }] : [];
+      
+      response = { content: [...textBlocks, ...toolUseBlocks] };
+    } else {
+      // Anthropic format (default)
+      response = await client.messages.create({
+        model: aiModel,
+        max_tokens: 4000,
+        system: systemPrompt,
+        tools: TOOLS,
+        messages
+      });
+      
+      toolUseBlocks = response.content.filter(block => block.type === 'tool_use');
+      textBlocks = response.content.filter(block => block.type === 'text');
+    }
     
     // Log any text response
     if (textBlocks.length > 0) {
@@ -2791,8 +2889,35 @@ Follow the MANDATORY WORKFLOW:
     }
     
     // Add assistant response and tool results to messages
-    messages.push({ role: "assistant", content: response.content });
-    messages.push({ role: "user", content: toolResults });
+    if (provider === 'openai') {
+      // OpenAI format: assistant message with tool_calls, then tool results as separate messages
+      const assistantMessage = {
+        role: "assistant",
+        content: textBlocks.length > 0 ? textBlocks[0].text : null,
+        tool_calls: toolUseBlocks.map(tb => ({
+          id: tb.id,
+          type: 'function',
+          function: {
+            name: tb.name,
+            arguments: JSON.stringify(tb.input)
+          }
+        }))
+      };
+      messages.push(assistantMessage);
+      
+      // Add tool results
+      for (const result of toolResults) {
+        messages.push({
+          role: "tool",
+          tool_call_id: result.tool_use_id,
+          content: typeof result.content === 'string' ? result.content : JSON.stringify(result.content)
+        });
+      }
+    } else {
+      // Anthropic format
+      messages.push({ role: "assistant", content: response.content });
+      messages.push({ role: "user", content: toolResults });
+    }
   }
   
   // Max iterations or retries reached
@@ -2841,20 +2966,45 @@ function isUnrecoverableError(result) {
     return true;
   }
   
-  // Endpoint not found (path is wrong, not resource)
+  // ENDPOINT_NOT_FOUND is now only set when we detect explicit routing errors
+  // (e.g., "route not found", "Cannot POST", HTML error pages)
+  // In these cases, we're confident the path is wrong, not just a missing resource
   if (reason === 'ENDPOINT_NOT_FOUND') {
-    return true;
+    // Check if we have routing info that confirms it's truly a routing error
+    const routingInfo = result.details?.routingInfo;
+    if (routingInfo) {
+      return true;
+    }
+    // Otherwise, let the healer investigate - it might be a resource not found
+    // that was misclassified due to unusual error format
   }
   
-  // 404 that indicates the endpoint itself doesn't exist
+  // 404 with explicit routing error messages - don't retry
   if (httpStatus === 404) {
     const responseData = result.details?.response?.data;
-    if (responseData?.message?.toLowerCase().includes('route not found') ||
-        responseData?.message?.toLowerCase().includes('endpoint not found') ||
-        responseData?.message?.toLowerCase().includes('not implemented')) {
+    const message = responseData?.message?.toLowerCase() || '';
+    
+    // Only unrecoverable if we see explicit routing/gateway errors
+    if (message.includes('route not found') ||
+        message.includes('cannot post') ||
+        message.includes('cannot get') ||
+        message.includes('cannot put') ||
+        message.includes('cannot delete') ||
+        message.includes('not implemented') ||
+        message.includes('method not allowed')) {
+      return true;
+    }
+    
+    // Check for HTML error pages (gateway errors)
+    if (typeof responseData === 'string' && responseData.includes('<!DOCTYPE')) {
       return true;
     }
   }
+  
+  // All other 404s should be investigated by the healer
+  // - Resource not found (missing UID)
+  // - Entity not found (need to create first)
+  // - Unknown 404s (need source code investigation)
   
   return false;
 }

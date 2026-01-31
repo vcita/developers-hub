@@ -132,6 +132,16 @@ function getMaskedConfig(config) {
     }
   }
   
+  // Mask AI API keys
+  if (masked.ai) {
+    if (masked.ai.anthropicApiKey && masked.ai.anthropicApiKey.length > 0) {
+      masked.ai.anthropicApiKey = masked.ai.anthropicApiKey.substring(0, 10) + '...';
+    }
+    if (masked.ai.openaiApiKey && masked.ai.openaiApiKey.length > 0) {
+      masked.ai.openaiApiKey = masked.ai.openaiApiKey.substring(0, 10) + '...';
+    }
+  }
+  
   return masked;
 }
 
