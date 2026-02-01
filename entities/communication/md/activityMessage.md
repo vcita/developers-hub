@@ -12,6 +12,7 @@ Represents a business-initiated activity message sent to a client over email/SMS
 | uid | The entity's unique identifier. | string |  |
 | activity_type | Activity category type from a closed list. | string (enum: `invite`) | Yes |
 | activity_action | Action related to the activity type property. | string (enum: `schedule`) | Yes |
+| direction | The direction of the message relative to the business. | string (enum: `business_to_client`, `client_to_business`) |  |
 | channels | Determines if the message should be sent via email or/and SMS. | array of strings | Yes |
 | message_text |  | object |  |
 | cta_button_text | The text for the Email action button | string |  |
