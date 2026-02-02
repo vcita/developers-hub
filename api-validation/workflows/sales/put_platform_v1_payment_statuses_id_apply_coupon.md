@@ -2,6 +2,7 @@
 endpoint: PUT /platform/v1/payment_statuses/{id}/apply_coupon
 domain: sales
 tags: []
+swagger: swagger/sales/legacy/legacy_v1_sales.json
 status: success
 savedAt: 2026-01-26T07:23:56.372Z
 verifiedAt: 2026-01-26T07:23:56.372Z

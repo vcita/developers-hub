@@ -2,6 +2,7 @@
 endpoint: GET /v3/license/business_carts/{uid}
 domain: platform_administration
 tags: []
+swagger: swagger/platform_administration/license.json
 status: success
 savedAt: 2026-01-29T17:46:41.060Z
 verifiedAt: 2026-01-29T17:46:41.060Z

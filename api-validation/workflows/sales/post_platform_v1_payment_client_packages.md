@@ -1,94 +1,49 @@
 ---
-endpoint: POST /platform/v1/payment/client_packages
+endpoint: "POST /platform/v1/payment/client_packages"
 domain: sales
 tags: []
+swagger: swagger/sales/legacy/legacy_v1_sales.json
 status: success
 savedAt: 2026-01-27T04:22:09.837Z
 verifiedAt: 2026-01-27T04:22:09.837Z
-timesReused: 0
 ---
+
 # Create Client packages
 
 ## Summary
 Test passes after correcting date format. The valid_from and valid_until fields require ISO 8601 date format (YYYY-MM-DD), not placeholder strings.
 
 ## Prerequisites
-No specific prerequisites documented.
 
-## UID Resolution Procedure
-
-How to dynamically obtain required UIDs for this endpoint:
-
-| UID Field | GET Endpoint | Extract From | Create Fresh | Cleanup |
-|-----------|--------------|--------------|--------------|---------|
-| client_id | - | data[0].uid or data[0].id | - | - |
-| package_id | - | data[0].uid or data[0].id | - | - |
-| date_format | - | data[0].uid or data[0].id | - | - |
-
-### Resolution Steps
-
-**client_id**:
-
-**package_id**:
-
-**date_format**:
-
-```json
-{
-  "client_id": {
-    "source_endpoint": null,
-    "extract_from": "first item uid",
-    "fallback_endpoint": null,
-    "create_fresh": false,
-    "create_endpoint": null,
-    "create_body": null,
-    "cleanup_endpoint": null,
-    "cleanup_note": null
-  },
-  "package_id": {
-    "source_endpoint": null,
-    "extract_from": "first item uid",
-    "fallback_endpoint": null,
-    "create_fresh": false,
-    "create_endpoint": null,
-    "create_body": null,
-    "cleanup_endpoint": null,
-    "cleanup_note": null
-  },
-  "date_format": {
-    "source_endpoint": null,
-    "extract_from": "first item uid",
-    "fallback_endpoint": null,
-    "create_fresh": false,
-    "create_endpoint": null,
-    "create_body": null,
-    "cleanup_endpoint": null,
-    "cleanup_note": null
-  }
-}
+```yaml
+steps:
+  - id: get_clients
+    description: "Fetch available clients"
+    method: GET
+    path: "/platform/v1/clients"
+    params:
+      business_id: "{{business_id}}"
+      per_page: "1"
+    extract:
+      client_id: "$.data.clients[0].id"
+    expect:
+      status: 200
+    onFail: abort
 ```
 
-## How to Resolve Parameters
-Parameters were resolved automatically.
+## Test Request
 
-## Critical Learnings
-
-No specific learnings documented.
-
-## Request Template
-
-Use this template with dynamically resolved UIDs:
-
-```json
-{
-  "method": "POST",
-  "path": "/platform/v1/payment/client_packages",
-  "body": {
-    "client_id": "{{config.params.client_id}}",
-    "package_id": "{{resolved.package_id}}",
-    "price": 1,
-    "valid_from": "2024-01-01",
-    "valid_until": "2024-12-31"
-  }
-}
+```yaml
+steps:
+  - id: post_client_packages
+    method: POST
+    path: "/platform/v1/payment/client_packages"
+    body:
+      client_id: "{{client_id}}"
+      package_id: "{{package_id}}"
+      price: 1
+      valid_from: 2024-01-01
+      valid_until: 2024-12-31
+    expect:
+      status: [200, 201]
 ```

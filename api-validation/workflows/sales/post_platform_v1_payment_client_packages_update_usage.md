@@ -2,6 +2,7 @@
 endpoint: POST /platform/v1/payment/client_packages/update_usage
 domain: sales
 tags: []
+swagger: swagger/sales/legacy/legacy_v1_sales.json
 status: success
 savedAt: 2026-01-26T20:03:28.947Z
 verifiedAt: 2026-01-26T20:03:28.947Z

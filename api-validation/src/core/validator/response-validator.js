@@ -429,6 +429,7 @@ function buildValidationResult({
     path: endpoint.path,
     summary: endpoint.summary || null,
     description: endpoint.description || null,
+    swaggerFile: endpoint.swaggerFile || endpoint.domain, // Include swagger file path for reference
     status,
     httpStatus,
     duration: `${duration}ms`,

@@ -1,96 +1,31 @@
 ---
-endpoint: POST /platform/v1/tokens/revoke
+endpoint: "POST /platform/v1/tokens/revoke"
 domain: platform_administration
 tags: []
+swagger: swagger/platform_administration/legacy/legacy_v1_platform.json
 status: success
 savedAt: 2026-01-28T11:17:36.085Z
 verifiedAt: 2026-01-28T11:17:36.085Z
-timesReused: 0
 ---
-# Revoke Token
+
+# Create Revoke
 
 ## Summary
 The endpoint works correctly. The original error was due to using a fake JWT token that doesn't exist in the system. When provided with a valid token created via POST /platform/v1/tokens, the revocation succeeds and returns HTTP 201.
 
 ## Prerequisites
-**REQUIRED**: You must first create a token using `POST /platform/v1/tokens` before calling this endpoint.
 
-### Step-by-step workflow:
-1. Call `POST /platform/v1/tokens` with a `business_id` to create a new token
-2. Extract `data.token` from the response
-3. Use that token value in the `token` field of the revoke request body
+No prerequisites required for this endpoint.
 
-### Example prerequisite call:
-```json
-POST /platform/v1/tokens
-{
-  "business_id": "{{config.business_id}}"
-}
-```
+## Test Request
 
-Response:
-```json
-{
-  "status": "OK",
-  "data": {
-    "token": "abc123def456..."
-  }
-}
-```
-
-## UID Resolution Procedure
-
-How to dynamically obtain required UIDs for this endpoint:
-
-| UID Field | GET Endpoint | Extract From | Create Fresh | Cleanup |
-|-----------|--------------|--------------|--------------|---------|
-| token | POST /platform/v1/tokens | data.token | - | Token is automatically revoked by the test itself - no separate cleanup needed |
-
-### Resolution Steps
-
-**token**:
-1. Call `POST /platform/v1/tokens`
-2. Extract from response: `data.token`
-
-```json
-{
-  "token": {
-    "source_endpoint": "POST /platform/v1/tokens",
-    "extract_from": "data.token",
-    "fallback_endpoint": null,
-    "create_fresh": false,
-    "create_endpoint": null,
-    "create_body": {
-      "business_id": "{{config.business_id}}",
-      "directory_id": "{{config.directory_id}}",
-      "token_object_type": "user",
-      "token_object_id": "{{config.staff_uid}}",
-      "token_owner_type": "directory",
-      "token_owner_id": "{{config.directory_id}}"
-    },
-    "cleanup_endpoint": null,
-    "cleanup_note": "Token is automatically revoked by the test itself - no separate cleanup needed"
-  }
-}
-```
-
-## How to Resolve Parameters
-Parameters were resolved automatically.
-
-## Critical Learnings
-
-No specific learnings documented.
-
-## Request Template
-
-Use this template with dynamically resolved UIDs:
-
-```json
-{
-  "method": "POST",
-  "path": "/platform/v1/tokens/revoke",
-  "body": {
-    "token": "{{resolved.uid}}"
-  }
-}
+```yaml
+steps:
+  - id: post_revoke
+    method: POST
+    path: "/platform/v1/tokens/revoke"
+    body:
+      token: "{{token}}"
+    expect:
+      status: [200, 201]
 ```

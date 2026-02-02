@@ -342,6 +342,88 @@ router.post('/tokens/check', async (req, res) => {
 });
 
 /**
+ * POST /api/setup
+ * Run setup-business.js then setup-offering.js to create fresh test business with subscription
+ */
+router.post('/setup', async (req, res) => {
+  try {
+    const { execSync } = require('child_process');
+    const path = require('path');
+    const { validateTokenBusinessAssociation } = require('../../core/config/token-validator');
+    
+    const scriptsDir = path.resolve(__dirname, '../../../scripts');
+    let businessOutput = '';
+    let offeringOutput = '';
+    
+    // Step 1: Run setup-business.js
+    console.log('Running setup-business.js...');
+    businessOutput = execSync('node setup-business.js', { 
+      encoding: 'utf8',
+      cwd: scriptsDir,
+      timeout: 120000, // 2 minutes timeout
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+    console.log('setup-business.js completed');
+    
+    // Step 2: Run setup-offering.js to create subscription (optional - may fail if no admin token)
+    console.log('Running setup-offering.js...');
+    try {
+      offeringOutput = execSync('node setup-offering.js', { 
+        encoding: 'utf8',
+        cwd: scriptsDir,
+        timeout: 120000, // 2 minutes timeout
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+      console.log('setup-offering.js completed');
+    } catch (offeringError) {
+      // Offering setup is optional - may fail if admin token not configured
+      console.log('setup-offering.js failed (optional):', offeringError.message);
+      offeringOutput = `[Skipped - ${offeringError.message}]`;
+    }
+    
+    console.log('Setup scripts completed, validating tokens...');
+    
+    // Reload config to pick up new tokens
+    const config = loadConfig();
+    
+    // Validate token-business association
+    const validation = await validateTokenBusinessAssociation(config);
+    
+    if (!validation.valid) {
+      console.error('Token validation failed after setup:', validation.error);
+      return res.status(500).json({
+        success: false,
+        error: validation.error,
+        output: (businessOutput + '\n---\n' + offeringOutput).substring(0, 3000),
+        message: 'Setup completed but token validation failed'
+      });
+    }
+    
+    console.log('Setup complete. Tokens validated.');
+    
+    res.json({
+      success: true,
+      message: 'Setup complete. Fresh test business created with subscription and tokens validated.',
+      output: (businessOutput + '\n---\n' + offeringOutput).substring(0, 3000),
+      businessId: config.params?.business_id || config.params?.business_uid,
+      staffId: config.params?.staff_id || config.params?.staff_uid,
+      clientId: config.params?.client_id || config.params?.client_uid,
+      serviceId: config.params?.service_id,
+      hasSubscription: !offeringOutput.startsWith('[Skipped')
+    });
+    
+  } catch (error) {
+    console.error('Setup error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      output: error.stdout || error.stderr || '',
+      message: 'Setup failed'
+    });
+  }
+});
+
+/**
  * Broadcast event to all session listeners
  * @param {Object} session - Session object
  * @param {string} event - Event name
@@ -707,6 +789,14 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
               duration = retryResult.totalDuration;
               error = null;
               
+              // Update fullRequestInfo with the successful retry request config
+              if (retryResult.requestConfig) {
+                fullRequestInfo.method = retryResult.requestConfig.method?.toUpperCase() || fullRequestInfo.method;
+                fullRequestInfo.url = `${config.baseUrl}${retryResult.requestConfig.url}`;
+                fullRequestInfo.params = retryResult.requestConfig.params;
+                fullRequestInfo.data = retryResult.requestConfig.data;
+              }
+              
               let message, suggestion, issueType;
               
               if (retryResult.swapType === 'value') {
@@ -1051,8 +1141,18 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
             // Set status to WARN if there are documentation issues, otherwise PASS
             result.status = hasDocIssues ? 'WARN' : 'PASS';
             result.httpStatus = lastSuccess.result.status;
+            // Clear the old failure reason since we succeeded
+            result.reason = hasDocIssues ? 'DOCUMENTATION_ISSUES' : null;
+            // Update errors to show doc issues instead of original validation errors
+            result.errors = hasDocIssues 
+              ? healingResult.docFixSuggestions.map(d => ({ path: '/', message: d.issue }))
+              : [];
             result.details = result.details || {};
             result.details.response = { data: lastSuccess.result.data };
+            // Store the retry request info for UI display (cURL generation, view request/response)
+            if (lastSuccess.result.requestConfig) {
+              result.details.request = lastSuccess.result.requestConfig;
+            }
             result.details.healingInfo = {
               mode: 'deterministic_uid_resolution',
               iterations: healingResult.iterations,
@@ -1062,6 +1162,38 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
               docFixSuggestions: healingResult.docFixSuggestions || [],
               savedWorkflows: healingResult.savedWorkflows || [],
               workflowStatus: healingResult.savedWorkflows?.length > 0 ? 'New' : 'N/A',
+              hasDocumentationIssues: hasDocIssues
+            };
+          } else if (healingResult.finalResponse) {
+            // Workflow test request succeeded directly (without going through AI healing log)
+            result.status = hasDocIssues ? 'WARN' : 'PASS';
+            result.httpStatus = healingResult.finalResponse.status;
+            // Clear the old failure reason since we succeeded
+            result.reason = hasDocIssues ? 'DOCUMENTATION_ISSUES' : null;
+            // Update errors to show doc issues instead of original validation errors
+            result.errors = hasDocIssues 
+              ? healingResult.docFixSuggestions.map(d => ({ path: '/', message: d.issue }))
+              : [];
+            result.details = result.details || {};
+            result.details.response = { data: healingResult.finalResponse.data };
+            // Store the workflow request info for UI display
+            if (healingResult.finalRequest) {
+              result.details.request = {
+                method: healingResult.finalRequest.method,
+                url: `${healingResult.finalRequest.baseUrl}${healingResult.finalRequest.path}`,
+                body: healingResult.finalRequest.body,
+                headers: { 'Content-Type': 'application/json' }
+              };
+            }
+            result.details.healingInfo = {
+              mode: 'workflow_test_request',
+              followedWorkflow: healingResult.followedWorkflow,
+              usedFallback: healingResult.usedFallback,
+              summary: healingResult.summary,
+              agentLog: healingResult.healingLog || [],
+              docFixSuggestions: healingResult.docFixSuggestions || [],
+              savedWorkflows: healingResult.savedWorkflows || [],
+              workflowStatus: healingResult.followedWorkflow ? 'Followed' : 'N/A',
               hasDocumentationIssues: hasDocIssues
             };
           }
@@ -2184,7 +2316,9 @@ async function retryWithSwappedBusinessParam(originalConfig, apiClient, rateLimi
         originalValue: swapInfo.originalValue,
         newValue: swapInfo.newValue,
         isBodySwap: swapInfo.swapLocation.includes('body'),
-        isQuerySwap: swapInfo.swapLocation.includes('query')
+        isQuerySwap: swapInfo.swapLocation.includes('query'),
+        // Include the modified request config for UI display
+        requestConfig: retryConfig
       };
     }
   }

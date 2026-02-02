@@ -31,6 +31,7 @@ const {
   applyTypeConversions, 
   convertValueToType 
 } = require('../validator/response-validator');
+const { executePrerequisites, createRequestFunction, resolveObject } = require('../prerequisite');
 
 let anthropicClient = null;
 let openaiClient = null;
@@ -150,7 +151,7 @@ const TOOLS = [
   },
   {
     name: "execute_api",
-    description: "Execute an API call. Use this to fetch existing entities (GET) or create new ones (POST) during UID resolution, and to retry the original request once all UIDs are resolved. If primary URL returns 404 or routing error, try with use_fallback=true.",
+    description: "Execute an API call. Use this to fetch existing entities (GET) or create new ones (POST) during UID resolution, and to retry the original request once all UIDs are resolved. IMPORTANT: For POST/PUT/PATCH requests, you MUST include the 'body' parameter with all required fields - without it, the API will return 'mandatory parameter missing' errors!",
     input_schema: {
       type: "object",
       properties: {
@@ -163,9 +164,13 @@ const TOOLS = [
           type: "string",
           description: "API path (e.g., /platform/v1/services)"
         },
+        params: {
+          type: "object",
+          description: "Query parameters to append to the URL (e.g., { business_id: 'xxx' } becomes ?business_id=xxx). Use this for GET requests that require query parameters."
+        },
         body: {
           type: "object",
-          description: "Request body for POST/PUT/PATCH requests"
+          description: "REQUIRED for POST/PUT/PATCH requests. Include all fields from swagger schema with resolved UIDs. Without this, the API will fail with 'mandatory parameter missing'."
         },
         token_type: {
           type: "string",
@@ -817,25 +822,60 @@ function compareActionsToWorkflow(healingLog, existingWorkflow) {
 function isReferenceFieldByName(propName) {
   const lower = propName.toLowerCase();
   
-  // Standard UID/ID patterns
+  // Standard UID/ID patterns - these are almost always entity references
   if (lower.endsWith('_uid') || lower.endsWith('_id')) return true;
   if (lower === 'uid' || lower === 'id') return true;
   
-  // Common reference field names that typically reference other entities
-  const referenceFieldPatterns = [
-    'key',           // permission key, config key, etc.
-    'code',          // role code, status code, etc.
-    'type',          // entity type references
-    'role',          // role references
-    'permission',    // permission references
-    'status',        // status references (when enum-like)
-    'category',      // category references
-    'tag',           // tag references
+  // EXCLUDED: Common field names that look like references but typically aren't
+  // These are usually plain strings, enums, or discriminators, not UID references
+  const excludedExactNames = [
+    'tag',           // Usually a plain text tag string, not a reference to a Tag entity
+    'tags',          // Usually an array of plain text strings
+    'type',          // Usually an enum discriminator (e.g., "client"/"account")
+    'status',        // Usually an enum (e.g., "active"/"inactive")
+    'state',         // Usually an enum (e.g., "pending"/"completed")
+    'role',          // Usually a code/name, not a UID reference
+    'code',          // Usually a human-readable code, not a UID
+    'key',           // Usually a string key, not a UID reference
+    'name',          // Plain text name
+    'category',      // Often a string, not always a UID reference
   ];
   
-  // Check if field name matches or ends with these patterns
-  for (const pattern of referenceFieldPatterns) {
-    if (lower === pattern || lower.endsWith(`_${pattern}`)) {
+  if (excludedExactNames.includes(lower)) {
+    return false;
+  }
+  
+  // Also exclude compound names ending with excluded patterns when they're clearly not UIDs
+  // e.g., "view_type", "entity_type" are discriminators, not UID references
+  // But "staff_uid", "client_id" are real references
+  const excludedSuffixPatterns = [
+    '_type',         // Usually an enum discriminator
+    '_status',       // Usually an enum
+    '_state',        // Usually an enum
+    '_name',         // Plain text
+    '_code',         // Human-readable code
+    '_key',          // String key
+  ];
+  
+  for (const suffix of excludedSuffixPatterns) {
+    if (lower.endsWith(suffix)) {
+      return false;
+    }
+  }
+  
+  // Patterns that ARE typically UID references (more specific matching)
+  // Only match compound names that end with these reference indicators
+  const referenceFieldSuffixes = [
+    '_role_uid',     // Explicit role UID reference
+    '_role_id',      // Explicit role ID reference
+    '_category_uid', // Explicit category UID reference
+    '_category_id',  // Explicit category ID reference
+    '_permission_uid',
+    '_permission_id',
+  ];
+  
+  for (const suffix of referenceFieldSuffixes) {
+    if (lower.endsWith(suffix)) {
       return true;
     }
   }
@@ -929,11 +969,17 @@ function extractUidFieldsFromSchema(schema, requiredFields = [], parentPath = ''
       // Check for explicit x-reference-to annotation (best practice)
       const hasExplicitRef = propSchema['x-reference-to'];
       
-      // Check by field name pattern
-      const isRefByName = isReferenceFieldByName(propName);
+      // Skip fields that are enums - they are type discriminators, not UID references
+      // e.g., view_type: "client" | "account" is NOT a reference to another entity
+      const isEnum = propSchema.enum && propSchema.enum.length > 0;
       
-      // Check by description content
-      const { isReference: isRefByDesc, referenceType } = isReferenceFieldByDescription(propSchema.description);
+      // Check by field name pattern (only if not an enum)
+      const isRefByName = !isEnum && isReferenceFieldByName(propName);
+      
+      // Check by description content (only if not an enum)
+      const { isReference: isRefByDesc, referenceType } = isEnum 
+        ? { isReference: false, referenceType: null }
+        : isReferenceFieldByDescription(propSchema.description);
       
       // Skip auto-generated entity IDs (uid, id at root level without parent)
       const isAutoGenerated = !parentPath && (propName === 'uid' || propName === 'id');
@@ -1323,7 +1369,7 @@ async function executeTool(toolName, toolInput, context) {
     }
     
     case "execute_api": {
-      const { method, path: apiPath, body, token_type = 'staff', on_behalf_of, purpose, use_fallback = false } = toolInput;
+      const { method, path: apiPath, params, body, token_type = 'staff', on_behalf_of, purpose, use_fallback = false } = toolInput;
       
       // Track whether this counts as a retry
       const isRetry = purpose === 'retry_original';
@@ -1336,10 +1382,24 @@ async function executeTool(toolName, toolInput, context) {
       const fallbackUrl = apiClient._config?.fallbackUrl || config.fallbackUrl;
       const baseUrl = use_fallback && fallbackUrl ? fallbackUrl : primaryUrl;
       
+      // Build query string from params
+      let queryString = '';
+      if (params && typeof params === 'object' && Object.keys(params).length > 0) {
+        const searchParams = new URLSearchParams();
+        for (const [key, value] of Object.entries(params)) {
+          if (value !== undefined && value !== null) {
+            searchParams.append(key, String(value));
+          }
+        }
+        queryString = '?' + searchParams.toString();
+      }
+      
+      const fullPath = apiPath + queryString;
+      
       onProgress?.({
         type: 'agent_action',
         action: 'execute_api',
-        details: `${method} ${apiPath}${use_fallback ? ' (fallback)' : ''}${on_behalf_of ? ` (on-behalf-of: ${on_behalf_of})` : ''}`,
+        details: `${method} ${fullPath}${use_fallback ? ' (fallback)' : ''}${on_behalf_of ? ` (on-behalf-of: ${on_behalf_of})` : ''}`,
         purpose,
         isRetry,
         useFallback: use_fallback,
@@ -1368,7 +1428,7 @@ async function executeTool(toolName, toolInput, context) {
         // Build full URL if using fallback
         const requestConfig = {
           method: method.toLowerCase(),
-          url: use_fallback ? `${baseUrl}${apiPath}` : apiPath,
+          url: use_fallback ? `${baseUrl}${fullPath}` : fullPath,
           data: body,
           headers
         };
@@ -1387,11 +1447,11 @@ async function executeTool(toolName, toolInput, context) {
         // Track successful retry of original endpoint
         if (isRetry && response.status >= 200 && response.status < 300) {
           context.hasSuccessfulRetry = true;
-          context.successfulRequest = { method, path: apiPath, body };
+          context.successfulRequest = { method, path: fullPath, body, params };
           context.lastSuccessfulResponse = response.data;
         }
         
-        console.log(`  [AI Healer] execute_api ${method} ${apiPath} => ${response.status}${isRetry ? ' (retry)' : ''}`);
+        console.log(`  [AI Healer] execute_api ${method} ${fullPath} => ${response.status}${isRetry ? ' (retry)' : ''}`);
         if (body) {
           console.log(`  [AI Healer] Request body:`, JSON.stringify(body, null, 2).substring(0, 300));
         }
@@ -1404,7 +1464,14 @@ async function executeTool(toolName, toolInput, context) {
           isRetry,
           retryCount: context.retryCount || 0,
           usedFallback: use_fallback,
-          baseUrl: baseUrl
+          baseUrl: baseUrl,
+          // Include full request config for UI display
+          requestConfig: {
+            method: method.toUpperCase(),
+            url: use_fallback ? `${baseUrl}${fullPath}` : `${primaryUrl}${fullPath}`,
+            headers: { ...headers },
+            data: body
+          }
         };
       } catch (error) {
         const status = error.response?.status;
@@ -2104,15 +2171,68 @@ This endpoint has a user-approved skip workflow:
 
 Note: Skip was previously approved by user. No need to explore alternatives.
 `;
-    } else if (existingWorkflow.uidResolution) {
+    } else if (existingWorkflow.uidResolution || existingWorkflow.content) {
+      // Build workflow context from available information
+      let workflowDetails = '';
+      
+      if (existingWorkflow.uidResolution) {
+        workflowDetails += `
+### UID Resolution Procedure
+${JSON.stringify(existingWorkflow.uidResolution, null, 2)}
+`;
+      }
+      
+      // Include example request from workflow sections if available
+      if (existingWorkflow.sections) {
+        const exampleSection = existingWorkflow.sections['Example Request (Appointment with form_data)'] || 
+                               existingWorkflow.sections['Example Request'] ||
+                               Object.entries(existingWorkflow.sections).find(([k]) => k.toLowerCase().includes('example'))?.[1];
+        if (exampleSection) {
+          workflowDetails += `
+### Example Request from Workflow
+${exampleSection}
+`;
+        }
+        
+        // Include pre-requisites if available
+        const prereqSection = existingWorkflow.sections['Pre-requisites'] || existingWorkflow.sections['Prerequisites'];
+        if (prereqSection) {
+          workflowDetails += `
+### Pre-requisites
+${prereqSection}
+`;
+        }
+        
+        // Include notes if available
+        const notesSection = existingWorkflow.sections['Notes'];
+        if (notesSection) {
+          workflowDetails += `
+### Important Notes (READ CAREFULLY!)
+${notesSection}
+`;
+        }
+        
+        // Include client identification strategy if available
+        const clientIdSection = existingWorkflow.sections['Client Identification Strategy'];
+        if (clientIdSection) {
+          workflowDetails += `
+### Client Identification Strategy (MUST FOLLOW!)
+${clientIdSection}
+`;
+        }
+      }
+      
       workflowContext = `
 ## CACHED WORKFLOW - Use This First!
 
-A previous successful run documented how to resolve UIDs for this endpoint:
+A workflow document exists for this endpoint with detailed instructions:
 
-${JSON.stringify(existingWorkflow.uidResolution, null, 2)}
+${workflowDetails}
 
-Try using these same endpoints to resolve the UIDs. If they still work, you can skip the discovery phase.
+**CRITICAL**: When retrying this endpoint:
+1. Read the example request carefully - it shows the EXACT body structure needed
+2. Include ALL required fields in the \`body\` parameter of \`execute_api\`
+3. If the example shows \`form_data\`, you MUST include it in your request body
 
 **IMPORTANT**: If this workflow succeeds, the test is a clean PASS.
 Do NOT report doc_issues for requirements that are already documented in the swagger description above.
@@ -2163,6 +2283,10 @@ ${Object.entries(config.tokens || {}).map(([type, token]) => {
 \`\`\`json
 ${JSON.stringify(resolvedParams, null, 2)}
 \`\`\`
+
+**WARNING**: Just because a parameter is "already resolved" doesn't mean you should use it!
+Check the CACHED WORKFLOW section below for any restrictions. Some parameters (like \`client_id\` for booking endpoints) 
+may cause authorization errors even if they're resolved. Follow the workflow's guidance on which parameters to use.
 ${swaggerContext}
 ${workflowContext}
 
@@ -2174,8 +2298,26 @@ ${workflowContext}
 3. UIDs resolution calls use purpose: "uid_resolution" (not counted as retries)
 
 ### Step 2: Retry with Valid Data
-1. Once UIDs are resolved, retry the original request with purpose: "retry_original"
-2. If successful (2xx), report PASS
+1. Once UIDs are resolved, **construct the request body** with all resolved UIDs
+2. For POST/PUT/PATCH requests, you MUST include the \`body\` parameter in \`execute_api\`:
+   \`\`\`javascript
+   execute_api({
+     method: "POST",
+     path: "/business/scheduling/v1/bookings",
+     purpose: "retry_original",
+     body: {
+       business_id: "resolved_business_uid",
+       service_id: "resolved_service_uid",
+       staff_id: "resolved_staff_uid",
+       // ... include ALL required fields from swagger schema
+     }
+   })
+   \`\`\`
+3. Read the swagger schema properties to know which fields to include
+4. If workflow documentation mentions \`form_data\`, include it in the body
+5. If successful (2xx), report PASS
+
+**CRITICAL**: POST/PUT/PATCH requests without a \`body\` parameter will fail with "missing mandatory parameter" errors!
 
 ### Minimal Request Bodies (PUT/PATCH/POST)
 
@@ -2229,6 +2371,36 @@ When the endpoint returns an error, assume it's a **documentation issue** unless
 **If swagger DOES specify token** (e.g., "Available for Staff tokens") and it fails:
 - That's a regular doc issue, NOT this exception
 - Investigate reference fields and scope first (see ALL OTHER ERRORS below)
+
+## CRITICAL: NO TOKEN FALLBACK FOR DOCUMENTED ENDPOINTS
+
+**NEVER use a different token type as a workaround when the documented token fails.**
+
+If swagger says "Available for Staff tokens" and the staff token returns 401/403/422 Unauthorized:
+1. **DO NOT** try admin token, directory token, or any other token as a fallback
+2. **DO NOT** report success if you got it working with a different token
+3. **DO** report FAIL with a doc_issue describing the authentication/permission failure
+4. **DO** investigate WHY the documented token fails (permissions, feature flags, staff setup)
+
+This is because:
+- Using admin tokens masks real authentication bugs
+- The endpoint MUST work with the documented token type
+- A "success" with the wrong token is NOT a valid test result
+- The workflow file specifies token requirements that must be honored
+
+**Example of WRONG approach:**
+\`\`\`
+❌ Staff token → 422 Unauthorized
+❌ Trying admin token → 201 Success  
+❌ Reporting PASS ← THIS IS INVALID! Test used wrong token!
+\`\`\`
+
+**Example of CORRECT approach:**
+\`\`\`
+✓ Staff token → 422 Unauthorized
+✓ Investigate: Check staff permissions, feature flags, staff setup
+✓ Report FAIL with doc_issue: "Staff token cannot create bookings - permission issue"
+\`\`\`
 
 #### Exception 3: PERMISSION-BASED 403 ERRORS
 
@@ -2432,6 +2604,231 @@ async function runAgentHealer(options) {
     maxRetries = 30,  // Increased to allow more exploration attempts
     onProgress
   } = options;
+  
+  // PHASE 0: DETERMINISTIC PREREQUISITE EXECUTION
+  // If the workflow has structured prerequisites, execute them FIRST before any AI healing
+  const existingWorkflow = workflowRepo.get(`${endpoint.method} ${endpoint.path}`);
+  
+  if (existingWorkflow?.prerequisites?.steps?.length > 0) {
+    onProgress?.({
+      type: 'agent_action',
+      action: 'prerequisite_start',
+      details: `Executing ${existingWorkflow.prerequisites.steps.length} prerequisite step(s) deterministically`
+    });
+    
+    // Create a request function that uses the apiClient
+    const makeRequest = async (requestConfig, cfg) => {
+      const url = requestConfig.path;
+      const method = requestConfig.method.toLowerCase();
+      
+      // Build query params for GET
+      let fullUrl = url;
+      if (method === 'get' && requestConfig.params) {
+        const params = new URLSearchParams(requestConfig.params).toString();
+        fullUrl = `${url}?${params}`;
+      }
+      
+      try {
+        const response = await apiClient.request({
+          method,
+          url: fullUrl,
+          data: method !== 'get' ? requestConfig.body : undefined,
+          headers: requestConfig.headers
+        });
+        return { status: response.status, data: response.data };
+      } catch (error) {
+        if (error.response) {
+          return { status: error.response.status, data: error.response.data };
+        }
+        throw error;
+      }
+    };
+    
+    // Execute prerequisites
+    const prereqResult = await executePrerequisites(
+      existingWorkflow,
+      { ...config, params: { ...config.params, ...resolvedParams } },
+      makeRequest
+    );
+    
+    if (prereqResult.failed) {
+      onProgress?.({
+        type: 'agent_complete',
+        status: 'blocked',
+        success: false,
+        summary: `Prerequisite '${prereqResult.failedStep}' failed: ${prereqResult.failedReason}`,
+        blocked: true,
+        blockedReason: prereqResult.failedReason
+      });
+      
+      return {
+        success: false,
+        status: 'BLOCKED',
+        reason: `Prerequisite '${prereqResult.failedStep}' failed`,
+        failedStep: prereqResult.failedStep,
+        failedReason: prereqResult.failedReason,
+        suggestion: 'Fix the prerequisite endpoint before testing this endpoint',
+        healingLog: [{
+          type: 'prerequisite_failed',
+          step: prereqResult.failedStep,
+          reason: prereqResult.failedReason
+        }]
+      };
+    }
+    
+    // Prerequisites succeeded - update resolved params with extracted variables
+    Object.assign(resolvedParams, prereqResult.variables);
+    
+    onProgress?.({
+      type: 'agent_action',
+      action: 'prerequisite_complete',
+      details: `Prerequisites completed. Variables: ${Object.keys(prereqResult.variables).join(', ')}`
+    });
+    
+    // Execute the workflow's test request if defined
+    if (existingWorkflow.testRequest) {
+      const { resolve, resolveObject } = require('../prerequisite/variables');
+      const axios = require('axios');
+      const testReq = existingWorkflow.testRequest;
+      
+      // Resolve variables in the test request body
+      const resolvedBody = resolveObject(testReq.body || {}, resolvedParams);
+      const resolvedPath = resolve(testReq.path || endpoint.path, resolvedParams);
+      
+      // Determine which token to use
+      const tokenType = testReq.token || 'staff';
+      const authToken = config.tokens?.[tokenType];
+      
+      // Check if workflow specifies to use fallback API (handles both boolean and string "true")
+      const useFallback = existingWorkflow.metadata?.useFallbackApi === true || 
+                          existingWorkflow.metadata?.useFallbackApi === 'true';
+      const baseUrl = useFallback ? config.fallbackUrl : config.baseUrl;
+      
+      if (authToken) {
+        onProgress?.({
+          type: 'agent_action',
+          action: 'workflow_test_request',
+          details: `Executing workflow test request with ${tokenType} token${useFallback ? ' (using fallback API)' : ''}`
+        });
+        
+        console.log(`\n📝 Executing workflow Test Request with ${tokenType} token...`);
+        console.log(`  Base URL: ${baseUrl}`);
+        console.log(`  Path: ${resolvedPath}`);
+        console.log(`  Body: ${JSON.stringify(resolvedBody, null, 2).substring(0, 500)}`);
+        
+        try {
+          const authPrefix = tokenType === 'admin' ? 'Admin' : 'Bearer';
+          const testResponse = await axios.request({
+            method: (testReq.method || endpoint.method).toLowerCase(),
+            url: `${baseUrl}${resolvedPath}`,
+            data: resolvedBody,
+            headers: {
+              'Authorization': `${authPrefix} ${authToken}`,
+              'Content-Type': 'application/json'
+            },
+            validateStatus: () => true // Don't throw on any status
+          });
+          
+          // Check if the response matches expected status
+          const expectedStatus = testReq.expect?.status || [200, 201];
+          const expectedStatuses = Array.isArray(expectedStatus) ? expectedStatus : [expectedStatus];
+          
+          console.log(`  Response: ${testResponse.status}`);
+          
+          if (expectedStatuses.includes(testResponse.status)) {
+            console.log(`  ✓ Workflow test request succeeded!`);
+            
+            // Check if the token type used is documented in swagger
+            const docIssues = [];
+            const swaggerDescription = endpoint.description || endpoint.summary || '';
+            
+            // Extract the token documentation section: "Available for **Client and Staff tokens**"
+            const tokenDocMatch = swaggerDescription.match(/Available for\s+\*\*([^*]+)\*\*/i);
+            const tokenDocSection = tokenDocMatch ? tokenDocMatch[1].toLowerCase() : '';
+            
+            // Check if token documentation exists and if our token type is mentioned
+            const hasAnyTokenDoc = !!tokenDocMatch;
+            const tokenDocumented = hasAnyTokenDoc && tokenDocSection.includes(tokenType.toLowerCase());
+            
+            if (!hasAnyTokenDoc) {
+              // No token documentation at all
+              docIssues.push({
+                type: 'missing_token_documentation',
+                field: 'description',
+                issue: `Endpoint succeeded with ${tokenType} token but swagger has no token documentation`,
+                suggestion: `Add "Available for **${tokenType.charAt(0).toUpperCase() + tokenType.slice(1)} tokens**" to the endpoint description`,
+                severity: 'warning'
+              });
+              console.log(`  ⚠️ Documentation issue: No token documentation in swagger (used ${tokenType} token)`);
+            } else if (!tokenDocumented) {
+              // Has token documentation but doesn't include the used token type
+              docIssues.push({
+                type: 'missing_token_type',
+                field: 'description',
+                issue: `Endpoint succeeded with ${tokenType} token but this token type is not documented`,
+                suggestion: `Add "${tokenType.charAt(0).toUpperCase() + tokenType.slice(1)}" to the token documentation`,
+                severity: 'warning'
+              });
+              console.log(`  ⚠️ Documentation issue: ${tokenType} token works but is not documented`);
+            }
+            
+            // If fallback URL was used and workflow doesn't have useFallbackApi, update it
+            if (useFallback && !(existingWorkflow.metadata?.useFallbackApi === true || 
+                                 existingWorkflow.metadata?.useFallbackApi === 'true')) {
+              try {
+                const workflowRepo = require('../workflows/repository');
+                const endpointKey = `${endpoint.method} ${endpoint.path}`;
+                workflowRepo.updateWorkflowMetadata(endpointKey, { useFallbackApi: 'true' });
+                console.log(`  📝 Updated workflow to use fallback API for future runs`);
+              } catch (err) {
+                console.log(`  [WARN] Failed to update workflow metadata: ${err.message}`);
+              }
+            }
+            
+            const hasDocIssues = docIssues.length > 0;
+            
+            onProgress?.({
+              type: 'agent_complete',
+              status: hasDocIssues ? 'warn' : 'success',
+              success: true,
+              summary: 'Workflow test request succeeded with resolved prerequisites',
+              followedWorkflow: true,
+              usedFallback: useFallback,
+              hasDocumentationIssues: hasDocIssues
+            });
+            
+            return {
+              success: true,
+              status: hasDocIssues ? 'WARN' : 'PASS',
+              reason: 'Workflow test request succeeded',
+              summary: `Test passed using workflow with ${tokenType} token after resolving ${Object.keys(prereqResult.variables).length} prerequisite variables${useFallback ? ' (using fallback API)' : ''}${hasDocIssues ? ' (documentation issues found)' : ''}`,
+              followedWorkflow: true,
+              usedFallback: useFallback,
+              docFixSuggestions: docIssues,
+              finalRequest: {
+                method: testReq.method || endpoint.method,
+                path: resolvedPath,
+                body: resolvedBody,
+                token: tokenType,
+                baseUrl: baseUrl
+              },
+              finalResponse: {
+                status: testResponse.status,
+                data: testResponse.data
+              }
+            };
+          } else {
+            console.log(`  ✗ Workflow test request failed: expected ${expectedStatuses.join(' or ')}, got ${testResponse.status}`);
+            console.log(`  Response data: ${JSON.stringify(testResponse.data).substring(0, 500)}`);
+            // Continue to AI healing if workflow request failed
+          }
+        } catch (error) {
+          console.log(`  ✗ Workflow test request error: ${error.message}`);
+          // Continue to AI healing if workflow request failed
+        }
+      }
+    }
+  }
   
   // SMART TYPE MISMATCH HANDLING: Instead of short-circuiting, convert types and retry
   // This allows us to discover ALL type mismatches in one validation run
@@ -2920,23 +3317,38 @@ Follow the MANDATORY WORKFLOW:
     }
   }
   
-  // Max iterations or retries reached
+  // Max iterations or retries reached - classify as potential backend issue
+  const MAX_HEAL_ATTEMPTS_FOR_BACKEND_CLASSIFICATION = 3;
+  const isPotentialBackendIssue = context.retryCount >= MAX_HEAL_ATTEMPTS_FOR_BACKEND_CLASSIFICATION;
+  const status = isPotentialBackendIssue ? 'POTENTIAL_BACKEND_ISSUE' : 'EXHAUSTED_RETRIES';
+  
   onProgress?.({
     type: 'agent_complete',
     success: false,
+    status,
     summary: context.retryCount > maxRetries 
       ? `Exceeded maximum ${maxRetries} retries`
       : `Reached maximum ${maxIterations} iterations`,
     retryCount: context.retryCount,
     workflowSaved: context.savedWorkflow,
-    docIssuesCount: context.docFixSuggestions.length
+    docIssuesCount: context.docFixSuggestions.length,
+    isPotentialBackendIssue,
+    suggestion: isPotentialBackendIssue 
+      ? 'This endpoint may have a backend bug. Create a ticket to investigate.'
+      : 'The AI healer could not fix this endpoint. Review manually.'
   });
   
   return {
     success: false,
+    status,
     reason: context.retryCount > maxRetries 
       ? `Exceeded maximum ${maxRetries} retries`
       : `Reached maximum ${maxIterations} iterations without resolution`,
+    isPotentialBackendIssue,
+    suggestion: isPotentialBackendIssue
+      ? 'This endpoint failed after multiple heal attempts with different approaches. This may indicate a backend bug that requires investigation.'
+      : 'The AI healer exhausted available approaches. Manual review recommended.',
+    jiraPrompt: isPotentialBackendIssue ? generateJiraPrompt(endpoint, context.healingLog) : null,
     docFixSuggestions: context.docFixSuggestions,
     filteredOutDocIssues: context.filteredOutDocIssues,
     savedWorkflows: [],
@@ -2945,6 +3357,42 @@ Follow the MANDATORY WORKFLOW:
     healingLog: context.healingLog,
     resolvedParams: context.resolvedParams
   };
+}
+
+/**
+ * Generate a JIRA prompt for potential backend issues
+ * @param {Object} endpoint - The failing endpoint
+ * @param {Array} healingLog - Log of healing attempts
+ * @returns {string} JIRA ticket description
+ */
+function generateJiraPrompt(endpoint, healingLog) {
+  const endpointStr = `${endpoint.method} ${endpoint.path}`;
+  
+  // Extract key information from healing log
+  const approaches = healingLog
+    .filter(entry => entry.type === 'execute_api' || entry.action === 'retry_original')
+    .slice(-5)
+    .map(entry => ({
+      status: entry.status || entry.response?.status,
+      error: entry.error || entry.response?.data?.message || entry.response?.data?.error
+    }));
+  
+  return `## Potential Backend Issue
+  
+**Endpoint**: \`${endpointStr}\`
+
+**Summary**: This endpoint failed API validation after multiple heal attempts with different parameter combinations. This may indicate a backend bug.
+
+**Recent Attempts**:
+${approaches.map((a, i) => `${i + 1}. Status: ${a.status}, Error: ${a.error || 'N/A'}`).join('\n')}
+
+**Suggested Investigation**:
+1. Check the backend logs for this endpoint
+2. Verify the swagger documentation matches the actual implementation
+3. Test the endpoint manually with the same parameters
+4. Check for any authorization or validation bugs
+
+**Tags**: api-validation, potential-bug, needs-investigation`;
 }
 
 /**

@@ -11,7 +11,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nCreate a new booking (appointment or event attendance) Available for **Staff and App tokens**.",
+        "description": "## Overview\nCreate a new booking (appointment or event attendance). Available for **Staff, Directory, and Application tokens**.\n\n**Important**: Always provide `client_id` parameter. Without it, the endpoint attempts to create a client from form_data and returns 'First name can't be blank' errors.\n\n## Token Authorization\n- **Staff tokens**: Client must belong to the same business as the staff member\n- **Directory tokens**: Business must be a member of the directory (requires directory_member record)\n\n## Booking Types\nThis endpoint supports two types of bookings with different required parameters:\n\n### Appointment Booking (default)\nWhen `event_instance_id` is NOT provided:\n- **Required**: `business_id`, `service_id`, `staff_id`\n- **Required one of**: `start_time` OR `optional_times`\n\n### Event Registration\nWhen `event_instance_id` IS provided:\n- **Required**: `business_id`, `event_instance_id`\n\n## Client Identification\n- Use `client_id` to book for an existing client (required for Staff/App tokens)\n- Without `client_id`, the endpoint expects form_data for client creation (used by client-facing booking flows)",
         "parameters": [
           {
             "in": "body",
@@ -19,59 +19,66 @@
             "schema": {
               "properties": {
                 "arrival_window_value": {
-                  "description": "Optional for appointment only .Arrival window value is in minutes and limited to 540 (9 hours)",
+                  "description": "Optional for appointment only. Arrival window value is in minutes and limited to 540 (9 hours).",
                   "type": "integer"
                 },
                 "business_id": {
-                  "description": "Business uid",
-                  "type": "string"
+                  "description": "Business uid. Always required.",
+                  "type": "string",
+                  "x-reference-to": "business"
                 },
                 "campaign": {
-                  "description": "Source campaign",
+                  "description": "Source campaign for tracking.",
                   "type": "string"
                 },
                 "channel": {
-                  "description": "Source channel",
+                  "description": "Source channel for tracking.",
                   "type": "string"
                 },
                 "client_id": {
-                  "description": "Client uid",
-                  "type": "string"
+                  "description": "Client uid. Recommended when booking on behalf of a client via Staff/App tokens.",
+                  "type": "string",
+                  "x-reference-to": "client"
                 },
                 "event_instance_id": {
-                  "description": "Event instance uid. Required for event.",
-                  "type": "string"
+                  "description": "Event instance uid. Required for event registration (mutually exclusive with service_id/staff_id/start_time).",
+                  "type": "string",
+                  "x-reference-to": "event_instance"
                 },
                 "interaction_details": {
-                  "description": "Address. Required when service location set to: Client will set the address at booking",
+                  "description": "Address. Required when service location is set to: Client will set the address at booking.",
                   "type": "string"
                 },
                 "matter_uid": {
-                  "description": "Matter uid",
-                  "type": "string"
+                  "description": "Matter/conversation uid to associate with the booking.",
+                  "type": "string",
+                  "x-reference-to": "matter"
                 },
                 "service_id": {
-                  "description": "Service uid. Required for appointment.",
-                  "type": "string"
+                  "description": "Service uid. Required for appointment booking.",
+                  "type": "string",
+                  "x-reference-to": "service"
                 },
                 "source_name": {
-                  "description": "Source name",
+                  "description": "Source name for tracking (e.g., 'api', 'client_portal').",
                   "type": "string"
                 },
                 "source_url": {
-                  "description": "Source URL",
+                  "description": "Source URL for tracking.",
                   "type": "string"
                 },
                 "staff_id": {
-                  "description": "Staff uid. Required for appointment.",
-                  "type": "string"
+                  "description": "Staff uid who will provide the service. Required for appointment booking.",
+                  "type": "string",
+                  "x-reference-to": "staff"
                 },
                 "start_time": {
-                  "description": "ISO 8601 format. Required for appointment.",
-                  "type": "string"
+                  "description": "ISO 8601 format datetime. Required for appointment booking (alternative: optional_times).",
+                  "type": "string",
+                  "format": "date-time"
                 },
                 "time_zone": {
-                  "description": "Default is set to UTC if not provided",
+                  "description": "Time zone for the booking. Default is UTC if not provided.",
                   "type": "string"
                 }
               },
@@ -118,13 +125,45 @@
               }
             }
           },
+          "400": {
+            "description": "Parameter Missing - Required parameters not provided based on booking type",
+            "examples": {
+              "application/json": {
+                "error": "Mandatory parameter service_id is missing, Mandatory parameter staff_id is missing",
+                "error_code": "PARAMETER_MISSING",
+                "status": "Error"
+              }
+            }
+          },
           "422": {
-            "description": "Booking Creation Failure",
+            "description": "Booking Creation Failure or Authorization Error",
             "examples": {
               "application/json": {
                 "error": "error text",
-                "error_code": "TIMESLOT_UNAVAILABLE/ALREADY_REGISTERED",
+                "error_code": "TIMESLOT_UNAVAILABLE/ALREADY_REGISTERED/UNAUTHORIZED",
                 "status": "Error"
+              }
+            },
+            "content": {
+              "application/json": {
+                "examples": {
+                  "timeslot_unavailable": {
+                    "summary": "Time slot not available",
+                    "value": {
+                      "error": "The requested time slot is not available",
+                      "error_code": "TIMESLOT_UNAVAILABLE",
+                      "status": "Error"
+                    }
+                  },
+                  "directory_unauthorized": {
+                    "summary": "Directory token - business not in directory",
+                    "value": {
+                      "error": "Unauthorized",
+                      "error_code": "UNAUTHORIZED",
+                      "status": "Error"
+                    }
+                  }
+                }
               }
             }
           }
@@ -161,7 +200,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nAccept a pending booking Available for **Staff and App tokens**.",
+        "description": "## Overview\nAccept a pending booking. Available for **Staff and App tokens**.\n\n## Batch Operations\nSupports batch operations by providing an array of booking IDs (max 50).\n\n## Response\nReturns the accepted booking details for single booking, or batch response for array of bookings.",
         "parameters": [
           {
             "in": "body",
@@ -169,15 +208,22 @@
             "schema": {
               "properties": {
                 "booking_id": {
-                  "description": "Booking (appointment/event) uid",
-                  "type": "string"
+                  "description": "Booking (appointment/event) UID. Can be a single string or array of strings for batch operations (max 50).",
+                  "type": "string",
+                  "x-reference-to": "booking"
                 },
                 "business_id": {
-                  "description": "Business uid",
-                  "type": "string"
+                  "description": "Business UID",
+                  "type": "string",
+                  "x-reference-to": "business"
                 },
                 "event_instance_id": {
-                  "description": "Event instance uid. Required for event.",
+                  "description": "Event instance UID. Provide this when accepting an event registration rather than an appointment.",
+                  "type": "string",
+                  "x-reference-to": "event_instance"
+                },
+                "message": {
+                  "description": "Optional message to include with the acceptance notification.",
                   "type": "string"
                 }
               },
@@ -269,7 +315,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nCancel an existing booking Available for **Staff and App tokens**.",
+        "description": "## Overview\nCancel an existing booking. Available for **Staff and App tokens**.\n\n## Batch Operations\nSupports batch operations by providing an array of booking IDs (max 50).\n\n## Parameters\n- `cancel_payment`: Set to true to cancel any associated payment\n- `issue_refund`: Set to true to issue a refund for the cancelled booking",
         "parameters": [
           {
             "in": "body",
@@ -277,16 +323,31 @@
             "schema": {
               "properties": {
                 "booking_id": {
-                  "description": "Booking (appointment/event) uid. (Can also be an array for batch cancel)",
-                  "type": "string"
+                  "description": "Booking (appointment/event) UID. Can be a single string or array of strings for batch operations (max 50).",
+                  "type": "string",
+                  "x-reference-to": "booking"
                 },
                 "business_id": {
-                  "description": "Business uid",
-                  "type": "string"
+                  "description": "Business UID",
+                  "type": "string",
+                  "x-reference-to": "business"
                 },
                 "event_instance_id": {
-                  "description": "Event instance uid. Required for event.",
+                  "description": "Event instance UID. Provide this when cancelling an event registration rather than an appointment.",
+                  "type": "string",
+                  "x-reference-to": "event_instance"
+                },
+                "message": {
+                  "description": "Optional message to include with the cancellation notification.",
                   "type": "string"
+                },
+                "cancel_payment": {
+                  "description": "Set to true to cancel any associated payment.",
+                  "type": "boolean"
+                },
+                "issue_refund": {
+                  "description": "Set to true to issue a refund for the cancelled booking.",
+                  "type": "boolean"
                 }
               },
               "required": [
@@ -371,7 +432,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nMark a booking as no-show Available for **Staff and App tokens**.",
+        "description": "## Overview\nMark a booking as completed or no-show. Available for **Staff and App tokens**.\n\n## Batch Operations\nSupports batch operations by providing an array of booking IDs (max 50).\n\n## Parameters\n- `booking_id` (required): Single booking UID or array of UIDs for batch operations\n- `business_id` (required): Business UID\n- `mark_as_no_show`: Set to `true` to mark as no-show instead of completed\n- `message`: Optional message to include with the completion notification\n- `follow_up_params`: Optional parameters for sending a follow-up email",
         "parameters": [
           {
             "in": "body",
@@ -379,20 +440,31 @@
             "schema": {
               "properties": {
                 "booking_id": {
-                  "description": "Booking UID",
-                  "type": "string"
+                  "description": "Booking UID. Can be a single string or an array of strings for batch operations (max 50 bookings).",
+                  "type": "string",
+                  "x-reference-to": "booking"
                 },
                 "business_id": {
                   "description": "Business UID",
-                  "type": "string"
+                  "type": "string",
+                  "x-reference-to": "business"
                 },
                 "mark_as_no_show": {
-                  "description": "Mark as no show true/false",
+                  "description": "Set to true to mark as no-show instead of completed. Default is false.",
+                  "type": "boolean"
+                },
+                "message": {
+                  "description": "Optional message to include with the completion notification.",
                   "type": "string"
+                },
+                "follow_up_params": {
+                  "description": "Optional parameters for sending a follow-up email after completion.",
+                  "type": "object"
                 }
               },
               "required": [
-                "business_id"
+                "business_id",
+                "booking_id"
               ],
               "type": "object"
             }
@@ -484,17 +556,18 @@
         "x-auth-type": "Application & Application User"
       }
     },
-    "/v1/bookings/{booking_uid}": {
+    "/v1/bookings/{booking_id}": {
       "put": {
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nUpdate booking details including start time, staff, and notes Available for **Staff and App tokens**.",
+        "description": "## Overview\nUpdate booking details including start time, staff, and notes. Available for **Staff and App tokens**.\n\n**Note**: The path parameter is `booking_id` (not `booking_uid`).",
         "parameters": [
           {
-            "description": "Booking (appointment/event) UID",
+            "description": "Booking (appointment/event) ID. Obtained from create booking response.",
             "in": "path",
-            "name": "booking_uid",
+            "name": "booking_id",
+            "x-reference-to": "booking",
             "required": true,
             "type": "string"
           },
@@ -659,7 +732,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nExternal app bulk create external items Available for **Staff and App tokens**.",
+        "description": "## Overview\nBulk create or update external calendar items. Available for **Staff and App tokens**.\n\n## Prerequisite\n**Staff member must have a CalendarSync record** (typically created via the vcita web UI or OAuth flow with an external calendar provider like Google or Outlook).\n\n## Required Fields\n- Provide exactly one of: `external_item` (single item) or `external_items` (array)\n- Each item must include: `external_id`, `start_date`, `end_date`, `last_modification`",
         "parameters": [
           {
             "in": "body",
@@ -667,100 +740,112 @@
             "schema": {
               "properties": {
                 "calendar_sync": {
-                  "description": "The external app provider and the requested email to sync to (by the staff)",
+                  "description": "Calendar sync configuration. Both `provider` and `account` are required.",
                   "properties": {
                     "account": {
-                      "description": "The requested email to sync to by the staff (e.g. aaa@gmail.com)",
+                      "description": "The email account to sync to (e.g., user@gmail.com). Required.",
                       "type": "string"
                     },
                     "provider": {
-                      "description": "The external app provider (e.g. google_v3)",
+                      "description": "The external calendar provider (e.g., 'google_v3', 'outlook'). Required.",
                       "type": "string"
                     }
                   },
+                  "required": ["provider", "account"],
                   "type": "object"
                 },
                 "external_item": {
-                  "description": "External item to create / update",
+                  "description": "Single external item to create/update. Use this OR `external_items`, not both.",
                   "properties": {
                     "end_date": {
-                      "description": "End Date",
-                      "type": "string"
+                      "description": "End date in ISO 8601 format. Required.",
+                      "type": "string",
+                      "format": "date-time"
                     },
                     "external_calendar_uid": {
-                      "description": "External Calendar Uid",
-                      "type": "string"
+                      "description": "External Calendar UID",
+                      "type": "string",
+                      "x-reference-to": "external_calendar"
                     },
                     "external_id": {
-                      "description": "id",
+                      "description": "External system ID for the item. Required.",
                       "type": "string"
                     },
                     "external_title": {
-                      "description": "Title",
+                      "description": "Title of the calendar item",
                       "type": "string"
                     },
                     "last_modification": {
-                      "description": "Last modification of the item",
-                      "type": "string"
+                      "description": "Last modification timestamp in ISO 8601 format. Required.",
+                      "type": "string",
+                      "format": "date-time"
                     },
                     "rrule": {
-                      "description": "Array of rrules (recurrence rules)",
+                      "description": "Array of recurrence rules (RFC 5545 RRULE format)",
                       "items": {
                         "type": "string"
                       },
                       "type": "array"
                     },
                     "start_date": {
-                      "description": "Start date",
-                      "type": "string"
+                      "description": "Start date in ISO 8601 format. Required.",
+                      "type": "string",
+                      "format": "date-time"
                     }
                   },
+                  "required": ["external_id", "start_date", "end_date", "last_modification"],
                   "type": "object"
                 },
                 "external_items": {
-                  "description": "Array of external items",
+                  "description": "Array of external items to create/update. Use this OR `external_item`, not both.",
                   "items": {
-                    "description": "External item to create / update",
+                    "description": "External item to create/update",
                     "properties": {
                       "end_date": {
-                        "description": "End Date",
-                        "type": "string"
+                        "description": "End date in ISO 8601 format. Required.",
+                        "type": "string",
+                        "format": "date-time"
                       },
                       "external_calendar_uid": {
-                        "description": "External Calendar Uid",
-                        "type": "string"
+                        "description": "External Calendar UID",
+                        "type": "string",
+                        "x-reference-to": "external_calendar"
                       },
                       "external_id": {
-                        "description": "id",
+                        "description": "External system ID for the item. Required.",
                         "type": "string"
                       },
                       "external_title": {
-                        "description": "Title",
+                        "description": "Title of the calendar item",
                         "type": "string"
                       },
                       "last_modification": {
-                        "description": "Last modification of the item",
-                        "type": "string"
+                        "description": "Last modification timestamp in ISO 8601 format. Required.",
+                        "type": "string",
+                        "format": "date-time"
                       },
                       "rrule": {
-                        "description": "Array of rrules (recurrence rules)",
+                        "description": "Array of recurrence rules (RFC 5545 RRULE format)",
                         "items": {
                           "type": "string"
                         },
                         "type": "array"
                       },
                       "start_date": {
-                        "description": "Start date",
-                        "type": "string"
+                        "description": "Start date in ISO 8601 format. Required.",
+                        "type": "string",
+                        "format": "date-time"
                       }
                     },
+                    "required": ["external_id", "start_date", "end_date", "last_modification"],
                     "type": "object"
                   },
                   "type": "array"
                 },
                 "staff_uid": {
                   "description": "Staff UID",
-                  "type": "string"
+                  "type": "string",
+                  "x-reference-to": "staff"
                 }
               },
               "required": [
@@ -794,6 +879,21 @@
                   "uid": "9g08urplg8lp1rc5"
                 },
                 "success": true
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Staff not registered to calendar sync",
+            "examples": {
+              "application/json": {
+                "status": "Error",
+                "errors": [
+                  {
+                    "code": "missing",
+                    "field": "staff",
+                    "message": "staff is not registered to any calendar sync"
+                  }
+                ]
               }
             }
           }
@@ -830,7 +930,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nExternal app bulk deactivate external items Available for **Staff and App tokens**.",
+        "description": "## Overview\nBulk deactivate external calendar items. Available for **Staff and App tokens**.\n\n## Prerequisite\n**Staff member must have a CalendarSync record** (typically created via the vcita web UI or OAuth flow with an external calendar provider like Google or Outlook).\n\n## Required Fields\n- `external_items_to_deactivate` must be an array\n- Each item must include `external_id`",
         "parameters": [
           {
             "in": "body",
@@ -838,36 +938,39 @@
             "schema": {
               "properties": {
                 "calendar_sync": {
-                  "description": "The external app provider and the requested email to sync to (by the staff)",
+                  "description": "Calendar sync configuration. Both `provider` and `account` are required.",
                   "properties": {
                     "account": {
-                      "description": "The requested email to sync to by the staff (e.g. aaa@gmail.com)",
+                      "description": "The email account to sync to (e.g., user@gmail.com). Required.",
                       "type": "string"
                     },
                     "provider": {
-                      "description": "The external app provider (e.g. google_v3)",
+                      "description": "The external calendar provider (e.g., 'google_v3', 'outlook'). Required.",
                       "type": "string"
                     }
                   },
+                  "required": ["provider", "account"],
                   "type": "object"
                 },
                 "external_items_to_deactivate": {
-                  "description": "Array of external_ids to deactivate",
+                  "description": "Array of external items to deactivate. Each item must include `external_id`.",
                   "items": {
-                    "description": "translation missing: en.external-calendar-items-controller.parameters.external_item.external_id.description.description",
+                    "description": "External item to deactivate",
                     "properties": {
                       "external_id": {
-                        "description": "id",
+                        "description": "External system ID of the item to deactivate. Required.",
                         "type": "string"
                       }
                     },
+                    "required": ["external_id"],
                     "type": "object"
                   },
                   "type": "array"
                 },
                 "staff_uid": {
                   "description": "Staff UID",
-                  "type": "string"
+                  "type": "string",
+                  "x-reference-to": "staff"
                 }
               },
               "required": [
@@ -938,7 +1041,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nExternal app connect Available for **Staff and App tokens**.",
+        "description": "## Overview\nConnect a staff member's calendar to an external calendar provider. Available for **Staff and App tokens**.\n\n## Prerequisite\n**Staff member must have a CalendarSync record** (typically created via the vcita web UI or OAuth flow with an external calendar provider like Google or Outlook).\n\n## Response\nReturns the calendar sync configuration including the `uid` which can be used as `external_calendar_uid` for other operations.",
         "parameters": [
           {
             "in": "body",
@@ -946,22 +1049,24 @@
             "schema": {
               "properties": {
                 "calendar_sync": {
-                  "description": "The external app provider and the requested email to sync to (by the staff)",
+                  "description": "Calendar sync configuration. Both `provider` and `account` are required.",
                   "properties": {
                     "account": {
-                      "description": "The requested email to sync to by the staff (e.g. aaa@gmail.com)",
+                      "description": "The email account to sync to (e.g., user@gmail.com). Required.",
                       "type": "string"
                     },
                     "provider": {
-                      "description": "The external app provider (e.g. google_v3)",
+                      "description": "The external calendar provider (e.g., 'google_v3', 'outlook'). Required.",
                       "type": "string"
                     }
                   },
+                  "required": ["provider", "account"],
                   "type": "object"
                 },
                 "staff_uid": {
                   "description": "Staff UID",
-                  "type": "string"
+                  "type": "string",
+                  "x-reference-to": "staff"
                 }
               },
               "required": [
@@ -995,6 +1100,21 @@
                   "uid": "9t1dcewjh54k3t91"
                 },
                 "success": true
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Staff not registered to calendar sync",
+            "examples": {
+              "application/json": {
+                "status": "Error",
+                "errors": [
+                  {
+                    "code": "missing",
+                    "field": "staff",
+                    "message": "staff is not registered to any calendar sync"
+                  }
+                ]
               }
             }
           }
@@ -1031,7 +1151,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nExternal app deactivate external calendar Available for **Staff and App tokens**.",
+        "description": "## Overview\nDeactivate a specific external calendar. Available for **Staff and App tokens**.\n\n## Prerequisites\nThe `external_calendar_uid` is returned in the response when calling the `/v1/external_calendar_items/connect` endpoint.",
         "parameters": [
           {
             "in": "body",
@@ -1039,12 +1159,14 @@
             "schema": {
               "properties": {
                 "external_calendar_uid": {
-                  "description": "External Calendar Uid",
-                  "type": "string"
+                  "description": "External Calendar UID. Obtained from the connect endpoint response.",
+                  "type": "string",
+                  "x-reference-to": "external_calendar"
                 },
                 "staff_uid": {
                   "description": "Staff UID",
-                  "type": "string"
+                  "type": "string",
+                  "x-reference-to": "staff"
                 }
               },
               "required": [
@@ -1103,7 +1225,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nExternal app disable Available for **Staff and App tokens**.",
+        "description": "## Overview\nDisable calendar sync for a staff member. Available for **Staff and App tokens**.\n\n## Prerequisite\n**Staff member must have a CalendarSync record** (typically created via the vcita web UI or OAuth flow with an external calendar provider like Google or Outlook). Then connect via `/connect` endpoint.",
         "parameters": [
           {
             "in": "body",
@@ -1111,22 +1233,24 @@
             "schema": {
               "properties": {
                 "calendar_sync": {
-                  "description": "The external app provider and the requested email to sync to (by the staff)",
+                  "description": "Calendar sync configuration. Both `provider` and `account` are required.",
                   "properties": {
                     "account": {
-                      "description": "The requested email to sync to by the staff (e.g. aaa@gmail.com)",
+                      "description": "The email account to sync to (e.g., user@gmail.com). Required.",
                       "type": "string"
                     },
                     "provider": {
-                      "description": "The external app provider (e.g. google_v3)",
+                      "description": "The external calendar provider (e.g., 'google_v3', 'outlook'). Required.",
                       "type": "string"
                     }
                   },
+                  "required": ["provider", "account"],
                   "type": "object"
                 },
                 "staff_uid": {
                   "description": "Staff UID",
-                  "type": "string"
+                  "type": "string",
+                  "x-reference-to": "staff"
                 }
               },
               "required": [
@@ -1196,7 +1320,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nExternal app disconnect Available for **Staff and App tokens**.",
+        "description": "## Overview\nDisconnect a staff member's calendar from an external calendar provider. Available for **Staff and App tokens**.\n\n## Prerequisite\n**Staff member must have a CalendarSync record** (typically created via the vcita web UI or OAuth flow with an external calendar provider like Google or Outlook). Then connect via `/connect` endpoint.",
         "parameters": [
           {
             "in": "body",
@@ -1204,22 +1328,24 @@
             "schema": {
               "properties": {
                 "calendar_sync": {
-                  "description": "The external app provider and the requested email to sync to (by the staff)",
+                  "description": "Calendar sync configuration. Both `provider` and `account` are required.",
                   "properties": {
                     "account": {
-                      "description": "The requested email to sync to by the staff (e.g. aaa@gmail.com)",
+                      "description": "The email account to sync to (e.g., user@gmail.com). Required.",
                       "type": "string"
                     },
                     "provider": {
-                      "description": "The external app provider (e.g. google_v3)",
+                      "description": "The external calendar provider (e.g., 'google_v3', 'outlook'). Required.",
                       "type": "string"
                     }
                   },
+                  "required": ["provider", "account"],
                   "type": "object"
                 },
                 "staff_uid": {
                   "description": "Staff UID",
-                  "type": "string"
+                  "type": "string",
+                  "x-reference-to": "staff"
                 }
               },
               "required": [
@@ -1289,7 +1415,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nExternal app report_sync_status Available for **Staff and App tokens**.",
+        "description": "## Overview\nReport the sync status after completing a calendar sync operation. Available for **Staff and App tokens**.\n\n## Required Fields\n- `params.is_sync_successful` is required\n- If `unsynced_items` is provided, each item must have `entity_uid`\n- If `unsynced_calendars` is provided, each item must have `imported_calendar_name`",
         "parameters": [
           {
             "in": "body",
@@ -1297,60 +1423,65 @@
             "schema": {
               "properties": {
                 "calendar_sync": {
-                  "description": "The external app provider and the requested email to sync to (by the staff)",
+                  "description": "Calendar sync configuration. Both `provider` and `account` are required.",
                   "properties": {
                     "account": {
-                      "description": "The requested email to sync to by the staff (e.g. aaa@gmail.com)",
+                      "description": "The email account to sync to (e.g., user@gmail.com). Required.",
                       "type": "string"
                     },
                     "provider": {
-                      "description": "The external app provider (e.g. google_v3)",
+                      "description": "The external calendar provider (e.g., 'google_v3', 'outlook'). Required.",
                       "type": "string"
                     }
                   },
+                  "required": ["provider", "account"],
                   "type": "object"
                 },
                 "params": {
-                  "description": "Status report of the sync (export and import)",
+                  "description": "Status report of the sync operation.",
                   "properties": {
                     "is_sync_successful": {
-                      "description": "Boolean",
+                      "description": "Whether the sync was successful. Required.",
                       "type": "boolean"
                     },
                     "unsynced_calendars": {
-                      "description": "Array of unsynced calendars",
+                      "description": "Array of calendars that failed to sync. Each item requires `imported_calendar_name`.",
                       "items": {
                         "description": "Unsynced calendar",
                         "properties": {
                           "imported_calendar_name": {
-                            "description": "The calendar's name of the unsynced calendar",
+                            "description": "The calendar's name. Required when item is present.",
                             "type": "string"
                           }
                         },
+                        "required": ["imported_calendar_name"],
                         "type": "object"
                       },
                       "type": "array"
                     },
                     "unsynced_items": {
-                      "description": "Array of unsynced items",
+                      "description": "Array of items that failed to sync. Each item requires `entity_uid`.",
                       "items": {
                         "description": "Unsynced item",
                         "properties": {
                           "entity_uid": {
-                            "description": "The entity uid of the unsynced item",
+                            "description": "The entity UID of the unsynced item. Required when item is present.",
                             "type": "string"
                           }
                         },
+                        "required": ["entity_uid"],
                         "type": "object"
                       },
                       "type": "array"
                     }
                   },
+                  "required": ["is_sync_successful"],
                   "type": "object"
                 },
                 "staff_uid": {
                   "description": "Staff UID",
-                  "type": "string"
+                  "type": "string",
+                  "x-reference-to": "staff"
                 }
               },
               "required": [
@@ -1410,7 +1541,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nExternal app start_export Available for **Staff and App tokens**.",
+        "description": "## Overview\nStart exporting vcita calendar events to an external calendar. Available for **Staff and App tokens**.\n\n## Prerequisite\n**Staff member must have a CalendarSync record** (typically created via the vcita web UI or OAuth flow with an external calendar provider like Google or Outlook). Then connect via `/connect` endpoint.",
         "parameters": [
           {
             "in": "body",
@@ -1418,22 +1549,24 @@
             "schema": {
               "properties": {
                 "calendar_sync": {
-                  "description": "The external app provider and the requested email to sync to (by the staff)",
+                  "description": "Calendar sync configuration. Both `provider` and `account` are required.",
                   "properties": {
                     "account": {
-                      "description": "The requested email to sync to by the staff (e.g. aaa@gmail.com)",
+                      "description": "The email account to sync to (e.g., user@gmail.com). Required.",
                       "type": "string"
                     },
                     "provider": {
-                      "description": "The external app provider (e.g. google_v3)",
+                      "description": "The external calendar provider (e.g., 'google_v3', 'outlook'). Required.",
                       "type": "string"
                     }
                   },
+                  "required": ["provider", "account"],
                   "type": "object"
                 },
                 "staff_uid": {
                   "description": "Staff UID",
-                  "type": "string"
+                  "type": "string",
+                  "x-reference-to": "staff"
                 }
               },
               "required": [
@@ -1503,7 +1636,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nExternal app stop import Available for **Staff and App tokens**.",
+        "description": "## Overview\nStop importing events from an external calendar. Available for **Staff and App tokens**.\n\n## Prerequisite\n**Staff member must have a CalendarSync record** (typically created via the vcita web UI or OAuth flow with an external calendar provider like Google or Outlook). Then connect via `/connect` endpoint.",
         "parameters": [
           {
             "in": "body",
@@ -1511,22 +1644,24 @@
             "schema": {
               "properties": {
                 "calendar_sync": {
-                  "description": "The external app provider and the requested email to sync to (by the staff)",
+                  "description": "Calendar sync configuration. Both `provider` and `account` are required.",
                   "properties": {
                     "account": {
-                      "description": "The requested email to sync to by the staff (e.g. aaa@gmail.com)",
+                      "description": "The email account to sync to (e.g., user@gmail.com). Required.",
                       "type": "string"
                     },
                     "provider": {
-                      "description": "The external app provider (e.g. google_v3)",
+                      "description": "The external calendar provider (e.g., 'google_v3', 'outlook'). Required.",
                       "type": "string"
                     }
                   },
+                  "required": ["provider", "account"],
                   "type": "object"
                 },
                 "staff_uid": {
                   "description": "Staff UID",
-                  "type": "string"
+                  "type": "string",
+                  "x-reference-to": "staff"
                 }
               },
               "required": [
@@ -1596,7 +1731,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nGeneral availability - Create new time slot Available for **Staff and App tokens**.",
+        "description": "## Overview\nGeneral availability - Create new time slot. Available for **Staff and App tokens**.\n\n## Prerequisites\nYou need a `weekly_availability_uid` which can be obtained from the staff or service availability settings.",
         "parameters": [
           {
             "in": "body",
@@ -1604,22 +1739,31 @@
             "schema": {
               "properties": {
                 "day": {
-                  "description": "A number representing the day of the week (0 - sunday, 6 - saturday)",
-                  "type": "string"
+                  "description": "A number representing the day of the week (0 = Sunday, 6 = Saturday).",
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 6
                 },
                 "end_time": {
-                  "description": "End time (only the hour)",
+                  "description": "End time in HH:MM format (e.g., '17:00').",
                   "type": "string"
                 },
                 "start_time": {
-                  "description": "Start time (only the hour)",
+                  "description": "Start time in HH:MM format (e.g., '09:00').",
                   "type": "string"
                 },
                 "weekly_availability_uid": {
-                  "description": "Weekly availability uid",
-                  "type": "string"
+                  "description": "Weekly availability UID. Obtain from staff or service availability settings.",
+                  "type": "string",
+                  "x-reference-to": "weekly_availability"
                 }
               },
+              "required": [
+                "weekly_availability_uid",
+                "day",
+                "start_time",
+                "end_time"
+              ],
               "type": "object"
             }
           }
@@ -1826,10 +1970,10 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nGeneral availability - Update time slot Available for **Staff and App tokens**.",
+        "description": "## Overview\nGeneral availability - Update time slot. Available for **Staff and App tokens**.",
         "parameters": [
           {
-            "description": "time slot uid",
+            "description": "Time slot UID",
             "in": "path",
             "name": "time_slot_uid",
             "required": true,
@@ -1841,18 +1985,22 @@
             "schema": {
               "properties": {
                 "end_time": {
-                  "description": "End time (only the hour)",
+                  "description": "End time in HH:MM format (e.g., '17:00').",
                   "type": "string"
                 },
                 "start_time": {
-                  "description": "Start time (only the hour)",
+                  "description": "Start time in HH:MM format (e.g., '09:00').",
                   "type": "string"
                 },
                 "weekly_availability_uid": {
-                  "description": "Weekly availability uid",
-                  "type": "string"
+                  "description": "Weekly availability UID.",
+                  "type": "string",
+                  "x-reference-to": "weekly_availability"
                 }
               },
+              "required": [
+                "weekly_availability_uid"
+              ],
               "type": "object"
             }
           }

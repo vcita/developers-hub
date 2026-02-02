@@ -126,9 +126,10 @@ async function loadSwaggerFilesAsync(swaggerPath) {
  * Extract endpoints from a swagger spec
  * @param {Object} spec - OpenAPI specification object
  * @param {string} domain - Domain name
+ * @param {string} [swaggerFile] - Path to the swagger file
  * @returns {Object[]} Array of endpoint objects
  */
-function extractEndpoints(spec, domain) {
+function extractEndpoints(spec, domain, swaggerFile = null) {
   const endpoints = [];
   const paths = spec.paths || {};
   
@@ -221,7 +222,8 @@ function extractEndpoints(spec, domain) {
         responses, // Full responses object for status code validation
         security: operation.security || [],
         operationId: operation.operationId || null,
-        deprecated: operation.deprecated || false
+        deprecated: operation.deprecated || false,
+        swaggerFile: swaggerFile || domain // Include swagger file path for reference
       });
     }
   }
@@ -250,7 +252,7 @@ function parseAllSwaggers(swaggerPath) {
       filePath
     };
     
-    const endpoints = extractEndpoints(spec, domain);
+    const endpoints = extractEndpoints(spec, domain, filePath);
     allEndpoints.push(...endpoints);
     byDomain[domain] = endpoints;
   }
@@ -284,7 +286,7 @@ async function parseAllSwaggersAsync(swaggerPath) {
       filePath
     };
     
-    const endpoints = extractEndpoints(spec, domain);
+    const endpoints = extractEndpoints(spec, domain, filePath);
     allEndpoints.push(...endpoints);
     byDomain[domain] = endpoints;
   }

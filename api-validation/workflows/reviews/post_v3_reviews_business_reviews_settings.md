@@ -2,6 +2,7 @@
 endpoint: POST /v3/reviews/business_reviews_settings
 domain: reviews
 tags: []
+swagger: swagger/reviews/business_reviews_settings.json
 status: success
 savedAt: 2026-01-25T23:02:03.338Z
 verifiedAt: 2026-01-25T23:02:03.338Z

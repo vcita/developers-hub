@@ -7,6 +7,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { parseYamlSteps } = require('../prerequisite/executor');
 
 // Repository paths
 const WORKFLOWS_DIR = path.join(__dirname, '../../../workflows');
@@ -167,11 +168,40 @@ function parseWorkflowFile(filePath) {
       }
     }
     
+    // Extract structured prerequisites (new deterministic format)
+    let prerequisites = null;
+    if (sections['Prerequisites']) {
+      const yamlMatch = sections['Prerequisites'].match(/```yaml\n([\s\S]*?)\n```/);
+      if (yamlMatch) {
+        try {
+          prerequisites = parseYamlSteps(yamlMatch[1]);
+        } catch (e) {
+          console.error(`Failed to parse prerequisites YAML: ${e.message}`);
+        }
+      }
+    }
+    
+    // Extract structured test request (new deterministic format)
+    let testRequest = null;
+    if (sections['Test Request']) {
+      const yamlMatch = sections['Test Request'].match(/```yaml\n([\s\S]*?)\n```/);
+      if (yamlMatch) {
+        try {
+          const parsed = parseYamlSteps(yamlMatch[1]);
+          testRequest = parsed.steps?.[0] || null;
+        } catch (e) {
+          console.error(`Failed to parse test request YAML: ${e.message}`);
+        }
+      }
+    }
+    
     return {
       metadata,
       sections,
       successfulRequest,
       uidResolution,
+      prerequisites,
+      testRequest,
       content
     };
   } catch (e) {
@@ -213,6 +243,8 @@ function get(endpoint) {
     knownIssues: parsed.metadata?.knownIssues || [],  // Include known issues to suppress in validation
     timesReused: entry.timesReused || 0,
     uidResolution: parsed.uidResolution || null,  // Include UID resolution mappings
+    prerequisites: parsed.prerequisites || null,  // Include structured prerequisites for deterministic execution
+    testRequest: parsed.testRequest || null,  // Include structured test request
     // NOTE: docFixes intentionally not returned - workflows are success paths only
     ...parsed
   };
@@ -811,6 +843,77 @@ function exists(endpoint) {
 // NOTE: updateDocFixes removed - workflows no longer store doc issues
 // Workflows are success paths only - doc issues are transient findings
 
+/**
+ * Update workflow metadata (e.g., add useFallbackApi: true)
+ * @param {string} endpoint - Endpoint like "POST /platform/v1/scheduling/bookings"
+ * @param {Object} metadataUpdates - Object with metadata fields to add/update
+ * @returns {boolean} True if updated successfully
+ */
+function updateWorkflowMetadata(endpoint, metadataUpdates) {
+  const index = loadIndex();
+  const entry = index.workflows[endpoint];
+  
+  if (!entry || !entry.file) {
+    console.log(`[Workflow] No workflow file found for ${endpoint}`);
+    return false;
+  }
+  
+  const filePath = path.join(WORKFLOWS_DIR, entry.file);
+  
+  try {
+    if (!fs.existsSync(filePath)) {
+      console.log(`[Workflow] File not found: ${filePath}`);
+      return false;
+    }
+    
+    const content = fs.readFileSync(filePath, 'utf8');
+    
+    // Parse frontmatter
+    const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+    if (!frontmatterMatch) {
+      console.log(`[Workflow] No frontmatter found in ${filePath}`);
+      return false;
+    }
+    
+    const frontmatter = frontmatterMatch[1];
+    const body = frontmatterMatch[2];
+    
+    // Check if metadata already has the values we want to add
+    let updatedFrontmatter = frontmatter;
+    let hasChanges = false;
+    
+    for (const [key, value] of Object.entries(metadataUpdates)) {
+      // Check if key already exists
+      const keyRegex = new RegExp(`^${key}:.*$`, 'm');
+      if (keyRegex.test(updatedFrontmatter)) {
+        // Update existing key
+        updatedFrontmatter = updatedFrontmatter.replace(keyRegex, `${key}: ${value}`);
+        hasChanges = true;
+      } else {
+        // Add new key at the end of frontmatter
+        updatedFrontmatter = updatedFrontmatter.trimEnd() + `\n${key}: ${value}`;
+        hasChanges = true;
+      }
+    }
+    
+    if (!hasChanges) {
+      console.log(`[Workflow] No changes needed for ${endpoint}`);
+      return false;
+    }
+    
+    // Write updated file
+    const updatedContent = `---\n${updatedFrontmatter}\n---\n${body}`;
+    fs.writeFileSync(filePath, updatedContent, 'utf8');
+    
+    console.log(`[Workflow] Updated metadata for ${endpoint}: ${JSON.stringify(metadataUpdates)}`);
+    return true;
+    
+  } catch (error) {
+    console.error(`[Workflow] Failed to update ${endpoint}: ${error.message}`);
+    return false;
+  }
+}
+
 module.exports = {
   get,
   list,
@@ -824,5 +927,6 @@ module.exports = {
   generateMarkdown,
   matchesKnownIssue,
   filterKnownIssues,
+  updateWorkflowMetadata,
   WORKFLOWS_DIR
 };

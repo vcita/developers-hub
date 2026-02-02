@@ -218,7 +218,7 @@ function ensureReportsDir() {
   }
 }
 
-// Generate comprehensive full report (for AI agents and JIRA)
+// Generate comprehensive full report (for AI agents and review)
 app.post('/api/report/full', (req, res) => {
   try {
     const report = req.body;
@@ -264,16 +264,16 @@ app.post('/api/report/full', (req, res) => {
       mimeType: 'text/markdown'
     });
     
-    // 2. Generate JIRA Tickets file (Markdown)
-    const jiraMarkdown = generateJiraReport(report);
-    const jiraFilename = `jira-tickets.md`;
-    const jiraPath = path.join(reportDir, jiraFilename);
-    fs.writeFileSync(jiraPath, jiraMarkdown, 'utf8');
-    savedPaths.push(jiraPath);
+    // 2. Generate Test Failures file (Markdown) - grouped by failure reason for review
+    const failuresMarkdown = generateFailuresReport(report);
+    const failuresFilename = `test-failures.md`;
+    const failuresPath = path.join(reportDir, failuresFilename);
+    fs.writeFileSync(failuresPath, failuresMarkdown, 'utf8');
+    savedPaths.push(failuresPath);
     files.push({
-      name: jiraFilename,
-      path: jiraPath,
-      content: jiraMarkdown,
+      name: failuresFilename,
+      path: failuresPath,
+      content: failuresMarkdown,
       mimeType: 'text/markdown'
     });
     
@@ -290,7 +290,20 @@ app.post('/api/report/full', (req, res) => {
       mimeType: 'application/json'
     });
     
-    // 4. Create a summary README
+    // 4. Generate failed endpoints list (comma-separated)
+    const failedEndpointsList = generateFailedEndpointsList(report);
+    const failedEndpointsFilename = `failed-endpoints.csv`;
+    const failedEndpointsPath = path.join(reportDir, failedEndpointsFilename);
+    fs.writeFileSync(failedEndpointsPath, failedEndpointsList, 'utf8');
+    savedPaths.push(failedEndpointsPath);
+    files.push({
+      name: failedEndpointsFilename,
+      path: failedEndpointsPath,
+      content: failedEndpointsList,
+      mimeType: 'text/csv'
+    });
+    
+    // 5. Create a summary README
     const timestamp = report.metadata.timestamp || new Date().toISOString();
     const environment = report.metadata.environment || 'dev';
     const readmeContent = generateReportReadme(report, timestamp, environment, files);
@@ -318,6 +331,39 @@ app.post('/api/report/full', (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
+
+/**
+ * Generate comma-separated list of endpoints that did not pass
+ * Includes failed, errored, and warned endpoints
+ */
+function generateFailedEndpointsList(report) {
+  const failedEndpoints = new Set();
+  
+  // Collect failed tests
+  const failedTests = report.forJira?.failedTests || [];
+  for (const test of failedTests) {
+    const endpoint = test.endpoint || `${test.method} ${test.path}`;
+    failedEndpoints.add(endpoint);
+  }
+  
+  // Collect errored tests
+  const erroredTests = report.forJira?.erroredTests || [];
+  for (const test of erroredTests) {
+    const endpoint = test.endpoint || `${test.method} ${test.path}`;
+    failedEndpoints.add(endpoint);
+  }
+  
+  // Collect warned tests (tests that passed but have issues)
+  const warnedTests = report.forJira?.warnedTests || [];
+  for (const test of warnedTests) {
+    const endpoint = test.endpoint || `${test.method} ${test.path}`;
+    failedEndpoints.add(endpoint);
+  }
+  
+  // Convert to sorted array and join with comma
+  const sortedEndpoints = Array.from(failedEndpoints).sort();
+  return sortedEndpoints.join(',');
+}
 
 /**
  * Generate README for the report directory
@@ -353,36 +399,9 @@ function generateReportReadme(report, timestamp, environment, files) {
   lines.push('| File | Description |');
   lines.push('|------|-------------|');
   lines.push('| [ai-fixes.md](./ai-fixes.md) | Documentation issues for AI agent to fix |');
-  lines.push('| [jira-tickets.md](./jira-tickets.md) | Failed tests formatted as JIRA tickets |');
+  lines.push('| [test-failures.md](./test-failures.md) | Test failures grouped by failure reason with severity |');
   lines.push('| [data.json](./data.json) | Raw JSON data for programmatic processing |');
-  lines.push('');
-  
-  // How to use
-  lines.push('## How to Use');
-  lines.push('');
-  lines.push('### Fix Documentation Issues');
-  lines.push('```bash');
-  lines.push('# Run an AI agent to fix documentation:');
-  lines.push('cursor ai-fixes.md');
-  lines.push('# Or use Claude/GPT with the file contents');
-  lines.push('```');
-  lines.push('');
-  lines.push('### Create JIRA Tickets');
-  lines.push('```bash');
-  lines.push('# Review and create tickets from jira-tickets.md');
-  lines.push('# Each "Ticket N" section can be copy-pasted as a new JIRA issue');
-  lines.push('```');
-  lines.push('');
-  lines.push('### Programmatic Processing');
-  lines.push('```javascript');
-  lines.push('const report = require(\'./data.json\');');
-  lines.push('');
-  lines.push('// Get all documentation issues');
-  lines.push('const docIssues = report.forAiAgent.allIssues;');
-  lines.push('');
-  lines.push('// Get failed tests by reason');
-  lines.push('const failuresByReason = report.forJira.failuresByReason;');
-  lines.push('```');
+  lines.push('| [failed-endpoints.csv](./failed-endpoints.csv) | Comma-separated list of endpoints that did not pass |');
   lines.push('');
   
   return lines.join('\n');
@@ -403,13 +422,6 @@ function generateAiAgentReport(report) {
   lines.push(`**Generated**: ${report.metadata.timestamp}`);
   lines.push(`**Environment**: ${report.metadata.environment}`);
   lines.push(`**Total Issues**: ${report.summary.documentationIssuesCount}`);
-  lines.push('');
-  lines.push('## ⚠️ Important Rules');
-  lines.push('');
-  lines.push('1. **NEVER remove an endpoint from documentation**, even if it returns 404 (not implemented)');
-  lines.push('2. If an endpoint is documented but not implemented, create a JIRA ticket to implement it');
-  lines.push('3. Only fix documentation issues like schema mismatches, missing fields, incorrect types');
-  lines.push('4. For unimplemented endpoints, see the `jira-tickets.md` file in this report');
   lines.push('');
   
   // Quick summary
@@ -519,24 +531,6 @@ function generateAiAgentReport(report) {
       lines.push('');
     }
   }
-
-  // Agent instructions
-  lines.push('## Instructions for AI Agent');
-  lines.push('');
-  lines.push('1. **For each issue**, locate the corresponding swagger/OpenAPI file in the `swagger/` directory');
-  lines.push('2. **Find the endpoint** definition matching the `method` and `path`');
-  lines.push('3. **Apply the suggested fix** to the appropriate field (requestBody, parameters, responses, etc.)');
-  lines.push('4. **Validate the swagger file** after making changes');
-  lines.push('5. **Create a PR** with the documentation fixes');
-  lines.push('');
-  lines.push('### Common Fix Types');
-  lines.push('');
-  lines.push('- **Missing required field**: Add the field to the schema\'s `required` array');
-  lines.push('- **Wrong type**: Update the field\'s `type` property');
-  lines.push('- **Missing enum value**: Add value to the `enum` array');
-  lines.push('- **Incorrect nesting**: Restructure the schema to match actual API behavior');
-  lines.push('- **Missing description**: Add or update the `description` property');
-  lines.push('');
   
   return lines.join('\n');
 }
@@ -625,16 +619,17 @@ function extractAllAgentLogs(report) {
 }
 
 /**
- * Generate JIRA Tickets Report
- * Optimized for creating JIRA tickets for engineering teams
+ * Generate Test Failures Report
+ * Groups failed tests by failure reason with severity for human review
  */
-function generateJiraReport(report) {
+function generateFailuresReport(report) {
   const lines = [];
   
-  lines.push('# API Validation - JIRA Tickets');
+  lines.push('# API Validation - Test Failures');
   lines.push('');
   lines.push('> **Purpose**: This file contains failed API tests grouped by failure reason.');
-  lines.push('> Each group can be converted into a JIRA ticket for the engineering team.');
+  lines.push('> Review each section and use the **severity** to help prioritize fixes.');
+  lines.push('> Severity is informational only - FAIL/ERROR status does not automatically indicate a ticket is needed.');
   lines.push('');
   lines.push(`**Generated**: ${report.metadata.timestamp}`);
   lines.push(`**Environment**: ${report.metadata.environment}`);
@@ -662,37 +657,37 @@ function generateJiraReport(report) {
   if (failedTests.length === 0 && erroredTests.length === 0) {
     lines.push('## 🎉 All Tests Passed!');
     lines.push('');
-    lines.push('No JIRA tickets needed - all API endpoints are working correctly.');
+    lines.push('All API endpoints are working correctly.');
     return lines.join('\n');
   }
   
-  // Tickets by failure reason
-  lines.push('## Tickets by Failure Reason');
+  // Failures grouped by reason
+  lines.push('## Failures by Reason');
   lines.push('');
   
   const failuresByReason = report.forJira?.failuresByReason || {};
-  let ticketNumber = 1;
+  let sectionNumber = 1;
   
   for (const [reason, items] of Object.entries(failuresByReason)) {
-    lines.push(`### Ticket ${ticketNumber}: ${formatReasonTitle(reason)}`);
+    const severity = getSeverityFromReason(reason);
+    lines.push(`### ${sectionNumber}. ${formatReasonTitle(reason)} [Severity: ${severity}]`);
     lines.push('');
     
     // Special note for unimplemented endpoints
     if (reason === 'ENDPOINT_NOT_FOUND') {
       lines.push('> ⚠️ **Important**: These endpoints are documented but NOT implemented in the backend.');
-      lines.push('> **Do NOT remove them from documentation.** Create a JIRA ticket to implement the missing endpoint(s).');
+      lines.push('> **Do NOT remove them from documentation.** Consider implementing the missing endpoint(s).');
       lines.push('');
     }
     
-    lines.push('**JIRA Fields:**');
+    lines.push('**Details:**');
     lines.push('');
-    lines.push(`- **Type**: ${reason === 'ENDPOINT_NOT_FOUND' ? 'Task' : 'Bug'}`);
-    lines.push(`- **Priority**: ${getPriorityFromReason(reason)}`);
-    lines.push(`- **Labels**: api-validation, ${reason.toLowerCase()}`);
-    lines.push(`- **Component**: API`);
+    lines.push(`- **Failure Reason**: ${reason}`);
+    lines.push(`- **Severity**: ${severity}`);
+    lines.push(`- **Affected Endpoints**: ${items.length}`);
     lines.push('');
     lines.push('**Summary:**');
-    lines.push(`> API Validation: ${items.length} endpoint(s) failing with ${formatReasonTitle(reason)}`);
+    lines.push(`> ${items.length} endpoint(s) failing with ${formatReasonTitle(reason)}`);
     lines.push('');
     lines.push('**Description:**');
     lines.push('');
@@ -717,7 +712,10 @@ function generateJiraReport(report) {
       lines.push(`#### ${item.endpoint}`);
       lines.push('');
       lines.push(`- **Domain**: ${item.domain || 'N/A'}`);
+      lines.push(`- **Swagger File**: ${item.swaggerFile || item.domain || 'N/A'}`);
       lines.push(`- **HTTP Status**: ${item.httpStatus || 'N/A'}`);
+      lines.push(`- **Token Used**: ${item.tokenUsed || 'N/A'}`);
+      lines.push(`- **Duration**: ${item.duration || 'N/A'}`);
       lines.push(`- **Reason**: ${item.reason || 'N/A'}`);
       if (item.reasonDescription) {
         lines.push(`- **Description**: ${item.reasonDescription}`);
@@ -732,6 +730,45 @@ function generateJiraReport(report) {
         }
       }
       lines.push('');
+      
+      // Add all validation errors
+      if (item.allErrors && item.allErrors.length > 0) {
+        lines.push('<details>');
+        lines.push('<summary>📋 All Validation Errors</summary>');
+        lines.push('');
+        for (const err of item.allErrors) {
+          lines.push(`- **\`${err.path || '/'}\`**: ${err.message || err.reason || 'Unknown error'}`);
+          if (err.suggestion) {
+            lines.push(`  - Suggestion: ${err.suggestion}`);
+          }
+        }
+        lines.push('');
+        lines.push('</details>');
+        lines.push('');
+      }
+      
+      // Add documentation issues detected by AI
+      if (item.documentationIssues && item.documentationIssues.length > 0) {
+        lines.push('<details>');
+        lines.push('<summary>📝 AI-Detected Documentation Issues</summary>');
+        lines.push('');
+        for (const issue of item.documentationIssues) {
+          lines.push(`- **Field**: \`${issue.field || '/'}\``);
+          lines.push(`  - Issue: ${issue.issue || 'N/A'}`);
+          if (issue.suggestedFix) {
+            lines.push(`  - Suggested Fix: ${issue.suggestedFix}`);
+          }
+          if (issue.sourceCodeReference) {
+            lines.push(`  - Source: \`${issue.sourceCodeReference}\``);
+          }
+          if (issue.severity) {
+            lines.push(`  - Severity: ${issue.severity}`);
+          }
+        }
+        lines.push('');
+        lines.push('</details>');
+        lines.push('');
+      }
       
       if (item.request) {
         lines.push('<details>');
@@ -768,7 +805,7 @@ function generateJiraReport(report) {
     
     lines.push('---');
     lines.push('');
-    ticketNumber++;
+    sectionNumber++;
   }
   
   // Domain breakdown
@@ -787,7 +824,7 @@ function generateJiraReport(report) {
   // Warnings section (documentation issues but tests passed)
   const warnedTests = report.forJira?.warnedTests || [];
   if (warnedTests.length > 0) {
-    lines.push('## ⚠️ Warnings (Tests Passed with Documentation Issues)');
+    lines.push('## ⚠️ Warnings (Tests Passed with Issues) [Severity: warning]');
     lines.push('');
     lines.push('These endpoints passed but have documentation discrepancies:');
     lines.push('');
@@ -796,7 +833,7 @@ function generateJiraReport(report) {
       lines.push(`- **${item.endpoint}**: ${item.errorSummary || 'Documentation issue'}`);
     }
     lines.push('');
-    lines.push('> See the AI Agent report for details on fixing documentation.');
+    lines.push('> See the AI Agent report (ai-fixes.md) for details on fixing documentation issues.');
     lines.push('');
   }
   
@@ -824,7 +861,13 @@ function renderAgentLogMarkdown(agentLog) {
       case 'thought':
         lines.push(`**[Iteration ${iteration}] 🤔 Agent Thinking:**`);
         lines.push('');
-        lines.push(`> ${(entry.content || '').replace(/\n/g, '\n> ')}`);
+        // Truncate very long thoughts but keep more than before
+        const thoughtContent = entry.content || '';
+        if (thoughtContent.length > 2000) {
+          lines.push(`> ${thoughtContent.substring(0, 2000).replace(/\n/g, '\n> ')}\n> ... (truncated)`);
+        } else {
+          lines.push(`> ${thoughtContent.replace(/\n/g, '\n> ')}`);
+        }
         lines.push('');
         break;
         
@@ -835,7 +878,13 @@ function renderAgentLogMarkdown(agentLog) {
         if (entry.input && Object.keys(entry.input).length > 0) {
           lines.push('Input:');
           lines.push('```json');
-          lines.push(JSON.stringify(entry.input, null, 2));
+          const inputStr = JSON.stringify(entry.input, null, 2);
+          // Truncate very large inputs
+          if (inputStr.length > 3000) {
+            lines.push(inputStr.substring(0, 3000) + '\n... (truncated)');
+          } else {
+            lines.push(inputStr);
+          }
           lines.push('```');
         }
         lines.push('');
@@ -847,11 +896,11 @@ function renderAgentLogMarkdown(agentLog) {
         lines.push(`**[Iteration ${iteration}] ${resultIcon} Result: \`${entry.tool}\`${httpStatus}**`);
         lines.push('');
         if (entry.result) {
-          // Truncate large results
+          // Increased truncation limit for more context (3000 chars)
           const resultStr = JSON.stringify(entry.result, null, 2);
-          if (resultStr.length > 1500) {
+          if (resultStr.length > 3000) {
             lines.push('```json');
-            lines.push(resultStr.substring(0, 1500) + '\n... (truncated)');
+            lines.push(resultStr.substring(0, 3000) + '\n... (truncated)');
             lines.push('```');
           } else {
             lines.push('```json');
@@ -917,19 +966,25 @@ function formatReasonTitle(reason) {
 }
 
 /**
- * Get JIRA priority from failure reason
+ * Get severity level from failure reason
+ * Returns: critical, major, minor, or warning (informational only)
  */
-function getPriorityFromReason(reason) {
-  const priorities = {
-    'SERVER_ERROR': 'High',
-    'AUTH_FAILED': 'High',
-    'ENDPOINT_NOT_FOUND': 'Medium',
-    'RESOURCE_NOT_FOUND': 'Low',
-    'SCHEMA_MISMATCH': 'Medium',
-    'VALIDATION_ERROR': 'Medium',
-    'UNKNOWN_ERROR': 'Medium'
+function getSeverityFromReason(reason) {
+  const severities = {
+    'SERVER_ERROR': 'critical',
+    'AUTH_FAILED': 'major',
+    'ENDPOINT_NOT_FOUND': 'critical',
+    'RESOURCE_NOT_FOUND': 'minor',
+    'SCHEMA_MISMATCH': 'major',
+    'VALIDATION_ERROR': 'major',
+    'CONFLICT': 'minor',
+    'RATE_LIMITED': 'warning',
+    'TIMEOUT': 'warning',
+    'NETWORK_ERROR': 'warning',
+    'DOC_ISSUE': 'minor',
+    'UNKNOWN_ERROR': 'minor'
   };
-  return priorities[reason] || 'Medium';
+  return severities[reason] || 'minor';
 }
 
 // Serve UI for all other routes

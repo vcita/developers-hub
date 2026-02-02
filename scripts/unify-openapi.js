@@ -834,10 +834,13 @@ async function processDomain(domainPath, domainName) {
     );
   }
 
-  // Add security to all paths based on their source file's security scheme
-  // Skip adding security scheme if:
-  // 1. Endpoint has explicit Authorization header parameter
-  // 2. Endpoint already has a security array defined (including empty array for no-auth endpoints)
+  // Add security to all paths - Bearer is the DEFAULT unless:
+  // 1. Endpoint has explicit Authorization header parameter -> security: []
+  // 2. Endpoint explicitly has security: [] (empty array for no-auth endpoints) -> preserve
+  // 
+  // IMPORTANT: We do NOT preserve legacy security scheme references (like "default", "oauth2", etc.)
+  // because they would reference schemes that don't exist in the unified output.
+  // Bearer is always the default - this is the vcita API standard.
   const pathsWithSecurity = {};
   for (const [pathKey, pathMethods] of Object.entries(allPaths)) {
     pathsWithSecurity[pathKey] = {};
@@ -847,25 +850,39 @@ async function processDomain(domainPath, domainName) {
     const securityScheme = fileToSchemeName[sourceFile] || 'Bearer';
     
     for (const [method, operation] of Object.entries(pathMethods)) {
-      // Check if operation already has a security definition (preserve it)
-      if (operation.security !== undefined) {
-        // Preserve existing security definition (including empty array for no-auth endpoints)
-        log.verbose(`Path ${pathKey} ${method.toUpperCase()} - preserving existing security definition`);
-        pathsWithSecurity[pathKey][method] = operation;
-      } else if (hasExplicitAuthorizationParam(operation)) {
+      // Remove any existing security definition from the operation
+      // We'll add the correct one based on our rules
+      const { security: existingSecurity, ...operationWithoutSecurity } = operation;
+      
+      // Check if operation explicitly has empty security array (no-auth endpoint)
+      // This is different from undefined or having a legacy scheme reference
+      const isExplicitlyNoAuth = Array.isArray(existingSecurity) && existingSecurity.length === 0;
+      
+      if (hasExplicitAuthorizationParam(operation)) {
         // Don't add security scheme - the explicit parameter handles auth
         log.verbose(`Path ${pathKey} ${method.toUpperCase()} - skipping security scheme (has explicit Authorization param)`);
         pathsWithSecurity[pathKey][method] = {
-          ...operation,
+          ...operationWithoutSecurity,
           security: []  // Empty security array means no security scheme applied
         };
+      } else if (isExplicitlyNoAuth) {
+        // Preserve explicit no-auth endpoints
+        log.verbose(`Path ${pathKey} ${method.toUpperCase()} - preserving explicit no-auth (empty security array)`);
+        pathsWithSecurity[pathKey][method] = {
+          ...operationWithoutSecurity,
+          security: []
+        };
       } else {
-        // Add security scheme
-        if (securityScheme !== 'Bearer') {
-          log.verbose(`Path ${pathKey} (from ${sourceFile}) using ${securityScheme} security scheme`);
+        // Add Bearer security scheme (default for all vcita APIs)
+        // This replaces any legacy scheme references like "default", "oauth2", etc.
+        if (existingSecurity && existingSecurity.length > 0) {
+          const legacyScheme = Object.keys(existingSecurity[0])[0];
+          if (legacyScheme !== 'Bearer' && legacyScheme !== securityScheme) {
+            log.verbose(`Path ${pathKey} ${method.toUpperCase()} - replacing legacy security scheme "${legacyScheme}" with "${securityScheme}"`);
+          }
         }
         pathsWithSecurity[pathKey][method] = {
-          ...operation,
+          ...operationWithoutSecurity,
           security: [{ [securityScheme]: [] }]
         };
       }

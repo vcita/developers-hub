@@ -8,6 +8,7 @@ const AppState = {
   endpoints: [],
   domains: [],
   selectedEndpoints: new Set(),
+  expandedDomains: new Set(), // Track which domain groups are expanded
   filters: {
     domain: '',
     method: '',
@@ -228,9 +229,82 @@ function toggleEndpoint(endpointId) {
 }
 
 /**
+ * Run setup to create fresh test business and validate tokens
+ */
+async function runSetup() {
+  const btn = document.getElementById('run-setup-btn');
+  
+  try {
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '⏳ Running Setup...';
+    }
+    
+    console.log('Running setup...');
+    
+    const response = await fetch('/api/validate/setup', { method: 'POST' });
+    const data = await response.json();
+    
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || 'Setup failed');
+    }
+    
+    // Reload config to pick up new tokens
+    await loadConfig();
+    
+    if (btn) {
+      btn.innerHTML = '✅ Setup Complete!';
+      setTimeout(() => {
+        btn.innerHTML = '⚙️ Run Setup';
+        btn.disabled = false;
+      }, 3000);
+    }
+    
+    console.log('Setup complete. New business:', data.businessId);
+    console.log('Setup output:', data.output);
+    
+    // Update token status display
+    const tokenStatus = document.getElementById('token-status');
+    if (tokenStatus) {
+      tokenStatus.textContent = `Tokens: ✓ New business ready`;
+      tokenStatus.className = 'badge badge-success';
+    }
+    
+    return data;
+    
+  } catch (error) {
+    console.error('Setup failed:', error);
+    
+    if (btn) {
+      btn.innerHTML = '❌ Setup Failed';
+      setTimeout(() => {
+        btn.innerHTML = '⚙️ Run Setup';
+        btn.disabled = false;
+      }, 3000);
+    }
+    
+    alert('Setup failed: ' + error.message);
+    throw error;
+  }
+}
+
+/**
  * Run tests for selected endpoints
  */
 async function runTests() {
+  // Check if setup should run first
+  const runSetupFirst = document.getElementById('run-setup-before')?.checked;
+  
+  if (runSetupFirst) {
+    console.log('Running setup before tests...');
+    try {
+      await runSetup();
+    } catch (error) {
+      alert('Setup failed. Aborting tests.');
+      return;
+    }
+  }
+  
   console.log('runTests called, selected:', AppState.selectedEndpoints.size);
   console.log('All endpoints:', AppState.endpoints.length);
   
@@ -571,6 +645,7 @@ function applyPastedEndpoints() {
 window.App = {
   reloadSwaggers,
   checkTokens,
+  runSetup,
   openPasteModal,
   closePasteModal,
   applyPastedEndpoints

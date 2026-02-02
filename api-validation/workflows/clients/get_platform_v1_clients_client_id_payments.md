@@ -1,34 +1,43 @@
 ---
-endpoint: GET /platform/v1/clients/{client_id}/payments
+endpoint: "GET /platform/v1/clients/{client_id}/payments"
 domain: clients
 tags: []
+swagger: swagger/clients/legacy/legacy_v1_clients.json
 status: success
 savedAt: 2026-01-25T09:12:43.655Z
 verifiedAt: 2026-01-25T09:12:43.655Z
-timesReused: 0
 ---
+
 # Get Payments
 
 ## Summary
 Test passes when called without query parameters (HTTP 201), but fails with 500 errors when invalid filter syntax is used. Discovered specific filter parameter requirements through source code analysis.
 
 ## Prerequisites
-No specific prerequisites documented.
 
-## How to Resolve Parameters
-Parameters were resolved automatically.
+```yaml
+steps:
+  - id: get_clients
+    description: "Fetch available clients"
+    method: GET
+    path: "/platform/v1/clients"
+    params:
+      business_id: "{{business_id}}"
+      per_page: "1"
+    extract:
+      client_id: "$.data.clients[0].id"
+    expect:
+      status: 200
+    onFail: abort
+```
 
-## Critical Learnings
+## Test Request
 
-No specific learnings documented.
-
-## Request Template
-
-Use this template with dynamically resolved UIDs:
-
-```json
-{
-  "method": "GET",
-  "path": "/platform/v1/clients/{{resolved.uid}}/payments?filter[state][in]=paid"
-}
+```yaml
+steps:
+  - id: get_payments
+    method: GET
+    path: "/platform/v1/clients/{client_id}/payments"
+    expect:
+      status: [200, 201]
 ```

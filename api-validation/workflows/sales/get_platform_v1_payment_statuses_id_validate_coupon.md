@@ -2,6 +2,7 @@
 endpoint: GET /platform/v1/payment_statuses/{id}/validate_coupon
 domain: sales
 tags: []
+swagger: swagger/sales/legacy/legacy_v1_sales.json
 status: success
 savedAt: 2026-01-27T04:30:17.718Z
 verifiedAt: 2026-01-27T04:30:17.718Z

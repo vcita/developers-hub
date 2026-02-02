@@ -1,0 +1,276 @@
+# API Documentation Fix Report Handler
+
+When processing ai-fixes.md validation reports, use this rule to fix all documentation issues.
+
+## MANDATORY: PROCESS EVERY SINGLE ISSUE - NO EXCEPTIONS
+
+You MUST process **100% of the issues** in the ai-fixes.md report. Skipping issues is NOT allowed.
+
+### Execution Requirements
+
+1. **Read the ENTIRE report first** - Parse the JSON section to get a complete list of all issues
+2. **Create a tracking checklist** - Use the TodoWrite tool to create a todo item for EACH unique endpoint with issues
+3. **Process issues in order**:
+   - First: All `warning` severity issues
+   - Second: All `major` severity issues  
+   - Third: All `critical` severity issues
+   - Fourth: All `minor` severity issues
+4. **Mark progress as you go** - Update todo status after each endpoint is fully handled
+5. **DO NOT STOP until every issue has been addressed** - either fixed, documented, or ticketed
+
+### What "Addressed" Means - FIX PRIORITY ORDER
+
+For EACH issue, you must do ONE of (in this **strict priority order**):
+
+1. **FIRST: Fix the workflow file** - If test data is fake/invalid or if actions are needed to be performed before accessing the endpoint (for example, getting reference data), fix the workflow FIRST
+2. **SECOND: Fix the swagger schema** - Add `required`, `type`, `example`, error responses
+3. **THIRD: Document the actual behavior** - If the API behaves differently than expected, document what it actually does
+4. **LAST RESORT: Create a JIRA ticket** - Only if absolutely nothing can be fixed via documentation
+
+## WORKFLOW FIXES ARE PRIMARY - Check Test Data First!
+CRITICAL: Do not fix reference issues in the endpoint description. fix them in field descriptions and workflows
+
+**Most validation errors are caused by bad test data or incomplete documenetation**
+
+### Workflow Files Location
+- Path: `api-validation/workflows/{domain}/{endpoint_file}.md`
+- These files contain test parameters, request bodies, and expected responses
+
+### Signs That a Workflow Fix is Needed
+
+| Error Pattern | Likely Cause | Fix |
+|--------------|--------------|-----|
+| 422 with "Not Found" on a UID field | Fake/placeholder UID like `inv_12345` | Use real UID from system |
+| 422 with "missing" field | Required field has placeholder value | Use real value |
+| 404 on entity lookup | Entity doesn't exist | Create entity first or use existing one |
+| "invalid" field error | Value doesn't match expected format | Fix the value format |
+
+### How to Identify Fake Test Data
+- UIDs that look fake: `inv_12345`, `pkg_abc`, `test123`, `example_uid`
+- Real UIDs look like: `lk9wgeze3ee1nl1v`, `fc2ca1c54e528bc4`, `d290f1ee-6c54-4b01-90e6-d701748f0851`
+- If a UID is short, sequential, or contains words like "test/example/sample" → IT'S FAKE
+
+### Workflow Fix Examples
+
+**Example 1: Fake invoice UID**
+```markdown
+<!-- BEFORE (fake data) -->
+"entity_uid": "inv_12345"
+
+<!-- AFTER (use dynamic reference or real UID) -->
+"entity_uid": "{{invoice_uid}}"
+```
+
+**Example 2: Add prerequisite step**
+```markdown
+## Prerequisites
+- Create an invoice first using POST /client/payments/v1/invoices
+- Use the returned `uid` in the `entity_uid` field
+```
+
+**Example 3: Mark field as requiring real data**
+```yaml
+parameters:
+  entity_uid:
+    source: "prerequisite"
+    description: "Must be a valid invoice UID from POST /client/payments/v1/invoices"
+```
+
+## JIRA is LAST RESORT - Fix Workflow and Documentation First
+
+**BEFORE creating a JIRA ticket, go through this checklist in order:**
+
+### Step 1: Is the Test Data Valid?
+- Does the UID look real? (not `inv_12345`, `test_abc`, etc.)
+- Does the referenced entity actually exist?
+- Are all required fields using real values?
+→ **If NO: Fix the workflow file FIRST**
+
+### Step 2: Can Documentation Be Improved?
+- Can I add the required fields to the schema? → Fix the schema
+- Can I document the error response that actually occurs? → Add 500/422 response with actual message
+- Can I document the prerequisite (feature flag, permission)? → Add to description
+- Can I document the workaround (fallback URL, alternative endpoint)? → Document it
+
+### Step 3: Only Then Consider JIRA
+- Is there a REAL code bug that cannot be fixed via documentation?
+- Have I verified this in the source code?
+- Is the API genuinely broken, not just the test?
+
+**Examples of fixes by type:**
+
+| Error | Wrong Approach | Correct Approach |
+|-------|---------------|------------------|
+| 422 "invoice_uid Not Found" | Create JIRA ticket | Fix workflow: use real invoice UID |
+| 422 "missing field" | Add description text | Fix workflow: add the field, OR fix schema: add `required` |
+| 500 on empty body | Create JIRA ticket | Fix schema: mark body `required: true`, add 500 response |
+| 403 feature disabled | Create JIRA ticket | Fix swagger: document prerequisite & 403 response |
+| 404 endpoint not found | Create JIRA ticket | Verify route exists in code first |
+
+## Allowed Changes
+- You are ONLY allowed to change documentation (swagger files, workflow files)
+- You are NOT allowed to change application code
+- If code fixes are TRULY required (after exhausting all documentation options), create a JIRA ticket in epic: https://myvcita.atlassian.net/browse/VCITA2-11611 using Atlassian MCP
+
+## Processing Flow
+
+### Phase 1: Analysis
+- Read the complete ai-fixes.md file
+- Extract ALL issues from the JSON section
+- Group by endpoint and count total issues
+- Create a todo list tracking every endpoint
+
+### Phase 2: CHECK WORKFLOW DATA FIRST
+**CRITICAL: Most errors are caused by bad test data!**
+
+For EACH issue, FIRST check:
+1. **Look at the request data** - Are UIDs real or fake placeholders?
+2. **Read the workflow file** - `api-validation/workflows/{domain}/{endpoint}.md`
+3. **Identify fake data patterns:**
+   - `inv_12345` → FAKE
+   - `test_abc` → FAKE
+   - `example_uid` → FAKE
+   - `lk9wgeze3ee1nl1v` → REAL (random alphanumeric)
+
+**If the test data is fake → FIX THE WORKFLOW FILE FIRST**
+
+### Phase 3: VERIFY AGAINST SOURCE CODE (if needed)
+Only after confirming test data is valid, verify against source code:
+1. Find the controller/service code that handles the endpoint
+2. Read the actual implementation
+3. Understand what the code does vs what the report claims
+4. Only then decide how to fix
+
+**The report may be wrong because:**
+- The test used incorrect/fake parameters (MOST COMMON)
+- The workflow file has placeholder values
+- The endpoint exists but at a different path
+- The feature requires specific setup/configuration
+- The error message is misleading
+
+### Phase 4: Fix Issues Based on Root Cause Analysis
+After analysis:
+- **If test data is fake** → Fix the workflow file with real values or dynamic references
+- **If the API behavior matches the code** → Fix swagger documentation to match reality
+- **If the swagger schema is wrong** → Fix the swagger schema
+- **If there's a real code bug (verified in source)** → Document it and consider JIRA as LAST resort
+
+### Phase 4: Fix Warnings
+- Process ALL warning-level issues
+- Verify x-reference-to suggestions against code (does the field actually reference another entity?)
+
+### Phase 5: Documentation & Retest List
+- Document your work under the reports folder
+- For problems requiring pre-configuration (enabling features, etc.), document steps in a separate report
+- Generate the retest list (see format below)
+
+## Output Requirements
+
+### 1. Progress Tracking File
+Create `{report-folder}/fix-progress.md` with:
+- Total issues count
+- Issues fixed count
+- Issues requiring JIRA count
+- Issues documented (cannot fix) count
+- Checklist of every endpoint and its status
+
+### 2. Endpoints to Retest
+Create `{report-folder}/endpoints-to-retest.md` with:
+
+**Markdown table:**
+| Endpoint | Method | Issues Fixed | Needs Retest |
+|----------|--------|--------------|--------------|
+
+**Quick Copy section (comma-separated for Validator UI):**
+```
+METHOD /path, METHOD /path, METHOD /path
+```
+
+Example:
+```
+GET /v1/clients, POST /v1/payments, PUT /v1/invoices/{invoice_uid}
+```
+
+## Schema Fix Guidelines - FIX THE SCHEMA, NOT THE DESCRIPTION
+
+When fixing swagger documentation issues, **fix the JSON Schema itself** - DO NOT add redundant descriptive text.
+
+### DO: Use JSON Schema Properties
+```json
+{
+  "type": "object",
+  "required": ["tag"],
+  "properties": {
+    "tag": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Tag to add to the matter"
+    }
+  },
+  "example": { "tag": "important" }
+}
+```
+
+### DON'T: Add Redundant Description Text
+```
+❌ "## Request Body Requirements\nThe request body must include a `tag` field..."
+```
+
+### Schema Fix Checklist
+- [ ] Add `required` array for mandatory fields
+- [ ] Add `type` for objects/arrays
+- [ ] Add `minLength`, `pattern`, `format` for string validation
+- [ ] Add `example` with realistic values
+- [ ] Add `x-reference-to` for UID fields that reference other entities
+- [ ] Add error response schemas (400, 422, 500) with examples
+- [ ] Mark body parameters as `required: true`
+
+### Description Text - When to Use
+Only add description text for:
+- Authentication requirements (token types)
+- Prerequisites (feature flags, permissions)
+- Business logic that can't be expressed in schema
+- Deprecation notices
+- Important caveats/warnings
+
+## CRITICAL RULES - NEVER VIOLATE
+
+### Fix Priority (MUST follow this order)
+1. **WORKFLOW FIRST** - If test data looks fake (`inv_12345`, `test_abc`), fix the workflow file
+2. **SCHEMA SECOND** - If API returns unexpected error, fix the swagger schema
+3. **DOCUMENTATION THIRD** - If behavior needs explaining, add to description
+4. **JIRA LAST** - Only after exhausting ALL other options
+5. **Swagger Files** - Never alter the \mcp_swagger files. They are auto generated. Always look for the end point under \swagger
+
+### General Rules
+5. **NEVER skip an issue** - every single issue must be addressed
+6. **NEVER remove an endpoint** - even if it returns 404
+7. **NEVER change endpoint paths** - paths are immutable
+8. **NEVER trust the report blindly** - check the test data first, then verify against source code
+9. **ALWAYS check if UIDs are real** - fake UIDs are the #1 cause of test failures
+10. **ALWAYS read the workflow file** before assuming it's a swagger or code issue
+11. **For 404 ENDPOINT-NOT-FOUND errors** - find the route file and controller, verify the path exists
+12. **For "gateway errors"** - check the actual route configuration in the codebase before assuming it's a gateway issue
+13. **For reference annotations** - verify in code that the field truly references another entity
+14. **FIX THE SCHEMA, NOT THE DESCRIPTION** - use JSON Schema properties (`required`, `type`, `example`)
+15. **When in doubt, read the code** - the source code is the source of truth, not the report
+
+### How to Spot Fake Test Data
+| Fake Pattern | Real Pattern |
+|-------------|--------------|
+| `inv_12345` | `lk9wgeze3ee1nl1v` |
+| `test_uid` | `fc2ca1c54e528bc4` |
+| `example_123` | `d290f1ee-6c54-4b01-90e6-d701748f0851` |
+| `pkg_abc` | `ppnmz70yqxltzz6j` |
+| Sequential numbers | Random alphanumeric |
+
+## Completion Criteria
+
+You are NOT done until:
+- [ ] Every issue in the report has been processed
+- [ ] fix-progress.md shows 100% completion
+- [ ] endpoints-to-retest.md is generated
+- [ ] All swagger/workflow changes have been made
+- [ ] All JIRA tickets (if any) have been created
+
+**If you find yourself wanting to skip something or stop early - DON'T. Go back and continue processing.**

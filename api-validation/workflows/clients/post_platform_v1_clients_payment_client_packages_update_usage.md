@@ -2,6 +2,7 @@
 endpoint: POST /platform/v1/clients/payment/client_packages/update_usage
 domain: clients
 tags: []
+swagger: swagger/clients/legacy/legacy_v1_clients.json
 status: success
 savedAt: 2026-01-25T23:12:26.084Z
 verifiedAt: 2026-01-25T23:12:26.084Z

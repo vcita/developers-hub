@@ -12,7 +12,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nRetrieves a paginated list of appointments for the business. Supports filtering by client, appointment state, and sorting.",
+        "description": "## Overview\nRetrieves a paginated list of appointments for the business. Supports filtering by client, appointment state, and sorting. Available for **Staff and Application tokens**.",
         "parameters": [
           {
             "description": "Business ID (optional)",
@@ -146,7 +146,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nGet appointment.",
+        "description": "## Overview\nGet appointment details by ID. Available for **Staff and Application tokens**.",
         "parameters": [
           {
             "description": "Appointment id",
@@ -225,7 +225,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nGet bookings of client.",
+        "description": "## Overview\nGet bookings of the authenticated client. Returns a paginated list of the client's appointments and event registrations.\n\nAvailable for **Client tokens** only.",
         "parameters": [
           {
             "description": "Maximum number of records which are returned for the request",
@@ -336,13 +336,13 @@
           "type": "http_proxy",
           "uri": "https:///platform/v1/scheduling/bookings"
         },
-        "x-auth-type": "Application & Application User"
+        "x-auth-type": "Client"
       },
       "post": {
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nCreates a booking for either an appointment with a staff member or registration for a group event.",
+        "description": "## Overview\nCreates a booking for either an appointment with a staff member or registration for a group event.\n\nAvailable for **Client and Staff tokens**.",
         "parameters": [
           {
             "in": "body",
@@ -351,7 +351,8 @@
               "properties": {
                 "business_id": {
                   "description": "Business uid",
-                  "type": "string"
+                  "type": "string",
+                  "x-reference-to": "business"
                 },
                 "campaign": {
                   "description": "Source campaign",
@@ -362,31 +363,91 @@
                   "type": "string"
                 },
                 "client_id": {
-                  "description": "Client uid",
-                  "type": "string"
+                  "description": "Client uid. If not provided, form_data with client fields (email, first_name) is required.",
+                  "type": "string",
+                  "x-reference-to": "client"
                 },
                 "event_instance_id": {
-                  "description": "Event instance uid. Required for event.",
-                  "type": "string"
+                  "description": "Event instance uid. Required for event registration (not appointment booking).",
+                  "type": "string",
+                  "x-reference-to": "event_instance"
                 },
                 "form_data": {
-                  "description": "When specifying a service location as either \"Client will set the address at booking\" or \"you will call the client,\" it is required to include the form_data with meeting_interaction_details inside meeting_details",
-                  "type": "object"
+                  "description": "Client form data containing scheduling fields. **Required when `client_id` is not provided** - the API requires client identification either via existing `client_id` or via form_data fields.\n\n## When to use\n- **Prefer `client_id`**: If you have an existing client_id, use it instead of form_data. This is simpler and avoids form validation.\n- **Use form_data**: Only when creating a booking for a new client who doesn't exist yet.\n\n## How to obtain field IDs\nCall `GET /platform/v1/forms?business_id={business_id}&form_type=scheduling&service_uid={service_id}` to get the scheduling form definition. Required fields (typically email and first_name) will have `required: true`.\n\n## Structure (IMPORTANT - Array format)\nThe `fields` property must be an **array of field objects**, NOT a key-value object:\n```json\n{\n  \"form_data\": {\n    \"fields\": [\n      {\n        \"field_id\": \"{email_field_id}\",\n        \"type\": \"email\",\n        \"new_data\": \"client@example.com\"\n      },\n      {\n        \"field_id\": \"{first_name_field_id}\",\n        \"type\": \"first_name\",\n        \"new_data\": \"John\"\n      }\n    ],\n    \"service_fields\": [],\n    \"others\": { \"notes\": null },\n    \"policies\": {}\n  }\n}\n```\n\n**Warning**: Using the wrong format (e.g., `{\"field_id\": \"value\"}` as a key-value object) will cause validation errors.\n\n## Meeting details\nWhen the service interaction_type is `client_location` or `phone_call`, include meeting details:\n```json\n{\n  \"form_data\": {\n    \"fields\": [...],\n    \"meeting_details\": {\n      \"meeting_interaction_details\": \"123 Main St, City\"\n    }\n  }\n}\n```",
+                  "type": "object",
+                  "properties": {
+                    "fields": {
+                      "type": "array",
+                      "description": "Array of field objects. Each object must have field_id (from form definition), type (field type like 'email', 'first_name'), and new_data (the value as string).",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "field_id": {
+                            "type": "string",
+                            "description": "The field ID from the scheduling form definition"
+                          },
+                          "type": {
+                            "type": "string",
+                            "description": "The field type (e.g., 'email', 'first_name', 'phone')"
+                          },
+                          "new_data": {
+                            "type": "string",
+                            "description": "The field value as a string"
+                          }
+                        },
+                        "required": ["field_id", "new_data"]
+                      }
+                    },
+                    "service_fields": {
+                      "type": "array",
+                      "description": "Service-specific custom fields (same structure as fields)",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "meeting_details": {
+                      "type": "object",
+                      "description": "Meeting location details (required for client_location or phone_call services)",
+                      "properties": {
+                        "meeting_interaction_details": {
+                          "type": "string",
+                          "description": "Location or contact details for the meeting"
+                        }
+                      }
+                    },
+                    "others": {
+                      "type": "object",
+                      "description": "Additional data like notes",
+                      "properties": {
+                        "notes": {
+                          "type": "string",
+                          "description": "Optional notes for the booking"
+                        }
+                      }
+                    },
+                    "policies": {
+                      "type": "object",
+                      "description": "Policy acceptance data"
+                    }
+                  }
                 },
                 "matter_uid": {
-                  "description": "Matter uid",
-                  "type": "string"
+                  "description": "Matter uid (conversation context)",
+                  "type": "string",
+                  "x-reference-to": "matter"
                 },
                 "portal_id": {
-                  "description": "Business uid",
-                  "type": "string"
+                  "description": "Business uid (same as business_id, for portal context)",
+                  "type": "string",
+                  "x-reference-to": "business"
                 },
                 "service_id": {
-                  "description": "Service uid. Required for appointment.",
-                  "type": "string"
+                  "description": "Service uid. Required for appointment booking.",
+                  "type": "string",
+                  "x-reference-to": "service"
                 },
                 "source_name": {
-                  "description": "Source name",
+                  "description": "Source name (e.g., 'client_portal', 'api')",
                   "type": "string"
                 },
                 "source_url": {
@@ -394,8 +455,9 @@
                   "type": "string"
                 },
                 "staff_id": {
-                  "description": "Staff uid. Required for appointment.",
-                  "type": "string"
+                  "description": "Staff uid. Required for appointment booking.",
+                  "type": "string",
+                  "x-reference-to": "staff"
                 },
                 "start_time": {
                   "description": "ISO 8601 format. Required for appointment.",
@@ -500,16 +562,19 @@
             "schema": {
               "properties": {
                 "booking_id": {
-                  "description": "Booking (appointment/event) uid",
-                  "type": "string"
+                  "description": "Booking (appointment/event) uid. Can be obtained from:\n- `GET /platform/v1/scheduling/bookings` (requires Client token)\n- `GET /platform/v1/scheduling/appointments` (returns `id` field which is the booking_id)\n- Response from `POST /platform/v1/scheduling/bookings` (returns `data.booking.id`)",
+                  "type": "string",
+                  "x-reference-to": "booking"
                 },
                 "business_id": {
                   "description": "Business uid",
-                  "type": "string"
+                  "type": "string",
+                  "x-reference-to": "business"
                 },
                 "event_instance_id": {
-                  "description": "Event instance uid. Required for event.",
-                  "type": "string"
+                  "description": "Event instance uid. Required only for cancelling event registrations (not appointments).",
+                  "type": "string",
+                  "x-reference-to": "event_instance"
                 }
               },
               "required": [
@@ -588,7 +653,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nUpdate RSVP state Available for **Staff, App, Directory, and Client tokens**.",
+        "description": "## Overview\nUpdate RSVP state for a booking. Available for **Client tokens** only.\n\n## Required Parameters\n- `booking_uid` (path): The booking UID\n- `new_rsvp_state` (query): Valid values: 'confirmed', 'cancelled', 'pending'\n- `appointment_type` (body): 'appointment', 'event_instance', or 'event_attendance'\n- `business_id` (body): The business UID",
         "parameters": [
           {
             "description": "Booking UID",
@@ -730,19 +795,28 @@
         "x-auth-type": "Application & Application User"
       }
     },
-    "/scheduling/event_attendances/{event_attendance_uid}": {
+    "/api/v2/event_instances/{event_instance_id}/event_attendances/{id}": {
       "get": {
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nGet Event attendance.",
+        "description": "## Overview\nGet Event attendance details for a specific attendee of an event instance.\n\nAvailable for **Staff and App tokens**.\n\n## Path Parameters\nNote: The path uses `/api/v2/` prefix, not `/platform/v1/scheduling/`.",
         "parameters": [
+          {
+            "description": "Event instance UID. Obtain from event listing or event creation response.",
+            "in": "path",
+            "name": "event_instance_id",
+            "required": true,
+            "type": "string",
+            "x-reference-to": "event_instance"
+          },
           {
             "description": "Event attendance UID",
             "in": "path",
-            "name": "event_attendance_uid",
+            "name": "id",
             "required": true,
-            "type": "string"
+            "type": "string",
+            "x-reference-to": "event_attendance"
           }
         ],
         "produces": [
@@ -864,7 +938,7 @@
             }
           },
           "type": "http_proxy",
-          "uri": "https:///platform/v1/scheduling/event_attendances/{event_attendance_uid}"
+          "uri": "https:///api/v2/event_instances/{event_instance_id}/event_attendances/{id}"
         },
         "x-auth-type": "Application & Application User"
       }
@@ -946,7 +1020,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nCreate event Waitlist Available for **Staff, App, Directory, and Client tokens**.",
+        "description": "## Overview\nJoin an event waitlist. Available for **Staff, App, Directory, and Client tokens**.\n\n## Client Identification\nClient tokens: The client is identified from the token.\nStaff/App/Directory tokens: Must provide `client_id` to identify which client to add to the waitlist.\n\n## Note\nValidation errors may return dynamic form field IDs. To get the form field definitions, call `GET /platform/v1/forms?business_id={business_id}&form_type=scheduling&service_uid={event_service_id}`.",
         "parameters": [
           {
             "in": "body",
@@ -954,40 +1028,45 @@
             "schema": {
               "properties": {
                 "business_id": {
-                  "description": "Business Uid",
-                  "type": "string"
+                  "description": "Business UID. Required.",
+                  "type": "string",
+                  "x-reference-to": "business"
                 },
                 "channel": {
-                  "description": "Source Channel",
+                  "description": "Source channel for tracking.",
                   "type": "string"
                 },
                 "client_id": {
-                  "description": "Client Uid",
-                  "type": "string"
+                  "description": "Client UID. Required for Staff/App/Directory tokens.",
+                  "type": "string",
+                  "x-reference-to": "client"
                 },
                 "event_instance_id": {
-                  "description": "Event instance uid. Required for event.",
-                  "type": "string"
+                  "description": "Event instance UID. Required - identifies which event to join the waitlist for.",
+                  "type": "string",
+                  "x-reference-to": "event_instance"
                 },
                 "matter_uid": {
-                  "description": "Matter Uid",
-                  "type": "string"
+                  "description": "Matter/conversation UID to associate with this waitlist entry.",
+                  "type": "string",
+                  "x-reference-to": "matter"
                 },
                 "source_name": {
-                  "description": "Source Name",
+                  "description": "Source name for tracking (e.g., 'client_portal', 'api').",
                   "type": "string"
                 },
                 "source_url": {
-                  "description": "Source URL",
+                  "description": "Source URL for tracking.",
                   "type": "string"
                 },
                 "time_zone": {
-                  "description": "translation missing: en.waitlist-controller.parameters.time_zone.description",
+                  "description": "Time zone for the waitlist entry.",
                   "type": "string"
                 }
               },
               "required": [
-                "business_id"
+                "business_id",
+                "event_instance_id"
               ],
               "type": "object"
             }
@@ -1074,7 +1153,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nCancel a Waitlist registration Available for **Staff, App, Directory, and Client tokens**.",
+        "description": "## Overview\nCancel a waitlist registration. Available for **Staff, App, Directory, and Client tokens**.\n\n## Required Field Combinations\n- **Always required**: `business_uid`\n- **For events**: Add `event_instance_uid`\n- **To identify client** (Staff/App/Directory tokens): Add `client_uid` or `matter_uid`\n\n## Client Identification\n- **Client tokens**: The client is identified from the token.\n- **Staff/App/Directory tokens**: Must provide `client_uid` or `matter_uid` to identify which client's waitlist entry to cancel.",
         "parameters": [
           {
             "in": "body",
@@ -1082,24 +1161,29 @@
             "schema": {
               "properties": {
                 "business_uid": {
-                  "description": "Business Uid",
-                  "type": "string"
+                  "description": "Business UID. Required.",
+                  "type": "string",
+                  "x-reference-to": "business"
                 },
                 "client_uid": {
-                  "description": "Client Uid",
-                  "type": "string"
+                  "description": "Client UID. Required for Staff/App/Directory tokens.",
+                  "type": "string",
+                  "x-reference-to": "client"
                 },
                 "event_instance_uid": {
-                  "description": "Event instance uid. Required for event.",
-                  "type": "string"
+                  "description": "Event instance UID. Required - identifies which event's waitlist to cancel from.",
+                  "type": "string",
+                  "x-reference-to": "event_instance"
                 },
                 "matter_uid": {
-                  "description": "Matter Uid",
-                  "type": "string"
+                  "description": "Matter/conversation UID associated with the waitlist entry.",
+                  "type": "string",
+                  "x-reference-to": "matter"
                 }
               },
               "required": [
-                "business_uid"
+                "business_uid",
+                "event_instance_uid"
               ],
               "type": "object"
             }

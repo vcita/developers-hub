@@ -7,10 +7,10 @@
     "x-generated": {
       "sourceFiles": [
         "scheduling.json",
-        "resource_management.json",
+        "legacy_v1_scheduling.json",
         "availability.json",
-        "availability_slots.json",
-        "legacy_v1_scheduling.json"
+        "resource_management.json",
+        "availability_slots.json"
       ],
       "pathNormalizations": [
         {
@@ -38,8 +38,8 @@
               "basePath": "/business/scheduling"
             },
             {
-              "original": "/v1/bookings/{booking_uid}",
-              "normalized": "/business/scheduling/v1/bookings/{booking_uid}",
+              "original": "/v1/bookings/{booking_id}",
+              "normalized": "/business/scheduling/v1/bookings/{booking_id}",
               "basePath": "/business/scheduling"
             },
             {
@@ -129,8 +129,8 @@
               "basePath": "/platform/v1"
             },
             {
-              "original": "/scheduling/event_attendances/{event_attendance_uid}",
-              "normalized": "/platform/v1/scheduling/event_attendances/{event_attendance_uid}",
+              "original": "/api/v2/event_instances/{event_instance_id}/event_attendances/{id}",
+              "normalized": "/platform/v1/api/v2/event_instances/{event_instance_id}/event_attendances/{id}",
               "basePath": "/platform/v1"
             },
             {
@@ -153,7 +153,7 @@
       ],
       "pathConflicts": [],
       "componentConflicts": [],
-      "totalPaths": 32,
+      "totalPaths": 31,
       "totalComponents": 4
     }
   },
@@ -166,7 +166,7 @@
   "paths": {
     "/business/scheduling/v1/bookings": {
       "post": {
-        "description": "## Overview\nCreate a new booking (appointment or event attendance) Available for **Staff and App tokens**.",
+        "description": "## Overview\nCreate a new booking (appointment or event attendance). Available for **Staff, Directory, and Application tokens**.\n\n**Important**: Always provide `client_id` parameter. Without it, the endpoint attempts to create a client from form_data and returns 'First name can't be blank' errors.\n\n## Token Authorization\n- **Staff tokens**: Client must belong to the same business as the staff member\n- **Directory tokens**: Business must be a member of the directory (requires directory_member record)\n\n## Booking Types\nThis endpoint supports two types of bookings with different required parameters:\n\n### Appointment Booking (default)\nWhen `event_instance_id` is NOT provided:\n- **Required**: `business_id`, `service_id`, `staff_id`\n- **Required one of**: `start_time` OR `optional_times`\n\n### Event Registration\nWhen `event_instance_id` IS provided:\n- **Required**: `business_id`, `event_instance_id`\n\n## Client Identification\n- Use `client_id` to book for an existing client (required for Staff/App tokens)\n- Without `client_id`, the endpoint expects form_data for client creation (used by client-facing booking flows)",
         "parameters": [],
         "responses": {
           "201": {
@@ -203,26 +203,31 @@
               }
             }
           },
+          "400": {
+            "description": "Parameter Missing - Required parameters not provided based on booking type",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": "Mandatory parameter service_id is missing, Mandatory parameter staff_id is missing",
+                  "error_code": "PARAMETER_MISSING",
+                  "status": "Error"
+                }
+              }
+            }
+          },
           "422": {
-            "description": "Booking Creation Failure",
+            "description": "Booking Creation Failure or Authorization Error",
             "content": {
               "application/json": {
                 "example": {
                   "error": "error text",
-                  "error_code": "TIMESLOT_UNAVAILABLE/ALREADY_REGISTERED",
+                  "error_code": "TIMESLOT_UNAVAILABLE/ALREADY_REGISTERED/UNAUTHORIZED",
                   "status": "Error"
                 }
               }
             }
           }
         },
-        "security": [
-          {
-            "default": [
-              "business/scheduling"
-            ]
-          }
-        ],
         "summary": "Create New Booking [Business]",
         "tags": [
           "Bookings"
@@ -247,59 +252,66 @@
               "schema": {
                 "properties": {
                   "arrival_window_value": {
-                    "description": "Optional for appointment only .Arrival window value is in minutes and limited to 540 (9 hours)",
+                    "description": "Optional for appointment only. Arrival window value is in minutes and limited to 540 (9 hours).",
                     "type": "integer"
                   },
                   "business_id": {
-                    "description": "Business uid",
-                    "type": "string"
+                    "description": "Business uid. Always required.",
+                    "type": "string",
+                    "x-reference-to": "business"
                   },
                   "campaign": {
-                    "description": "Source campaign",
+                    "description": "Source campaign for tracking.",
                     "type": "string"
                   },
                   "channel": {
-                    "description": "Source channel",
+                    "description": "Source channel for tracking.",
                     "type": "string"
                   },
                   "client_id": {
-                    "description": "Client uid",
-                    "type": "string"
+                    "description": "Client uid. Recommended when booking on behalf of a client via Staff/App tokens.",
+                    "type": "string",
+                    "x-reference-to": "client"
                   },
                   "event_instance_id": {
-                    "description": "Event instance uid. Required for event.",
-                    "type": "string"
+                    "description": "Event instance uid. Required for event registration (mutually exclusive with service_id/staff_id/start_time).",
+                    "type": "string",
+                    "x-reference-to": "event_instance"
                   },
                   "interaction_details": {
-                    "description": "Address. Required when service location set to: Client will set the address at booking",
+                    "description": "Address. Required when service location is set to: Client will set the address at booking.",
                     "type": "string"
                   },
                   "matter_uid": {
-                    "description": "Matter uid",
-                    "type": "string"
+                    "description": "Matter/conversation uid to associate with the booking.",
+                    "type": "string",
+                    "x-reference-to": "matter"
                   },
                   "service_id": {
-                    "description": "Service uid. Required for appointment.",
-                    "type": "string"
+                    "description": "Service uid. Required for appointment booking.",
+                    "type": "string",
+                    "x-reference-to": "service"
                   },
                   "source_name": {
-                    "description": "Source name",
+                    "description": "Source name for tracking (e.g., 'api', 'client_portal').",
                     "type": "string"
                   },
                   "source_url": {
-                    "description": "Source URL",
+                    "description": "Source URL for tracking.",
                     "type": "string"
                   },
                   "staff_id": {
-                    "description": "Staff uid. Required for appointment.",
-                    "type": "string"
+                    "description": "Staff uid who will provide the service. Required for appointment booking.",
+                    "type": "string",
+                    "x-reference-to": "staff"
                   },
                   "start_time": {
-                    "description": "ISO 8601 format. Required for appointment.",
-                    "type": "string"
+                    "description": "ISO 8601 format datetime. Required for appointment booking (alternative: optional_times).",
+                    "type": "string",
+                    "format": "date-time"
                   },
                   "time_zone": {
-                    "description": "Default is set to UTC if not provided",
+                    "description": "Time zone for the booking. Default is UTC if not provided.",
                     "type": "string"
                   }
                 },
@@ -310,12 +322,17 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       }
     },
     "/business/scheduling/v1/bookings/accept": {
       "post": {
-        "description": "## Overview\nAccept a pending booking Available for **Staff and App tokens**.",
+        "description": "## Overview\nAccept a pending booking. Available for **Staff and App tokens**.\n\n## Batch Operations\nSupports batch operations by providing an array of booking IDs (max 50).\n\n## Response\nReturns the accepted booking details for single booking, or batch response for array of bookings.",
         "parameters": [],
         "responses": {
           "200": {
@@ -376,13 +393,6 @@
             }
           }
         },
-        "security": [
-          {
-            "default": [
-              "business/scheduling"
-            ]
-          }
-        ],
         "summary": "Accept a Booking [Business]",
         "tags": [
           "Bookings"
@@ -397,15 +407,22 @@
               "schema": {
                 "properties": {
                   "booking_id": {
-                    "description": "Booking (appointment/event) uid",
-                    "type": "string"
+                    "description": "Booking (appointment/event) UID. Can be a single string or array of strings for batch operations (max 50).",
+                    "type": "string",
+                    "x-reference-to": "booking"
                   },
                   "business_id": {
-                    "description": "Business uid",
-                    "type": "string"
+                    "description": "Business UID",
+                    "type": "string",
+                    "x-reference-to": "business"
                   },
                   "event_instance_id": {
-                    "description": "Event instance uid. Required for event.",
+                    "description": "Event instance UID. Provide this when accepting an event registration rather than an appointment.",
+                    "type": "string",
+                    "x-reference-to": "event_instance"
+                  },
+                  "message": {
+                    "description": "Optional message to include with the acceptance notification.",
                     "type": "string"
                   }
                 },
@@ -417,12 +434,17 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       }
     },
     "/business/scheduling/v1/bookings/cancel": {
       "put": {
-        "description": "## Overview\nCancel an existing booking Available for **Staff and App tokens**.",
+        "description": "## Overview\nCancel an existing booking. Available for **Staff and App tokens**.\n\n## Batch Operations\nSupports batch operations by providing an array of booking IDs (max 50).\n\n## Parameters\n- `cancel_payment`: Set to true to cancel any associated payment\n- `issue_refund`: Set to true to issue a refund for the cancelled booking",
         "parameters": [],
         "responses": {
           "200": {
@@ -477,13 +499,6 @@
             }
           }
         },
-        "security": [
-          {
-            "default": [
-              "business/scheduling"
-            ]
-          }
-        ],
         "summary": "Cancel a Booking [Business]",
         "tags": [
           "Bookings"
@@ -498,16 +513,31 @@
               "schema": {
                 "properties": {
                   "booking_id": {
-                    "description": "Booking (appointment/event) uid. (Can also be an array for batch cancel)",
-                    "type": "string"
+                    "description": "Booking (appointment/event) UID. Can be a single string or array of strings for batch operations (max 50).",
+                    "type": "string",
+                    "x-reference-to": "booking"
                   },
                   "business_id": {
-                    "description": "Business uid",
-                    "type": "string"
+                    "description": "Business UID",
+                    "type": "string",
+                    "x-reference-to": "business"
                   },
                   "event_instance_id": {
-                    "description": "Event instance uid. Required for event.",
+                    "description": "Event instance UID. Provide this when cancelling an event registration rather than an appointment.",
+                    "type": "string",
+                    "x-reference-to": "event_instance"
+                  },
+                  "message": {
+                    "description": "Optional message to include with the cancellation notification.",
                     "type": "string"
+                  },
+                  "cancel_payment": {
+                    "description": "Set to true to cancel any associated payment.",
+                    "type": "boolean"
+                  },
+                  "issue_refund": {
+                    "description": "Set to true to issue a refund for the cancelled booking.",
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -518,12 +548,17 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       }
     },
     "/business/scheduling/v1/bookings/complete": {
       "post": {
-        "description": "## Overview\nMark a booking as no-show Available for **Staff and App tokens**.",
+        "description": "## Overview\nMark a booking as completed or no-show. Available for **Staff and App tokens**.\n\n## Batch Operations\nSupports batch operations by providing an array of booking IDs (max 50).\n\n## Parameters\n- `booking_id` (required): Single booking UID or array of UIDs for batch operations\n- `business_id` (required): Business UID\n- `mark_as_no_show`: Set to `true` to mark as no-show instead of completed\n- `message`: Optional message to include with the completion notification\n- `follow_up_params`: Optional parameters for sending a follow-up email",
         "parameters": [],
         "responses": {
           "200": {
@@ -585,13 +620,6 @@
             }
           }
         },
-        "security": [
-          {
-            "default": [
-              "business/scheduling"
-            ]
-          }
-        ],
         "summary": "Mark booking as no show",
         "tags": [
           "Bookings"
@@ -616,36 +644,53 @@
               "schema": {
                 "properties": {
                   "booking_id": {
-                    "description": "Booking UID",
-                    "type": "string"
+                    "description": "Booking UID. Can be a single string or an array of strings for batch operations (max 50 bookings).",
+                    "type": "string",
+                    "x-reference-to": "booking"
                   },
                   "business_id": {
                     "description": "Business UID",
-                    "type": "string"
+                    "type": "string",
+                    "x-reference-to": "business"
                   },
                   "mark_as_no_show": {
-                    "description": "Mark as no show true/false",
+                    "description": "Set to true to mark as no-show instead of completed. Default is false.",
+                    "type": "boolean"
+                  },
+                  "message": {
+                    "description": "Optional message to include with the completion notification.",
                     "type": "string"
+                  },
+                  "follow_up_params": {
+                    "description": "Optional parameters for sending a follow-up email after completion.",
+                    "type": "object"
                   }
                 },
                 "required": [
-                  "business_id"
+                  "business_id",
+                  "booking_id"
                 ],
                 "type": "object"
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       }
     },
-    "/business/scheduling/v1/bookings/{booking_uid}": {
+    "/business/scheduling/v1/bookings/{booking_id}": {
       "put": {
-        "description": "## Overview\nUpdate booking details including start time, staff, and notes Available for **Staff and App tokens**.",
+        "description": "## Overview\nUpdate booking details including start time, staff, and notes. Available for **Staff and App tokens**.\n\n**Note**: The path parameter is `booking_id` (not `booking_uid`).",
         "parameters": [
           {
-            "description": "Booking (appointment/event) UID",
+            "description": "Booking (appointment/event) ID. Obtained from create booking response.",
             "in": "path",
-            "name": "booking_uid",
+            "name": "booking_id",
+            "x-reference-to": "booking",
             "required": true,
             "schema": {
               "type": "string"
@@ -700,13 +745,6 @@
             }
           }
         },
-        "security": [
-          {
-            "default": [
-              "business/scheduling"
-            ]
-          }
-        ],
         "summary": "Update Booking Details [Business]",
         "tags": [
           "Bookings"
@@ -805,12 +843,17 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       }
     },
     "/business/scheduling/v1/external_calendar_items/bulk_create": {
       "put": {
-        "description": "## Overview\nExternal app bulk create external items Available for **Staff and App tokens**.",
+        "description": "## Overview\nBulk create or update external calendar items. Available for **Staff and App tokens**.\n\n## Prerequisite\n**Staff member must have a CalendarSync record.** Create one via `POST /business/scheduling/v1/calendar_syncs` with `staff_uid` and `app_code_name` (e.g., 'googlewaysync' or 'outlookwaysync').\n\n## Required Fields\n- Provide exactly one of: `external_item` (single item) or `external_items` (array)\n- Each item must include: `external_id`, `start_date`, `end_date`, `last_modification`",
         "parameters": [],
         "responses": {
           "200": {
@@ -836,15 +879,25 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Staff not registered to calendar sync",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "Error",
+                  "errors": [
+                    {
+                      "code": "missing",
+                      "field": "staff",
+                      "message": "staff is not registered to any calendar sync"
+                    }
+                  ]
+                }
+              }
+            }
           }
         },
-        "security": [
-          {
-            "default": [
-              "business/scheduling"
-            ]
-          }
-        ],
         "summary": "External app bulk create external items",
         "tags": [
           "ExternalCalendarItems"
@@ -869,100 +922,125 @@
               "schema": {
                 "properties": {
                   "calendar_sync": {
-                    "description": "The external app provider and the requested email to sync to (by the staff)",
+                    "description": "Calendar sync configuration. Both `provider` and `account` are required.",
                     "properties": {
                       "account": {
-                        "description": "The requested email to sync to by the staff (e.g. aaa@gmail.com)",
+                        "description": "The email account to sync to (e.g., user@gmail.com). Required.",
                         "type": "string"
                       },
                       "provider": {
-                        "description": "The external app provider (e.g. google_v3)",
+                        "description": "The external calendar provider (e.g., 'google_v3', 'outlook'). Required.",
                         "type": "string"
                       }
                     },
+                    "required": [
+                      "provider",
+                      "account"
+                    ],
                     "type": "object"
                   },
                   "external_item": {
-                    "description": "External item to create / update",
+                    "description": "Single external item to create/update. Use this OR `external_items`, not both.",
                     "properties": {
                       "end_date": {
-                        "description": "End Date",
-                        "type": "string"
+                        "description": "End date in ISO 8601 format. Required.",
+                        "type": "string",
+                        "format": "date-time"
                       },
                       "external_calendar_uid": {
-                        "description": "External Calendar Uid",
-                        "type": "string"
+                        "description": "External Calendar UID",
+                        "type": "string",
+                        "x-reference-to": "external_calendar"
                       },
                       "external_id": {
-                        "description": "id",
+                        "description": "External system ID for the item. Required.",
                         "type": "string"
                       },
                       "external_title": {
-                        "description": "Title",
+                        "description": "Title of the calendar item",
                         "type": "string"
                       },
                       "last_modification": {
-                        "description": "Last modification of the item",
-                        "type": "string"
+                        "description": "Last modification timestamp in ISO 8601 format. Required.",
+                        "type": "string",
+                        "format": "date-time"
                       },
                       "rrule": {
-                        "description": "Array of rrules (recurrence rules)",
+                        "description": "Array of recurrence rules (RFC 5545 RRULE format)",
                         "items": {
                           "type": "string"
                         },
                         "type": "array"
                       },
                       "start_date": {
-                        "description": "Start date",
-                        "type": "string"
+                        "description": "Start date in ISO 8601 format. Required.",
+                        "type": "string",
+                        "format": "date-time"
                       }
                     },
+                    "required": [
+                      "external_id",
+                      "start_date",
+                      "end_date",
+                      "last_modification"
+                    ],
                     "type": "object"
                   },
                   "external_items": {
-                    "description": "Array of external items",
+                    "description": "Array of external items to create/update. Use this OR `external_item`, not both.",
                     "items": {
-                      "description": "External item to create / update",
+                      "description": "External item to create/update",
                       "properties": {
                         "end_date": {
-                          "description": "End Date",
-                          "type": "string"
+                          "description": "End date in ISO 8601 format. Required.",
+                          "type": "string",
+                          "format": "date-time"
                         },
                         "external_calendar_uid": {
-                          "description": "External Calendar Uid",
-                          "type": "string"
+                          "description": "External Calendar UID",
+                          "type": "string",
+                          "x-reference-to": "external_calendar"
                         },
                         "external_id": {
-                          "description": "id",
+                          "description": "External system ID for the item. Required.",
                           "type": "string"
                         },
                         "external_title": {
-                          "description": "Title",
+                          "description": "Title of the calendar item",
                           "type": "string"
                         },
                         "last_modification": {
-                          "description": "Last modification of the item",
-                          "type": "string"
+                          "description": "Last modification timestamp in ISO 8601 format. Required.",
+                          "type": "string",
+                          "format": "date-time"
                         },
                         "rrule": {
-                          "description": "Array of rrules (recurrence rules)",
+                          "description": "Array of recurrence rules (RFC 5545 RRULE format)",
                           "items": {
                             "type": "string"
                           },
                           "type": "array"
                         },
                         "start_date": {
-                          "description": "Start date",
-                          "type": "string"
+                          "description": "Start date in ISO 8601 format. Required.",
+                          "type": "string",
+                          "format": "date-time"
                         }
                       },
+                      "required": [
+                        "external_id",
+                        "start_date",
+                        "end_date",
+                        "last_modification"
+                      ],
                       "type": "object"
                     },
                     "type": "array"
                   },
                   "staff_uid": {
                     "description": "Staff UID",
-                    "type": "string"
+                    "type": "string",
+                    "x-reference-to": "staff"
                   }
                 },
                 "required": [
@@ -973,12 +1051,17 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       }
     },
     "/business/scheduling/v1/external_calendar_items/bulk_deactivate": {
       "put": {
-        "description": "## Overview\nExternal app bulk deactivate external items Available for **Staff and App tokens**.",
+        "description": "## Overview\nBulk deactivate external calendar items. Available for **Staff and App tokens**.\n\n## Prerequisite\n**Staff member must have a CalendarSync record.** Create one via `POST /business/scheduling/v1/calendar_syncs` with `staff_uid` and `app_code_name` (e.g., 'googlewaysync' or 'outlookwaysync').\n\n## Required Fields\n- `external_items_to_deactivate` must be an array\n- Each item must include `external_id`",
         "parameters": [],
         "responses": {
           "200": {
@@ -1006,13 +1089,6 @@
             }
           }
         },
-        "security": [
-          {
-            "default": [
-              "business/scheduling"
-            ]
-          }
-        ],
         "summary": "External app bulk deactivate external items",
         "tags": [
           "ExternalCalendarItems"
@@ -1037,36 +1113,44 @@
               "schema": {
                 "properties": {
                   "calendar_sync": {
-                    "description": "The external app provider and the requested email to sync to (by the staff)",
+                    "description": "Calendar sync configuration. Both `provider` and `account` are required.",
                     "properties": {
                       "account": {
-                        "description": "The requested email to sync to by the staff (e.g. aaa@gmail.com)",
+                        "description": "The email account to sync to (e.g., user@gmail.com). Required.",
                         "type": "string"
                       },
                       "provider": {
-                        "description": "The external app provider (e.g. google_v3)",
+                        "description": "The external calendar provider (e.g., 'google_v3', 'outlook'). Required.",
                         "type": "string"
                       }
                     },
+                    "required": [
+                      "provider",
+                      "account"
+                    ],
                     "type": "object"
                   },
                   "external_items_to_deactivate": {
-                    "description": "Array of external_ids to deactivate",
+                    "description": "Array of external items to deactivate. Each item must include `external_id`.",
                     "items": {
-                      "description": "translation missing: en.external-calendar-items-controller.parameters.external_item.external_id.description.description",
+                      "description": "External item to deactivate",
                       "properties": {
                         "external_id": {
-                          "description": "id",
+                          "description": "External system ID of the item to deactivate. Required.",
                           "type": "string"
                         }
                       },
+                      "required": [
+                        "external_id"
+                      ],
                       "type": "object"
                     },
                     "type": "array"
                   },
                   "staff_uid": {
                     "description": "Staff UID",
-                    "type": "string"
+                    "type": "string",
+                    "x-reference-to": "staff"
                   }
                 },
                 "required": [
@@ -1078,12 +1162,17 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       }
     },
     "/business/scheduling/v1/external_calendar_items/connect": {
       "put": {
-        "description": "## Overview\nExternal app connect Available for **Staff and App tokens**.",
+        "description": "## Overview\nConnect a staff member's calendar to an external calendar provider. Available for **Staff and App tokens**.\n\n## Prerequisite\n**Staff member must have a CalendarSync record.** Create one via `POST /business/scheduling/v1/calendar_syncs` with `staff_uid` and `app_code_name` (e.g., 'googlewaysync' or 'outlookwaysync').\n\n## Response\nReturns the calendar sync configuration including the `uid` which can be used as `external_calendar_uid` for other operations.",
         "parameters": [],
         "responses": {
           "200": {
@@ -1109,15 +1198,25 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Staff not registered to calendar sync",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "Error",
+                  "errors": [
+                    {
+                      "code": "missing",
+                      "field": "staff",
+                      "message": "staff is not registered to any calendar sync"
+                    }
+                  ]
+                }
+              }
+            }
           }
         },
-        "security": [
-          {
-            "default": [
-              "business/scheduling"
-            ]
-          }
-        ],
         "summary": "External app connect",
         "tags": [
           "ExternalCalendarItems"
@@ -1142,22 +1241,27 @@
               "schema": {
                 "properties": {
                   "calendar_sync": {
-                    "description": "The external app provider and the requested email to sync to (by the staff)",
+                    "description": "Calendar sync configuration. Both `provider` and `account` are required.",
                     "properties": {
                       "account": {
-                        "description": "The requested email to sync to by the staff (e.g. aaa@gmail.com)",
+                        "description": "The email account to sync to (e.g., user@gmail.com). Required.",
                         "type": "string"
                       },
                       "provider": {
-                        "description": "The external app provider (e.g. google_v3)",
+                        "description": "The external calendar provider (e.g., 'google_v3', 'outlook'). Required.",
                         "type": "string"
                       }
                     },
+                    "required": [
+                      "provider",
+                      "account"
+                    ],
                     "type": "object"
                   },
                   "staff_uid": {
                     "description": "Staff UID",
-                    "type": "string"
+                    "type": "string",
+                    "x-reference-to": "staff"
                   }
                 },
                 "required": [
@@ -1168,12 +1272,17 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       }
     },
     "/business/scheduling/v1/external_calendar_items/deactivate_external_calendar": {
       "put": {
-        "description": "## Overview\nExternal app deactivate external calendar Available for **Staff and App tokens**.",
+        "description": "## Overview\nDeactivate a specific external calendar. Available for **Staff and App tokens**.\n\n## Prerequisites\nThe `external_calendar_uid` is returned in the response when calling the `/v1/external_calendar_items/connect` endpoint.",
         "parameters": [],
         "responses": {
           "200": {
@@ -1190,13 +1299,6 @@
             }
           }
         },
-        "security": [
-          {
-            "default": [
-              "business/scheduling"
-            ]
-          }
-        ],
         "summary": "External app deactivate external calendar",
         "tags": [
           "ExternalCalendarItems"
@@ -1221,12 +1323,14 @@
               "schema": {
                 "properties": {
                   "external_calendar_uid": {
-                    "description": "External Calendar Uid",
-                    "type": "string"
+                    "description": "External Calendar UID. Obtained from the connect endpoint response.",
+                    "type": "string",
+                    "x-reference-to": "external_calendar"
                   },
                   "staff_uid": {
                     "description": "Staff UID",
-                    "type": "string"
+                    "type": "string",
+                    "x-reference-to": "staff"
                   }
                 },
                 "required": [
@@ -1237,12 +1341,17 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       }
     },
     "/business/scheduling/v1/external_calendar_items/disable": {
       "put": {
-        "description": "## Overview\nExternal app disable Available for **Staff and App tokens**.",
+        "description": "## Overview\nDisable calendar sync for a staff member. Available for **Staff and App tokens**.\n\n## Prerequisite\n**Staff member must have a CalendarSync record.** Create one via `POST /business/scheduling/v1/calendar_syncs` with `staff_uid` and `app_code_name` (e.g., 'googlewaysync' or 'outlookwaysync'). Then connect via `/connect` endpoint.",
         "parameters": [],
         "responses": {
           "200": {
@@ -1270,13 +1379,6 @@
             }
           }
         },
-        "security": [
-          {
-            "default": [
-              "business/scheduling"
-            ]
-          }
-        ],
         "summary": "External app disable",
         "tags": [
           "ExternalCalendarItems"
@@ -1301,22 +1403,27 @@
               "schema": {
                 "properties": {
                   "calendar_sync": {
-                    "description": "The external app provider and the requested email to sync to (by the staff)",
+                    "description": "Calendar sync configuration. Both `provider` and `account` are required.",
                     "properties": {
                       "account": {
-                        "description": "The requested email to sync to by the staff (e.g. aaa@gmail.com)",
+                        "description": "The email account to sync to (e.g., user@gmail.com). Required.",
                         "type": "string"
                       },
                       "provider": {
-                        "description": "The external app provider (e.g. google_v3)",
+                        "description": "The external calendar provider (e.g., 'google_v3', 'outlook'). Required.",
                         "type": "string"
                       }
                     },
+                    "required": [
+                      "provider",
+                      "account"
+                    ],
                     "type": "object"
                   },
                   "staff_uid": {
                     "description": "Staff UID",
-                    "type": "string"
+                    "type": "string",
+                    "x-reference-to": "staff"
                   }
                 },
                 "required": [
@@ -1327,12 +1434,17 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       }
     },
     "/business/scheduling/v1/external_calendar_items/disconnect": {
       "put": {
-        "description": "## Overview\nExternal app disconnect Available for **Staff and App tokens**.",
+        "description": "## Overview\nDisconnect a staff member's calendar from an external calendar provider. Available for **Staff and App tokens**.\n\n## Prerequisite\n**Staff member must have a CalendarSync record.** Create one via `POST /business/scheduling/v1/calendar_syncs` with `staff_uid` and `app_code_name` (e.g., 'googlewaysync' or 'outlookwaysync'). Then connect via `/connect` endpoint.",
         "parameters": [],
         "responses": {
           "200": {
@@ -1360,13 +1472,6 @@
             }
           }
         },
-        "security": [
-          {
-            "default": [
-              "business/scheduling"
-            ]
-          }
-        ],
         "summary": "External app disconnect",
         "tags": [
           "ExternalCalendarItems"
@@ -1391,22 +1496,27 @@
               "schema": {
                 "properties": {
                   "calendar_sync": {
-                    "description": "The external app provider and the requested email to sync to (by the staff)",
+                    "description": "Calendar sync configuration. Both `provider` and `account` are required.",
                     "properties": {
                       "account": {
-                        "description": "The requested email to sync to by the staff (e.g. aaa@gmail.com)",
+                        "description": "The email account to sync to (e.g., user@gmail.com). Required.",
                         "type": "string"
                       },
                       "provider": {
-                        "description": "The external app provider (e.g. google_v3)",
+                        "description": "The external calendar provider (e.g., 'google_v3', 'outlook'). Required.",
                         "type": "string"
                       }
                     },
+                    "required": [
+                      "provider",
+                      "account"
+                    ],
                     "type": "object"
                   },
                   "staff_uid": {
                     "description": "Staff UID",
-                    "type": "string"
+                    "type": "string",
+                    "x-reference-to": "staff"
                   }
                 },
                 "required": [
@@ -1417,12 +1527,17 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       }
     },
     "/business/scheduling/v1/external_calendar_items/report_sync_status": {
       "put": {
-        "description": "## Overview\nExternal app report_sync_status Available for **Staff and App tokens**.",
+        "description": "## Overview\nReport the sync status after completing a calendar sync operation. Available for **Staff and App tokens**.\n\n## Required Fields\n- `params.is_sync_successful` is required\n- If `unsynced_items` is provided, each item must have `entity_uid`\n- If `unsynced_calendars` is provided, each item must have `imported_calendar_name`",
         "parameters": [],
         "responses": {
           "200": {
@@ -1439,13 +1554,6 @@
             }
           }
         },
-        "security": [
-          {
-            "default": [
-              "business/scheduling"
-            ]
-          }
-        ],
         "summary": "External app report_sync_status",
         "tags": [
           "ExternalCalendarItems"
@@ -1470,60 +1578,74 @@
               "schema": {
                 "properties": {
                   "calendar_sync": {
-                    "description": "The external app provider and the requested email to sync to (by the staff)",
+                    "description": "Calendar sync configuration. Both `provider` and `account` are required.",
                     "properties": {
                       "account": {
-                        "description": "The requested email to sync to by the staff (e.g. aaa@gmail.com)",
+                        "description": "The email account to sync to (e.g., user@gmail.com). Required.",
                         "type": "string"
                       },
                       "provider": {
-                        "description": "The external app provider (e.g. google_v3)",
+                        "description": "The external calendar provider (e.g., 'google_v3', 'outlook'). Required.",
                         "type": "string"
                       }
                     },
+                    "required": [
+                      "provider",
+                      "account"
+                    ],
                     "type": "object"
                   },
                   "params": {
-                    "description": "Status report of the sync (export and import)",
+                    "description": "Status report of the sync operation.",
                     "properties": {
                       "is_sync_successful": {
-                        "description": "Boolean",
+                        "description": "Whether the sync was successful. Required.",
                         "type": "boolean"
                       },
                       "unsynced_calendars": {
-                        "description": "Array of unsynced calendars",
+                        "description": "Array of calendars that failed to sync. Each item requires `imported_calendar_name`.",
                         "items": {
                           "description": "Unsynced calendar",
                           "properties": {
                             "imported_calendar_name": {
-                              "description": "The calendar's name of the unsynced calendar",
+                              "description": "The calendar's name. Required when item is present.",
                               "type": "string"
                             }
                           },
+                          "required": [
+                            "imported_calendar_name"
+                          ],
                           "type": "object"
                         },
                         "type": "array"
                       },
                       "unsynced_items": {
-                        "description": "Array of unsynced items",
+                        "description": "Array of items that failed to sync. Each item requires `entity_uid`.",
                         "items": {
                           "description": "Unsynced item",
                           "properties": {
                             "entity_uid": {
-                              "description": "The entity uid of the unsynced item",
+                              "description": "The entity UID of the unsynced item. Required when item is present.",
                               "type": "string"
                             }
                           },
+                          "required": [
+                            "entity_uid"
+                          ],
                           "type": "object"
                         },
                         "type": "array"
                       }
                     },
+                    "required": [
+                      "is_sync_successful"
+                    ],
                     "type": "object"
                   },
                   "staff_uid": {
                     "description": "Staff UID",
-                    "type": "string"
+                    "type": "string",
+                    "x-reference-to": "staff"
                   }
                 },
                 "required": [
@@ -1535,12 +1657,17 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       }
     },
     "/business/scheduling/v1/external_calendar_items/start_export": {
       "put": {
-        "description": "## Overview\nExternal app start_export Available for **Staff and App tokens**.",
+        "description": "## Overview\nStart exporting vcita calendar events to an external calendar. Available for **Staff and App tokens**.\n\n## Prerequisite\n**Staff member must have a CalendarSync record.** Create one via `POST /business/scheduling/v1/calendar_syncs` with `staff_uid` and `app_code_name` (e.g., 'googlewaysync' or 'outlookwaysync'). Then connect via `/connect` endpoint.",
         "parameters": [],
         "responses": {
           "200": {
@@ -1568,13 +1695,6 @@
             }
           }
         },
-        "security": [
-          {
-            "default": [
-              "business/scheduling"
-            ]
-          }
-        ],
         "summary": "External app start_export",
         "tags": [
           "ExternalCalendarItems"
@@ -1599,22 +1719,27 @@
               "schema": {
                 "properties": {
                   "calendar_sync": {
-                    "description": "The external app provider and the requested email to sync to (by the staff)",
+                    "description": "Calendar sync configuration. Both `provider` and `account` are required.",
                     "properties": {
                       "account": {
-                        "description": "The requested email to sync to by the staff (e.g. aaa@gmail.com)",
+                        "description": "The email account to sync to (e.g., user@gmail.com). Required.",
                         "type": "string"
                       },
                       "provider": {
-                        "description": "The external app provider (e.g. google_v3)",
+                        "description": "The external calendar provider (e.g., 'google_v3', 'outlook'). Required.",
                         "type": "string"
                       }
                     },
+                    "required": [
+                      "provider",
+                      "account"
+                    ],
                     "type": "object"
                   },
                   "staff_uid": {
                     "description": "Staff UID",
-                    "type": "string"
+                    "type": "string",
+                    "x-reference-to": "staff"
                   }
                 },
                 "required": [
@@ -1625,12 +1750,17 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       }
     },
     "/business/scheduling/v1/external_calendar_items/stop_import": {
       "put": {
-        "description": "## Overview\nExternal app stop import Available for **Staff and App tokens**.",
+        "description": "## Overview\nStop importing events from an external calendar. Available for **Staff and App tokens**.\n\n## Prerequisite\n**Staff member must have a CalendarSync record.** Create one via `POST /business/scheduling/v1/calendar_syncs` with `staff_uid` and `app_code_name` (e.g., 'googlewaysync' or 'outlookwaysync'). Then connect via `/connect` endpoint.",
         "parameters": [],
         "responses": {
           "200": {
@@ -1658,13 +1788,6 @@
             }
           }
         },
-        "security": [
-          {
-            "default": [
-              "business/scheduling"
-            ]
-          }
-        ],
         "summary": "External app stop import",
         "tags": [
           "ExternalCalendarItems"
@@ -1689,22 +1812,27 @@
               "schema": {
                 "properties": {
                   "calendar_sync": {
-                    "description": "The external app provider and the requested email to sync to (by the staff)",
+                    "description": "Calendar sync configuration. Both `provider` and `account` are required.",
                     "properties": {
                       "account": {
-                        "description": "The requested email to sync to by the staff (e.g. aaa@gmail.com)",
+                        "description": "The email account to sync to (e.g., user@gmail.com). Required.",
                         "type": "string"
                       },
                       "provider": {
-                        "description": "The external app provider (e.g. google_v3)",
+                        "description": "The external calendar provider (e.g., 'google_v3', 'outlook'). Required.",
                         "type": "string"
                       }
                     },
+                    "required": [
+                      "provider",
+                      "account"
+                    ],
                     "type": "object"
                   },
                   "staff_uid": {
                     "description": "Staff UID",
-                    "type": "string"
+                    "type": "string",
+                    "x-reference-to": "staff"
                   }
                 },
                 "required": [
@@ -1715,12 +1843,17 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       }
     },
     "/business/scheduling/v1/time_slots": {
       "post": {
-        "description": "## Overview\nGeneral availability - Create new time slot Available for **Staff and App tokens**.",
+        "description": "## Overview\nGeneral availability - Create new time slot. Available for **Staff and App tokens**.\n\n## Prerequisites\nYou need a `weekly_availability_uid` which can be obtained from the staff or service availability settings.",
         "parameters": [],
         "responses": {
           "201": {
@@ -1789,13 +1922,6 @@
             }
           }
         },
-        "security": [
-          {
-            "default": [
-              "business/scheduling"
-            ]
-          }
-        ],
         "summary": "General availability - Create new time slot",
         "tags": [
           "Weekly availability"
@@ -1820,27 +1946,41 @@
               "schema": {
                 "properties": {
                   "day": {
-                    "description": "A number representing the day of the week (0 - sunday, 6 - saturday)",
-                    "type": "string"
+                    "description": "A number representing the day of the week (0 = Sunday, 6 = Saturday).",
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 6
                   },
                   "end_time": {
-                    "description": "End time (only the hour)",
+                    "description": "End time in HH:MM format (e.g., '17:00').",
                     "type": "string"
                   },
                   "start_time": {
-                    "description": "Start time (only the hour)",
+                    "description": "Start time in HH:MM format (e.g., '09:00').",
                     "type": "string"
                   },
                   "weekly_availability_uid": {
-                    "description": "Weekly availability uid",
-                    "type": "string"
+                    "description": "Weekly availability UID. Obtain from staff or service availability settings.",
+                    "type": "string",
+                    "x-reference-to": "weekly_availability"
                   }
                 },
+                "required": [
+                  "weekly_availability_uid",
+                  "day",
+                  "start_time",
+                  "end_time"
+                ],
                 "type": "object"
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       }
     },
     "/business/scheduling/v1/time_slots/{time_slot_uid}": {
@@ -1918,13 +2058,6 @@
             }
           }
         },
-        "security": [
-          {
-            "default": [
-              "business/scheduling"
-            ]
-          }
-        ],
         "summary": "General availability - Remove time slot",
         "tags": [
           "Weekly availability"
@@ -1942,13 +2075,18 @@
           "type": "http_proxy",
           "uri": "https:///business/scheduling/v1/time_slots/{time_slot_uid}"
         },
-        "x-auth-type": "Application & Application User"
+        "x-auth-type": "Application & Application User",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       },
       "put": {
-        "description": "## Overview\nGeneral availability - Update time slot Available for **Staff and App tokens**.",
+        "description": "## Overview\nGeneral availability - Update time slot. Available for **Staff and App tokens**.",
         "parameters": [
           {
-            "description": "time slot uid",
+            "description": "Time slot UID",
             "in": "path",
             "name": "time_slot_uid",
             "required": true,
@@ -2023,13 +2161,6 @@
             }
           }
         },
-        "security": [
-          {
-            "default": [
-              "business/scheduling"
-            ]
-          }
-        ],
         "summary": "General availability - Update time slot",
         "tags": [
           "Weekly availability"
@@ -2054,23 +2185,1387 @@
               "schema": {
                 "properties": {
                   "end_time": {
-                    "description": "End time (only the hour)",
+                    "description": "End time in HH:MM format (e.g., '17:00').",
                     "type": "string"
                   },
                   "start_time": {
-                    "description": "Start time (only the hour)",
+                    "description": "Start time in HH:MM format (e.g., '09:00').",
                     "type": "string"
                   },
                   "weekly_availability_uid": {
-                    "description": "Weekly availability uid",
-                    "type": "string"
+                    "description": "Weekly availability UID.",
+                    "type": "string",
+                    "x-reference-to": "weekly_availability"
                   }
                 },
+                "required": [
+                  "weekly_availability_uid"
+                ],
                 "type": "object"
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/platform/v1/scheduling/appointments": {
+      "get": {
+        "description": "## Overview\nRetrieves a paginated list of appointments for the business. Supports filtering by client, appointment state, and sorting. Available for **Staff and Application tokens**.",
+        "parameters": [
+          {
+            "description": "Business ID (optional)",
+            "in": "query",
+            "name": "business_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client ID Filter",
+            "in": "query",
+            "name": "client_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "State Filter - rejected/scheduled/done/cancelled/pending_reschedule/reschedule e.g state=done,rejected",
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Multiple order by option - updated:DESC,start_at:ASC,created:DESC",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page number of results. Default: 1",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "How many items to return per page. Default: 25. Max: 100",
+            "in": "query",
+            "name": "per_page",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data": {
+                    "appointments": [
+                      {
+                        "approval_mode": null,
+                        "business_uid": "104a5664c3663a8d",
+                        "category_name": null,
+                        "charge_type": "no_price",
+                        "client_color_id": 0,
+                        "client_first_name": "Deeanna",
+                        "client_id": "xvl55kzldujkar76",
+                        "client_last_name": "Rice",
+                        "conversation_id": "c7g4pvubtj84j6b5",
+                        "created_at": "2025-08-05T06:56:16.020Z",
+                        "currency": null,
+                        "duration": 30,
+                        "end_time": "2025-08-11T06:30:00.000Z",
+                        "id": "e7j16p8hrgacto4g",
+                        "image_url": "",
+                        "initiator": null,
+                        "interaction_details": "consequuntur",
+                        "interaction_type": "client_location",
+                        "is_recurring": false,
+                        "linked_booking_uid": null,
+                        "no_show": false,
+                        "notes": null,
+                        "optional_times": [],
+                        "payment_id": null,
+                        "payment_status": null,
+                        "price": "0.0",
+                        "series_id": null,
+                        "series_instance_count": null,
+                        "service_id": "vxolrre9o6ob92ee",
+                        "staff_display_name": "Britt Bogan",
+                        "staff_id": "9a33fc142dbb67f3",
+                        "staff_image": null,
+                        "start_time": "2025-08-11T06:00:00.000Z",
+                        "state": "scheduled",
+                        "title": "Advanced didactic portal",
+                        "type": "appointment",
+                        "updated_at": "2025-08-05T06:56:16.020Z"
+                      }
+                    ],
+                    "next_page": null
+                  },
+                  "status": "OK"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get Appointments List",
+        "tags": [
+          "Appointments"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "GET",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///platform/v1/scheduling/appointments"
+        },
+        "x-auth-type": "Application & Application User",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/platform/v1/scheduling/appointments/{appointment_id}": {
+      "get": {
+        "description": "## Overview\nGet appointment details by ID. Available for **Staff and Application tokens**.",
+        "parameters": [
+          {
+            "description": "Appointment id",
+            "in": "path",
+            "name": "appointment_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data": {
+                    "appointment": {
+                      "approval_mode": null,
+                      "auto_follow_up_hours": 0,
+                      "business_uid": "104a5664c3663a8d",
+                      "category_name": null,
+                      "charge_type": "no_price",
+                      "client_color_id": 0,
+                      "client_first_name": "Deeanna",
+                      "client_id": "xvl55kzldujkar76",
+                      "client_last_name": "Rice",
+                      "conversation_id": "c7g4pvubtj84j6b5",
+                      "coupon": null,
+                      "created_at": "2025-08-05T06:56:16.020Z",
+                      "currency": null,
+                      "duration": 30,
+                      "end_time": "2025-08-11T06:30:00.000Z",
+                      "id": "e7j16p8hrgacto4g",
+                      "state": "scheduled",
+                      "title": "Advanced didactic portal",
+                      "type": "appointment",
+                      "updated_at": "2025-08-05T06:56:16.020Z"
+                    }
+                  },
+                  "status": "OK"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get Appointment",
+        "tags": [
+          "Appointments"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "GET",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///platform/v1/scheduling/appointments/{appointment_id}"
+        },
+        "x-auth-type": "Application & Application User",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/platform/v1/scheduling/bookings": {
+      "get": {
+        "description": "## Overview\nGet bookings of the authenticated client. Returns a paginated list of the client's appointments and event registrations.\n\nAvailable for **Client tokens** only.",
+        "parameters": [
+          {
+            "description": "Maximum number of records which are returned for the request",
+            "in": "query",
+            "name": "per_page",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "First record's index in the returned list (e.g. per_page = 10, offset = 1, reords 11 to 20 are returned)",
+            "in": "query",
+            "name": "offset",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Business UID",
+            "in": "query",
+            "name": "business_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Matter UID",
+            "in": "query",
+            "name": "matter_uid",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "If equals to true, returns records from the past only. Otherwise, returns future bookings as well.",
+            "in": "query",
+            "name": "passed",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Relevant to recurring appointment/event, returns appointment/event attendance which their start_time is bigger than this parameter",
+            "in": "query",
+            "name": "start_time",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Relevant to recurring appointment/event, returns appointment/event attendance which their start_time is smaller than this parameter",
+            "in": "query",
+            "name": "end_time",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data": {
+                    "bookings": [
+                      {
+                        "approval_mode": "immediate",
+                        "category_name": null,
+                        "charge_type": "no_price",
+                        "client_id": "3zashrlha0cwvnoz",
+                        "conversation_id": "kehqoc1jkgooe0ft",
+                        "currency": "ILS",
+                        "depth": "deep",
+                        "description": null,
+                        "duration": 60,
+                        "end_time": "2025-08-07T02:56:21.751-05:00",
+                        "image_url": "",
+                        "interaction_details": "Denver, CO, USA",
+                        "interaction_type": "business_location",
+                        "title": "Appointment 1",
+                        "type": "appointment",
+                        "uid": "wpyygjkyu0jca08e"
+                      }
+                    ]
+                  },
+                  "status": "OK"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get Bookings [Alpha] ",
+        "tags": [
+          "Bookings"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "GET",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///platform/v1/scheduling/bookings"
+        },
+        "x-auth-type": "Client",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "post": {
+        "description": "## Overview\nCreates a booking for either an appointment with a staff member or registration for a group event.\n\nAvailable for **Client and Staff tokens**.",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data": {
+                    "booking": {
+                      "business_id": "e62db14aa58c7675",
+                      "client_id": "1kfvtps4a4wlh3lc",
+                      "conversation_id": "ugd2qqidl75wrto6",
+                      "created_at": "2020-01-19T07:44:21Z",
+                      "duration": 60,
+                      "event_instance_id": "a8ma2ephjfvwnvy7 (only for event)",
+                      "id": "v8mvcenb8y3wej2n",
+                      "service_id": "mxmuh2mewjxe9vip",
+                      "source_data": {
+                        "campaign": null,
+                        "channel": "",
+                        "name": "client_portal",
+                        "website_url": null
+                      },
+                      "staff_id": "mg9d91uh92bclwzg",
+                      "start_time": "2020-01-22T13:00:00Z",
+                      "status": "scheduled",
+                      "time_zone": "UTC",
+                      "title": "Imm + free",
+                      "type": "appointment/event"
+                    }
+                  },
+                  "status": "OK"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Failure",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": "error text",
+                  "error_code": "TIMESLOT_UNAVAILABLE/ALREADY_REGISTERED",
+                  "status": "Error"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Create New Booking [Alpha]",
+        "tags": [
+          "Bookings"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "responses": {
+            "default": {
+              "statusCode": "201"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///platform/v1/scheduling/bookings"
+        },
+        "x-auth-type": "Application & Application User",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "business_id": {
+                    "description": "Business uid",
+                    "type": "string",
+                    "x-reference-to": "business"
+                  },
+                  "campaign": {
+                    "description": "Source campaign",
+                    "type": "string"
+                  },
+                  "channel": {
+                    "description": "Source channel",
+                    "type": "string"
+                  },
+                  "client_id": {
+                    "description": "Client uid. If not provided, form_data with client fields (email, first_name) is required.",
+                    "type": "string",
+                    "x-reference-to": "client"
+                  },
+                  "event_instance_id": {
+                    "description": "Event instance uid. Required for event registration (not appointment booking).",
+                    "type": "string",
+                    "x-reference-to": "event_instance"
+                  },
+                  "form_data": {
+                    "description": "Client form data containing scheduling fields. **Required when `client_id` is not provided** - the API requires client identification either via existing `client_id` or via form_data fields.\n\n## When to use\n- **Prefer `client_id`**: If you have an existing client_id, use it instead of form_data. This is simpler and avoids form validation.\n- **Use form_data**: Only when creating a booking for a new client who doesn't exist yet.\n\n## How to obtain field IDs\nCall `GET /platform/v1/forms?business_id={business_id}&form_type=scheduling&service_uid={service_id}` to get the scheduling form definition. Required fields (typically email and first_name) will have `required: true`.\n\n## Structure (IMPORTANT - Array format)\nThe `fields` property must be an **array of field objects**, NOT a key-value object:\n```json\n{\n  \"form_data\": {\n    \"fields\": [\n      {\n        \"field_id\": \"{email_field_id}\",\n        \"type\": \"email\",\n        \"new_data\": \"client@example.com\"\n      },\n      {\n        \"field_id\": \"{first_name_field_id}\",\n        \"type\": \"first_name\",\n        \"new_data\": \"John\"\n      }\n    ],\n    \"service_fields\": [],\n    \"others\": { \"notes\": null },\n    \"policies\": {}\n  }\n}\n```\n\n**Warning**: Using the wrong format (e.g., `{\"field_id\": \"value\"}` as a key-value object) will cause validation errors.\n\n## Meeting details\nWhen the service interaction_type is `client_location` or `phone_call`, include meeting details:\n```json\n{\n  \"form_data\": {\n    \"fields\": [...],\n    \"meeting_details\": {\n      \"meeting_interaction_details\": \"123 Main St, City\"\n    }\n  }\n}\n```",
+                    "type": "object",
+                    "properties": {
+                      "fields": {
+                        "type": "array",
+                        "description": "Array of field objects. Each object must have field_id (from form definition), type (field type like 'email', 'first_name'), and new_data (the value as string).",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "field_id": {
+                              "type": "string",
+                              "description": "The field ID from the scheduling form definition"
+                            },
+                            "type": {
+                              "type": "string",
+                              "description": "The field type (e.g., 'email', 'first_name', 'phone')"
+                            },
+                            "new_data": {
+                              "type": "string",
+                              "description": "The field value as a string"
+                            }
+                          },
+                          "required": [
+                            "field_id",
+                            "new_data"
+                          ]
+                        }
+                      },
+                      "service_fields": {
+                        "type": "array",
+                        "description": "Service-specific custom fields (same structure as fields)",
+                        "items": {
+                          "type": "object"
+                        }
+                      },
+                      "meeting_details": {
+                        "type": "object",
+                        "description": "Meeting location details (required for client_location or phone_call services)",
+                        "properties": {
+                          "meeting_interaction_details": {
+                            "type": "string",
+                            "description": "Location or contact details for the meeting"
+                          }
+                        }
+                      },
+                      "others": {
+                        "type": "object",
+                        "description": "Additional data like notes",
+                        "properties": {
+                          "notes": {
+                            "type": "string",
+                            "description": "Optional notes for the booking"
+                          }
+                        }
+                      },
+                      "policies": {
+                        "type": "object",
+                        "description": "Policy acceptance data"
+                      }
+                    }
+                  },
+                  "matter_uid": {
+                    "description": "Matter uid (conversation context)",
+                    "type": "string",
+                    "x-reference-to": "matter"
+                  },
+                  "portal_id": {
+                    "description": "Business uid (same as business_id, for portal context)",
+                    "type": "string",
+                    "x-reference-to": "business"
+                  },
+                  "service_id": {
+                    "description": "Service uid. Required for appointment booking.",
+                    "type": "string",
+                    "x-reference-to": "service"
+                  },
+                  "source_name": {
+                    "description": "Source name (e.g., 'client_portal', 'api')",
+                    "type": "string"
+                  },
+                  "source_url": {
+                    "description": "Source URL",
+                    "type": "string"
+                  },
+                  "staff_id": {
+                    "description": "Staff uid. Required for appointment booking.",
+                    "type": "string",
+                    "x-reference-to": "staff"
+                  },
+                  "start_time": {
+                    "description": "ISO 8601 format. Required for appointment.",
+                    "type": "string"
+                  },
+                  "time_zone": {
+                    "description": "Default is set to UTC if not provided",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "business_id"
+                ],
+                "type": "object"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/platform/v1/scheduling/bookings/cancel": {
+      "post": {
+        "description": "## Overview\nCancel booking Available for **Staff, App, Directory, and Client tokens**.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data": {
+                    "booking": {
+                      "business_id": "2a244fc4f6edcad7",
+                      "client_id": "i1srcak1820zi7yr",
+                      "conversation_id": "lcfnf1pag6itpwlf",
+                      "created_at": "2020-01-19T07:44:21Z",
+                      "duration": 60,
+                      "event_instance_id": "a8ma2ephjfvwnvy7 (only for event)",
+                      "id": "q85mz0l11b7e0u2j",
+                      "source_data": {
+                        "campaign": null,
+                        "channel": "",
+                        "name": "client_portal",
+                        "website_url": null
+                      },
+                      "staff_id": "652fe81f2e369b1b",
+                      "start_time": "2025-08-07T01:56:21.059-05:00",
+                      "status": "cancelled",
+                      "time_zone": "UTC",
+                      "title": "Imm + free",
+                      "type": "appointment/event"
+                    }
+                  },
+                  "status": "OK"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Cancel a Booking [Alpha]",
+        "tags": [
+          "Bookings"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "responses": {
+            "default": {
+              "statusCode": "201"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///platform/v1/scheduling/bookings/cancel"
+        },
+        "x-auth-type": "Application & Application User",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "booking_id": {
+                    "description": "Booking (appointment/event) uid. Can be obtained from:\n- `GET /platform/v1/scheduling/bookings` (requires Client token)\n- `GET /platform/v1/scheduling/appointments` (returns `id` field which is the booking_id)\n- Response from `POST /platform/v1/scheduling/bookings` (returns `data.booking.id`)",
+                    "type": "string",
+                    "x-reference-to": "booking"
+                  },
+                  "business_id": {
+                    "description": "Business uid",
+                    "type": "string",
+                    "x-reference-to": "business"
+                  },
+                  "event_instance_id": {
+                    "description": "Event instance uid. Required only for cancelling event registrations (not appointments).",
+                    "type": "string",
+                    "x-reference-to": "event_instance"
+                  }
+                },
+                "required": [
+                  "business_id",
+                  "booking_id"
+                ],
+                "type": "object"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/platform/v1/scheduling/bookings/{booking_uid}/update_rsvp_state": {
+      "put": {
+        "description": "## Overview\nUpdate RSVP state for a booking. Available for **Client tokens** only.\n\n## Required Parameters\n- `booking_uid` (path): The booking UID\n- `new_rsvp_state` (query): Valid values: 'confirmed', 'cancelled', 'pending'\n- `appointment_type` (body): 'appointment', 'event_instance', or 'event_attendance'\n- `business_id` (body): The business UID",
+        "parameters": [
+          {
+            "description": "Booking UID",
+            "in": "path",
+            "name": "booking_uid",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "New RSVP State. 'confirmed' is the only valid option. any other state is forbidden (return 403)",
+            "in": "query",
+            "name": "new_rsvp_state",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data": {
+                    "booking": {
+                      "approval_mode": "immediate",
+                      "category_name": null,
+                      "charge_type": "no_price",
+                      "client_id": "9ni8maitv3m5d46z",
+                      "conversation_id": "23pidd58zeesla4j",
+                      "currency": "ILS",
+                      "depth": "deep",
+                      "description": null,
+                      "duration": 60,
+                      "end_time": "2025-08-07T02:56:22.469-05:00",
+                      "image_url": "",
+                      "interaction_details": "Denver, CO, USA",
+                      "interaction_type": "business_location",
+                      "invoice_payment_status_uid": null,
+                      "invoices": [],
+                      "is_recurring": true,
+                      "no_show": false,
+                      "notes": "",
+                      "payable": false,
+                      "payment": null,
+                      "payment_id": null,
+                      "payment_status": null,
+                      "policies": {
+                        "cancellation": {
+                          "can_cancel": true,
+                          "can_cancel_now": true,
+                          "time_limit": 0
+                        },
+                        "meetings": {
+                          "meetings_policy": ""
+                        },
+                        "rescheduling": {
+                          "can_reschedule": true,
+                          "can_reschedule_now": true,
+                          "time_limit": 0
+                        }
+                      },
+                      "price": "0.0",
+                      "recurrence_description": "Daily (4 times)",
+                      "rsvp_required": false,
+                      "rsvp_state": "confirmed",
+                      "series_id": "vr40xtqf6qecdbft",
+                      "service_id": "om30w1mj75dvvnja",
+                      "source_data": {
+                        "campaign": null,
+                        "channel": null,
+                        "id": 1412199,
+                        "name": "initiated_by_staff",
+                        "website_url": null
+                      },
+                      "staff_id": "56f088bd289b1c51",
+                      "staff_name": "staff name",
+                      "start_time": "2025-08-07T01:56:22.469-05:00",
+                      "state": "scheduled",
+                      "suggested_times": [],
+                      "suggested_times_end": [],
+                      "time_zone": "(GMT+02:00) Jerusalem",
+                      "title": "Service Without Payment",
+                      "type": "appointment",
+                      "uid": "g90kratlmu1n9w9i"
+                    }
+                  },
+                  "status": "OK"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Update RSVP state",
+        "tags": [
+          "Bookings"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "PUT",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///platform/v1/scheduling/bookings/{booking_uid}/update_rsvp_state"
+        },
+        "x-auth-type": "Application & Application User",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "appointment_type": {
+                    "description": "Three types are valid. 'appointment', 'event_instance' or 'event_attendance'",
+                    "type": "string"
+                  },
+                  "business_id": {
+                    "description": "Business UID",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "business_id",
+                  "appointment_type"
+                ],
+                "type": "object"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/platform/v1/api/v2/event_instances/{event_instance_id}/event_attendances/{id}": {
+      "get": {
+        "description": "## Overview\nGet Event attendance details for a specific attendee of an event instance.\n\nAvailable for **Staff and App tokens**.\n\n## Path Parameters\nNote: The path uses `/api/v2/` prefix, not `/platform/v1/scheduling/`.",
+        "parameters": [
+          {
+            "description": "Event instance UID. Obtain from event listing or event creation response.",
+            "in": "path",
+            "name": "event_instance_id",
+            "required": true,
+            "x-reference-to": "event_instance",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Event attendance UID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "x-reference-to": "event_attendance",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data": {
+                    "event_attendance": {
+                      "cancelled_by": {},
+                      "charge_type": null,
+                      "client": {
+                        "address": null,
+                        "client_type": null,
+                        "color_id": 24,
+                        "created_at": "2025-08-05T06:56:38.860Z",
+                        "created_at_h": "Aug 05",
+                        "demo": false,
+                        "depth": "shallow",
+                        "email": "wesley@baumbach.biz",
+                        "first_name": "Clement",
+                        "full_name": "Clement Macejkovic",
+                        "last_name": "Macejkovic",
+                        "phone_to_call": null,
+                        "phone_to_display": null,
+                        "photo_path": null,
+                        "typed_custom_fields": null,
+                        "uid": "bw3s8k1q1qfcr1a3"
+                      },
+                      "conversation_uid": "gjnfyiyt6cdqu7oa",
+                      "created_at": "2025-08-05T06:56:39.373Z",
+                      "created_at_h": "6:56 am",
+                      "currency": null,
+                      "description": null,
+                      "duration": 30,
+                      "event_instance_duration": 30,
+                      "event_instance_staff_uid": "51092935d2f5a893",
+                      "event_instance_state": "scheduled",
+                      "event_instance_uid": "k1q95otq34mj35w1",
+                      "event_series_attendance_id": null,
+                      "event_service_uid": null,
+                      "event_title": "Down-sized hybrid challenge",
+                      "first_message_text": null,
+                      "id": "wt9x82ydrkxjpgxa",
+                      "image_url": "",
+                      "matter": {
+                        "display_name": null,
+                        "uid": "gjnfyiyt6cdqu7oa"
+                      },
+                      "net_price": "0.0",
+                      "no_show": false,
+                      "payment": null,
+                      "payment_state": "",
+                      "payment_status": null,
+                      "price": "0.0",
+                      "price_h": null,
+                      "request_data": null,
+                      "rsvp_confirmation_date_h": null,
+                      "rsvp_state": null,
+                      "source": "initiated_by_staff",
+                      "start_time": "2025-08-11T06:00:00.000Z",
+                      "start_time_h": "Mon, August 11 at 6:00am",
+                      "state_summary": {
+                        "actions": [
+                          {
+                            "name": "invite",
+                            "name_h": "translation missing: en.event_attendance.actions.invite"
+                          },
+                          {
+                            "name": "cancel",
+                            "name_h": "Cancel"
+                          },
+                          {
+                            "name": "cancel_event",
+                            "name_h": "translation missing: en.event_attendance.actions.cancel_event"
+                          },
+                          {
+                            "name": "toggle_no_show",
+                            "name_h": "translation missing: en.event_attendance.actions.toggle_no_show"
+                          }
+                        ],
+                        "calendar_state": "translation missing: en.event_attendance.state.confirmed.calendar",
+                        "description": "Attendance confirmed",
+                        "state": "confirmed",
+                        "state_h": "Registered"
+                      },
+                      "taxes": [],
+                      "type": "event",
+                      "uid": "wt9x82ydrkxjpgxa"
+                    }
+                  },
+                  "status": "OK"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get Event Attendance",
+        "tags": [
+          "Event Attendances"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "GET",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///api/v2/event_instances/{event_instance_id}/event_attendances/{id}"
+        },
+        "x-auth-type": "Application & Application User",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/platform/v1/scheduling/event_instance/{event_instance_id}": {
+      "get": {
+        "description": "## Overview\nGet Event Instance Details.",
+        "parameters": [
+          {
+            "description": "The id of the event instance",
+            "in": "path",
+            "name": "event_instance_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data": {
+                    "event_instance": {
+                      "charge_type": "paid",
+                      "currency": "USD",
+                      "duration": 60,
+                      "end_time": "2020-06-08T22:00:00.000Z",
+                      "interaction_details": "Tel Aviv, Israel",
+                      "interaction_type": "business_location",
+                      "price": "10.0",
+                      "service_id": "d37paicvkb4u8taf",
+                      "staff_id": "36ri3mtnk53zpfkc",
+                      "start_time": "2020-06-08T21:00:00.000Z",
+                      "state": "scheduled",
+                      "title": "Event require pay",
+                      "uid": "gmy6c6keyo2mmnaa"
+                    }
+                  },
+                  "status": "OK"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get Event Instance",
+        "tags": [
+          "Event Instance"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "GET",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///platform/v1/scheduling/event_instance/{event_instance_id}"
+        },
+        "x-auth-type": "Application & Application User",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/platform/v1/scheduling/waitlist": {
+      "post": {
+        "description": "## Overview\nJoin an event waitlist. Available for **Staff, App, Directory, and Client tokens**.\n\n## Client Identification\nClient tokens: The client is identified from the token.\nStaff/App/Directory tokens: Must provide `client_id` to identify which client to add to the waitlist.\n\n## Note\nValidation errors may return dynamic form field IDs. To get the form field definitions, call `GET /platform/v1/forms?business_id={business_id}&form_type=scheduling&service_uid={event_service_id}`.",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data": {
+                    "waitlist": {
+                      "client_id": 7203,
+                      "created_at": "2021-09-09T10:38:15.962+03:00",
+                      "entity_id": 664,
+                      "entity_type": "EventInstance",
+                      "event_instance_uid": "49rytay9lggliv5f",
+                      "initiator": "client",
+                      "matter": {
+                        "display_name": "AddedClient6",
+                        "uid": "rh3bl5x5ksjlikbh"
+                      },
+                      "source_id": 8012,
+                      "spot": 6,
+                      "staff_uid": "91g1yq1uzbypf5wx",
+                      "start_time_h": "Thu, September 16 at 2:00pm",
+                      "state_summary": {
+                        "state": "pending",
+                        "state_h": "Pending"
+                      },
+                      "status": "pending",
+                      "title": "Demo class / event",
+                      "type": "waitlist",
+                      "uid": "kqzp5epsr2wr90pn",
+                      "where_h": "Modiin, Israel"
+                    }
+                  },
+                  "status": "OK"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Failure",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": "Invalid staff",
+                  "status": "Error"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Create event Waitlist",
+        "tags": [
+          "Bookings"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "responses": {
+            "default": {
+              "statusCode": "201"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///platform/v1/scheduling/waitlist"
+        },
+        "x-auth-type": "Application & Application User",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "business_id": {
+                    "description": "Business UID. Required.",
+                    "type": "string",
+                    "x-reference-to": "business"
+                  },
+                  "channel": {
+                    "description": "Source channel for tracking.",
+                    "type": "string"
+                  },
+                  "client_id": {
+                    "description": "Client UID. Required for Staff/App/Directory tokens.",
+                    "type": "string",
+                    "x-reference-to": "client"
+                  },
+                  "event_instance_id": {
+                    "description": "Event instance UID. Required - identifies which event to join the waitlist for.",
+                    "type": "string",
+                    "x-reference-to": "event_instance"
+                  },
+                  "matter_uid": {
+                    "description": "Matter/conversation UID to associate with this waitlist entry.",
+                    "type": "string",
+                    "x-reference-to": "matter"
+                  },
+                  "source_name": {
+                    "description": "Source name for tracking (e.g., 'client_portal', 'api').",
+                    "type": "string"
+                  },
+                  "source_url": {
+                    "description": "Source URL for tracking.",
+                    "type": "string"
+                  },
+                  "time_zone": {
+                    "description": "Time zone for the waitlist entry.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "business_id",
+                  "event_instance_id"
+                ],
+                "type": "object"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/platform/v1/scheduling/waitlist/cancel": {
+      "put": {
+        "description": "## Overview\nCancel a waitlist registration. Available for **Staff, App, Directory, and Client tokens**.\n\n## Required Field Combinations\n- **Always required**: `business_uid`\n- **For events**: Add `event_instance_uid`\n- **To identify client** (Staff/App/Directory tokens): Add `client_uid` or `matter_uid`\n\n## Client Identification\n- **Client tokens**: The client is identified from the token.\n- **Staff/App/Directory tokens**: Must provide `client_uid` or `matter_uid` to identify which client's waitlist entry to cancel.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data": {
+                    "waitlist": {
+                      "client_id": 7192,
+                      "created_at": "2021-08-24T14:46:42.355Z",
+                      "entity_id": 664,
+                      "entity_type": "EventInstance",
+                      "event_instance_uid": "a8ma2ephjfvwnvy7",
+                      "initiator": "client",
+                      "matter": {
+                        "display_name": "Tatto ",
+                        "uid": "4s7p4tecdnq5g9ae"
+                      },
+                      "source_id": 7945,
+                      "spot": 1,
+                      "staff_uid": "91g1yq1uzbypf5wx",
+                      "start_time_h": "Thu, September 16 at 11:00am",
+                      "state_summary": {
+                        "state": "cancelled",
+                        "state_h": "Cancelled"
+                      },
+                      "status": "cancelled",
+                      "title": "Demo class / event",
+                      "type": "waitlist",
+                      "uid": "0noit00aqikuq3n8",
+                      "where_h": "Modiin, Israel"
+                    }
+                  },
+                  "status": "OK"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Cancel a Waitlist registration",
+        "tags": [
+          "Bookings"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "PUT",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///platform/v1/scheduling/waitlist/cancel"
+        },
+        "x-auth-type": "Application & Application User",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "business_uid": {
+                    "description": "Business UID. Required.",
+                    "type": "string",
+                    "x-reference-to": "business"
+                  },
+                  "client_uid": {
+                    "description": "Client UID. Required for Staff/App/Directory tokens.",
+                    "type": "string",
+                    "x-reference-to": "client"
+                  },
+                  "event_instance_uid": {
+                    "description": "Event instance UID. Required - identifies which event's waitlist to cancel from.",
+                    "type": "string",
+                    "x-reference-to": "event_instance"
+                  },
+                  "matter_uid": {
+                    "description": "Matter/conversation UID associated with the waitlist entry.",
+                    "type": "string",
+                    "x-reference-to": "matter"
+                  }
+                },
+                "required": [
+                  "business_uid",
+                  "event_instance_uid"
+                ],
+                "type": "object"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/scheduling/business_availabilities": {
+      "get": {
+        "summary": "Get all BusinessAvailabilities",
+        "description": "## Overview\nReturns available booking slots for all businesses in your directory with pagination support. This endpoint is useful for building marketplace-style booking interfaces.\n\nAvailable for **Directory tokens** only.",
+        "tags": [
+          "Business Availability"
+        ],
+        "parameters": [
+          {
+            "name": "date_start",
+            "in": "query",
+            "required": true,
+            "description": "Start date in YYYY-MM-DD format",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "example": "2025-01-20"
+          },
+          {
+            "name": "date_end",
+            "in": "query",
+            "required": true,
+            "description": "End date in YYYY-MM-DD format. Maximum 7 days from date_start.",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "example": "2025-01-27"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Page number for pagination (0-based)",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            },
+            "example": 0
+          },
+          {
+            "name": "per_page",
+            "required": false,
+            "in": "query",
+            "description": "Number of items per page. Maximum 10.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10,
+              "default": 10
+            },
+            "example": 10
+          },
+          {
+            "name": "scheduling_enabled",
+            "in": "query",
+            "required": false,
+            "description": "Filter by online scheduling status. When true (default), only returns businesses with online scheduling enabled. Set to false to include businesses with scheduling disabled.",
+            "schema": {
+              "type": "boolean",
+              "default": true
+            },
+            "example": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "BusinessAvailabilities retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/BusinessAvailabilityList"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request parameters - date range exceeds 7 days or invalid date format"
+          },
+          "401": {
+            "description": "Unauthorized - missing or invalid token"
+          },
+          "403": {
+            "description": "Forbidden - only Directory tokens can access this endpoint"
+          },
+          "404": {
+            "description": "Directory not found"
+          },
+          "429": {
+            "description": "Too Many Requests - another request is currently processing for this directory. Please retry after a few seconds."
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       }
     },
     "/v3/scheduling/resource_types": {
@@ -2878,207 +4373,6 @@
         ]
       }
     },
-    "/v3/scheduling/business_availabilities/{business_uid}": {
-      "get": {
-        "summary": "Get BusinessAvailability",
-        "description": "## Overview\nReturns available booking slots for a single business. This is useful for checking when a specific business can accept appointments.",
-        "tags": [
-          "Business Availability"
-        ],
-        "parameters": [
-          {
-            "name": "business_uid",
-            "in": "path",
-            "required": true,
-            "description": "Unique identifier of the business",
-            "schema": {
-              "type": "string"
-            },
-            "example": "d290f1ee-6c54-4b01-90e6-d701748f0851"
-          },
-          {
-            "name": "date_start",
-            "in": "query",
-            "required": true,
-            "description": "Start date in YYYY-MM-DD format",
-            "schema": {
-              "type": "string",
-              "format": "date"
-            },
-            "example": "2025-01-20"
-          },
-          {
-            "name": "date_end",
-            "in": "query",
-            "required": true,
-            "description": "End date in YYYY-MM-DD format. Maximum 7 days from date_start.",
-            "schema": {
-              "type": "string",
-              "format": "date"
-            },
-            "example": "2025-01-27"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Business availability retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/businessAvailability.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request parameters - date range exceeds 7 days or invalid date format"
-          },
-          "401": {
-            "description": "Unauthorized - missing or invalid token"
-          },
-          "403": {
-            "description": "Forbidden - only Directory tokens can access this endpoint"
-          },
-          "404": {
-            "description": "Business not found or not in your directory"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/scheduling/business_availabilities": {
-      "get": {
-        "summary": "Get all BusinessAvailabilities",
-        "description": "## Overview\nReturns available booking slots for all businesses in your directory with pagination support. This endpoint is useful for building marketplace-style booking interfaces.",
-        "tags": [
-          "Business Availability"
-        ],
-        "parameters": [
-          {
-            "name": "date_start",
-            "in": "query",
-            "required": true,
-            "description": "Start date in YYYY-MM-DD format",
-            "schema": {
-              "type": "string",
-              "format": "date"
-            },
-            "example": "2025-01-20"
-          },
-          {
-            "name": "date_end",
-            "in": "query",
-            "required": true,
-            "description": "End date in YYYY-MM-DD format. Maximum 7 days from date_start.",
-            "schema": {
-              "type": "string",
-              "format": "date"
-            },
-            "example": "2025-01-27"
-          },
-          {
-            "name": "page",
-            "in": "query",
-            "required": false,
-            "description": "Page number for pagination (0-based)",
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "default": 0
-            },
-            "example": 0
-          },
-          {
-            "name": "per_page",
-            "required": false,
-            "in": "query",
-            "description": "Number of items per page. Capped at maximum value.",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100,
-              "default": 25
-            },
-            "example": 25
-          },
-          {
-            "name": "scheduling_enabled",
-            "in": "query",
-            "required": false,
-            "description": "Filter by online scheduling status. When true (default), only returns businesses with online scheduling enabled. Set to false to include businesses with scheduling disabled.",
-            "schema": {
-              "type": "boolean",
-              "default": true
-            },
-            "example": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "BusinessAvailabilities retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/BusinessAvailabilityList"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request parameters - date range exceeds 7 days or invalid date format"
-          },
-          "401": {
-            "description": "Unauthorized - missing or invalid token"
-          },
-          "403": {
-            "description": "Forbidden - only Directory tokens can access this endpoint"
-          },
-          "404": {
-            "description": "Directory not found"
-          },
-          "429": {
-            "description": "Too Many Requests - another request is currently processing for this directory. Please retry after a few seconds."
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
     "/v3/scheduling/availability_slots": {
       "get": {
         "summary": "Get all AvailabilitySlots",
@@ -3236,1177 +4530,6 @@
           }
         ]
       }
-    },
-    "/platform/v1/scheduling/appointments": {
-      "get": {
-        "description": "## Overview\nRetrieves a paginated list of appointments for the business. Supports filtering by client, appointment state, and sorting.",
-        "parameters": [
-          {
-            "description": "Business ID (optional)",
-            "in": "query",
-            "name": "business_id",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Client ID Filter",
-            "in": "query",
-            "name": "client_id",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "State Filter - rejected/scheduled/done/cancelled/pending_reschedule/reschedule e.g state=done,rejected",
-            "in": "query",
-            "name": "state",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Multiple order by option - updated:DESC,start_at:ASC,created:DESC",
-            "in": "query",
-            "name": "sort",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Page number of results. Default: 1",
-            "in": "query",
-            "name": "page",
-            "required": false,
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "description": "How many items to return per page. Default: 25. Max: 100",
-            "in": "query",
-            "name": "per_page",
-            "required": false,
-            "schema": {
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "example": {
-                  "data": {
-                    "appointments": [
-                      {
-                        "approval_mode": null,
-                        "business_uid": "104a5664c3663a8d",
-                        "category_name": null,
-                        "charge_type": "no_price",
-                        "client_color_id": 0,
-                        "client_first_name": "Deeanna",
-                        "client_id": "xvl55kzldujkar76",
-                        "client_last_name": "Rice",
-                        "conversation_id": "c7g4pvubtj84j6b5",
-                        "created_at": "2025-08-05T06:56:16.020Z",
-                        "currency": null,
-                        "duration": 30,
-                        "end_time": "2025-08-11T06:30:00.000Z",
-                        "id": "e7j16p8hrgacto4g",
-                        "image_url": "",
-                        "initiator": null,
-                        "interaction_details": "consequuntur",
-                        "interaction_type": "client_location",
-                        "is_recurring": false,
-                        "linked_booking_uid": null,
-                        "no_show": false,
-                        "notes": null,
-                        "optional_times": [],
-                        "payment_id": null,
-                        "payment_status": null,
-                        "price": "0.0",
-                        "series_id": null,
-                        "series_instance_count": null,
-                        "service_id": "vxolrre9o6ob92ee",
-                        "staff_display_name": "Britt Bogan",
-                        "staff_id": "9a33fc142dbb67f3",
-                        "staff_image": null,
-                        "start_time": "2025-08-11T06:00:00.000Z",
-                        "state": "scheduled",
-                        "title": "Advanced didactic portal",
-                        "type": "appointment",
-                        "updated_at": "2025-08-05T06:56:16.020Z"
-                      }
-                    ],
-                    "next_page": null
-                  },
-                  "status": "OK"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "default": [
-              "platform"
-            ]
-          }
-        ],
-        "summary": "Get Appointments List",
-        "tags": [
-          "Appointments"
-        ],
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-amazon-apigateway-integration": {
-          "httpMethod": "GET",
-          "responses": {
-            "default": {
-              "statusCode": "200"
-            }
-          },
-          "type": "http_proxy",
-          "uri": "https:///platform/v1/scheduling/appointments"
-        },
-        "x-auth-type": "Application & Application User"
-      }
-    },
-    "/platform/v1/scheduling/appointments/{appointment_id}": {
-      "get": {
-        "description": "## Overview\nGet appointment.",
-        "parameters": [
-          {
-            "description": "Appointment id",
-            "in": "path",
-            "name": "appointment_id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "example": {
-                  "data": {
-                    "appointment": {
-                      "approval_mode": null,
-                      "auto_follow_up_hours": 0,
-                      "business_uid": "104a5664c3663a8d",
-                      "category_name": null,
-                      "charge_type": "no_price",
-                      "client_color_id": 0,
-                      "client_first_name": "Deeanna",
-                      "client_id": "xvl55kzldujkar76",
-                      "client_last_name": "Rice",
-                      "conversation_id": "c7g4pvubtj84j6b5",
-                      "coupon": null,
-                      "created_at": "2025-08-05T06:56:16.020Z",
-                      "currency": null,
-                      "duration": 30,
-                      "end_time": "2025-08-11T06:30:00.000Z",
-                      "id": "e7j16p8hrgacto4g",
-                      "state": "scheduled",
-                      "title": "Advanced didactic portal",
-                      "type": "appointment",
-                      "updated_at": "2025-08-05T06:56:16.020Z"
-                    }
-                  },
-                  "status": "OK"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "default": [
-              "platform"
-            ]
-          }
-        ],
-        "summary": "Get Appointment",
-        "tags": [
-          "Appointments"
-        ],
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-amazon-apigateway-integration": {
-          "httpMethod": "GET",
-          "responses": {
-            "default": {
-              "statusCode": "200"
-            }
-          },
-          "type": "http_proxy",
-          "uri": "https:///platform/v1/scheduling/appointments/{appointment_id}"
-        },
-        "x-auth-type": "Application & Application User"
-      }
-    },
-    "/platform/v1/scheduling/bookings": {
-      "get": {
-        "description": "## Overview\nGet bookings of client.",
-        "parameters": [
-          {
-            "description": "Maximum number of records which are returned for the request",
-            "in": "query",
-            "name": "per_page",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "First record's index in the returned list (e.g. per_page = 10, offset = 1, reords 11 to 20 are returned)",
-            "in": "query",
-            "name": "offset",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Business UID",
-            "in": "query",
-            "name": "business_id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Matter UID",
-            "in": "query",
-            "name": "matter_uid",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "If equals to true, returns records from the past only. Otherwise, returns future bookings as well.",
-            "in": "query",
-            "name": "passed",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Relevant to recurring appointment/event, returns appointment/event attendance which their start_time is bigger than this parameter",
-            "in": "query",
-            "name": "start_time",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Relevant to recurring appointment/event, returns appointment/event attendance which their start_time is smaller than this parameter",
-            "in": "query",
-            "name": "end_time",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "example": {
-                  "data": {
-                    "bookings": [
-                      {
-                        "approval_mode": "immediate",
-                        "category_name": null,
-                        "charge_type": "no_price",
-                        "client_id": "3zashrlha0cwvnoz",
-                        "conversation_id": "kehqoc1jkgooe0ft",
-                        "currency": "ILS",
-                        "depth": "deep",
-                        "description": null,
-                        "duration": 60,
-                        "end_time": "2025-08-07T02:56:21.751-05:00",
-                        "image_url": "",
-                        "interaction_details": "Denver, CO, USA",
-                        "interaction_type": "business_location",
-                        "title": "Appointment 1",
-                        "type": "appointment",
-                        "uid": "wpyygjkyu0jca08e"
-                      }
-                    ]
-                  },
-                  "status": "OK"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "default": [
-              "platform"
-            ]
-          }
-        ],
-        "summary": "Get Bookings [Alpha] ",
-        "tags": [
-          "Bookings"
-        ],
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-amazon-apigateway-integration": {
-          "httpMethod": "GET",
-          "responses": {
-            "default": {
-              "statusCode": "200"
-            }
-          },
-          "type": "http_proxy",
-          "uri": "https:///platform/v1/scheduling/bookings"
-        },
-        "x-auth-type": "Application & Application User"
-      },
-      "post": {
-        "description": "## Overview\nCreates a booking for either an appointment with a staff member or registration for a group event.",
-        "parameters": [],
-        "responses": {
-          "201": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "example": {
-                  "data": {
-                    "booking": {
-                      "business_id": "e62db14aa58c7675",
-                      "client_id": "1kfvtps4a4wlh3lc",
-                      "conversation_id": "ugd2qqidl75wrto6",
-                      "created_at": "2020-01-19T07:44:21Z",
-                      "duration": 60,
-                      "event_instance_id": "a8ma2ephjfvwnvy7 (only for event)",
-                      "id": "v8mvcenb8y3wej2n",
-                      "service_id": "mxmuh2mewjxe9vip",
-                      "source_data": {
-                        "campaign": null,
-                        "channel": "",
-                        "name": "client_portal",
-                        "website_url": null
-                      },
-                      "staff_id": "mg9d91uh92bclwzg",
-                      "start_time": "2020-01-22T13:00:00Z",
-                      "status": "scheduled",
-                      "time_zone": "UTC",
-                      "title": "Imm + free",
-                      "type": "appointment/event"
-                    }
-                  },
-                  "status": "OK"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Failure",
-            "content": {
-              "application/json": {
-                "example": {
-                  "error": "error text",
-                  "error_code": "TIMESLOT_UNAVAILABLE/ALREADY_REGISTERED",
-                  "status": "Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "default": [
-              "platform"
-            ]
-          }
-        ],
-        "summary": "Create New Booking [Alpha]",
-        "tags": [
-          "Bookings"
-        ],
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-amazon-apigateway-integration": {
-          "httpMethod": "POST",
-          "responses": {
-            "default": {
-              "statusCode": "201"
-            }
-          },
-          "type": "http_proxy",
-          "uri": "https:///platform/v1/scheduling/bookings"
-        },
-        "x-auth-type": "Application & Application User",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "properties": {
-                  "business_id": {
-                    "description": "Business uid",
-                    "type": "string"
-                  },
-                  "campaign": {
-                    "description": "Source campaign",
-                    "type": "string"
-                  },
-                  "channel": {
-                    "description": "Source channel",
-                    "type": "string"
-                  },
-                  "client_id": {
-                    "description": "Client uid",
-                    "type": "string"
-                  },
-                  "event_instance_id": {
-                    "description": "Event instance uid. Required for event.",
-                    "type": "string"
-                  },
-                  "form_data": {
-                    "description": "When specifying a service location as either \"Client will set the address at booking\" or \"you will call the client,\" it is required to include the form_data with meeting_interaction_details inside meeting_details",
-                    "type": "object"
-                  },
-                  "matter_uid": {
-                    "description": "Matter uid",
-                    "type": "string"
-                  },
-                  "portal_id": {
-                    "description": "Business uid",
-                    "type": "string"
-                  },
-                  "service_id": {
-                    "description": "Service uid. Required for appointment.",
-                    "type": "string"
-                  },
-                  "source_name": {
-                    "description": "Source name",
-                    "type": "string"
-                  },
-                  "source_url": {
-                    "description": "Source URL",
-                    "type": "string"
-                  },
-                  "staff_id": {
-                    "description": "Staff uid. Required for appointment.",
-                    "type": "string"
-                  },
-                  "start_time": {
-                    "description": "ISO 8601 format. Required for appointment.",
-                    "type": "string"
-                  },
-                  "time_zone": {
-                    "description": "Default is set to UTC if not provided",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "business_id"
-                ],
-                "type": "object"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/platform/v1/scheduling/bookings/cancel": {
-      "post": {
-        "description": "## Overview\nCancel booking Available for **Staff, App, Directory, and Client tokens**.",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "example": {
-                  "data": {
-                    "booking": {
-                      "business_id": "2a244fc4f6edcad7",
-                      "client_id": "i1srcak1820zi7yr",
-                      "conversation_id": "lcfnf1pag6itpwlf",
-                      "created_at": "2020-01-19T07:44:21Z",
-                      "duration": 60,
-                      "event_instance_id": "a8ma2ephjfvwnvy7 (only for event)",
-                      "id": "q85mz0l11b7e0u2j",
-                      "source_data": {
-                        "campaign": null,
-                        "channel": "",
-                        "name": "client_portal",
-                        "website_url": null
-                      },
-                      "staff_id": "652fe81f2e369b1b",
-                      "start_time": "2025-08-07T01:56:21.059-05:00",
-                      "status": "cancelled",
-                      "time_zone": "UTC",
-                      "title": "Imm + free",
-                      "type": "appointment/event"
-                    }
-                  },
-                  "status": "OK"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "default": [
-              "platform"
-            ]
-          }
-        ],
-        "summary": "Cancel a Booking [Alpha]",
-        "tags": [
-          "Bookings"
-        ],
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-amazon-apigateway-integration": {
-          "httpMethod": "POST",
-          "responses": {
-            "default": {
-              "statusCode": "201"
-            }
-          },
-          "type": "http_proxy",
-          "uri": "https:///platform/v1/scheduling/bookings/cancel"
-        },
-        "x-auth-type": "Application & Application User",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "properties": {
-                  "booking_id": {
-                    "description": "Booking (appointment/event) uid",
-                    "type": "string"
-                  },
-                  "business_id": {
-                    "description": "Business uid",
-                    "type": "string"
-                  },
-                  "event_instance_id": {
-                    "description": "Event instance uid. Required for event.",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "business_id",
-                  "booking_id"
-                ],
-                "type": "object"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/platform/v1/scheduling/bookings/{booking_uid}/update_rsvp_state": {
-      "put": {
-        "description": "## Overview\nUpdate RSVP state Available for **Staff, App, Directory, and Client tokens**.",
-        "parameters": [
-          {
-            "description": "Booking UID",
-            "in": "path",
-            "name": "booking_uid",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "New RSVP State. 'confirmed' is the only valid option. any other state is forbidden (return 403)",
-            "in": "query",
-            "name": "new_rsvp_state",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "example": {
-                  "data": {
-                    "booking": {
-                      "approval_mode": "immediate",
-                      "category_name": null,
-                      "charge_type": "no_price",
-                      "client_id": "9ni8maitv3m5d46z",
-                      "conversation_id": "23pidd58zeesla4j",
-                      "currency": "ILS",
-                      "depth": "deep",
-                      "description": null,
-                      "duration": 60,
-                      "end_time": "2025-08-07T02:56:22.469-05:00",
-                      "image_url": "",
-                      "interaction_details": "Denver, CO, USA",
-                      "interaction_type": "business_location",
-                      "invoice_payment_status_uid": null,
-                      "invoices": [],
-                      "is_recurring": true,
-                      "no_show": false,
-                      "notes": "",
-                      "payable": false,
-                      "payment": null,
-                      "payment_id": null,
-                      "payment_status": null,
-                      "policies": {
-                        "cancellation": {
-                          "can_cancel": true,
-                          "can_cancel_now": true,
-                          "time_limit": 0
-                        },
-                        "meetings": {
-                          "meetings_policy": ""
-                        },
-                        "rescheduling": {
-                          "can_reschedule": true,
-                          "can_reschedule_now": true,
-                          "time_limit": 0
-                        }
-                      },
-                      "price": "0.0",
-                      "recurrence_description": "Daily (4 times)",
-                      "rsvp_required": false,
-                      "rsvp_state": "confirmed",
-                      "series_id": "vr40xtqf6qecdbft",
-                      "service_id": "om30w1mj75dvvnja",
-                      "source_data": {
-                        "campaign": null,
-                        "channel": null,
-                        "id": 1412199,
-                        "name": "initiated_by_staff",
-                        "website_url": null
-                      },
-                      "staff_id": "56f088bd289b1c51",
-                      "staff_name": "staff name",
-                      "start_time": "2025-08-07T01:56:22.469-05:00",
-                      "state": "scheduled",
-                      "suggested_times": [],
-                      "suggested_times_end": [],
-                      "time_zone": "(GMT+02:00) Jerusalem",
-                      "title": "Service Without Payment",
-                      "type": "appointment",
-                      "uid": "g90kratlmu1n9w9i"
-                    }
-                  },
-                  "status": "OK"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "default": [
-              "platform"
-            ]
-          }
-        ],
-        "summary": "Update RSVP state",
-        "tags": [
-          "Bookings"
-        ],
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-amazon-apigateway-integration": {
-          "httpMethod": "PUT",
-          "responses": {
-            "default": {
-              "statusCode": "200"
-            }
-          },
-          "type": "http_proxy",
-          "uri": "https:///platform/v1/scheduling/bookings/{booking_uid}/update_rsvp_state"
-        },
-        "x-auth-type": "Application & Application User",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "properties": {
-                  "appointment_type": {
-                    "description": "Three types are valid. 'appointment', 'event_instance' or 'event_attendance'",
-                    "type": "string"
-                  },
-                  "business_id": {
-                    "description": "Business UID",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "business_id",
-                  "appointment_type"
-                ],
-                "type": "object"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/platform/v1/scheduling/event_attendances/{event_attendance_uid}": {
-      "get": {
-        "description": "## Overview\nGet Event attendance.",
-        "parameters": [
-          {
-            "description": "Event attendance UID",
-            "in": "path",
-            "name": "event_attendance_uid",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "example": {
-                  "data": {
-                    "event_attendance": {
-                      "cancelled_by": {},
-                      "charge_type": null,
-                      "client": {
-                        "address": null,
-                        "client_type": null,
-                        "color_id": 24,
-                        "created_at": "2025-08-05T06:56:38.860Z",
-                        "created_at_h": "Aug 05",
-                        "demo": false,
-                        "depth": "shallow",
-                        "email": "wesley@baumbach.biz",
-                        "first_name": "Clement",
-                        "full_name": "Clement Macejkovic",
-                        "last_name": "Macejkovic",
-                        "phone_to_call": null,
-                        "phone_to_display": null,
-                        "photo_path": null,
-                        "typed_custom_fields": null,
-                        "uid": "bw3s8k1q1qfcr1a3"
-                      },
-                      "conversation_uid": "gjnfyiyt6cdqu7oa",
-                      "created_at": "2025-08-05T06:56:39.373Z",
-                      "created_at_h": "6:56 am",
-                      "currency": null,
-                      "description": null,
-                      "duration": 30,
-                      "event_instance_duration": 30,
-                      "event_instance_staff_uid": "51092935d2f5a893",
-                      "event_instance_state": "scheduled",
-                      "event_instance_uid": "k1q95otq34mj35w1",
-                      "event_series_attendance_id": null,
-                      "event_service_uid": null,
-                      "event_title": "Down-sized hybrid challenge",
-                      "first_message_text": null,
-                      "id": "wt9x82ydrkxjpgxa",
-                      "image_url": "",
-                      "matter": {
-                        "display_name": null,
-                        "uid": "gjnfyiyt6cdqu7oa"
-                      },
-                      "net_price": "0.0",
-                      "no_show": false,
-                      "payment": null,
-                      "payment_state": "",
-                      "payment_status": null,
-                      "price": "0.0",
-                      "price_h": null,
-                      "request_data": null,
-                      "rsvp_confirmation_date_h": null,
-                      "rsvp_state": null,
-                      "source": "initiated_by_staff",
-                      "start_time": "2025-08-11T06:00:00.000Z",
-                      "start_time_h": "Mon, August 11 at 6:00am",
-                      "state_summary": {
-                        "actions": [
-                          {
-                            "name": "invite",
-                            "name_h": "translation missing: en.event_attendance.actions.invite"
-                          },
-                          {
-                            "name": "cancel",
-                            "name_h": "Cancel"
-                          },
-                          {
-                            "name": "cancel_event",
-                            "name_h": "translation missing: en.event_attendance.actions.cancel_event"
-                          },
-                          {
-                            "name": "toggle_no_show",
-                            "name_h": "translation missing: en.event_attendance.actions.toggle_no_show"
-                          }
-                        ],
-                        "calendar_state": "translation missing: en.event_attendance.state.confirmed.calendar",
-                        "description": "Attendance confirmed",
-                        "state": "confirmed",
-                        "state_h": "Registered"
-                      },
-                      "taxes": [],
-                      "type": "event",
-                      "uid": "wt9x82ydrkxjpgxa"
-                    }
-                  },
-                  "status": "OK"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "default": [
-              "platform"
-            ]
-          }
-        ],
-        "summary": "Get Event Attendance",
-        "tags": [
-          "Event Attendances"
-        ],
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-amazon-apigateway-integration": {
-          "httpMethod": "GET",
-          "responses": {
-            "default": {
-              "statusCode": "200"
-            }
-          },
-          "type": "http_proxy",
-          "uri": "https:///platform/v1/scheduling/event_attendances/{event_attendance_uid}"
-        },
-        "x-auth-type": "Application & Application User"
-      }
-    },
-    "/platform/v1/scheduling/event_instance/{event_instance_id}": {
-      "get": {
-        "description": "## Overview\nGet Event Instance Details.",
-        "parameters": [
-          {
-            "description": "The id of the event instance",
-            "in": "path",
-            "name": "event_instance_id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "example": {
-                  "data": {
-                    "event_instance": {
-                      "charge_type": "paid",
-                      "currency": "USD",
-                      "duration": 60,
-                      "end_time": "2020-06-08T22:00:00.000Z",
-                      "interaction_details": "Tel Aviv, Israel",
-                      "interaction_type": "business_location",
-                      "price": "10.0",
-                      "service_id": "d37paicvkb4u8taf",
-                      "staff_id": "36ri3mtnk53zpfkc",
-                      "start_time": "2020-06-08T21:00:00.000Z",
-                      "state": "scheduled",
-                      "title": "Event require pay",
-                      "uid": "gmy6c6keyo2mmnaa"
-                    }
-                  },
-                  "status": "OK"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "default": [
-              "platform"
-            ]
-          }
-        ],
-        "summary": "Get Event Instance",
-        "tags": [
-          "Event Instance"
-        ],
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-amazon-apigateway-integration": {
-          "httpMethod": "GET",
-          "responses": {
-            "default": {
-              "statusCode": "200"
-            }
-          },
-          "type": "http_proxy",
-          "uri": "https:///platform/v1/scheduling/event_instance/{event_instance_id}"
-        },
-        "x-auth-type": "Application & Application User"
-      }
-    },
-    "/platform/v1/scheduling/waitlist": {
-      "post": {
-        "description": "## Overview\nCreate event Waitlist Available for **Staff, App, Directory, and Client tokens**.",
-        "parameters": [],
-        "responses": {
-          "201": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "example": {
-                  "data": {
-                    "waitlist": {
-                      "client_id": 7203,
-                      "created_at": "2021-09-09T10:38:15.962+03:00",
-                      "entity_id": 664,
-                      "entity_type": "EventInstance",
-                      "event_instance_uid": "49rytay9lggliv5f",
-                      "initiator": "client",
-                      "matter": {
-                        "display_name": "AddedClient6",
-                        "uid": "rh3bl5x5ksjlikbh"
-                      },
-                      "source_id": 8012,
-                      "spot": 6,
-                      "staff_uid": "91g1yq1uzbypf5wx",
-                      "start_time_h": "Thu, September 16 at 2:00pm",
-                      "state_summary": {
-                        "state": "pending",
-                        "state_h": "Pending"
-                      },
-                      "status": "pending",
-                      "title": "Demo class / event",
-                      "type": "waitlist",
-                      "uid": "kqzp5epsr2wr90pn",
-                      "where_h": "Modiin, Israel"
-                    }
-                  },
-                  "status": "OK"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Failure",
-            "content": {
-              "application/json": {
-                "example": {
-                  "error": "Invalid staff",
-                  "status": "Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "default": [
-              "platform"
-            ]
-          }
-        ],
-        "summary": "Create event Waitlist",
-        "tags": [
-          "Bookings"
-        ],
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-amazon-apigateway-integration": {
-          "httpMethod": "POST",
-          "responses": {
-            "default": {
-              "statusCode": "201"
-            }
-          },
-          "type": "http_proxy",
-          "uri": "https:///platform/v1/scheduling/waitlist"
-        },
-        "x-auth-type": "Application & Application User",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "properties": {
-                  "business_id": {
-                    "description": "Business Uid",
-                    "type": "string"
-                  },
-                  "channel": {
-                    "description": "Source Channel",
-                    "type": "string"
-                  },
-                  "client_id": {
-                    "description": "Client Uid",
-                    "type": "string"
-                  },
-                  "event_instance_id": {
-                    "description": "Event instance uid. Required for event.",
-                    "type": "string"
-                  },
-                  "matter_uid": {
-                    "description": "Matter Uid",
-                    "type": "string"
-                  },
-                  "source_name": {
-                    "description": "Source Name",
-                    "type": "string"
-                  },
-                  "source_url": {
-                    "description": "Source URL",
-                    "type": "string"
-                  },
-                  "time_zone": {
-                    "description": "translation missing: en.waitlist-controller.parameters.time_zone.description",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "business_id"
-                ],
-                "type": "object"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/platform/v1/scheduling/waitlist/cancel": {
-      "put": {
-        "description": "## Overview\nCancel a Waitlist registration Available for **Staff, App, Directory, and Client tokens**.",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "example": {
-                  "data": {
-                    "waitlist": {
-                      "client_id": 7192,
-                      "created_at": "2021-08-24T14:46:42.355Z",
-                      "entity_id": 664,
-                      "entity_type": "EventInstance",
-                      "event_instance_uid": "a8ma2ephjfvwnvy7",
-                      "initiator": "client",
-                      "matter": {
-                        "display_name": "Tatto ",
-                        "uid": "4s7p4tecdnq5g9ae"
-                      },
-                      "source_id": 7945,
-                      "spot": 1,
-                      "staff_uid": "91g1yq1uzbypf5wx",
-                      "start_time_h": "Thu, September 16 at 11:00am",
-                      "state_summary": {
-                        "state": "cancelled",
-                        "state_h": "Cancelled"
-                      },
-                      "status": "cancelled",
-                      "title": "Demo class / event",
-                      "type": "waitlist",
-                      "uid": "0noit00aqikuq3n8",
-                      "where_h": "Modiin, Israel"
-                    }
-                  },
-                  "status": "OK"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "default": [
-              "platform"
-            ]
-          }
-        ],
-        "summary": "Cancel a Waitlist registration",
-        "tags": [
-          "Bookings"
-        ],
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-amazon-apigateway-integration": {
-          "httpMethod": "PUT",
-          "responses": {
-            "default": {
-              "statusCode": "200"
-            }
-          },
-          "type": "http_proxy",
-          "uri": "https:///platform/v1/scheduling/waitlist/cancel"
-        },
-        "x-auth-type": "Application & Application User",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "properties": {
-                  "business_uid": {
-                    "description": "Business Uid",
-                    "type": "string"
-                  },
-                  "client_uid": {
-                    "description": "Client Uid",
-                    "type": "string"
-                  },
-                  "event_instance_uid": {
-                    "description": "Event instance uid. Required for event.",
-                    "type": "string"
-                  },
-                  "matter_uid": {
-                    "description": "Matter Uid",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "business_uid"
-                ],
-                "type": "object"
-              }
-            }
-          }
-        }
-      }
     }
   },
   "components": {
@@ -4419,6 +4542,18 @@
       }
     },
     "schemas": {
+      "BusinessAvailabilityList": {
+        "type": "object",
+        "properties": {
+          "business_availabilities": {
+            "description": "List of BusinessAvailabilities",
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/businessAvailability.json"
+            }
+          }
+        }
+      },
       "ResourcesList": {
         "type": "object",
         "properties": {
@@ -4439,18 +4574,6 @@
             "type": "array",
             "items": {
               "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/resourceType.json"
-            }
-          }
-        }
-      },
-      "BusinessAvailabilityList": {
-        "type": "object",
-        "properties": {
-          "business_availabilities": {
-            "description": "List of BusinessAvailabilities",
-            "type": "array",
-            "items": {
-              "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/businessAvailability.json"
             }
           }
         }

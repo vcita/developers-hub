@@ -2,6 +2,7 @@
 endpoint: PUT /platform/v1/payment/client_packages/cancel_redemption
 domain: sales
 tags: []
+swagger: swagger/sales/legacy/legacy_v1_sales.json
 status: success
 savedAt: 2026-01-26T15:29:29.195Z
 verifiedAt: 2026-01-26T15:29:29.195Z

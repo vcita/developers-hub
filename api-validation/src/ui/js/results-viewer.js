@@ -889,13 +889,34 @@ const ResultsViewer = {
     const request = details.request || {};
     const response = details.response || {};
     
-    // Build error list
+    // Build error list (include all errors, not just first 5)
     const errors = (details.errors || [])
-      .slice(0, 5)
       .map(e => `- ${e.path || '/'}: ${e.friendlyMessage || e.message}`)
       .join('\n');
     
-    // Build the prompt
+    // Build documentation issues list from AI agent
+    const docIssues = (healingInfo.docFixSuggestions || details.documentationIssues || [])
+      .map(d => `- **${d.field || '/'}**: ${d.issue || d.message}\n  - Suggested fix: ${d.suggested_fix || d.suggestedFix || d.suggestion || 'N/A'}${d.source_code_reference || d.sourceCodeReference ? `\n  - Source: \`${d.source_code_reference || d.sourceCodeReference}\`` : ''}`)
+      .join('\n');
+    
+    // Format request body (truncate if too large)
+    let requestBody = '';
+    if (request.body || request.data) {
+      const bodyStr = JSON.stringify(request.body || request.data, null, 2);
+      requestBody = bodyStr.length > 2000 ? bodyStr.substring(0, 2000) + '\n... [truncated]' : bodyStr;
+    }
+    
+    // Format response data (truncate if too large)
+    let responseData = '';
+    if (response.data) {
+      const dataStr = typeof response.data === 'object' ? JSON.stringify(response.data, null, 2) : response.data;
+      responseData = dataStr.length > 2000 ? dataStr.substring(0, 2000) + '\n... [truncated]' : dataStr;
+    }
+    
+    // Build agent log summary
+    const agentLogSummary = this.formatAgentLogForPrompt(healingInfo.agentLog || []);
+    
+    // Build the comprehensive prompt
     const prompt = `Create a JIRA ticket for the following API validation failure.
 
 ## Epic
@@ -912,33 +933,40 @@ Associate this ticket with epic: https://myvcita.atlassian.net/browse/VCITA2-116
 ${details.friendlyMessage || 'No details available'}
 
 ${errors ? `## Validation Errors\n${errors}\n` : ''}
+${docIssues ? `## Documentation Issues (AI-Detected)\n${docIssues}\n` : ''}
 ${details.suggestion ? `## Suggested Fix\n${details.suggestion}\n` : ''}
 ${healingInfo.attempted || healingInfo.iterations > 0 ? `## Self-Healing Attempt
 - Attempted: ${healingInfo.attempted || healingInfo.iterations > 0}
 - Iterations: ${healingInfo.iterations || 0}
+- Retries: ${healingInfo.retryCount || 0}
 - Result: ${healingInfo.summary || healingInfo.reason || 'No summary'}
 ` : ''}
 ${request.method ? `## Request Details
 - Method: ${request.method}
 - Path: ${request.path || request.url || 'N/A'}
-${request.body || request.data ? `- Body: ${JSON.stringify(request.body || request.data, null, 2)}` : ''}
+${requestBody ? `- Body:\n\`\`\`json\n${requestBody}\n\`\`\`` : ''}
 ` : ''}
 ${response.status ? `## Response Details
 - Status: ${response.status}
-- Data: ${typeof response.data === 'object' ? JSON.stringify(response.data, null, 2) : response.data || 'N/A'}
+- Data:
+\`\`\`json
+${responseData || 'N/A'}
+\`\`\`
+` : ''}
+${agentLogSummary ? `## 🤖 AI Agent Log
+${agentLogSummary}
 ` : ''}
 ## Instructions
 1. Investigate the root cause of this failure
-2. Determine if this is a documentation issue (swagger fix) or code bug
-3. If it's a documentation issue, update the swagger file
-4. If it's a code bug, fix the backend code
-5. Retest the endpoint after the fix
+2. Assume this is a documentation bug
+3. Fix either the documentation or the workflow. do not change source code.
+4. Make sure to validate your fixes with the source code
 
 ## Token Used
 ${result.tokenUsed || 'Unknown'}
 
 ## Swagger File
-${result.swaggerFile || 'Unknown'}`;
+${result.swaggerFile || result.domain || 'Unknown'}`;
 
     try {
       await navigator.clipboard.writeText(prompt);
@@ -968,6 +996,68 @@ ${result.swaggerFile || 'Unknown'}`;
   },
   
   /**
+   * Format agent log for JIRA prompt (readable summary)
+   * @param {Array} agentLog - Array of agent log entries
+   * @returns {string} Formatted log summary
+   */
+  formatAgentLogForPrompt(agentLog) {
+    if (!agentLog || agentLog.length === 0) return '';
+    
+    const lines = [];
+    
+    for (const entry of agentLog) {
+      const iteration = entry.iteration || '?';
+      
+      switch (entry.type) {
+        case 'thought':
+          // Include first 200 chars of thought
+          const thoughtText = (entry.content || '').substring(0, 200);
+          lines.push(`🔧 **Tool: \`${entry.tool}\`**`);
+          if (entry.input && Object.keys(entry.input).length > 0) {
+            const inputStr = JSON.stringify(entry.input, null, 2);
+            lines.push('```json');
+            lines.push(inputStr.length > 500 ? inputStr.substring(0, 500) + '\n...' : inputStr);
+            lines.push('```');
+          }
+          break;
+          
+        case 'tool_call':
+          lines.push(`🔧 **Tool: \`${entry.tool}\`**`);
+          if (entry.input && Object.keys(entry.input).length > 0) {
+            const inputStr = JSON.stringify(entry.input, null, 2);
+            lines.push('```json');
+            lines.push(inputStr.length > 500 ? inputStr.substring(0, 500) + '\n...' : inputStr);
+            lines.push('```');
+          }
+          break;
+          
+        case 'tool_result':
+          const resultIcon = entry.result?.success ? '✅' : '❌';
+          const httpStatus = entry.result?.status ? ` (HTTP ${entry.result.status})` : '';
+          lines.push(`${resultIcon} **Result: \`${entry.tool}\`${httpStatus}**`);
+          
+          if (entry.result) {
+            const resultStr = JSON.stringify(entry.result, null, 2);
+            lines.push('```json');
+            lines.push(resultStr.length > 800 ? resultStr.substring(0, 800) + '\n... [truncated]' : resultStr);
+            lines.push('```');
+          }
+          break;
+          
+        case 'no_action':
+          lines.push(`⚠️ **Agent Stopped:** ${entry.content || 'No action taken'}`);
+          break;
+          
+        case 'max_retries':
+          lines.push(`⛔ **Max Retries Reached** (${entry.retryCount} retries)`);
+          break;
+      }
+    }
+    
+    return lines.join('\n');
+  },
+  
+  /**
    * Copy fix documentation prompt to clipboard
    * @param {HTMLElement} button - Button element clicked
    */
@@ -983,24 +1073,39 @@ ${result.swaggerFile || 'Unknown'}`;
     }
     
     const details = result.details || {};
+    const healingInfo = details.healingInfo || {};
     const request = details.request || {};
     const response = details.response || {};
     
-    // Build error list
+    // Build error list (include all)
     const errors = (details.errors || [])
-      .slice(0, 5)
       .map(e => `- ${e.path || '/'}: ${e.friendlyMessage || e.message}`)
       .join('\n');
     
-    // Truncate response data if too long
-    let responseData = response.data;
-    if (typeof responseData === 'object') {
-      const jsonStr = JSON.stringify(responseData, null, 2);
-      responseData = jsonStr.length > 1000 ? jsonStr.substring(0, 1000) + '... [truncated]' : jsonStr;
+    // Build documentation issues list from AI agent
+    const docIssues = (healingInfo.docFixSuggestions || details.documentationIssues || [])
+      .map(d => `- **${d.field || '/'}**: ${d.issue || d.message}\n  - Suggested fix: ${d.suggested_fix || d.suggestedFix || d.suggestion || 'N/A'}${d.source_code_reference || d.sourceCodeReference ? `\n  - Source: \`${d.source_code_reference || d.sourceCodeReference}\`` : ''}`)
+      .join('\n');
+    
+    // Format request body
+    let requestBody = '';
+    if (request.body || request.data) {
+      const bodyStr = JSON.stringify(request.body || request.data, null, 2);
+      requestBody = bodyStr.length > 2000 ? bodyStr.substring(0, 2000) + '\n... [truncated]' : bodyStr;
     }
     
+    // Truncate response data if too long
+    let responseData = '';
+    if (response.data) {
+      const jsonStr = typeof response.data === 'object' ? JSON.stringify(response.data, null, 2) : response.data;
+      responseData = jsonStr.length > 2000 ? jsonStr.substring(0, 2000) + '... [truncated]' : jsonStr;
+    }
+    
+    // Build agent log summary (condensed for fix prompt)
+    const agentLogSummary = this.formatAgentLogForPrompt(healingInfo.agentLog || []);
+    
     // Build the prompt
-    const prompt = `fix this documentation error. make sure to dig deep into the code
+    const prompt = `Fix this documentation error. Make sure to dig deep into the code.
 
 ## Failure Details
 
@@ -1013,28 +1118,35 @@ ${result.swaggerFile || 'Unknown'}`;
 ${details.friendlyMessage || 'No details available'}
 
 ${errors ? `## Validation Errors\n${errors}\n` : ''}
+${docIssues ? `## Documentation Issues (AI-Detected)\n${docIssues}\n` : ''}
 ${details.suggestion ? `## Suggested Fix\n${details.suggestion}\n` : ''}
+${healingInfo.summary ? `## AI Agent Summary\n${healingInfo.summary}\n` : ''}
 ${request.method ? `## Request Details
 - Method: ${request.method}
 - Path: ${request.path || request.url || 'N/A'}
-${request.body || request.data ? `- Body: ${JSON.stringify(request.body || request.data, null, 2)}` : ''}
+${requestBody ? `- Body:\n\`\`\`json\n${requestBody}\n\`\`\`` : ''}
 ` : ''}
 ${response.status ? `## Response Details
 - Status: ${response.status}
-- Data: ${responseData || 'N/A'}
+- Data:
+\`\`\`json
+${responseData || 'N/A'}
+\`\`\`
+` : ''}
+${agentLogSummary ? `## 🤖 AI Agent Log
+${agentLogSummary}
 ` : ''}
 ## Instructions
 1. Investigate the root cause of this failure
-2. Determine if this is a documentation issue (swagger fix) or code bug
-3. If it's a documentation issue, update the swagger file
-4. If it's a code bug, fix the backend code
-5. Retest the endpoint after the fix
+2. Assume this is a documentation bug
+3. Fix either the documentation or the workflow. do not change source code.
+4. Make sure to validate your fixes with the source code
 
 ## Token Used
 ${result.tokenUsed || 'Unknown'}
 
 ## Swagger File
-${result.swaggerFile || 'Unknown'}`;
+${result.swaggerFile || result.domain || 'Unknown'}`;
 
     try {
       await navigator.clipboard.writeText(prompt);
@@ -2086,8 +2198,8 @@ ${result.swaggerFile || 'Unknown'}`;
               <td>Documentation issues for AI agent to fix</td>
             </tr>
             <tr>
-              <td><code>jira-tickets.md</code></td>
-              <td>Failed tests formatted as JIRA tickets</td>
+              <td><code>test-failures.md</code></td>
+              <td>Test failures grouped by failure reason with severity</td>
             </tr>
             <tr>
               <td><code>data.json</code></td>
@@ -2357,16 +2469,43 @@ ${result.swaggerFile || 'Unknown'}`;
       .map(e => e.friendlyMessage || e.message || e.reason)
       .join('; ');
     
+    // Build list of all errors (not just summary)
+    const allErrors = (details.errors || []).map(e => ({
+      path: e.path || '/',
+      message: e.friendlyMessage || e.message,
+      reason: e.reason,
+      keyword: e.keyword,
+      suggestion: e.suggestion
+    }));
+    
+    // Collect documentation issues from multiple sources
+    const documentationIssues = [
+      ...(healingInfo.docFixSuggestions || []),
+      ...(details.documentationIssues || [])
+    ].map(d => ({
+      field: d.field || '/',
+      issue: d.issue || d.message,
+      suggestedFix: d.suggested_fix || d.suggestedFix || d.suggestion,
+      sourceCodeReference: d.source_code_reference || d.sourceCodeReference,
+      severity: d.severity,
+      type: d.type
+    }));
+    
     return {
       endpoint: result.endpoint,
       method: result.method,
       path: result.path,
       domain: result.domain,
+      swaggerFile: result.swaggerFile || result.domain, // Fallback to domain if swagger file not set
       status: result.status,
       httpStatus: result.httpStatus,
+      tokenUsed: result.tokenUsed,
+      duration: result.duration,
       reason: details.reason,
       reasonDescription: details.friendlyMessage,
       errorSummary,
+      allErrors,
+      documentationIssues,
       suggestion: details.suggestion,
       // Healing attempt info
       healingAttempted: healingInfo.attempted || healingInfo.iterations > 0 || false,
@@ -2377,14 +2516,19 @@ ${result.swaggerFile || 'Unknown'}`;
       healingSummary: healingInfo.summary,
       // Full agent log for analysis
       agentLog: healingInfo.agentLog || [],
-      // Request/response for debugging
+      // Request/response for debugging (full objects)
       request: details.request ? {
         method: details.request.method,
+        url: details.request.url,
         path: details.request.path,
-        body: details.request.body
+        headers: details.request.headers,
+        params: details.request.params,
+        body: details.request.body,
+        data: details.request.data
       } : null,
       response: details.response ? {
         status: details.response.status,
+        headers: details.response.headers,
         data: details.response.data
       } : null
     };

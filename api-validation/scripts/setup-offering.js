@@ -1,12 +1,10 @@
 #!/usr/bin/env node
 /**
- * Setup Offering CLI
- * Creates an offering, directory offering, and subscribes a business to it.
+ * Setup Offering - Simplified
  * 
- * Usage:
- *   node api-validation/scripts/setup-offering.js
- *   node api-validation/scripts/setup-offering.js --sku "platinum20"
- *   node api-validation/scripts/setup-offering.js --dry-run
+ * 1. Find existing offering with payment_type=external and SKU=platinum20
+ * 2. If not found, create one
+ * 3. Subscribe the business to that offering
  */
 
 const fs = require('fs');
@@ -14,7 +12,6 @@ const path = require('path');
 const https = require('https');
 const http = require('http');
 
-// Colors for console output
 const colors = {
   reset: '\x1b[0m',
   red: '\x1b[31m',
@@ -25,82 +22,18 @@ const colors = {
   dim: '\x1b[2m'
 };
 
-// Parse command line arguments
-const args = process.argv.slice(2);
-const options = {
-  dryRun: args.includes('--dry-run'),
-  sku: getArgValue('--sku') || `test_offering_${Date.now()}`,
-  name: getArgValue('--name') || null, // Will default to SKU-based name
-  paymentType: getArgValue('--payment-type') || 'external',
-  help: args.includes('--help') || args.includes('-h')
-};
-
-// Default name based on SKU if not provided
-if (!options.name) {
-  options.name = options.sku.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-}
-
-function getArgValue(flag) {
-  const index = args.indexOf(flag);
-  if (index !== -1 && args[index + 1]) {
-    return args[index + 1];
-  }
-  return null;
-}
-
-if (options.help) {
-  console.log(`
-${colors.cyan}Setup Offering CLI${colors.reset}
-Creates an offering, directory offering, and subscribes a business to it.
-
-${colors.yellow}Usage:${colors.reset}
-  node api-validation/scripts/setup-offering.js [options]
-
-${colors.yellow}Options:${colors.reset}
-  --sku <sku>              SKU for the offering (default: "test_offering_<timestamp>")
-  --name <name>            Display name (default: derived from SKU)
-  --payment-type <type>    Payment type: "external" or "vcita" (default: "external")
-  --dry-run                Show what would be done without making changes
-  -h, --help               Show this help message
-
-${colors.yellow}Requirements:${colors.reset}
-  - Admin token in tokens.json (tokens.admin)
-  - Directory token in tokens.json (tokens.directory)
-  - Staff token in tokens.json (tokens.staff)
-  - Business UID in tokens.json (params.business_uid)
-  - Directory ID in tokens.json (params.directory_id)
-
-${colors.yellow}Example:${colors.reset}
-  node api-validation/scripts/setup-offering.js --sku "platinum20" --name "Platinum 20"
-`);
-  process.exit(0);
-}
-
-// Configuration
 const CONFIG_PATH = path.join(__dirname, '../config/tokens.json');
 const BASE_URL = 'https://app.meet2know.com';
-const APIGW_PATH = '/apigw';
+const TARGET_SKU = 'platinum20';
+const TARGET_PAYMENT_TYPE = 'external';
 
-/**
- * Make an HTTP request with support for different auth types
- */
 function makeRequest(method, urlPath, authType, authToken, body = null) {
   return new Promise((resolve, reject) => {
     const url = new URL(BASE_URL + urlPath);
     const isHttps = url.protocol === 'https:';
     const httpModule = isHttps ? https : http;
     
-    // Build authorization header based on type
-    let authHeader;
-    switch (authType) {
-      case 'admin':
-        authHeader = `Admin ${authToken}`;
-        break;
-      case 'bearer':
-      default:
-        authHeader = `Bearer ${authToken}`;
-        break;
-    }
+    const authHeader = authType === 'admin' ? `Admin ${authToken}` : `Bearer ${authToken}`;
 
     const requestOptions = {
       hostname: url.hostname,
@@ -122,8 +55,7 @@ function makeRequest(method, urlPath, authType, authToken, body = null) {
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
         try {
-          const parsed = JSON.parse(data);
-          resolve({ status: res.statusCode, data: parsed });
+          resolve({ status: res.statusCode, data: JSON.parse(data) });
         } catch (e) {
           resolve({ status: res.statusCode, data: data });
         }
@@ -131,238 +63,195 @@ function makeRequest(method, urlPath, authType, authToken, body = null) {
     });
 
     req.on('error', reject);
-    
-    if (body) {
-      req.write(JSON.stringify(body));
-    }
+    if (body) req.write(JSON.stringify(body));
     req.end();
   });
 }
 
-/**
- * Load tokens.json configuration
- */
 function loadConfig() {
   if (!fs.existsSync(CONFIG_PATH)) {
-    throw new Error(`Config file not found: ${CONFIG_PATH}\nRun setup-business.js first or copy tokens.example.json to tokens.json.`);
+    throw new Error(`Config file not found: ${CONFIG_PATH}`);
   }
   return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
 }
 
-/**
- * Save configuration to tokens.json
- */
 function saveConfig(config) {
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
 }
 
 /**
- * Step 1: Create an offering
+ * Step 1: Find existing offering with platinum20 SKU and external payment
+ * Uses directory token to list, admin token to create
  */
-async function createOffering(adminToken, sku, displayName, paymentType) {
-  console.log(`\n${colors.blue}[1/3]${colors.reset} Creating offering...`);
-  console.log(`${colors.dim}  SKU: ${sku}${colors.reset}`);
-  console.log(`${colors.dim}  Name: ${displayName}${colors.reset}`);
-  console.log(`${colors.dim}  Payment Type: ${paymentType}${colors.reset}`);
-
-  const body = {
-    sku: sku,
-    display_name: displayName,
-    offering_type: 'package',
-    payment_type: paymentType,
-    prices: [], // Empty for external payment type - system will auto-populate
-    features_packages_uids: []
-  };
-
-  const response = await makeRequest('POST', `${APIGW_PATH}/v3/license/offerings`, 'admin', adminToken, body);
+async function findOrCreateOffering(directoryToken, adminToken, directoryUid) {
+  console.log(`\n${colors.blue}[1/3]${colors.reset} Looking for existing offering (SKU: ${TARGET_SKU}, payment: ${TARGET_PAYMENT_TYPE})...`);
   
-  if (response.status !== 200 && response.status !== 201) {
-    throw new Error(`Failed to create offering: ${JSON.stringify(response.data)}`);
+  // Use directory token to list offerings
+  const response = await makeRequest('GET', `/apigw/v3/license/offerings`, 'bearer', directoryToken);
+  
+  if (response.status !== 200) {
+    console.log(`${colors.yellow}  ⚠ Could not fetch offerings: ${response.status}${colors.reset}`);
+    console.log(`${colors.dim}  Response: ${JSON.stringify(response.data)}${colors.reset}`);
   }
 
-  if (!response.data.success) {
-    throw new Error(`Failed to create offering: ${JSON.stringify(response.data.errors)}`);
+  const offerings = response.data?.data?.offerings || [];
+  console.log(`${colors.dim}  Found ${offerings.length} offering(s)${colors.reset}`);
+  
+  // Find matching offering
+  const match = offerings.find(o => 
+    o.SKU === TARGET_SKU && o.payment_type === TARGET_PAYMENT_TYPE
+  );
+  
+  if (match) {
+    console.log(`${colors.green}  ✓ Found existing offering: ${match.uid}${colors.reset}`);
+    return { offering: match, created: false };
   }
-
-  const offering = response.data.data;
-  console.log(`${colors.green}  ✓ Offering created${colors.reset}`);
-  console.log(`${colors.dim}    Offering UID: ${offering.uid}${colors.reset}`);
-
-  return offering;
+  
+  // Not found - create one with admin token
+  console.log(`${colors.yellow}  Not found. Creating new offering...${colors.reset}`);
+  
+  const createBody = {
+    type: 'package',
+    SKU: TARGET_SKU,
+    display_name: 'Platinum 20',
+    quantity: 1,
+    payment_type: TARGET_PAYMENT_TYPE,
+    prices: []  // empty for external payment type
+  };
+  
+  const createResponse = await makeRequest('POST', `/apigw/v3/license/offerings`, 'admin', adminToken, createBody);
+  
+  if (createResponse.status !== 200 && createResponse.status !== 201) {
+    throw new Error(`Failed to create offering: ${JSON.stringify(createResponse.data)}`);
+  }
+  
+  const newOffering = createResponse.data?.data;
+  console.log(`${colors.green}  ✓ Created offering: ${newOffering.uid}${colors.reset}`);
+  return { offering: newOffering, created: true };
 }
 
 /**
- * Step 2: Create a directory offering
+ * Step 2: Create directory_offering to assign offering to directory (only if new offering was created)
  */
-async function createDirectoryOffering(adminToken, directoryId, offeringUid, displayName) {
-  console.log(`\n${colors.blue}[2/3]${colors.reset} Creating directory offering...`);
-  console.log(`${colors.dim}  Directory: ${directoryId}${colors.reset}`);
+async function createDirectoryOffering(adminToken, directoryUid, offeringUid) {
+  console.log(`\n${colors.blue}[2/3]${colors.reset} Assigning offering to directory...`);
+  console.log(`${colors.dim}  Directory: ${directoryUid}${colors.reset}`);
   console.log(`${colors.dim}  Offering: ${offeringUid}${colors.reset}`);
-
+  
   const body = {
-    directory_uid: directoryId,
+    directory_uid: directoryUid,
     offering_uid: offeringUid,
-    display_name: displayName,
-    description: `${displayName} offering for directory`,
+    display_name: 'Platinum 20',
     is_published: true
   };
-
-  const response = await makeRequest('POST', `${APIGW_PATH}/v3/license/directory_offerings`, 'admin', adminToken, body);
+  
+  const response = await makeRequest('POST', `/apigw/v3/license/directory_offerings`, 'admin', adminToken, body);
   
   if (response.status !== 200 && response.status !== 201) {
+    // Check if already exists
+    if (JSON.stringify(response.data).includes('already') || 
+        JSON.stringify(response.data).includes('duplicate')) {
+      console.log(`${colors.yellow}  ⚠ Directory offering already exists${colors.reset}`);
+      return { uid: 'existing' };
+    }
     throw new Error(`Failed to create directory offering: ${JSON.stringify(response.data)}`);
   }
-
-  if (!response.data.success) {
-    throw new Error(`Failed to create directory offering: ${JSON.stringify(response.data.errors)}`);
-  }
-
-  const directoryOffering = response.data.data;
-  console.log(`${colors.green}  ✓ Directory offering created${colors.reset}`);
-  console.log(`${colors.dim}    Directory Offering UID: ${directoryOffering.uid}${colors.reset}`);
-
-  return directoryOffering;
+  
+  const dirOffering = response.data?.data;
+  console.log(`${colors.green}  ✓ Directory offering created: ${dirOffering?.uid || 'success'}${colors.reset}`);
+  return dirOffering;
 }
 
 /**
- * Step 3: Subscribe business to offering
- * 
- * Note: Subscription creation requires a Staff token (not Directory token).
- * For "external" payment type offerings, the Staff token must be created by a 
- * Directory token (via POST /platform/v1/tokens), which gives it an "on-behalf-of"
- * relationship. The setup-business script creates this type of token automatically.
+ * Step 3: Subscribe business to the offering (using staff token)
  */
-async function subscribeToOffering(staffToken, offeringUid) {
+async function subscribeBusinessToOffering(staffToken, offeringUid) {
   console.log(`\n${colors.blue}[3/3]${colors.reset} Subscribing business to offering...`);
   console.log(`${colors.dim}  Offering: ${offeringUid}${colors.reset}`);
-
+  
   const body = {
     offering_uid: offeringUid,
     purchase_currency: 'USD'
   };
-
-  const response = await makeRequest('POST', `${APIGW_PATH}/v3/license/subscriptions`, 'bearer', staffToken, body);
+  
+  const response = await makeRequest('POST', `/apigw/v3/license/subscriptions`, 'bearer', staffToken, body);
   
   if (response.status !== 200 && response.status !== 201) {
-    throw new Error(`Failed to create subscription: ${JSON.stringify(response.data)}`);
+    // Check if already subscribed
+    if (response.data?.errors?.[0]?.code === 'already_subscribed' || 
+        JSON.stringify(response.data).includes('already')) {
+      console.log(`${colors.yellow}  ⚠ Business already subscribed${colors.reset}`);
+      return { uid: 'existing', business_uid: businessUid };
+    }
+    throw new Error(`Failed to subscribe: ${JSON.stringify(response.data)}`);
   }
-
-  if (!response.data.success) {
-    throw new Error(`Failed to create subscription: ${JSON.stringify(response.data.errors)}`);
-  }
-
-  const subscription = response.data.data;
-  console.log(`${colors.green}  ✓ Subscription created${colors.reset}`);
-  console.log(`${colors.dim}    Subscription UID: ${subscription.uid}${colors.reset}`);
-  console.log(`${colors.dim}    Buyer UID: ${subscription.buyer_uid}${colors.reset}`);
-  console.log(`${colors.dim}    Business UID: ${subscription.business_uid}${colors.reset}`);
-
+  
+  const subscription = response.data?.data;
+  console.log(`${colors.green}  ✓ Subscribed: ${subscription?.uid || 'success'}${colors.reset}`);
   return subscription;
 }
 
-/**
- * Update tokens.json with new offering data
- */
-function updateConfig(config, data) {
-  // Initialize offerings object if it doesn't exist
-  if (!config.offerings) {
-    config.offerings = {};
-  }
-
-  // Store the offering data keyed by SKU
-  config.offerings[data.sku] = {
-    offering_uid: data.offeringUid,
-    directory_offering_uid: data.directoryOfferingUid,
-    subscription_uid: data.subscriptionUid,
-    display_name: data.displayName,
-    created_at: new Date().toISOString()
-  };
-
-  // Also store as "latest" for easy access
-  config.offerings._latest = data.sku;
-
-  return config;
-}
-
-/**
- * Main execution
- */
 async function main() {
-  console.log(`\n${colors.cyan}╔════════════════════════════════════════╗${colors.reset}`);
-  console.log(`${colors.cyan}║       Setup Offering CLI               ║${colors.reset}`);
-  console.log(`${colors.cyan}╚════════════════════════════════════════╝${colors.reset}`);
+  console.log(`\n${colors.cyan}════════════════════════════════════════${colors.reset}`);
+  console.log(`${colors.cyan}  Setup Offering${colors.reset}`);
+  console.log(`${colors.cyan}════════════════════════════════════════${colors.reset}`);
 
   try {
-    // Load configuration
     const config = loadConfig();
     
-    // Validate required tokens and params
     if (!config.tokens?.admin) {
-      throw new Error('Admin token not found in tokens.json (tokens.admin)');
+      throw new Error('Admin token not found in tokens.json');
+    }
+    if (!config.tokens?.directory) {
+      throw new Error('Directory token not found in tokens.json');
     }
     if (!config.tokens?.staff) {
-      throw new Error('Staff token not found in tokens.json (tokens.staff). Run setup-business.js first.');
+      throw new Error('Staff token not found in tokens.json. Run setup-business.js first.');
     }
     if (!config.params?.directory_id) {
-      throw new Error('Directory ID not found in tokens.json (params.directory_id). Run setup-business.js first.');
+      throw new Error('Directory ID not found in tokens.json');
     }
 
     const adminToken = config.tokens.admin;
+    const directoryToken = config.tokens.directory;
     const staffToken = config.tokens.staff;
-    const directoryId = config.params.directory_id;
+    const directoryUid = config.params.directory_id;
 
-    console.log(`\n${colors.dim}Using admin token: ${adminToken.substring(0, 10)}...${colors.reset}`);
-    console.log(`${colors.dim}Using staff token: ${staffToken.substring(0, 20)}...${colors.reset}`);
-    console.log(`${colors.dim}Using directory: ${directoryId}${colors.reset}`);
-
-    if (options.dryRun) {
-      console.log(`\n${colors.yellow}DRY RUN MODE - No changes will be made${colors.reset}`);
-      console.log(`\nWould create:`);
-      console.log(`  - Offering with SKU: ${options.sku}`);
-      console.log(`  - Display Name: ${options.name}`);
-      console.log(`  - Payment Type: ${options.paymentType}`);
-      console.log(`  - Directory Offering for directory: ${directoryId}`);
-      console.log(`  - Subscription for the business`);
-      console.log(`  - Update tokens.json with offering data`);
-      return;
+    // Step 1: Find or create offering (directory token to list, admin token to create)
+    const { offering, created } = await findOrCreateOffering(directoryToken, adminToken, directoryUid);
+    if (!offering) {
+      throw new Error('Could not find or create offering');
     }
 
-    // Execute setup steps
-    const offering = await createOffering(adminToken, options.sku, options.name, options.paymentType);
-    const directoryOffering = await createDirectoryOffering(adminToken, directoryId, offering.uid, options.name);
-    const subscription = await subscribeToOffering(staffToken, offering.uid);
+    // Step 2: If new offering was created, assign it to the directory
+    if (created) {
+      await createDirectoryOffering(adminToken, directoryUid, offering.uid);
+    } else {
+      console.log(`\n${colors.dim}[2/3] Skipping directory offering (offering already exists)${colors.reset}`);
+    }
 
-    // Update configuration
-    const updatedConfig = updateConfig(config, {
-      sku: options.sku,
-      displayName: options.name,
-      offeringUid: offering.uid,
-      directoryOfferingUid: directoryOffering.uid,
-      subscriptionUid: subscription.uid
-    });
+    // Step 3: Subscribe business (using staff token)
+    const subscription = await subscribeBusinessToOffering(staffToken, offering.uid);
 
-    saveConfig(updatedConfig);
+    // Update config
+    config.offering = {
+      uid: offering.uid,
+      sku: TARGET_SKU,
+      subscription_uid: subscription?.uid
+    };
+    saveConfig(config);
 
-    // Print summary
+    // Summary
     console.log(`\n${colors.cyan}════════════════════════════════════════${colors.reset}`);
-    console.log(`${colors.green}Setup completed successfully!${colors.reset}`);
+    console.log(`${colors.green}  Done!${colors.reset}`);
     console.log(`${colors.cyan}════════════════════════════════════════${colors.reset}`);
-    console.log(`\n${colors.yellow}Summary:${colors.reset}`);
-    console.log(`  SKU:                    ${options.sku}`);
-    console.log(`  Offering UID:           ${offering.uid}`);
-    console.log(`  Directory Offering UID: ${directoryOffering.uid}`);
-    console.log(`  Subscription UID:       ${subscription.uid}`);
-    console.log(`  Business UID:           ${subscription.business_uid}`);
-    console.log(`\n${colors.dim}Updated: ${CONFIG_PATH}${colors.reset}`);
+    console.log(`  Offering UID: ${offering.uid}`);
+    console.log(`  New offering created: ${created ? 'Yes' : 'No'}`);
 
   } catch (error) {
     console.error(`\n${colors.red}Error: ${error.message}${colors.reset}`);
-    if (process.env.DEBUG) {
-      console.error(error.stack);
-    }
     process.exit(1);
   }
 }
 
-// Run
 main();

@@ -2,6 +2,7 @@
 endpoint: GET /v3/license/subscriptions/{uid}
 domain: platform_administration
 tags: []
+swagger: swagger/platform_administration/license.json
 status: success
 savedAt: 2026-01-28T14:29:42.984Z
 verifiedAt: 2026-01-28T14:29:42.984Z

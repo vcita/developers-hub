@@ -2,6 +2,7 @@
 endpoint: POST /platform/v1/numbers/dedicated_numbers/assign
 domain: communication
 tags: []
+swagger: swagger/communication/legacy/legacy_v1_communication.json
 status: success
 savedAt: 2026-01-27T05:43:49.939Z
 verifiedAt: 2026-01-27T05:43:49.939Z

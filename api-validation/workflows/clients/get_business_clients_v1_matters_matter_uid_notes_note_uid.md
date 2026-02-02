@@ -1,66 +1,43 @@
 ---
-endpoint: GET /business/clients/v1/matters/{matter_uid}/notes/{note_uid}
+endpoint: "GET /business/clients/v1/matters/{matter_uid}/notes/{note_uid}"
 domain: clients
 tags: []
+swagger: swagger/clients/legacy/manage_clients.json
 status: success
 savedAt: 2026-01-26T05:20:54.369Z
 verifiedAt: 2026-01-26T05:20:54.369Z
-timesReused: 0
 ---
+
 # Get Notes
 
 ## Summary
 Successfully retrieved note details. The endpoint returned HTTP 200 with complete note data including UID, content, staff_uid, and timestamps.
 
 ## Prerequisites
-No specific prerequisites documented.
 
-## UID Resolution Procedure
-
-How to dynamically obtain required UIDs for this endpoint:
-
-| UID Field | GET Endpoint | Extract From | Create Fresh | Cleanup |
-|-----------|--------------|--------------|--------------|---------|
-| note_uid | GET /business/clients/v1/matters/{matter_uid}/notes | data.notes[0].uid | - | - |
-
-### Resolution Steps
-
-**note_uid**:
-1. Call `GET /business/clients/v1/matters/{matter_uid}/notes`
-2. Extract from response: `data.notes[0].uid`
-3. If empty, create via `POST /business/clients/v1/matters/{matter_uid}/notes`
-
-```json
-{
-  "note_uid": {
-    "source_endpoint": "GET /business/clients/v1/matters/{matter_uid}/notes",
-    "extract_from": "data.notes[0].uid",
-    "fallback_endpoint": "POST /business/clients/v1/matters/{matter_uid}/notes",
-    "create_fresh": false,
-    "create_endpoint": null,
-    "create_body": {
-      "content": "Test note {{timestamp}}"
-    },
-    "cleanup_endpoint": null,
-    "cleanup_note": null
-  }
-}
+```yaml
+steps:
+  - id: get_matters
+    description: "Fetch available matters"
+    method: GET
+    path: "/platform/v1/matters"
+    params:
+      business_id: "{{business_id}}"
+      per_page: "1"
+    extract:
+      matter_uid: "$.data.matters[0].uid"
+    expect:
+      status: 200
+    onFail: abort
 ```
 
-## How to Resolve Parameters
-Parameters were resolved automatically.
+## Test Request
 
-## Critical Learnings
-
-No specific learnings documented.
-
-## Request Template
-
-Use this template with dynamically resolved UIDs:
-
-```json
-{
-  "method": "GET",
-  "path": "/business/clients/v1/matters/{{resolved.uid}}/notes/{{resolved.uid}}"
-}
+```yaml
+steps:
+  - id: get_notes
+    method: GET
+    path: "/business/clients/v1/matters/{matter_uid}/notes/{note_uid}"
+    expect:
+      status: [200, 201]
 ```

@@ -134,7 +134,7 @@ function saveConfig(config) {
  * Step 1: Create a new business
  */
 async function createBusiness(directoryToken, businessName, adminEmail) {
-  console.log(`\n${colors.blue}[1/4]${colors.reset} Creating new business...`);
+  console.log(`\n${colors.blue}[1/6]${colors.reset} Creating new business...`);
   console.log(`${colors.dim}  Name: ${businessName}${colors.reset}`);
   console.log(`${colors.dim}  Admin Email: ${adminEmail}${colors.reset}`);
 
@@ -196,7 +196,7 @@ async function createBusiness(directoryToken, businessName, adminEmail) {
  * Step 2: Create a staff token
  */
 async function createStaffToken(directoryToken, businessUid) {
-  console.log(`\n${colors.blue}[2/4]${colors.reset} Creating staff token...`);
+  console.log(`\n${colors.blue}[2/6]${colors.reset} Creating staff token...`);
 
   const body = { business_id: businessUid };
   const response = await makeRequest('POST', `${API_PATH}/platform/v1/tokens`, directoryToken, body);
@@ -216,7 +216,7 @@ async function createStaffToken(directoryToken, businessUid) {
  * Step 3: Create a test client
  */
 async function createClient(staffToken, staffUid) {
-  console.log(`\n${colors.blue}[3/4]${colors.reset} Creating test client...`);
+  console.log(`\n${colors.blue}[3/6]${colors.reset} Creating test client...`);
 
   const timestamp = Date.now();
   const body = {
@@ -231,7 +231,7 @@ async function createClient(staffToken, staffUid) {
 
   const response = await makeRequest('POST', `${API_PATH}/platform/v1/clients`, staffToken, body);
   
-  if (response.status !== 200 || response.data.status !== 'OK') {
+  if ((response.status !== 200 && response.status !== 201) || response.data.status !== 'OK') {
     throw new Error(`Failed to create client: ${JSON.stringify(response.data)}`);
   }
 
@@ -246,10 +246,67 @@ async function createClient(staffToken, staffUid) {
 }
 
 /**
- * Step 4: Get matter UID from client
+ * Step 4: Create an appointment service
+ */
+async function createService(staffToken, businessUid, staffUid) {
+  console.log(`\n${colors.blue}[4/6]${colors.reset} Creating appointment service...`);
+
+  const body = {
+    business_id: businessUid,
+    name: 'Test Consultation',
+    description: 'A test appointment service for API validation',
+    duration: 30,
+    price: 0,
+    currency: 'USD',
+    charge_type: 'no_price',
+    type: 'AppointmentService',
+    interaction_type: 'business_location',
+    display: true,
+    staff_uids: [staffUid]
+  };
+
+  const response = await makeRequest('POST', `${API_PATH}/platform/v1/services`, staffToken, body);
+  
+  if (response.status !== 200 && response.status !== 201) {
+    console.log(`${colors.yellow}  ⚠ Could not create service: ${JSON.stringify(response.data)}${colors.reset}`);
+    // Try to get existing service
+    return await getExistingService(staffToken, businessUid);
+  }
+
+  const serviceData = response.data.data?.service || response.data.data;
+  if (!serviceData?.id) {
+    console.log(`${colors.yellow}  ⚠ Service creation response unexpected, trying to get existing...${colors.reset}`);
+    return await getExistingService(staffToken, businessUid);
+  }
+
+  console.log(`${colors.green}  ✓ Service created${colors.reset}`);
+  console.log(`${colors.dim}    Service ID: ${serviceData.id}${colors.reset}`);
+
+  return serviceData.id;
+}
+
+/**
+ * Get existing service if creation fails
+ */
+async function getExistingService(staffToken, businessUid) {
+  const response = await makeRequest('GET', `${API_PATH}/platform/v1/services?business_id=${businessUid}`, staffToken);
+  
+  if (response.status === 200 && response.data.data?.services?.length > 0) {
+    const serviceId = response.data.data.services[0].id;
+    console.log(`${colors.green}  ✓ Using existing service${colors.reset}`);
+    console.log(`${colors.dim}    Service ID: ${serviceId}${colors.reset}`);
+    return serviceId;
+  }
+  
+  console.log(`${colors.yellow}  ⚠ No services found${colors.reset}`);
+  return null;
+}
+
+/**
+ * Step 5: Get matter UID from client
  */
 async function getMatterUid(staffToken, clientUid) {
-  console.log(`\n${colors.blue}[4/4]${colors.reset} Getting matter UID...`);
+  console.log(`\n${colors.blue}[5/6]${colors.reset} Getting matter UID...`);
 
   const response = await makeRequest('GET', `${API_PATH}/business/clients/v1/contacts/${clientUid}/matters`, staffToken);
   
@@ -272,6 +329,53 @@ async function getMatterUid(staffToken, clientUid) {
 }
 
 /**
+ * Step 6: Verify staff can create bookings by testing a booking
+ */
+async function verifyBookingPermission(staffToken, businessUid, serviceId, staffUid, clientUid) {
+  console.log(`\n${colors.blue}[6/6]${colors.reset} Verifying booking permissions...`);
+
+  // Calculate a future start time (tomorrow at 10:00 AM)
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(10, 0, 0, 0);
+  const startTime = tomorrow.toISOString();
+
+  const body = {
+    business_id: businessUid,
+    service_id: serviceId,
+    staff_id: staffUid,
+    client_id: clientUid,
+    start_time: startTime
+  };
+
+  const response = await makeRequest('POST', `${API_PATH}/business/scheduling/v1/bookings`, staffToken, body);
+  
+  if (response.status === 200 || response.status === 201) {
+    console.log(`${colors.green}  ✓ Staff can create bookings${colors.reset}`);
+    // Cancel the test booking to clean up
+    const bookingId = response.data.data?.booking?.id;
+    if (bookingId) {
+      console.log(`${colors.dim}    Test booking created and will be used for validation${colors.reset}`);
+    }
+    return { success: true, bookingId };
+  }
+
+  // Check specific error
+  const errorMsg = response.data?.error || response.data?.message || JSON.stringify(response.data);
+  
+  if (response.status === 422 && errorMsg.includes('Unauthorized')) {
+    console.log(`${colors.red}  ✗ Staff token lacks booking permission${colors.reset}`);
+    console.log(`${colors.yellow}    This is a known backend limitation - staff tokens created via${colors.reset}`);
+    console.log(`${colors.yellow}    directory token may not have scheduling permissions.${colors.reset}`);
+    console.log(`${colors.yellow}    Consider using admin token for booking tests or granting permissions.${colors.reset}`);
+    return { success: false, error: 'unauthorized' };
+  }
+
+  console.log(`${colors.yellow}  ⚠ Booking test returned ${response.status}: ${errorMsg}${colors.reset}`);
+  return { success: false, error: errorMsg };
+}
+
+/**
  * Update tokens.json with new values
  */
 function updateConfig(config, data) {
@@ -290,6 +394,15 @@ function updateConfig(config, data) {
   if (data.matterUid) {
     config.params.matter_uid = data.matterUid;
   }
+
+  if (data.serviceId) {
+    config.params.service_id = data.serviceId;
+  }
+
+  // Store booking permission status
+  config.setup = config.setup || {};
+  config.setup.bookingPermission = data.bookingPermission;
+  config.setup.lastSetup = new Date().toISOString();
 
   // Update admin URL if we have user ID
   if (data.userId && config.tokens.admin_url) {
@@ -325,6 +438,8 @@ async function main() {
       console.log(`  - Admin Email: ${options.email}`);
       console.log(`  - Staff token for the business`);
       console.log(`  - Test client with matter`);
+      console.log(`  - Appointment service for bookings`);
+      console.log(`  - Verify booking permissions`);
       console.log(`  - Update tokens.json with new values`);
       return;
     }
@@ -333,7 +448,20 @@ async function main() {
     const businessData = await createBusiness(directoryToken, options.name, options.email);
     const staffToken = await createStaffToken(directoryToken, businessData.businessUid);
     const clientData = await createClient(staffToken, businessData.staffUid);
+    const serviceId = await createService(staffToken, businessData.businessUid, businessData.staffUid);
     const matterUid = await getMatterUid(staffToken, clientData.clientUid);
+    
+    // Verify booking permissions
+    let bookingPermission = { success: false, error: 'not_tested' };
+    if (serviceId) {
+      bookingPermission = await verifyBookingPermission(
+        staffToken, 
+        businessData.businessUid, 
+        serviceId, 
+        businessData.staffUid, 
+        clientData.clientUid
+      );
+    }
 
     // Update configuration
     const updatedConfig = updateConfig(config, {
@@ -344,21 +472,40 @@ async function main() {
       staffToken: staffToken,
       clientUid: clientData.clientUid,
       clientToken: clientData.clientToken,
-      matterUid: matterUid
+      matterUid: matterUid,
+      serviceId: serviceId,
+      bookingPermission: bookingPermission
     });
 
     saveConfig(updatedConfig);
 
     // Print summary
     console.log(`\n${colors.cyan}════════════════════════════════════════${colors.reset}`);
-    console.log(`${colors.green}Setup completed successfully!${colors.reset}`);
+    if (bookingPermission.success) {
+      console.log(`${colors.green}Setup completed successfully!${colors.reset}`);
+    } else {
+      console.log(`${colors.yellow}Setup completed with warnings${colors.reset}`);
+    }
     console.log(`${colors.cyan}════════════════════════════════════════${colors.reset}`);
     console.log(`\n${colors.yellow}Summary:${colors.reset}`);
     console.log(`  Business UID:   ${businessData.businessUid}`);
     console.log(`  Staff UID:      ${businessData.staffUid}`);
     console.log(`  Client UID:     ${clientData.clientUid}`);
+    console.log(`  Service ID:     ${serviceId || 'N/A'}`);
     console.log(`  Matter UID:     ${matterUid || 'N/A'}`);
+    console.log(`  Booking Test:   ${bookingPermission.success ? colors.green + '✓ PASS' : colors.red + '✗ FAIL (' + bookingPermission.error + ')'}${colors.reset}`);
     console.log(`\n${colors.dim}Updated: ${CONFIG_PATH}${colors.reset}`);
+    
+    if (!bookingPermission.success) {
+      console.log(`\n${colors.yellow}⚠ Warning: Staff token cannot create bookings.${colors.reset}`);
+      console.log(`${colors.yellow}  This is a backend limitation. The booking endpoint requires${colors.reset}`);
+      console.log(`${colors.yellow}  specific staff permissions that aren't granted by default.${colors.reset}`);
+      console.log(`${colors.yellow}  ${colors.reset}`);
+      console.log(`${colors.yellow}  Options to fix:${colors.reset}`);
+      console.log(`${colors.yellow}  1. Grant scheduling.bookings.create permission to the staff${colors.reset}`);
+      console.log(`${colors.yellow}  2. Use the admin token for booking endpoint tests${colors.reset}`);
+      console.log(`${colors.yellow}  3. Create a staff via admin panel with proper role${colors.reset}`);
+    }
 
   } catch (error) {
     console.error(`\n${colors.red}Error: ${error.message}${colors.reset}`);
