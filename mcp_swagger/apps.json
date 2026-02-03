@@ -6,14 +6,25 @@
     "version": "3.0",
     "x-generated": {
       "sourceFiles": [
+        "legacy_token.json",
         "legacy_v1_apps.json",
         "widgets_and_boards.json",
+        "apps.json",
         "jwks.json",
-        "legacy_app_translation.json",
-        "legacy_token.json",
-        "apps.json"
+        "legacy_app_translation.json"
       ],
       "pathNormalizations": [
+        {
+          "file": "legacy_token.json",
+          "basePath": "/oauth/service",
+          "transformations": [
+            {
+              "original": "/token",
+              "normalized": "/oauth/service/token",
+              "basePath": "/oauth/service"
+            }
+          ]
+        },
         {
           "file": "legacy_v1_apps.json",
           "basePath": "/platform/v1",
@@ -60,17 +71,6 @@
               "basePath": "/platform/v1"
             }
           ]
-        },
-        {
-          "file": "legacy_token.json",
-          "basePath": "/oauth/service",
-          "transformations": [
-            {
-              "original": "/token",
-              "normalized": "/oauth/service/token",
-              "basePath": "/oauth/service"
-            }
-          ]
         }
       ],
       "pathConflicts": [],
@@ -96,6 +96,79 @@
     }
   ],
   "paths": {
+    "/oauth/service/token": {
+      "post": {
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Service token generated",
+            "content": {
+              "application/json": {
+                "example": {
+                  "access_token": "eade05e0ee958ed139b7431b1a630bff95260178699ddf88cbd86a32d2ac708c",
+                  "created_at": "2021-11-16T13:29:47.000Z",
+                  "expires_in": 3600,
+                  "token_type": "Bearer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid credentials"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "summary": "Generate an app access token",
+        "description": "## Overview\nGenerate an app access token using OAuth client credentials flow. **No bearer token required** - authentication is via service_id and service_secret in the request body.\n\n## Prerequisites\nRequires an existing OAuth application. Create one using `POST /platform/v1/apps` to obtain `client_id` (service_id) and `client_secret` (service_secret).\n\n## Parameters\n- `service_id`: The OAuth application `client_id` - a 64-character hexadecimal string (e.g., `20cecc9cc620b717187922baa7706ceaf27b254afdb435ff955a913b3393a8f9`)\n- `service_secret`: The OAuth application `client_secret` - a 64-character hexadecimal string\n\n## How to Get Credentials\n1. Create an app: `POST /platform/v1/apps` with directory token\n2. Save the `client_id` and `client_secret` from the response\n3. Use those values as `service_id` and `service_secret` in this endpoint\n\n## Usage\nThis token can be used to create widgets (for apps with `app_type=['widgets']`) or notifications for the app.",
+        "tags": [
+          "Service OAuth"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///oauth/service/token"
+        },
+        "x-auth-type": "None",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "service_id": {
+                    "description": "The OAuth application client_id (UID). This is returned when creating an app via `POST /platform/v1/apps`. Must be a valid OAuth application credential.",
+                    "type": "string"
+                  },
+                  "service_secret": {
+                    "description": "The OAuth application client_secret. This is returned when creating an app via `POST /platform/v1/apps`. Must match the OAuth application credentials.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "service_id",
+                  "service_secret"
+                ],
+                "type": "object",
+                "example": {
+                  "service_id": "20cecc9cc620b717187922baa7706ceaf27b254afdb435ff955a913b3393a8f9",
+                  "service_secret": "3f12b18a6d015cb99ca56e1abeeb885cf87cee824e7d021064ad446ed9aa3bb2"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
     "/platform/v1/apps": {
       "get": {
         "description": "Retrieve a list of available apps. Response format varies by token type - Staff tokens receive detailed app data including full configuration, while Directory tokens receive simplified app data for apps associated with the directory.\n\n**Available for Staff and Directory Tokens.**",
@@ -2072,6 +2145,233 @@
         ]
       }
     },
+    "/v3/apps/app_assignments": {
+      "get": {
+        "operationId": "AppAssignments_list",
+        "summary": "List App Assignments",
+        "description": "Returns app assignments across multiple businesses within a directory, with optional filtering. Note: assignee_uid can only be used when assignee_type is also provided.\n\n**Available for Directory and Internal Tokens.**",
+        "parameters": [
+          {
+            "name": "app_code_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by app code name"
+          },
+          {
+            "name": "assignee_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "business",
+                "package",
+                "directory"
+              ]
+            },
+            "description": "Filter by assignee type"
+          },
+          {
+            "name": "assignee_uid",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by assignee uid. Only allowed when assignee_type is also provided."
+          },
+          {
+            "name": "directory_uid",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by directory uid. Only available for internal Tokens."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "App assignments retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "app_assignments": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "https://vcita.github.io/developers-hub/entities/apps/appAssignment.json"
+                              }
+                            }
+                          },
+                          "required": [
+                            "app_assignments"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request. Invalid input data."
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing or invalid."
+          },
+          "403": {
+            "description": "Forbidden. You do not have access to this resource."
+          },
+          "500": {
+            "description": "Internal server error."
+          }
+        },
+        "tags": [
+          "App Assignments"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "AppAssignments_create",
+        "summary": "Create an App Assignment",
+        "description": "## Overview\nCreate a new app assignment to a business, package or directory.\n\n**Available for Directory Tokens and Internal Tokens only.** Staff and Business tokens are not supported and will return 401 Unauthorized.\n\n## Prerequisites\n- The app specified by `app_code_name` must already exist and belong to the authenticated directory\n- The `directory_uid` parameter is **optional when using Directory Token** (auto-determined from token). If provided, must match the directory associated with your authentication token.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAppAssignmentRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "App assignment created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/appAssignment.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request. Invalid input data."
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing or invalid."
+          },
+          "403": {
+            "description": "Forbidden. You do not have access to this resource."
+          },
+          "500": {
+            "description": "Internal server error."
+          }
+        },
+        "tags": [
+          "App Assignments"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/apps/app_assignments/{uid}": {
+      "delete": {
+        "operationId": "AppAssignments_delete",
+        "summary": "Delete an App Assignment",
+        "description": "## Overview\nDelete an app assignment.\n\n**Available for Directory and internal Tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unique identifier of the app assignment to delete"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "App assignment deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/appAssignment.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request. Invalid input data."
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing or invalid."
+          },
+          "403": {
+            "description": "Forbidden. You do not have access to this resource."
+          },
+          "404": {
+            "description": "Not found. App assignment not found."
+          },
+          "500": {
+            "description": "Internal server error."
+          }
+        },
+        "tags": [
+          "App Assignments"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v3/apps/compact_jws_tokens": {
       "post": {
         "summary": "Create a compact JWS token",
@@ -2440,306 +2740,6 @@
           "httpMethod": "PUT",
           "type": "http_proxy"
         },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/oauth/service/token": {
-      "post": {
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Service token generated",
-            "content": {
-              "application/json": {
-                "example": {
-                  "access_token": "eade05e0ee958ed139b7431b1a630bff95260178699ddf88cbd86a32d2ac708c",
-                  "created_at": "2021-11-16T13:29:47.000Z",
-                  "expires_in": 3600,
-                  "token_type": "Bearer"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid credentials"
-          },
-          "401": {
-            "description": "Unauthorized"
-          }
-        },
-        "summary": "Generate an app access token",
-        "description": "## Overview\nGenerate an app access token using OAuth client credentials flow. **No bearer token required** - authentication is via service_id and service_secret in the request body.\n\n## Prerequisites\nRequires an existing OAuth application. Create one using `POST /platform/v1/apps` to obtain `client_id` (service_id) and `client_secret` (service_secret).\n\n## Parameters\n- `service_id`: The OAuth application `client_id` - a 64-character hexadecimal string (e.g., `20cecc9cc620b717187922baa7706ceaf27b254afdb435ff955a913b3393a8f9`)\n- `service_secret`: The OAuth application `client_secret` - a 64-character hexadecimal string\n\n## How to Get Credentials\n1. Create an app: `POST /platform/v1/apps` with directory token\n2. Save the `client_id` and `client_secret` from the response\n3. Use those values as `service_id` and `service_secret` in this endpoint\n\n## Usage\nThis token can be used to create widgets (for apps with `app_type=['widgets']`) or notifications for the app.",
-        "tags": [
-          "Service OAuth"
-        ],
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-amazon-apigateway-integration": {
-          "httpMethod": "POST",
-          "responses": {
-            "default": {
-              "statusCode": "200"
-            }
-          },
-          "type": "http_proxy",
-          "uri": "https:///oauth/service/token"
-        },
-        "x-auth-type": "None",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "properties": {
-                  "service_id": {
-                    "description": "The OAuth application client_id (UID). This is returned when creating an app via `POST /platform/v1/apps`. Must be a valid OAuth application credential.",
-                    "type": "string"
-                  },
-                  "service_secret": {
-                    "description": "The OAuth application client_secret. This is returned when creating an app via `POST /platform/v1/apps`. Must match the OAuth application credentials.",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "service_id",
-                  "service_secret"
-                ],
-                "type": "object",
-                "example": {
-                  "service_id": "20cecc9cc620b717187922baa7706ceaf27b254afdb435ff955a913b3393a8f9",
-                  "service_secret": "3f12b18a6d015cb99ca56e1abeeb885cf87cee824e7d021064ad446ed9aa3bb2"
-                }
-              }
-            }
-          }
-        },
-        "security": []
-      }
-    },
-    "/v3/apps/app_assignments": {
-      "get": {
-        "operationId": "AppAssignments_list",
-        "summary": "List App Assignments",
-        "description": "Returns app assignments across multiple businesses within a directory, with optional filtering. Note: assignee_uid can only be used when assignee_type is also provided.\n\n**Available for Directory and Internal Tokens.**",
-        "parameters": [
-          {
-            "name": "app_code_name",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Filter by app code name"
-          },
-          {
-            "name": "assignee_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "business",
-                "package",
-                "directory"
-              ]
-            },
-            "description": "Filter by assignee type"
-          },
-          {
-            "name": "assignee_uid",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Filter by assignee uid. Only allowed when assignee_type is also provided."
-          },
-          {
-            "name": "directory_uid",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Filter by directory uid. Only available for internal Tokens."
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "App assignments retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "type": "object",
-                          "properties": {
-                            "app_assignments": {
-                              "type": "array",
-                              "items": {
-                                "$ref": "https://vcita.github.io/developers-hub/entities/apps/appAssignment.json"
-                              }
-                            }
-                          },
-                          "required": [
-                            "app_assignments"
-                          ]
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request. Invalid input data."
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing or invalid."
-          },
-          "403": {
-            "description": "Forbidden. You do not have access to this resource."
-          },
-          "500": {
-            "description": "Internal server error."
-          }
-        },
-        "tags": [
-          "App Assignments"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      },
-      "post": {
-        "operationId": "AppAssignments_create",
-        "summary": "Create an App Assignment",
-        "description": "## Overview\nCreate a new app assignment to a business, package or directory.\n\n**Available for Directory Tokens and Internal Tokens only.** Staff and Business tokens are not supported and will return 401 Unauthorized.\n\n## Prerequisites\n- The app specified by `app_code_name` must already exist and belong to the authenticated directory\n- The `directory_uid` parameter is **optional when using Directory Token** (auto-determined from token). If provided, must match the directory associated with your authentication token.",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateAppAssignmentRequestDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "App assignment created successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/appAssignment.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request. Invalid input data."
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing or invalid."
-          },
-          "403": {
-            "description": "Forbidden. You do not have access to this resource."
-          },
-          "500": {
-            "description": "Internal server error."
-          }
-        },
-        "tags": [
-          "App Assignments"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/apps/app_assignments/{uid}": {
-      "delete": {
-        "operationId": "AppAssignments_delete",
-        "summary": "Delete an App Assignment",
-        "description": "## Overview\nDelete an app assignment.\n\n**Available for Directory and internal Tokens**",
-        "parameters": [
-          {
-            "name": "uid",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Unique identifier of the app assignment to delete"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "App assignment deleted successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/appAssignment.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request. Invalid input data."
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing or invalid."
-          },
-          "403": {
-            "description": "Forbidden. You do not have access to this resource."
-          },
-          "404": {
-            "description": "Not found. App assignment not found."
-          },
-          "500": {
-            "description": "Internal server error."
-          }
-        },
-        "tags": [
-          "App Assignments"
-        ],
         "security": [
           {
             "Bearer": []

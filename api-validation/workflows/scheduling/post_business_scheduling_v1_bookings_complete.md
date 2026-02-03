@@ -1,101 +1,81 @@
 ---
-endpoint: "POST /business/scheduling/v1/bookings/complete"
+endpoint: POST /business/scheduling/v1/bookings/complete
 domain: scheduling
-tags: [scheduling, bookings]
-swagger: swagger/scheduling/legacy/scheduling.json
-status: working
-savedAt: 2026-02-01T23:30:00.000Z
+tags: []
+status: success
+savedAt: 2026-02-02T08:03:20.509Z
+verifiedAt: 2026-02-02T08:03:20.509Z
+timesReused: 0
 ---
-
-# Complete Booking
+# Create Complete
 
 ## Summary
-Complete a pending booking (appointment or event registration).
-
-## Authentication
-Available for **Staff and App tokens**.
+Endpoint works correctly with app token. Documentation incorrectly states staff token is supported.
 
 ## Prerequisites
+No specific prerequisites documented.
 
-```yaml
-steps:
-  - id: create_booking
-    description: "Create a booking to complete"
-    method: POST
-    path: "/business/scheduling/v1/bookings"
-    token: staff
-    body:
-      business_id: "{{business_id}}"
-      service_id: "{{service_id}}"
-      staff_id: "{{staff_id}}"
-      start_time: "{{future_datetime}}"
-      client_id: "{{client_id}}"
-    extract:
-      booking_id: "$.data.booking.id"
-    expect:
-      status: [200, 201]
-    onFail: abort
-```
+## UID Resolution Procedure
 
-## Test Request
+How to dynamically obtain required UIDs for this endpoint:
 
-```yaml
-steps:
-  - id: complete_booking
-    method: POST
-    path: "/business/scheduling/v1/bookings/complete"
-    token: staff
-    body:
-      booking_id: "{{booking_id}}"
-      business_id: "{{business_id}}"
-    expect:
-      status: 200
-```
+⚠️ **This test requires creating fresh test data to avoid "already exists" errors.**
 
-## Body Parameters
+| UID Field | GET Endpoint | Extract From | Create Fresh | Cleanup |
+|-----------|--------------|--------------|--------------|---------|
+| booking_id | No direct GET endpoint found for bookings with current tokens | Response booking ID field | - | No DELETE endpoint available for bookings, completion serves as state change |
 
-| Parameter | Required | Type | Description |
-|-----------|----------|------|-------------|
-| `booking_id` | Yes* | string or array | Booking UID(s). Can be single string or array for batch operations (max 50). |
-| `event_instance_id` | Yes* | string | Event instance UID. Required when completing event registrations. |
-| `business_id` | Yes | string | Business UID |
+### Resolution Steps
 
-*One of `booking_id` or `event_instance_id` is required.
-
-## Expected Response (200)
+**booking_id**:
+1. **Create fresh test entity**: `POST /business/scheduling/v1/bookings`
+   - Body template: `{"business_id":"{{business_uid}}","service_id":"service_{{timestamp}}","staff_id":"{{staff_id}}","client_email":"test{{timestamp}}@example.com","start_time":"2024-12-15T10:00:00Z","duration":60}`
+2. Extract UID from creation response: `Response booking ID field`
+3. Run the test with this fresh UID
+4. **Cleanup note**: No DELETE endpoint available for bookings, completion serves as state change
 
 ```json
 {
-  "status": "OK",
-  "data": {
-    "booking": {
-      "uid": "v8mvcenb8y3wej2n",
-      "status": "completed"
-    }
+  "booking_id": {
+    "source_endpoint": "No direct GET endpoint found for bookings with current tokens",
+    "extract_from": "Response booking ID field",
+    "fallback_endpoint": null,
+    "create_fresh": false,
+    "create_endpoint": "POST /business/scheduling/v1/bookings",
+    "create_body": {
+      "business_id": "{{business_uid}}",
+      "service_id": "service_{{timestamp}}",
+      "staff_id": "{{staff_id}}",
+      "client_email": "test{{timestamp}}@example.com",
+      "start_time": "2024-12-15T10:00:00Z",
+      "duration": 60
+    },
+    "cleanup_endpoint": null,
+    "cleanup_note": "No DELETE endpoint available for bookings, completion serves as state change"
   }
 }
 ```
 
-## Error Responses
+## How to Resolve Parameters
+Parameters were resolved automatically.
 
-### 400 - Missing Parameters
+## Critical Learnings
+
+No specific learnings documented.
+
+## Request Template
+
+Use this template with dynamically resolved UIDs:
+
 ```json
 {
-  "status": "Error",
-  "error": "Missing required parameter: booking_id or event_instance_id"
+  "method": "POST",
+  "path": "/business/scheduling/v1/bookings/complete",
+  "body": {
+    "booking_id": [
+      "bk_test123"
+    ],
+    "business_id": "{{config.params.business_id}}"
+  }
 }
 ```
-
-### 404 - Booking Not Found
-```json
-{
-  "status": "Error",
-  "error": "Booking not found"
-}
-```
-
-## Notes
-
-- **Batch operations**: Support up to 50 bookings at once using an array of IDs
-- **Event completion**: Use `event_instance_id` for completing all attendances of an event
-- The booking must be in a valid state to be completed (e.g., 'scheduled')

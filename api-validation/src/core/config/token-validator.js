@@ -161,77 +161,173 @@ function makeRequest(url, options = {}) {
     });
     
     if (options.body) {
-      req.write(JSON.stringify(options.body));
+      // If body is already a string (e.g., form-urlencoded), write it directly
+      // Otherwise, stringify it as JSON
+      const bodyData = typeof options.body === 'string' ? options.body : JSON.stringify(options.body);
+      req.write(bodyData);
     }
-    
+
     req.end();
   });
 }
 
 /**
- * Generate a new client token using the client authentication API
- * @param {Object} config - Configuration with baseUrl and params
- * @returns {Promise<string|null>} New token or null if failed
+ * Generate a new staff JWT token using OAuth flow
+ * Step 1: Get OAuth access token using client_id/client_secret + username/password
+ * Step 2: Exchange access token for JWT via /api2/v2/staff_authentications/jwt_login
+ *
+ * @param {Object} config - Configuration with baseUrl and staffAuth credentials
+ * @returns {Promise<string|null>} New JWT token or null if failed
  */
-async function generateClientToken(config) {
-  const { baseUrl, params } = config;
-  const { business_uid, client_uid } = params || {};
-  
-  if (!business_uid || !client_uid) {
-    console.log('  Cannot generate client token: missing business_uid or client_uid in config');
+async function generateStaffJwt(config) {
+  const { baseUrl, staffAuth } = config;
+
+  if (!staffAuth?.oauth_client_id || !staffAuth?.oauth_client_secret || !staffAuth?.username || !staffAuth?.password) {
+    console.log('  Cannot generate staff JWT: missing staffAuth credentials in config');
+    console.log('  Required: oauth_client_id, oauth_client_secret, username, password');
     return null;
   }
-  
-  console.log(`  Attempting to generate new client token for client ${client_uid}...`);
-  
-  // The baseUrl might be the API gateway (e.g., https://app.meet2know.com/apigw)
-  // Client authentication endpoints are at the root (e.g., https://app.meet2know.com/api/...)
-  // So we need to extract the root URL
-  const rootUrl = baseUrl.replace(/\/apigw\/?$/, '');
-  console.log(`  Using root URL: ${rootUrl}`);
-  
+
+  if (!staffAuth.autoRefresh) {
+    console.log('  Staff JWT auto-refresh is disabled');
+    return null;
+  }
+
+  console.log('  🔄 Generating new staff JWT token...');
+
+  // Extract root URL (remove /apigw if present)
+  const rootUrl = baseUrl?.replace(/\/apigw\/?$/, '') || 'https://app.meet2know.com';
+
   try {
-    // Try the dev-mode flow (works in development/integration environments)
-    // Use api2 instead of api for client authentication endpoints
-    const sendCodeUrl = `${rootUrl}/api2/client_api/v1/portals/${business_uid}/authentications/send_code`;
-    
-    // First, we need to get the client's email - try to fetch the client
-    // This endpoint IS through the API gateway
-    const clientUrl = `${baseUrl}/platform/v1/clients/${client_uid}`;
-    
-    // Use staff token to get client info
-    const staffToken = config.tokens?.staff;
-    if (!staffToken) {
-      console.log('  Cannot generate client token: no staff token available to fetch client email');
+    // Step 1: Get OAuth access token
+    console.log('  Step 1: Getting OAuth access token...');
+
+    const basicAuth = Buffer.from(`${staffAuth.oauth_client_id}:${staffAuth.oauth_client_secret}`).toString('base64');
+    const oauthUrl = `${rootUrl}/apigw/oauth/token`;
+
+    const oauthResponse = await makeRequest(oauthUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${basicAuth}`,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: `grant_type=password&username=${encodeURIComponent(staffAuth.username)}&password=${encodeURIComponent(staffAuth.password)}`
+    });
+
+    if (oauthResponse.status !== 200 || !oauthResponse.data?.access_token) {
+      console.log(`  ✗ OAuth failed: status=${oauthResponse.status}`);
+      console.log(`    Response: ${JSON.stringify(oauthResponse.data)}`);
       return null;
     }
-    
-    console.log('  Fetching client email using staff token...');
-    const clientResponse = await makeRequest(clientUrl, {
-      method: 'GET',
+
+    const accessToken = oauthResponse.data.access_token;
+    console.log(`  ✓ Got OAuth access token: ${accessToken.substring(0, 20)}...`);
+
+    // Step 2: Exchange for JWT
+    console.log('  Step 2: Exchanging for JWT...');
+
+    const jwtUrl = `${rootUrl}/api2/v2/staff_authentications/jwt_login`;
+    const jwtResponse = await makeRequest(jwtUrl, {
+      method: 'POST',
       headers: {
-        'Authorization': `Bearer ${staffToken}`
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
       }
     });
-    
-    // Handle different response structures:
-    // - /platform/v1/clients/{uid} returns: { status: "OK", data: { client: { email: "..." } } }
-    // - Some endpoints return: { data: { email: "..." } }
+
+    if (jwtResponse.status !== 200 && jwtResponse.status !== 201) {
+      console.log(`  ✗ JWT exchange failed: status=${jwtResponse.status}`);
+      console.log(`    Response: ${JSON.stringify(jwtResponse.data)}`);
+      return null;
+    }
+
+    const jwtToken = jwtResponse.data?.token || jwtResponse.data?.data?.token;
+
+    if (!jwtToken) {
+      console.log(`  ✗ No JWT token in response: ${JSON.stringify(jwtResponse.data)}`);
+      return null;
+    }
+
+    console.log(`  ✓ Got new staff JWT: ${jwtToken.substring(0, 30)}...`);
+
+    // Decode to show expiry
+    const payload = decodeJwt(jwtToken);
+    if (payload?.exp) {
+      const expiresAt = new Date(payload.exp * 1000);
+      console.log(`  ✓ JWT expires at: ${expiresAt.toISOString()}`);
+    }
+
+    return jwtToken;
+
+  } catch (error) {
+    console.log(`  ✗ Error generating staff JWT: ${error.message}`);
+    return null;
+  }
+}
+
+/**
+ * Generate a new client token using the client authentication API
+ * Uses .dev suffix trick for development/integration environments
+ *
+ * @param {Object} config - Configuration with baseUrl, params, and clientAuth
+ * @returns {Promise<string|null>} New JWT token or null if failed
+ */
+async function generateClientToken(config) {
+  const { baseUrl, params, clientAuth } = config;
+  const { business_uid } = params || {};
+
+  if (!business_uid) {
+    console.log('  Cannot generate client token: missing business_uid in config');
+    return null;
+  }
+
+  if (!clientAuth?.autoRefresh) {
+    console.log('  Client token auto-refresh is disabled');
+    return null;
+  }
+
+  // Get client email from clientAuth config or fetch it via API
+  let clientEmail = clientAuth?.email;
+
+  console.log('  🔄 Generating new client JWT token...');
+
+  // Extract root URL (remove /apigw if present)
+  const rootUrl = baseUrl?.replace(/\/apigw\/?$/, '') || 'https://app.meet2know.com';
+
+  // If no email in clientAuth, try to fetch it using client_uid
+  if (!clientEmail && params?.client_uid) {
+    const staffToken = config.tokens?.staff;
+    if (!staffToken) {
+      console.log('  Cannot generate client token: no email in clientAuth and no staff token to fetch it');
+      return null;
+    }
+
+    console.log(`  Fetching client email for ${params.client_uid}...`);
+    const clientUrl = `${baseUrl}/platform/v1/clients/${params.client_uid}`;
+    const clientResponse = await makeRequest(clientUrl, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${staffToken}` }
+    });
+
     const clientData = clientResponse.data?.data?.client || clientResponse.data?.data || clientResponse.data?.client;
-    const clientEmail = clientData?.email;
-    
-    if (clientResponse.status !== 200 || !clientEmail) {
-      console.log(`  Failed to fetch client info: status=${clientResponse.status}, email found=${!!clientEmail}`);
-      console.log(`  Response: ${JSON.stringify(clientResponse.data)}`);
+    clientEmail = clientData?.email;
+
+    if (!clientEmail) {
+      console.log(`  Failed to fetch client email: ${JSON.stringify(clientResponse.data)}`);
       return null;
     }
     console.log(`  Found client email: ${clientEmail}`);
-    
+  }
+
+  if (!clientEmail) {
+    console.log('  Cannot generate client token: no email available');
+    return null;
+  }
+
+  try {
     // In dev/integration mode, add .dev suffix to get token directly
-    // This triggers the dev mode in the controller that returns the auth token
     const devEmail = clientEmail.endsWith('.dev') ? clientEmail : `${clientEmail}.dev`;
-    
-    console.log(`  Sending login link to ${devEmail} (dev mode)...`);
+    console.log(`  Step 1: Getting auth token for ${devEmail} (dev mode)...`);
     
     // Use send_login_link endpoint which returns token directly in dev mode
     // Client API endpoints use api2 path
@@ -354,23 +450,65 @@ async function validateAndRefreshTokens(config) {
   
   const validation = validateAllTokens(config.tokens || {});
   
-  // Log valid tokens
+  // Log valid tokens and check for soon-to-expire tokens
+  const PROACTIVE_REFRESH_BUFFER_MS = 2 * 60 * 1000; // Refresh if expiring within 2 minutes
+
   for (const tokenType of Object.keys(validation.valid)) {
     const info = validation.valid[tokenType];
     if (info.expiresAt) {
-      console.log(`  ✓ ${tokenType}: valid (expires ${info.expiresAt.toISOString()})`);
+      const timeUntilExpiry = info.expiresAt.getTime() - Date.now();
+      const expiresInMinutes = Math.round(timeUntilExpiry / 60000);
+
+      if (timeUntilExpiry < PROACTIVE_REFRESH_BUFFER_MS && timeUntilExpiry > 0) {
+        // Token is about to expire - refresh proactively
+        console.log(`  ⚠ ${tokenType}: expiring soon (${expiresInMinutes} min) - refreshing proactively...`);
+
+        if (tokenType === 'staff') {
+          const newToken = await generateStaffJwt(config);
+          if (newToken) {
+            config.tokens.staff = newToken;
+            updateTokensFile('staff', newToken);
+            validation.valid.staff = validateJwtToken(newToken);
+            console.log(`  ✓ ${tokenType}: refreshed successfully`);
+          } else {
+            console.log(`  ⚠ ${tokenType}: proactive refresh failed, using existing token`);
+          }
+        } else if (tokenType === 'client') {
+          const newToken = await generateClientToken(config);
+          if (newToken) {
+            config.tokens.client = newToken;
+            updateTokensFile('client', newToken);
+            validation.valid.client = validateJwtToken(newToken);
+            console.log(`  ✓ ${tokenType}: refreshed successfully`);
+          } else {
+            console.log(`  ⚠ ${tokenType}: proactive refresh failed, using existing token`);
+          }
+        }
+      } else {
+        console.log(`  ✓ ${tokenType}: valid (expires in ${expiresInMinutes} min)`);
+      }
     } else {
-      console.log(`  ✓ ${tokenType}: valid`);
+      console.log(`  ✓ ${tokenType}: valid (no expiry)`);
     }
   }
-  
+
   // Handle expired tokens
   for (const tokenType of Object.keys(validation.expired)) {
     const info = validation.expired[tokenType];
     console.log(`  ✗ ${tokenType}: EXPIRED (was valid until ${info.expiresAt?.toISOString()})`);
     
     // Try to auto-generate for supported token types
-    if (tokenType === 'client') {
+    if (tokenType === 'staff') {
+      const newToken = await generateStaffJwt(config);
+      if (newToken) {
+        config.tokens.staff = newToken;
+        updateTokensFile('staff', newToken);
+        validation.valid.staff = validateJwtToken(newToken);
+        delete validation.expired.staff;
+      } else {
+        console.log(`  ⚠ Could not auto-generate ${tokenType} token. Please refresh manually.`);
+      }
+    } else if (tokenType === 'client') {
       const newToken = await generateClientToken(config);
       if (newToken) {
         config.tokens.client = newToken;
@@ -467,6 +605,7 @@ module.exports = {
   validateJwtToken,
   isJwtToken,
   validateAllTokens,
+  generateStaffJwt,
   generateClientToken,
   updateTokensFile,
   validateAndRefreshTokens,

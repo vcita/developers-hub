@@ -37,7 +37,7 @@ let anthropicClient = null;
 let openaiClient = null;
 
 // Repository paths for source code access
-const GITHUB_BASE = process.env.GITHUB_BASE_PATH || '/Users/ram.almog/Documents/GitHub';
+const GITHUB_BASE = process.env.GITHUB_BASE_PATH || '/Users/yehoshua.katz/ws2';
 const REPO_PATHS = {
   core: process.env.CORE_REPO_PATH || `${GITHUB_BASE}/core`,
   vcita: process.env.VCITA_REPO_PATH || `${GITHUB_BASE}/vcita`,
@@ -128,7 +128,7 @@ function getAIConfig(config) {
 const TOOLS = [
   {
     name: "extract_required_uids",
-    description: "Extract all required UID/ID fields from the endpoint's swagger schema. Call this FIRST to understand what UIDs you need to resolve before retrying the request.",
+    description: "Extract all required UID/ID fields and required query parameters from the endpoint's swagger schema. Call this FIRST to understand what UIDs and parameters you need before retrying the request.",
     input_schema: {
       type: "object",
       properties: {},
@@ -1155,6 +1155,38 @@ function findUidSourceEndpoints(uidField, allEndpoints) {
     }
   }
   
+  // If no list endpoint found, search for it in other related groups
+  // This handles cases where list endpoint is at /v2/resource but nested endpoints are at /v2/resource/{id}/...
+  if (!getEndpoint) {
+    console.log(`  [find_uid_source] No list endpoint in matched group, searching related groups...`);
+    
+    // Search for groups that have the resource name in the key (not just as a path param)
+    for (const [key, group] of Object.entries(grouped)) {
+      // Skip the already matched group
+      if (key === matchedKey) continue;
+      
+      // Check if this group's key contains the resource name (e.g., v2/event_instances)
+      if (key.toLowerCase().includes(resourceName.toLowerCase())) {
+        console.log(`  [find_uid_source] Checking related group: ${key}`);
+        
+        for (const ep of group.endpoints) {
+          const operation = getCrudOperation(ep);
+          console.log(`  [find_uid_source]   - ${ep.method} ${ep.path} (operation: ${operation})`);
+          
+          if (operation === 'list' && !getEndpoint) {
+            getEndpoint = `${ep.method} ${ep.path}`;
+            console.log(`  [find_uid_source] Found list endpoint in related group!`);
+          }
+          if (operation === 'create' && !postEndpoint) {
+            postEndpoint = `${ep.method} ${ep.path}`;
+          }
+        }
+        
+        if (getEndpoint) break;
+      }
+    }
+  }
+  
   console.log(`  [find_uid_source] Result: GET=${getEndpoint}, POST=${postEndpoint}`);
   
   return {
@@ -1242,6 +1274,24 @@ async function executeTool(toolName, toolInput, context) {
         }
       }
       
+      // Also check required query parameters (important for GET endpoints)
+      const queryParams = endpoint.parameters?.query || [];
+      const requiredQueryParams = [];
+      for (const qp of queryParams) {
+        if (qp.required && qp.name) {
+          requiredQueryParams.push({
+            field: qp.name,
+            required: true,
+            type: qp.schema?.type || 'string',
+            description: qp.description || 'Required query parameter',
+            isQueryParam: true,
+            detectionMethod: 'query_param',
+            needsDocumentation: false
+          });
+        }
+      }
+      console.log(`  [extract_required_uids] Found ${requiredQueryParams.length} required query params: ${requiredQueryParams.map(f => f.field).join(', ') || 'none'}`);
+      
       // Check which UIDs we already have resolved
       const resolvedUids = [];
       const unresolvedUids = [];
@@ -1277,10 +1327,15 @@ async function executeTool(toolName, toolInput, context) {
       }
       
       let note = '';
-      if (unresolvedUids.length === 0) {
+      if (unresolvedUids.length === 0 && requiredQueryParams.length === 0) {
         note = 'All required UIDs/references are already resolved! You can retry the original request.';
+      } else if (unresolvedUids.length === 0 && requiredQueryParams.length > 0) {
+        note = `No UIDs to resolve, but you MUST include these required query parameters: ${requiredQueryParams.map(p => p.field).join(', ')}`;
       } else {
         note = `You need to resolve ${unresolvedUids.length} UID/reference field(s) before retrying.`;
+        if (requiredQueryParams.length > 0) {
+          note += ` Also include required query params: ${requiredQueryParams.map(p => p.field).join(', ')}`;
+        }
       }
       
       if (documentationSuggestions.length > 0) {
@@ -1297,6 +1352,7 @@ async function executeTool(toolName, toolInput, context) {
         totalUidFields: uidFields.length,
         alreadyResolved: resolvedUids,
         needsResolution: unresolvedUids,
+        requiredQueryParams: requiredQueryParams.length > 0 ? requiredQueryParams : undefined,
         documentationSuggestions: documentationSuggestions.length > 0 ? documentationSuggestions : undefined,
         note
       };
@@ -2010,23 +2066,24 @@ async function executeTool(toolName, toolInput, context) {
         console.log(`  [AI Healer] Workflow comparison: followed=${workflowComparison.followedWorkflow}, deviations=${workflowComparison.deviations.length}`);
       }
       
+      // DISABLED: Workflow auto-save was overwriting manually crafted workflows with prerequisites
       // Only save workflow for SUCCESS - skip suggestions require user approval
       // Skip workflows will be saved via the /approve-skip endpoint after user approves
       // NOTE: Doc issues are NOT stored in workflows - they're transient findings
-      if (isSuccess && uid_resolution) {
-        const workflowData = {
-          summary,
-          status: 'success',
-          uidResolution: uid_resolution,
-          successfulRequest: context.successfulRequest,
-          domain: endpoint.domain,
-          tags: []
-          // docFixes intentionally NOT included - workflows are success paths only
-        };
-        
-        workflowRepo.save(endpointKey, workflowData);
-        context.savedWorkflow = true;
-      }
+      // if (isSuccess && uid_resolution) {
+      //   const workflowData = {
+      //     summary,
+      //     status: 'success',
+      //     uidResolution: uid_resolution,
+      //     successfulRequest: context.successfulRequest,
+      //     domain: endpoint.domain,
+      //     tags: []
+      //     // docFixes intentionally NOT included - workflows are success paths only
+      //   };
+      //   
+      //   workflowRepo.save(endpointKey, workflowData);
+      //   context.savedWorkflow = true;
+      // }
       
       // Store doc issues - but FILTER OUT issues that are already documented
       // This prevents false positives when AI follows the documented workflow
@@ -2686,146 +2743,267 @@ async function runAgentHealer(options) {
     });
     
     // Execute the workflow's test request if defined
+    // Supports both single-step and multi-step test requests
     if (existingWorkflow.testRequest) {
       const { resolve, resolveObject } = require('../prerequisite/variables');
+      const { extract } = require('../prerequisite/jsonpath');
       const axios = require('axios');
-      const testReq = existingWorkflow.testRequest;
-      
-      // Resolve variables in the test request body
-      const resolvedBody = resolveObject(testReq.body || {}, resolvedParams);
-      const resolvedPath = resolve(testReq.path || endpoint.path, resolvedParams);
-      
-      // Determine which token to use
-      const tokenType = testReq.token || 'staff';
-      const authToken = config.tokens?.[tokenType];
       
       // Check if workflow specifies to use fallback API (handles both boolean and string "true")
       const useFallback = existingWorkflow.metadata?.useFallbackApi === true || 
                           existingWorkflow.metadata?.useFallbackApi === 'true';
       const baseUrl = useFallback ? config.fallbackUrl : config.baseUrl;
       
-      if (authToken) {
-        onProgress?.({
-          type: 'agent_action',
-          action: 'workflow_test_request',
-          details: `Executing workflow test request with ${tokenType} token${useFallback ? ' (using fallback API)' : ''}`
-        });
+      // Get test request steps - support both old format (single step) and new format (steps array)
+      const testRequestSteps = existingWorkflow.testRequest.steps || [existingWorkflow.testRequest];
+      const totalSteps = testRequestSteps.length;
+      
+      console.log(`\n📝 Executing ${totalSteps} Test Request step(s)...`);
+      
+      onProgress?.({
+        type: 'agent_action',
+        action: 'workflow_test_request_start',
+        details: `Executing ${totalSteps} test request step(s)${useFallback ? ' (using fallback API)' : ''}`
+      });
+      
+      // Helper function to acquire a token if needed
+      const acquireToken = async (tokenType) => {
+        let authToken = config.tokens?.[tokenType];
         
-        console.log(`\n📝 Executing workflow Test Request with ${tokenType} token...`);
-        console.log(`  Base URL: ${baseUrl}`);
-        console.log(`  Path: ${resolvedPath}`);
-        console.log(`  Body: ${JSON.stringify(resolvedBody, null, 2).substring(0, 500)}`);
+        if (!authToken && tokenType === 'client' && config.params?.business_uid) {
+          console.log(`  ⚠️ Acquiring '${tokenType}' token...`);
+          try {
+            const staffToken = config.tokens?.staff;
+            const businessUid = config.params.business_uid;
+            const clientUid = config.params?.client_uid;
+            const rootUrl = (config.baseUrl || '').replace(/\/apigw\/?$/, '');
+            
+            if (staffToken && businessUid) {
+              let clientEmail = null;
+              if (clientUid) {
+                const clientResponse = await axios.get(
+                  `${config.baseUrl}/platform/v1/clients/${clientUid}`,
+                  { headers: { 'Authorization': `Bearer ${staffToken}` } }
+                );
+                clientEmail = clientResponse.data?.data?.email;
+                console.log(`    Found client email: ${clientEmail}`);
+              }
+              
+              if (clientEmail) {
+                const devEmail = clientEmail.endsWith('.dev') ? clientEmail : `${clientEmail}.dev`;
+                const loginResponse = await axios.post(
+                  `${rootUrl}/api2/client_api/v1/portals/${businessUid}/authentications/send_login_link`,
+                  { email: devEmail, portal_id: businessUid },
+                  { headers: { 'Content-Type': 'application/json' } }
+                );
+                
+                if (loginResponse.data?.token) {
+                  const jwtResponse = await axios.post(
+                    `${rootUrl}/api2/client_api/v1/portals/${businessUid}/authentications/get_jwt_token_from_authentication_token`,
+                    { auth_token: loginResponse.data.token, portal_id: businessUid },
+                    { headers: { 'Content-Type': 'application/json' } }
+                  );
+                  
+                  if (jwtResponse.data?.token) {
+                    authToken = jwtResponse.data.token;
+                    config.tokens = config.tokens || {};
+                    config.tokens.client = authToken;
+                    console.log(`    ✓ Acquired client token!`);
+                  }
+                }
+              }
+            }
+          } catch (tokenError) {
+            console.log(`    Failed to acquire ${tokenType} token: ${tokenError.message}`);
+          }
+        }
+        
+        return authToken;
+      };
+      
+      // Execute each step sequentially, extracting variables between steps
+      let lastStepResponse = null;
+      let lastStepRequest = null;
+      let allStepsPassed = true;
+      let failedStep = null;
+      
+      for (let stepIndex = 0; stepIndex < testRequestSteps.length; stepIndex++) {
+        const step = testRequestSteps[stepIndex];
+        const stepId = step.id || `step_${stepIndex + 1}`;
+        const isLastStep = stepIndex === testRequestSteps.length - 1;
+        
+        console.log(`\n  [Step ${stepIndex + 1}/${totalSteps}] ${step.description || stepId}`);
+        
+        // Determine token type for this step
+        const tokenType = step.token || 'staff';
+        const authToken = await acquireToken(tokenType);
+        
+        if (!authToken) {
+          console.log(`    ✗ Missing ${tokenType} token for step ${stepId}`);
+          
+          // If this is a setup step (not the last step), we can't continue
+          if (!isLastStep || step.onFail === 'stop') {
+            onProgress?.({
+              type: 'agent_complete',
+              status: 'blocked',
+              success: false,
+              summary: `Step ${stepId} requires '${tokenType}' token but it's not configured`,
+              blocked: true,
+              blockedReason: `Missing ${tokenType} token`
+            });
+            
+            return {
+              success: false,
+              status: 'BLOCKED',
+              reason: `Step ${stepId} requires '${tokenType}' token`,
+              suggestion: `Configure a ${tokenType} token in config/tokens.json`,
+              failedAtStep: stepId,
+              healingLog: [{
+                type: 'missing_token',
+                step: stepId,
+                requiredToken: tokenType
+              }]
+            };
+          }
+          
+          allStepsPassed = false;
+          failedStep = stepId;
+          break;
+        }
+        
+        // Resolve variables in step path and body
+        const resolvedPath = resolve(step.path || endpoint.path, resolvedParams);
+        const resolvedBody = step.body ? resolveObject(step.body, resolvedParams) : undefined;
+        
+        console.log(`    Method: ${step.method || endpoint.method}`);
+        console.log(`    Path: ${resolvedPath}`);
+        console.log(`    Token: ${tokenType}`);
+        if (resolvedBody) {
+          console.log(`    Body: ${JSON.stringify(resolvedBody, null, 2).substring(0, 300)}`);
+        }
         
         try {
           const authPrefix = tokenType === 'admin' ? 'Admin' : 'Bearer';
-          const testResponse = await axios.request({
-            method: (testReq.method || endpoint.method).toLowerCase(),
+          const stepResponse = await axios.request({
+            method: (step.method || endpoint.method).toLowerCase(),
             url: `${baseUrl}${resolvedPath}`,
             data: resolvedBody,
             headers: {
               'Authorization': `${authPrefix} ${authToken}`,
               'Content-Type': 'application/json'
             },
-            validateStatus: () => true // Don't throw on any status
+            validateStatus: () => true
           });
           
-          // Check if the response matches expected status
-          const expectedStatus = testReq.expect?.status || [200, 201];
+          // Check expected status
+          const expectedStatus = step.expect?.status || [200, 201];
           const expectedStatuses = Array.isArray(expectedStatus) ? expectedStatus : [expectedStatus];
           
-          console.log(`  Response: ${testResponse.status}`);
+          console.log(`    Response: ${stepResponse.status}`);
           
-          if (expectedStatuses.includes(testResponse.status)) {
-            console.log(`  ✓ Workflow test request succeeded!`);
+          if (!expectedStatuses.includes(stepResponse.status)) {
+            console.log(`    ✗ Step failed: expected ${expectedStatuses.join(' or ')}, got ${stepResponse.status}`);
+            console.log(`    Response: ${JSON.stringify(stepResponse.data).substring(0, 300)}`);
             
-            // Check if the token type used is documented in swagger
-            const docIssues = [];
-            const swaggerDescription = endpoint.description || endpoint.summary || '';
-            
-            // Extract the token documentation section: "Available for **Client and Staff tokens**"
-            const tokenDocMatch = swaggerDescription.match(/Available for\s+\*\*([^*]+)\*\*/i);
-            const tokenDocSection = tokenDocMatch ? tokenDocMatch[1].toLowerCase() : '';
-            
-            // Check if token documentation exists and if our token type is mentioned
-            const hasAnyTokenDoc = !!tokenDocMatch;
-            const tokenDocumented = hasAnyTokenDoc && tokenDocSection.includes(tokenType.toLowerCase());
-            
-            if (!hasAnyTokenDoc) {
-              // No token documentation at all
-              docIssues.push({
-                type: 'missing_token_documentation',
-                field: 'description',
-                issue: `Endpoint succeeded with ${tokenType} token but swagger has no token documentation`,
-                suggestion: `Add "Available for **${tokenType.charAt(0).toUpperCase() + tokenType.slice(1)} tokens**" to the endpoint description`,
-                severity: 'warning'
-              });
-              console.log(`  ⚠️ Documentation issue: No token documentation in swagger (used ${tokenType} token)`);
-            } else if (!tokenDocumented) {
-              // Has token documentation but doesn't include the used token type
-              docIssues.push({
-                type: 'missing_token_type',
-                field: 'description',
-                issue: `Endpoint succeeded with ${tokenType} token but this token type is not documented`,
-                suggestion: `Add "${tokenType.charAt(0).toUpperCase() + tokenType.slice(1)}" to the token documentation`,
-                severity: 'warning'
-              });
-              console.log(`  ⚠️ Documentation issue: ${tokenType} token works but is not documented`);
+            if (step.onFail === 'stop' || !isLastStep) {
+              allStepsPassed = false;
+              failedStep = stepId;
+              lastStepResponse = stepResponse;
+              break;
             }
-            
-            // If fallback URL was used and workflow doesn't have useFallbackApi, update it
-            if (useFallback && !(existingWorkflow.metadata?.useFallbackApi === true || 
-                                 existingWorkflow.metadata?.useFallbackApi === 'true')) {
-              try {
-                const workflowRepo = require('../workflows/repository');
-                const endpointKey = `${endpoint.method} ${endpoint.path}`;
-                workflowRepo.updateWorkflowMetadata(endpointKey, { useFallbackApi: 'true' });
-                console.log(`  📝 Updated workflow to use fallback API for future runs`);
-              } catch (err) {
-                console.log(`  [WARN] Failed to update workflow metadata: ${err.message}`);
-              }
-            }
-            
-            const hasDocIssues = docIssues.length > 0;
-            
-            onProgress?.({
-              type: 'agent_complete',
-              status: hasDocIssues ? 'warn' : 'success',
-              success: true,
-              summary: 'Workflow test request succeeded with resolved prerequisites',
-              followedWorkflow: true,
-              usedFallback: useFallback,
-              hasDocumentationIssues: hasDocIssues
-            });
-            
-            return {
-              success: true,
-              status: hasDocIssues ? 'WARN' : 'PASS',
-              reason: 'Workflow test request succeeded',
-              summary: `Test passed using workflow with ${tokenType} token after resolving ${Object.keys(prereqResult.variables).length} prerequisite variables${useFallback ? ' (using fallback API)' : ''}${hasDocIssues ? ' (documentation issues found)' : ''}`,
-              followedWorkflow: true,
-              usedFallback: useFallback,
-              docFixSuggestions: docIssues,
-              finalRequest: {
-                method: testReq.method || endpoint.method,
-                path: resolvedPath,
-                body: resolvedBody,
-                token: tokenType,
-                baseUrl: baseUrl
-              },
-              finalResponse: {
-                status: testResponse.status,
-                data: testResponse.data
-              }
-            };
           } else {
-            console.log(`  ✗ Workflow test request failed: expected ${expectedStatuses.join(' or ')}, got ${testResponse.status}`);
-            console.log(`  Response data: ${JSON.stringify(testResponse.data).substring(0, 500)}`);
-            // Continue to AI healing if workflow request failed
+            console.log(`    ✓ Step succeeded`);
+            
+            // Extract variables from response for use in subsequent steps
+            if (step.extract) {
+              const extracted = extract(stepResponse.data, step.extract);
+              Object.assign(resolvedParams, extracted);
+              console.log(`    Extracted: ${Object.keys(extracted).join(', ')}`);
+            }
           }
+          
+          lastStepResponse = stepResponse;
+          lastStepRequest = {
+            method: step.method || endpoint.method,
+            path: resolvedPath,
+            body: resolvedBody,
+            token: tokenType
+          };
+          
         } catch (error) {
-          console.log(`  ✗ Workflow test request error: ${error.message}`);
-          // Continue to AI healing if workflow request failed
+          console.log(`    ✗ Step error: ${error.message}`);
+          allStepsPassed = false;
+          failedStep = stepId;
+          
+          if (step.onFail === 'stop' || !isLastStep) {
+            break;
+          }
         }
+      }
+      
+      // Evaluate final result
+      if (allStepsPassed && lastStepResponse) {
+        const lastStep = testRequestSteps[testRequestSteps.length - 1];
+        const tokenType = lastStep.token || 'staff';
+        
+        // Check for documentation issues on the final step
+        const docIssues = [];
+        const swaggerDescription = endpoint.description || endpoint.summary || '';
+        const tokenDocMatch = swaggerDescription.match(/Available for\s+\*\*([^*]+)\*\*/i);
+        const tokenDocSection = tokenDocMatch ? tokenDocMatch[1].toLowerCase() : '';
+        const hasAnyTokenDoc = !!tokenDocMatch;
+        const tokenDocumented = hasAnyTokenDoc && tokenDocSection.includes(tokenType.toLowerCase());
+        
+        if (!hasAnyTokenDoc) {
+          docIssues.push({
+            type: 'missing_token_documentation',
+            field: 'description',
+            issue: `Endpoint succeeded with ${tokenType} token but swagger has no token documentation`,
+            suggestion: `Add "Available for **${tokenType.charAt(0).toUpperCase() + tokenType.slice(1)} tokens**" to the endpoint description`,
+            severity: 'warning'
+          });
+        } else if (!tokenDocumented) {
+          docIssues.push({
+            type: 'missing_token_type',
+            field: 'description',
+            issue: `Endpoint succeeded with ${tokenType} token but this token type is not documented`,
+            suggestion: `Add "${tokenType.charAt(0).toUpperCase() + tokenType.slice(1)}" to the token documentation`,
+            severity: 'warning'
+          });
+        }
+        
+        const hasDocIssues = docIssues.length > 0;
+        
+        console.log(`\n✓ All ${totalSteps} test request steps completed successfully!`);
+        
+        onProgress?.({
+          type: 'agent_complete',
+          status: hasDocIssues ? 'warn' : 'success',
+          success: true,
+          summary: `Multi-step workflow completed (${totalSteps} steps)`,
+          followedWorkflow: true,
+          usedFallback: useFallback,
+          hasDocumentationIssues: hasDocIssues
+        });
+        
+        return {
+          success: true,
+          status: hasDocIssues ? 'WARN' : 'PASS',
+          reason: 'Multi-step workflow test request succeeded',
+          summary: `Test passed using ${totalSteps}-step workflow after resolving ${Object.keys(prereqResult.variables).length} prerequisite variables${useFallback ? ' (using fallback API)' : ''}${hasDocIssues ? ' (documentation issues found)' : ''}`,
+          followedWorkflow: true,
+          usedFallback: useFallback,
+          stepsExecuted: totalSteps,
+          docFixSuggestions: docIssues,
+          finalRequest: lastStepRequest,
+          finalResponse: {
+            status: lastStepResponse.status,
+            data: lastStepResponse.data
+          }
+        };
+      } else {
+        console.log(`\n✗ Multi-step workflow failed at step: ${failedStep}`);
+        // Continue to AI healing if workflow failed
       }
     }
   }
@@ -3078,7 +3256,7 @@ Follow the MANDATORY WORKFLOW:
   const messages = [{ role: "user", content: userMessage }];
   // healingLog is now tracked in context for workflow comparison
   let iterations = 0;
-  const maxIterations = 100; // High limit since UID resolution doesn't count toward retries
+  const maxIterations = 10; // Limit iterations to prevent runaway loops
   
   onProgress?.({
     type: 'agent_start',
@@ -3470,5 +3648,10 @@ module.exports = {
   lookupWorkflow,
   extractUidFieldsFromSchema,
   findUidSourceEndpoints,
-  TOOLS
+  TOOLS,
+  // Exported for Agent SDK flow
+  executeTool,
+  buildSystemPrompt,
+  REPO_PATHS,
+  APIGW_ROUTING
 };

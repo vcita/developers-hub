@@ -104,14 +104,26 @@ router.post('/', async (req, res) => {
     };
     
     activeSessions.set(sessionId, session);
-    
+
     // Start validation in background
-    runValidation(session, targetEndpoints, appConfig, options, allEndpoints).catch(error => {
-      console.error('Validation error:', error);
-      session.status = 'error';
-      session.error = error.message;
-      broadcastEvent(session, 'error', { message: error.message });
-    });
+    // Use LangGraph/CLI flow if requested, otherwise use standard flow
+    if (options.useLangGraph || options.useClaudeCodeCLI) {
+      console.log('[Routing] Using LangGraph/Claude CLI flow');
+      runAgentValidation(session, targetEndpoints, appConfig, options, allEndpoints).catch(error => {
+        console.error('Agent validation error:', error);
+        session.status = 'error';
+        session.error = error.message;
+        broadcastEvent(session, 'error', { message: error.message });
+      });
+    } else {
+      console.log('[Routing] Using standard validation flow');
+      runValidation(session, targetEndpoints, appConfig, options, allEndpoints).catch(error => {
+        console.error('Validation error:', error);
+        session.status = 'error';
+        session.error = error.message;
+        broadcastEvent(session, 'error', { message: error.message });
+      });
+    }
     
     // Return session info immediately
     res.json({
@@ -315,6 +327,169 @@ router.post('/approve-skip', async (req, res) => {
 });
 
 /**
+ * POST /api/validate/agent
+ * Run validation using the new Claude Agent SDK flow
+ * This uses the 5-node architecture: Token Prep -> Agreement Check -> Prerequisites -> Pre-flight -> Execute Loop
+ */
+router.post('/agent', async (req, res) => {
+  try {
+    console.log('POST /api/validate/agent received');
+    const { endpoints: selectedEndpoints, options = {} } = req.body;
+    const { endpoints: allEndpoints, config: appConfig } = req.appState;
+
+    if (!selectedEndpoints || selectedEndpoints.length === 0) {
+      return res.status(400).json({
+        error: 'No endpoints selected',
+        message: 'Provide an array of endpoints to validate'
+      });
+    }
+
+    // Create session ID
+    const sessionId = `agent-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    // Find matching endpoints from app state
+    const targetEndpoints = allEndpoints.filter(e =>
+      selectedEndpoints.some(s =>
+        s.path === e.path && s.method.toUpperCase() === e.method
+      )
+    );
+
+    if (targetEndpoints.length === 0) {
+      return res.status(400).json({
+        error: 'No matching endpoints found',
+        message: 'The selected endpoints do not match any loaded endpoints'
+      });
+    }
+
+    // Initialize session
+    const session = {
+      id: sessionId,
+      status: 'running',
+      startTime: Date.now(),
+      total: targetEndpoints.length,
+      completed: 0,
+      results: [],
+      listeners: new Set(),
+      stopped: false
+    };
+
+    activeSessions.set(sessionId, session);
+
+    // Load config with token validation
+    const config = loadConfig();
+
+    // Run agent validation in background
+    (async () => {
+      try {
+        // Dynamic import of the compiled agent module from dist/
+        const { runValidationAgent } = await import('../../../dist/core/agent/index.js');
+
+        for (const endpoint of targetEndpoints) {
+          if (session.stopped) break;
+
+          const endpointKey = `${endpoint.method} ${endpoint.path}`;
+
+          broadcastEvent(session, 'progress', {
+            endpoint: endpointKey,
+            status: 'running',
+            index: session.completed + 1,
+            total: session.total
+          });
+
+          try {
+            const result = await runValidationAgent(
+              endpoint,
+              config,
+              allEndpoints,
+              (progress) => broadcastEvent(session, progress.type, progress),
+              {
+                skipAgreementCheck: options.skipAgreementCheck,
+                maxRetries: options.maxRetries || 5,
+                model: options.model,
+                useLangGraph: options.useLangGraph || false,
+                forceRevalidation: options.forceRevalidation || false,
+                useClaudeCodeCLI: options.useClaudeCodeCLI || false,
+                forceAgreementCheck: options.forceAgreementCheck || false
+              }
+            );
+
+            // Build full result object matching what UI expects
+            const fullResult = {
+              endpoint: endpointKey,
+              domain: endpoint.domain,
+              method: endpoint.method,
+              path: endpoint.path,
+              summary: endpoint.summary || null,
+              description: endpoint.description || null,
+              swaggerFile: endpoint.swaggerFile || endpoint.domain,
+              status: result.status,
+              httpStatus: result.httpStatus || null,
+              duration: result.durationMs ? `${result.durationMs}ms` : null,
+              durationMs: result.durationMs || null,
+              tokenUsed: result.tokenUsed || 'staff',
+              details: {
+                reason: result.status,
+                friendlyMessage: result.reason,
+                request: result.request || null,
+                response: result.response || null
+              },
+              docIssues: result.docIssues
+            };
+
+            session.results.push(fullResult);
+            broadcastEvent(session, 'result', fullResult);
+
+          } catch (error) {
+            session.results.push({
+              endpoint: endpointKey,
+              status: 'ERROR',
+              details: { reason: 'ERROR', friendlyMessage: error.message }
+            });
+
+            broadcastEvent(session, 'error', {
+              endpoint: endpointKey,
+              error: error.message
+            });
+          }
+
+          session.completed++;
+        }
+
+        session.status = 'completed';
+        broadcastEvent(session, 'complete', {
+          status: 'completed',
+          passed: session.results.filter(r => r.status === 'PASS').length,
+          failed: session.results.filter(r => r.status === 'FAIL').length,
+          skipped: session.results.filter(r => r.status === 'SKIP').length,
+          errors: session.results.filter(r => r.status === 'ERROR').length,
+          duration: `${Date.now() - session.startTime}ms`
+        });
+
+      } catch (error) {
+        console.error('Agent validation error:', error);
+        session.status = 'error';
+        session.error = error.message;
+        broadcastEvent(session, 'error', { message: error.message });
+      }
+    })();
+
+    // Return session info immediately
+    res.json({
+      sessionId,
+      total: targetEndpoints.length,
+      message: `Agent validation started. Connect to /api/validate/stream/${sessionId} for progress updates.`
+    });
+
+  } catch (error) {
+    console.error('POST /api/validate/agent error:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: error.message
+    });
+  }
+});
+
+/**
  * POST /api/validate/tokens/check
  * Validate tokens and attempt to refresh expired ones
  */
@@ -441,6 +616,127 @@ function broadcastEvent(session, event, data) {
 }
 
 /**
+ * Run agent-based validation using LangGraph/Claude CLI
+ * This is the new flow that uses the validation graph with optional Claude CLI
+ */
+async function runAgentValidation(session, endpoints, appConfig, options = {}, allEndpoints = []) {
+  console.log('[Agent] runAgentValidation started for', endpoints.length, 'endpoints');
+  console.log('[Agent] Options:', JSON.stringify({
+    useLangGraph: options.useLangGraph,
+    useClaudeCodeCLI: options.useClaudeCodeCLI,
+    forceAgreementCheck: options.forceAgreementCheck
+  }));
+
+  try {
+    // Validate and refresh expired tokens before running tests
+    const { config, tokenValidation } = await loadConfigWithTokenValidation();
+
+    if (tokenValidation.hasExpiredTokens) {
+      console.log('⚠️ Some tokens could not be refreshed:', Object.keys(tokenValidation.expired));
+      broadcastEvent(session, 'warning', {
+        message: `Some tokens are expired: ${Object.keys(tokenValidation.expired).join(', ')}`,
+        type: 'token_warning'
+      });
+    }
+
+    // Dynamic import of the compiled agent module
+    const { runValidationAgent } = await import('../../../dist/core/agent/index.js');
+
+    for (const endpoint of endpoints) {
+      if (session.stopped) {
+        console.log(`[Agent] Session stopped - aborting remaining tests`);
+        break;
+      }
+
+      const endpointKey = `${endpoint.method} ${endpoint.path}`;
+
+      broadcastEvent(session, 'progress', {
+        endpoint: endpointKey,
+        status: 'running',
+        index: session.completed + 1,
+        total: session.total
+      });
+
+      try {
+        const result = await runValidationAgent(
+          endpoint,
+          config,
+          allEndpoints,
+          (progress) => broadcastEvent(session, progress.type, progress),
+          {
+            skipAgreementCheck: options.skipAgreementCheck,
+            maxRetries: options.maxRetries || 5,
+            model: options.model,
+            useLangGraph: true,  // Always use LangGraph in this flow
+            forceRevalidation: options.forceRevalidation || false,
+            useClaudeCodeCLI: options.useClaudeCodeCLI || false,
+            forceAgreementCheck: options.forceAgreementCheck || false
+          }
+        );
+
+        // Build full result object matching what UI expects
+        const fullResult = {
+          endpoint: endpointKey,
+          domain: endpoint.domain,
+          method: endpoint.method,
+          path: endpoint.path,
+          summary: endpoint.summary || null,
+          description: endpoint.description || null,
+          swaggerFile: endpoint.swaggerFile || endpoint.domain,
+          status: result.status,
+          httpStatus: result.httpStatus || null,
+          duration: result.durationMs ? `${result.durationMs}ms` : null,
+          durationMs: result.durationMs || null,
+          tokenUsed: result.tokenUsed || 'staff',
+          details: {
+            reason: result.status,
+            friendlyMessage: result.reason,
+            request: result.request || null,
+            response: result.response || null
+          },
+          docIssues: result.docIssues
+        };
+
+        session.results.push(fullResult);
+        broadcastEvent(session, 'result', fullResult);
+
+      } catch (error) {
+        console.error(`[Agent] Error for ${endpointKey}:`, error);
+        session.results.push({
+          endpoint: endpointKey,
+          status: 'ERROR',
+          details: { reason: 'ERROR', friendlyMessage: error.message }
+        });
+
+        broadcastEvent(session, 'error', {
+          endpoint: endpointKey,
+          error: error.message
+        });
+      }
+
+      session.completed++;
+    }
+
+    session.status = 'completed';
+    broadcastEvent(session, 'complete', {
+      status: 'completed',
+      passed: session.results.filter(r => r.status === 'PASS').length,
+      failed: session.results.filter(r => r.status === 'FAIL').length,
+      warned: session.results.filter(r => r.status === 'WARN').length,
+      errored: session.results.filter(r => r.status === 'ERROR').length,
+      skipped: session.results.filter(r => r.status === 'SKIP').length,
+      duration: `${Date.now() - session.startTime}ms`
+    });
+
+  } catch (error) {
+    console.error('[Agent] runAgentValidation error:', error);
+    session.status = 'error';
+    session.error = error.message;
+    broadcastEvent(session, 'error', { message: error.message });
+  }
+}
+
+/**
  * Run validation for endpoints
  * @param {Object} session - Session object
  * @param {Object[]} endpoints - Endpoints to validate
@@ -451,7 +747,17 @@ function broadcastEvent(session, event, data) {
 async function runValidation(session, endpoints, appConfig, options = {}, allEndpoints = []) {
   console.log('runValidation started for', endpoints.length, 'endpoints');
   
-  const config = loadConfig();
+  // Validate and refresh expired tokens before running tests
+  const { config, tokenValidation } = await loadConfigWithTokenValidation();
+  
+  if (tokenValidation.hasExpiredTokens) {
+    console.log('⚠️ Some tokens could not be refreshed:', Object.keys(tokenValidation.expired));
+    broadcastEvent(session, 'warning', { 
+      message: `Some tokens are expired and could not be refreshed: ${Object.keys(tokenValidation.expired).join(', ')}`,
+      type: 'token_warning'
+    });
+  }
+  
   console.log('Config loaded, baseUrl:', config.baseUrl);
   
   const { sequence } = buildTestSequence(endpoints, {
@@ -578,11 +884,52 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
       }
       
       if (!result) {
+        // Check if we have a workflow with testRequest - if so, skip normal validation
+        // and go directly to workflow-based execution (which handles prerequisites and correct token)
+        const endpointKey = `${endpoint.method} ${endpoint.path}`;
+        const existingWorkflow = workflowRepo.get(endpointKey);
+        const workflowToken = existingWorkflow?.testRequest?.token;
+        const hasWorkflowTestRequest = existingWorkflow?.testRequest && existingWorkflow?.prerequisites?.steps?.length > 0;
+        
+        // If workflow has structured testRequest with prerequisites, go directly to workflow execution
+        if (hasWorkflowTestRequest && config.ai?.enabled) {
+          console.log(`  [Workflow] Found workflow with testRequest and prerequisites - using workflow-based execution`);
+          console.log(`  [Workflow] Token: ${workflowToken || 'staff'}, Prerequisites: ${existingWorkflow.prerequisites.steps.length} step(s)`);
+          
+          // Mark as needing workflow-based healing (skip normal request building)
+          result = {
+            endpoint: endpointKey,
+            domain: endpoint.domain,
+            method: endpoint.method,
+            path: endpoint.path,
+            status: 'FAIL',
+            httpStatus: null,
+            duration: '0ms',
+            tokenUsed: workflowToken || 'staff',
+            details: {
+              reason: 'WORKFLOW_EXECUTION_REQUIRED',
+              friendlyMessage: 'Workflow with prerequisites exists - executing workflow directly',
+              needsWorkflowExecution: true
+            }
+          };
+          // Continue to AI healer which will run PHASE 0 (workflow execution)
+        }
+        
+        // If workflow specifies client token, mark it as needed
+        if (workflowToken === 'client' && !config.tokens?.client) {
+          console.log(`  [Workflow] Workflow specifies token: client - acquiring client token...`);
+        }
+        
         // Build and execute request (use async version with AI if enabled)
         const useAI = isAIConfigured(config);
         let buildResult = useAI 
           ? await buildRequestConfigAsync(endpoint, config, context)
           : buildRequestConfig(endpoint, config, context);
+        
+        // Override needsClientToken if workflow specifies client token
+        if (workflowToken === 'client') {
+          buildResult.needsClientToken = true;
+        }
         
         // If endpoint needs a client token and we don't have one, try to acquire it
         if (buildResult.needsClientToken && !config.tokens?.client) {
@@ -635,20 +982,22 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
               
               if (clientEmail) {
                 // Step 2: Send login link with .dev suffix
+                // NOTE: client_api endpoints use /api2/ path, not /apigw/
+                const rootUrl = baseUrl.replace(/\/apigw\/?$/, '');
                 const devEmail = clientEmail.endsWith('.dev') ? clientEmail : `${clientEmail}.dev`;
                 console.log(`  [Token] Sending login link to: ${devEmail}`);
                 
                 const loginResponse = await axios.post(
-                  `${baseUrl}/client_api/v1/portals/${businessUid}/authentications/send_login_link`,
-                  { email: devEmail },
+                  `${rootUrl}/api2/client_api/v1/portals/${businessUid}/authentications/send_login_link`,
+                  { email: devEmail, portal_id: businessUid },
                   { headers: { 'Content-Type': 'application/json' } }
                 );
                 
                 if (loginResponse.data?.token) {
                   // Step 3: Exchange for JWT
                   const jwtResponse = await axios.post(
-                    `${baseUrl}/client_api/v1/portals/${businessUid}/authentications/get_jwt_token_from_authentication_token`,
-                    { auth_token: loginResponse.data.token },
+                    `${rootUrl}/api2/client_api/v1/portals/${businessUid}/authentications/get_jwt_token_from_authentication_token`,
+                    { auth_token: loginResponse.data.token, portal_id: businessUid },
                     { headers: { 'Content-Type': 'application/json' } }
                   );
                   
@@ -679,7 +1028,19 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
           }
         }
         
-        const { config: requestConfig, tokenType, hasToken, skip, skipReason, isFallbackToken } = buildResult;
+        let { config: requestConfig, tokenType, hasToken, skip, skipReason, isFallbackToken } = buildResult;
+        
+        // If workflow specifies a token type and we have that token, use it
+        if (workflowToken && config.tokens?.[workflowToken]) {
+          console.log(`  [Workflow] Overriding token type from '${tokenType}' to '${workflowToken}' (from workflow)`);
+          tokenType = workflowToken;
+          hasToken = true;
+          // Update the Authorization header in the request config
+          if (requestConfig && requestConfig.headers) {
+            const authPrefix = workflowToken === 'admin' ? 'Admin' : 'Bearer';
+            requestConfig.headers['Authorization'] = `${authPrefix} ${config.tokens[workflowToken]}`;
+          }
+        }
         
         // Log request body for debugging
         if (requestConfig && requestConfig.data) {
@@ -1482,8 +1843,26 @@ function extractBodyUidFields(schema, prefix = '') {
  */
 async function fetchMissingParams(endpoints, paramResolver, apiClient, rateLimiter, config, log, testContext, allEndpoints, onProgress) {
   console.log(`\n========== PRE-FLIGHT PHASE ==========`);
-  console.log(`[Pre-flight] Processing ${endpoints.length} endpoint(s):`);
-  endpoints.forEach(e => console.log(`  - ${e.method} ${e.path}`));
+  
+  // Filter out endpoints that have workflows with prerequisites - let the workflow handle UID resolution
+  const endpointsForPreflight = endpoints.filter(e => {
+    const endpointKey = `${e.method} ${e.path}`;
+    const workflow = workflowRepo.get(endpointKey);
+    const hasWorkflowPrereqs = workflow?.prerequisites?.steps?.length > 0;
+    if (hasWorkflowPrereqs) {
+      console.log(`[Pre-flight] Skipping ${endpointKey} - has workflow with ${workflow.prerequisites.steps.length} prerequisite(s)`);
+      return false;
+    }
+    return true;
+  });
+  
+  if (endpointsForPreflight.length === 0) {
+    console.log(`[Pre-flight] All endpoints have workflows - skipping pre-flight phase`);
+    return {};
+  }
+  
+  console.log(`[Pre-flight] Processing ${endpointsForPreflight.length} endpoint(s):`);
+  endpointsForPreflight.forEach(e => console.log(`  - ${e.method} ${e.path}`));
   
   // Progress tracking
   let totalParamsToResolve = 0;
@@ -1512,7 +1891,7 @@ async function fetchMissingParams(endpoints, paramResolver, apiClient, rateLimit
   // Map generic params to their context-specific versions for substitution
   const paramContextMap = {};
   
-  for (const endpoint of endpoints) {
+  for (const endpoint of endpointsForPreflight) {
     // Path parameters (e.g., {client_uid} or generic {uid})
     const pathParams = extractPathParams(endpoint.path);
     for (const param of pathParams) {
@@ -1711,11 +2090,11 @@ async function fetchMissingParams(endpoints, paramResolver, apiClient, rateLimit
   const derivedEndpoints = new Set(); // Track derived list endpoints to avoid duplicates
   
   reportProgress('Phase 2: Auto-derivation', 'Analyzing paths...');
-  log(`Pre-flight Phase 2: Auto-deriving IDs for ${endpoints.length} endpoint(s)...`);
+  log(`Pre-flight Phase 2: Auto-deriving IDs for ${endpointsForPreflight.length} endpoint(s)...`);
   
   // Find endpoints with unresolved trailing params (any {param} at end of path)
   const endpointsNeedingDerivation = [];
-  for (const endpoint of endpoints) {
+  for (const endpoint of endpointsForPreflight) {
     const derived = deriveListEndpoint(endpoint.path);
     if (!derived) continue; // Path doesn't end with a parameter
     
@@ -1981,7 +2360,7 @@ async function fetchMissingParams(endpoints, paramResolver, apiClient, rateLimit
     reportProgress('Phase 3: AI Resolution', 'Checking for unresolved parameters...');
     // Find endpoints that still need UIDs (weren't resolved in Phase 1 or 2)
     const stillUnresolved = [];
-    for (const endpoint of endpoints) {
+    for (const endpoint of endpointsForPreflight) {
       const derived = deriveListEndpoint(endpoint.path);
       if (!derived) continue;
       

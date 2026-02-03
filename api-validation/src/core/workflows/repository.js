@@ -182,13 +182,17 @@ function parseWorkflowFile(filePath) {
     }
     
     // Extract structured test request (new deterministic format)
+    // Now supports multi-step test requests for workflows that need to:
+    // 1. Create test data (e.g., create a booking with client token)
+    // 2. Execute the actual endpoint being tested (e.g., accept the booking)
     let testRequest = null;
     if (sections['Test Request']) {
       const yamlMatch = sections['Test Request'].match(/```yaml\n([\s\S]*?)\n```/);
       if (yamlMatch) {
         try {
           const parsed = parseYamlSteps(yamlMatch[1]);
-          testRequest = parsed.steps?.[0] || null;
+          // Keep ALL steps for multi-step workflows (e.g., create booking → accept booking)
+          testRequest = parsed;
         } catch (e) {
           console.error(`Failed to parse test request YAML: ${e.message}`);
         }

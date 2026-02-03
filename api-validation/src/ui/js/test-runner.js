@@ -32,15 +32,20 @@ const TestRunner = {
     this.showResultsSectionEarly();
     
     try {
-      console.log('Sending POST to /api/validate');
-      
+      // Check if Claude CLI mode is enabled (auto-enables LangGraph)
+      const useClaudeCodeCLI = document.getElementById('use-claude-cli')?.checked || false;
+      const useLangGraph = useClaudeCodeCLI; // LangGraph is always used with Claude CLI
+      const useAgentSdk = false; // Agent SDK deprecated - using Claude CLI instead
+      const endpoint = '/api/validate';
+      console.log(`Sending POST to ${endpoint}${useClaudeCodeCLI ? ' (Claude CLI + LangGraph mode)' : ' (standard mode)'}`);
+
       // Start validation
-      const response = await fetch('/api/validate', {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           endpoints: endpoints.map(e => ({ path: e.path, method: e.method })),
-          options
+          options: { ...options, useLangGraph, useClaudeCodeCLI }
         })
       });
       

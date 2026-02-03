@@ -4,7 +4,7 @@ domain: scheduling
 tags: [scheduling, availability, directory]
 swagger: swagger/scheduling/availability.json
 status: working
-savedAt: 2026-02-01T23:30:00.000Z
+savedAt: 2026-02-02T11:10:00.000Z
 ---
 
 # Get Business Availabilities
@@ -48,29 +48,29 @@ steps:
 {
   "success": true,
   "data": {
-    "business_availabilities": [
-      {
-        "business_uid": "d290f1ee26c54",
-        "date": "2026-02-01",
-        "slots": [
-          {
-            "start_time": "09:00",
-            "end_time": "09:30",
-            "staff_uid": "staff123"
-          }
-        ]
-      }
-    ]
+    "items": [],
+    "total": "48"
   }
 }
 ```
+
+**Note**: The response uses `items` array (not `business_availabilities`) and includes a `total` count string.
 
 ## Error Responses
 
 ### 400 - Invalid Parameters
 ```json
 {
-  "error": "date_start is required"
+  "success": false,
+  "errors": [
+    {
+      "message": [
+        "date_start must be a valid ISO 8601 date string",
+        "date_end must be a valid ISO 8601 date string"
+      ],
+      "code": "bad_request"
+    }
+  ]
 }
 ```
 

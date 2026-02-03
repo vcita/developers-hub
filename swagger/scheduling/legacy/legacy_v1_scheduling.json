@@ -342,7 +342,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nCreates a booking for either an appointment with a staff member or registration for a group event.\n\nAvailable for **Client and Staff tokens**.",
+        "description": "## Overview\nCreates a booking for either an appointment with a staff member or registration for a group event.\n\nAvailable for **Client tokens only**. Staff tokens will fail with validation errors because the endpoint inherits from ClientApi base controller and requires client context from the JWT token.\n\n## Required Parameters for Appointment Booking\n- `business_id` (required)\n- `service_id` (required)\n- `staff_id` (required when service has staff_required=true, which is the default)\n- `start_time` OR `optional_times` (one is required)",
         "parameters": [
           {
             "in": "body",
@@ -442,7 +442,7 @@
                   "x-reference-to": "business"
                 },
                 "service_id": {
-                  "description": "Service uid. Required for appointment booking.",
+                  "description": "Service uid. **REQUIRED** for appointment booking. Obtain via `GET /platform/v1/services?business_id={business_uid}`",
                   "type": "string",
                   "x-reference-to": "service"
                 },
@@ -455,12 +455,12 @@
                   "type": "string"
                 },
                 "staff_id": {
-                  "description": "Staff uid. Required for appointment booking.",
+                  "description": "Staff uid. **REQUIRED** when service has staff_required=true (default). Obtain via `GET /platform/v1/businesses/{business_uid}/staffs`",
                   "type": "string",
                   "x-reference-to": "staff"
                 },
                 "start_time": {
-                  "description": "ISO 8601 format. Required for appointment.",
+                  "description": "ISO 8601 format. **REQUIRED** (or provide optional_times instead). Must be a future datetime.",
                   "type": "string"
                 },
                 "time_zone": {
@@ -469,7 +469,9 @@
                 }
               },
               "required": [
-                "business_id"
+                "business_id",
+                "service_id",
+                "staff_id"
               ],
               "type": "object"
             }
@@ -546,7 +548,7 @@
           "type": "http_proxy",
           "uri": "https:///platform/v1/scheduling/bookings"
         },
-        "x-auth-type": "Application & Application User"
+        "x-auth-type": "Client"
       }
     },
     "/scheduling/bookings/cancel": {
@@ -795,125 +797,41 @@
         "x-auth-type": "Application & Application User"
       }
     },
-    "/api/v2/event_instances/{event_instance_id}/event_attendances/{id}": {
+    "/v2/event_instances": {
       "get": {
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nGet Event attendance details for a specific attendee of an event instance.\n\nAvailable for **Staff and App tokens**.\n\n## Path Parameters\nNote: The path uses `/api/v2/` prefix, not `/platform/v1/scheduling/`.",
-        "parameters": [
-          {
-            "description": "Event instance UID. Obtain from event listing or event creation response.",
-            "in": "path",
-            "name": "event_instance_id",
-            "required": true,
-            "type": "string",
-            "x-reference-to": "event_instance"
-          },
-          {
-            "description": "Event attendance UID",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "type": "string",
-            "x-reference-to": "event_attendance"
-          }
-        ],
+        "description": "## Overview\nList all event instances (group events) for the business.\n\nAvailable for **Staff tokens**.\n\n## Notes\n- Event instances are individual occurrences of event series (group events)\n- Returns empty array if no group events exist\n- Use this endpoint to get `event_instance_id` values for other event-related endpoints\n- App tokens do NOT work with this endpoint (backend bug)",
+        "parameters": [],
         "produces": [
           "application/json"
         ],
         "responses": {
           "200": {
-            "description": "Success",
+            "description": "Success - returns array of event instances",
             "examples": {
-              "application/json": {
-                "data": {
-                  "event_attendance": {
-                    "cancelled_by": {},
-                    "charge_type": null,
-                    "client": {
-                      "address": null,
-                      "client_type": null,
-                      "color_id": 24,
-                      "created_at": "2025-08-05T06:56:38.860Z",
-                      "created_at_h": "Aug 05",
-                      "demo": false,
-                      "depth": "shallow",
-                      "email": "wesley@baumbach.biz",
-                      "first_name": "Clement",
-                      "full_name": "Clement Macejkovic",
-                      "last_name": "Macejkovic",
-                      "phone_to_call": null,
-                      "phone_to_display": null,
-                      "photo_path": null,
-                      "typed_custom_fields": null,
-                      "uid": "bw3s8k1q1qfcr1a3"
-                    },
-                    "conversation_uid": "gjnfyiyt6cdqu7oa",
-                    "created_at": "2025-08-05T06:56:39.373Z",
-                    "created_at_h": "6:56 am",
-                    "currency": null,
-                    "description": null,
-                    "duration": 30,
-                    "event_instance_duration": 30,
-                    "event_instance_staff_uid": "51092935d2f5a893",
-                    "event_instance_state": "scheduled",
-                    "event_instance_uid": "k1q95otq34mj35w1",
-                    "event_series_attendance_id": null,
-                    "event_service_uid": null,
-                    "event_title": "Down-sized hybrid challenge",
-                    "first_message_text": null,
-                    "id": "wt9x82ydrkxjpgxa",
-                    "image_url": "",
-                    "matter": {
-                      "display_name": null,
-                      "uid": "gjnfyiyt6cdqu7oa"
-                    },
-                    "net_price": "0.0",
-                    "no_show": false,
-                    "payment": null,
-                    "payment_state": "",
-                    "payment_status": null,
-                    "price": "0.0",
-                    "price_h": null,
-                    "request_data": null,
-                    "rsvp_confirmation_date_h": null,
-                    "rsvp_state": null,
-                    "source": "initiated_by_staff",
-                    "start_time": "2025-08-11T06:00:00.000Z",
-                    "start_time_h": "Mon, August 11 at 6:00am",
-                    "state_summary": {
-                      "actions": [
-                        {
-                          "name": "invite",
-                          "name_h": "translation missing: en.event_attendance.actions.invite"
-                        },
-                        {
-                          "name": "cancel",
-                          "name_h": "Cancel"
-                        },
-                        {
-                          "name": "cancel_event",
-                          "name_h": "translation missing: en.event_attendance.actions.cancel_event"
-                        },
-                        {
-                          "name": "toggle_no_show",
-                          "name_h": "translation missing: en.event_attendance.actions.toggle_no_show"
-                        }
-                      ],
-                      "calendar_state": "translation missing: en.event_attendance.state.confirmed.calendar",
-                      "description": "Attendance confirmed",
-                      "state": "confirmed",
-                      "state_h": "Registered"
-                    },
-                    "taxes": [],
-                    "type": "event",
-                    "uid": "wt9x82ydrkxjpgxa"
-                  }
-                },
-                "status": "OK"
-              }
+              "application/json": [
+                {
+                  "uid": "gmy6c6keyo2mmnaa",
+                  "title": "Group Yoga Class",
+                  "start_time": "2025-06-08T21:00:00.000Z",
+                  "end_time": "2025-06-08T22:00:00.000Z",
+                  "duration": 60,
+                  "state": "scheduled",
+                  "price": "10.0",
+                  "currency": "USD",
+                  "charge_type": "paid",
+                  "interaction_type": "business_location",
+                  "interaction_details": "123 Main St",
+                  "staff_id": "36ri3mtnk53zpfkc",
+                  "service_id": "d37paicvkb4u8taf"
+                }
+              ]
             }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing token"
           }
         },
         "security": [
@@ -923,9 +841,9 @@
             ]
           }
         ],
-        "summary": "Get Event Attendance",
+        "summary": "List Event Instances",
         "tags": [
-          "Event Attendances"
+          "Event Instances"
         ],
         "x-amazon-apigateway-auth": {
           "type": "NONE"
@@ -938,9 +856,116 @@
             }
           },
           "type": "http_proxy",
-          "uri": "https:///api/v2/event_instances/{event_instance_id}/event_attendances/{id}"
+          "uri": "https:///v2/event_instances"
         },
-        "x-auth-type": "Application & Application User"
+        "x-auth-type": "Application User"
+      },
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "## Overview\nCreate a new event instance (group event).\n\nAvailable for **Staff tokens**.\n\n## Required Fields\n- `title`: Event title\n- `start_time`: ISO 8601 datetime\n- `end_time`: ISO 8601 datetime (must be after start_time)\n- `duration`: Duration in minutes\n- `padding`: Buffer time in minutes (can be 0)\n- `interaction_type`: One of 'default_business_location', 'client_location', 'phone', 'video'\n- `max_attendance`: Maximum number of attendees\n\n## Note\nApp tokens do NOT work with this endpoint (backend bug)",
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "schema": {
+              "type": "object",
+              "required": ["title", "start_time", "end_time", "duration", "padding", "interaction_type", "max_attendance"],
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "description": "Event title"
+                },
+                "start_time": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "Event start time in ISO 8601 format"
+                },
+                "end_time": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "Event end time in ISO 8601 format (must be after start_time)"
+                },
+                "duration": {
+                  "type": "integer",
+                  "description": "Duration in minutes"
+                },
+                "padding": {
+                  "type": "integer",
+                  "description": "Buffer time in minutes (can be 0)"
+                },
+                "interaction_type": {
+                  "type": "string",
+                  "enum": ["default_business_location", "client_location", "phone", "video"],
+                  "description": "Event location type"
+                },
+                "max_attendance": {
+                  "type": "integer",
+                  "description": "Maximum number of attendees"
+                },
+                "service_id": {
+                  "type": "string",
+                  "description": "Optional service UID to associate with the event"
+                },
+                "staff_id": {
+                  "type": "string",
+                  "description": "Optional staff UID who hosts the event"
+                }
+              }
+            }
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Event instance created successfully",
+            "examples": {
+              "application/json": {
+                "uid": "f69jgubgg4ufktac",
+                "title": "Test Event",
+                "start_time": "2026-02-03T10:00:00.000Z",
+                "end_time": "2026-02-03T11:00:00.000Z",
+                "duration": 60,
+                "max_attendance": 10,
+                "state_summary": {
+                  "state": "scheduled",
+                  "state_h": "Scheduled"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error - missing or invalid fields"
+          }
+        },
+        "security": [
+          {
+            "default": [
+              "platform"
+            ]
+          }
+        ],
+        "summary": "Create Event Instance",
+        "tags": [
+          "Event Instances"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///v2/event_instances"
+        },
+        "x-auth-type": "Application User"
       }
     },
     "/scheduling/event_instance/{event_instance_id}": {

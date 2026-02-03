@@ -8,12 +8,12 @@
       "sourceFiles": [
         "notification_template.json",
         "staff_notification.json",
-        "communication.json",
-        "legacy_v1_communication.json",
-        "messages.json",
+        "activity_message.json",
         "business_phone_numbers.json",
         "communication.json",
-        "activity_message.json"
+        "communication.json",
+        "legacy_v1_communication.json",
+        "messages.json"
       ],
       "pathNormalizations": [
         {
@@ -97,35 +97,10 @@
               "basePath": "/platform/v1"
             }
           ]
-        },
-        {
-          "file": "messages.json",
-          "basePath": "/business/messaging",
-          "transformations": [
-            {
-              "original": "/v1/channels",
-              "normalized": "/business/messaging/v1/channels",
-              "basePath": "/business/messaging"
-            },
-            {
-              "original": "/v1/channels/typing",
-              "normalized": "/business/messaging/v1/channels/typing",
-              "basePath": "/business/messaging"
-            }
-          ]
         }
       ],
       "pathConflicts": [],
       "componentConflicts": [
-        {
-          "type": "schema",
-          "name": "Response",
-          "resolution": "Renamed to Response_business_phone_numbers",
-          "files": [
-            "merged",
-            "business_phone_numbers.json"
-          ]
-        },
         {
           "type": "schema",
           "name": "ErrorResponse",
@@ -147,15 +122,24 @@
         {
           "type": "schema",
           "name": "ErrorResponse",
-          "resolution": "Renamed to ErrorResponse_activity_message",
+          "resolution": "Renamed to ErrorResponse_communication",
           "files": [
             "merged",
-            "activity_message.json"
+            "communication.json"
+          ]
+        },
+        {
+          "type": "schema",
+          "name": "Response",
+          "resolution": "Renamed to Response_communication",
+          "files": [
+            "merged",
+            "communication.json"
           ]
         }
       ],
       "totalPaths": 31,
-      "totalComponents": 38
+      "totalComponents": 37
     }
   },
   "servers": [
@@ -730,6 +714,1155 @@
             "description": "Internal server error"
           }
         },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/communication/activity_messages": {
+      "post": {
+        "operationId": "sendActivityMessage",
+        "summary": "Create an ActivityMessage",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "business_uid": {
+                    "type": "string",
+                    "description": "The unique identifier of the business that is sending the message"
+                  },
+                  "staff_uid": {
+                    "type": "string",
+                    "description": "The unique identifier of the staff that is sending the message"
+                  },
+                  "client_uid": {
+                    "type": "string",
+                    "description": "The unique identifier of the client the message is sent to"
+                  },
+                  "activity_type": {
+                    "type": "string",
+                    "enum": [
+                      "invite"
+                    ],
+                    "description": "Activity category type from a closed list."
+                  },
+                  "activity_action": {
+                    "type": "string",
+                    "enum": [
+                      "schedule"
+                    ],
+                    "description": "Action related to the activity type property."
+                  },
+                  "channels": {
+                    "type": "array",
+                    "description": "Determines if the message should be sent via email or/and SMS.",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "email",
+                        "sms"
+                      ]
+                    }
+                  },
+                  "message_text": {
+                    "type": "object",
+                    "properties": {
+                      "body": {
+                        "type": "string",
+                        "description": "The main content of the message."
+                      },
+                      "subject": {
+                        "type": "string",
+                        "description": "A summary of the message content (limited to 200 characters)"
+                      }
+                    }
+                  },
+                  "cta_button_text": {
+                    "type": "string",
+                    "description": "In the Email, this text will appear on the button embedded in the email message"
+                  },
+                  "link_url_params": {
+                    "type": "object",
+                    "description": "The parameters for the Email action button or SMS link. for example: {\n\"utm_source\": \"newsletter\",\n\"utm_campaign\": \"summer_sale\"\n}"
+                  }
+                },
+                "required": [
+                  "client_uid",
+                  "activity_type",
+                  "activity_action",
+                  "channels"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/activityMessage.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error. The request is invalid. (missing required fields, invalid values, etc.)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "missing_field",
+                      "message": "Missing mandatory field."
+                    },
+                    {
+                      "code": "invalid",
+                      "message": "activity_type value is invalid."
+                    },
+                    {
+                      "code": "too_long",
+                      "message": "Sms body text is too long. Maximum length is 550 characters."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing, invalid or not allowed to access the requested resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "401 Unauthorized"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found. The requested resource was not found. (staff, client or business)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": "Client Not Found: The specified client ID does not exist."
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate Limit Reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "too_many_requests",
+                      "message": "Rate limit exceeded"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Activity Message"
+        ],
+        "description": "## Overview\nCreate an ActivityMessage Available for **Staff, App, and Directory tokens**.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/communication/available_phone_numbers": {
+      "get": {
+        "operationId": "AvailablePhoneNumbersController_findAll",
+        "summary": "Retrieve All AvailablePhoneNumbers",
+        "description": "## Overview\nRetrieves a list of phone numbers.",
+        "parameters": [
+          {
+            "name": "country_code",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by ISO 3166-1 alpha-2 country code (e.g., \"US\", \"CA\", \"GB\", \"AU\")"
+          },
+          {
+            "name": "area_code",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by area code (e.g., \"302\"). Required if country_code is \"US\"."
+          },
+          {
+            "name": "features",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "VOICE",
+                  "SMS"
+                ]
+              }
+            },
+            "description": "Filter by telephony features (e.g., [\"VOICE\", \"SMS\"])."
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number of results.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 10000,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "per_page",
+            "required": false,
+            "in": "query",
+            "description": "How many items to return per page. Max: 100",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Available phone numbers retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/MultiAvailablePhoneNumberResponse"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Invalid query parameters"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions"
+          }
+        },
+        "tags": [
+          "Available Phone Numbers"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/communication/business_phone_numbers": {
+      "post": {
+        "operationId": "BusinessPhoneNumbersController_create",
+        "summary": "Create a BusinessPhoneNumber",
+        "description": "## Overview\nPurchase a phone number from a telecom provider and assign it to a business account. For US and Canadian phone numbers with text messaging, verification_request_data is required to register your business with mobile carriers and ensure reliable message delivery. Available for **Staff and Directory tokens**.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBusinessPhoneNumberRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Business phone number created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/businessPhoneNumber.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Invalid input data"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions"
+          },
+          "409": {
+            "description": "Conflict - Phone number already exists or is not available"
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error in request data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Business Phone Numbers"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "get": {
+        "operationId": "BusinessPhoneNumbersController_findAll",
+        "summary": "Retrieve all BusinessPhoneNumbers",
+        "description": "## Overview\nRetrieves a list of all business phone numbers associated with a business account.",
+        "responses": {
+          "200": {
+            "description": "List of business phone numbers retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/MultiBusinessPhoneNumberResponse"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions"
+          }
+        },
+        "tags": [
+          "Business Phone Numbers"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/communication/business_phone_numbers/{uid}": {
+      "get": {
+        "operationId": "BusinessPhoneNumbersController_findOne",
+        "summary": "Retrieve a BusinessPhoneNumber",
+        "description": "## Overview\nFetches detailed information about a single business phone number using its unique identifier.\n\nAvailable for **Business and Directory tokens** only. Staff tokens without business context will be rejected.",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unique identifier of the business phone number"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Business phone number retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/businessPhoneNumber.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions"
+          },
+          "404": {
+            "description": "Not found - Business phone number not found"
+          }
+        },
+        "tags": [
+          "Business Phone Numbers"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "put": {
+        "operationId": "BusinessPhoneNumbersController_update",
+        "summary": "Update a BusinessPhoneNumber",
+        "description": "## Overview\nUpdate the verification request data for a business phone number.\n\nAvailable for **Business and Staff tokens** only. Requires business context.",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unique identifier of the business phone number",
+            "example": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBusinessPhoneNumberRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Business phone number updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/businessPhoneNumber.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Invalid input data"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions"
+          },
+          "404": {
+            "description": "Not found - Business phone number not found"
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error in request data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Business Phone Numbers"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/communication/voice_call_settings": {
+      "post": {
+        "operationId": "SettingsController_create",
+        "summary": "Create a VoiceCallSetting",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/voiceCallSetting.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Voice Call Settings"
+        ],
+        "description": "## Overview\nCreate a VoiceCallSetting Available for **Staff, App, and Directory tokens**.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "get": {
+        "operationId": "SettingsController_get",
+        "summary": "Get all VoiceCallSettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/MultiResponseEntity"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Voice Call Settings"
+        ],
+        "description": "## Overview\nGet all VoiceCallSettings.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/communication/voice_call_settings/{uid}": {
+      "put": {
+        "operationId": "SettingsController_update",
+        "summary": "Update VoiceCallSetting",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/voiceCallSetting.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Voice Call Settings"
+        ],
+        "description": "## Overview\nUpdate VoiceCallSetting Available for **Staff, App, and Directory tokens**.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/communication/voice_calls": {
+      "get": {
+        "operationId": "VoiceCallsController_getAll",
+        "summary": "Get all VoiceCalls",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number of results.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 10000,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "per_page",
+            "required": false,
+            "in": "query",
+            "description": "How many items to return per page. Max: 100",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "number"
+            }
+          },
+          {
+            "description": "Sort by fields. Example: sort=created_at:asc,updated_at:desc",
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "updated_at:desc",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by a field. Example: filter[created_at][gt]=2019-01-01, filter[name]=my-name",
+            "required": false,
+            "name": "filter",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/MultiVoiceCallResponse"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Voice Call"
+        ],
+        "description": "## Overview\nGet all VoiceCalls.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "VoiceCallsController_create",
+        "summary": "Create a VoiceCall",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateVoiceCall"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/voiceCall.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Voice Call"
+        ],
+        "description": "## Overview\nCreate a VoiceCall Available for **Staff, App, and Directory tokens**.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/communication/voice_calls/{uid}": {
+      "get": {
+        "operationId": "VoiceCallsController_get",
+        "summary": "Retrieve a VoiceCall",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/voiceCall.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Voice Call"
+        ],
+        "description": "## Overview\nRetrieve a VoiceCall.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "put": {
+        "operationId": "VoiceCallsController_update",
+        "summary": "Update a VoiceCall",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateVoiceCall"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/voiceCall.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Voice Call"
+        ],
+        "description": "## Overview\nUpdate a VoiceCall Available for **Staff, App, and Directory tokens**.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/communication/voice_call_recordings/{uid}": {
+      "put": {
+        "operationId": "RecordingsController_updateVoiceCallRecording",
+        "summary": "Update a VoiceCallRecording",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateVoiceCallRecording"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Returns a voiceCall entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/voiceCall.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Voice Call Recordings"
+        ],
+        "description": "## Overview\nUpdate a VoiceCallRecording Available for **Staff, App, and Directory tokens**.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "RecordingsController_deleteVoiceCallRecording",
+        "summary": "Delete a VoiceCallRecording",
+        "description": "## Overview\nDeletes a voice call recording and returns a voiceCall entity Available for **Staff, App, and Directory tokens**.",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Returns a voiceCall entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/voiceCall.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Voice Call Recordings"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/communication/voice_call_quotas": {
+      "get": {
+        "operationId": "QuotasController_getQuota",
+        "summary": "Retrieve a VoiceCallQuota",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/MultiQuotaResponseDto"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Voice Call Quota"
+        ],
+        "description": "## Overview\nRetrieve a VoiceCallQuota.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/communication/voice_calls/reports/voice_call_stats": {
+      "get": {
+        "operationId": "ReportsController_getVoiceCallStats",
+        "summary": "Get voice call stats",
+        "description": "## Overview\nReturns aggregated voice call status counts for the requested period and status filter.",
+        "parameters": [
+          {
+            "name": "start_date",
+            "in": "query",
+            "required": false,
+            "description": "Start date for the report period in YYYY-MM-DD format. If omitted, returns entries from the beginning of the available data.",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "required": false,
+            "description": "End date for the report period in YYYY-MM-DD format. If omitted, returns entries to the end of the available data.",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Filter by a specific voice call status. If not provided, returns all statuses.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "INCOMING_CALL",
+                "ANSWERED_BY_STAFF",
+                "MISSED",
+                "ANSWERED_BY_CALLS_PROVIDER",
+                "MISSED_CALL_HANDLED",
+                "VOICEMAIL_RECEIVED"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/VoiceCallStatsResponse"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Voice Call Reports"
+        ],
         "security": [
           {
             "Bearer": []
@@ -1897,7 +3030,7 @@
         ]
       }
     },
-    "/business/messaging/v1/channels": {
+    "/v1/channels": {
       "post": {
         "description": "## Overview\nConnecting a business to a primitive messaging channel through known providers.\n\n**Prerequisites:**\n- Business must have a valid `callsandtexting` subscription to use this endpoint.\n- For businesses without the `claim_dedicated_number` feature enabled, the `voice_text_app_installed` parameter must be set to `true`.\n\nAvailable for **Staff, App, and Directory tokens**.",
         "parameters": [],
@@ -1985,7 +3118,7 @@
         ]
       }
     },
-    "/business/messaging/v1/channels/typing": {
+    "/v1/channels/typing": {
       "post": {
         "description": "## Overview\nNotify contacts about account typing indicator. The `source` field determines the processing flow - when set to `business`, it uses the external typing status flow.\n\nAvailable for **Staff, App, and Directory tokens**.",
         "parameters": [],
@@ -2078,1155 +3211,6 @@
           }
         ]
       }
-    },
-    "/v3/communication/available_phone_numbers": {
-      "get": {
-        "operationId": "AvailablePhoneNumbersController_findAll",
-        "summary": "Retrieve All AvailablePhoneNumbers",
-        "description": "## Overview\nRetrieves a list of phone numbers.",
-        "parameters": [
-          {
-            "name": "country_code",
-            "required": true,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            },
-            "description": "Filter by ISO 3166-1 alpha-2 country code (e.g., \"US\", \"CA\", \"GB\", \"AU\")"
-          },
-          {
-            "name": "area_code",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "string"
-            },
-            "description": "Filter by area code (e.g., \"302\"). Required if country_code is \"US\"."
-          },
-          {
-            "name": "features",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "string",
-                "enum": [
-                  "VOICE",
-                  "SMS"
-                ]
-              }
-            },
-            "description": "Filter by telephony features (e.g., [\"VOICE\", \"SMS\"])."
-          },
-          {
-            "name": "page",
-            "required": false,
-            "in": "query",
-            "description": "Page number of results.",
-            "schema": {
-              "minimum": 1,
-              "maximum": 10000,
-              "default": 1,
-              "type": "number"
-            }
-          },
-          {
-            "name": "per_page",
-            "required": false,
-            "in": "query",
-            "description": "How many items to return per page. Max: 100",
-            "schema": {
-              "minimum": 1,
-              "maximum": 100,
-              "default": 25,
-              "type": "number"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Available phone numbers retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/MultiAvailablePhoneNumberResponse"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request - Invalid query parameters"
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing authentication token"
-          },
-          "403": {
-            "description": "Forbidden - Insufficient permissions"
-          }
-        },
-        "tags": [
-          "Available Phone Numbers"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/communication/business_phone_numbers": {
-      "post": {
-        "operationId": "BusinessPhoneNumbersController_create",
-        "summary": "Create a BusinessPhoneNumber",
-        "description": "## Overview\nPurchase a phone number from a telecom provider and assign it to a business account. For US and Canadian phone numbers with text messaging, verification_request_data is required to register your business with mobile carriers and ensure reliable message delivery. Available for **Staff and Directory tokens**.",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateBusinessPhoneNumberRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Business phone number created successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/businessPhoneNumber.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request - Invalid input data"
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing authentication token"
-          },
-          "403": {
-            "description": "Forbidden - Insufficient permissions"
-          },
-          "409": {
-            "description": "Conflict - Phone number already exists or is not available"
-          },
-          "422": {
-            "description": "Unprocessable Entity - Validation error in request data",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Business Phone Numbers"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      },
-      "get": {
-        "operationId": "BusinessPhoneNumbersController_findAll",
-        "summary": "Retrieve all BusinessPhoneNumbers",
-        "description": "## Overview\nRetrieves a list of all business phone numbers associated with a business account.",
-        "responses": {
-          "200": {
-            "description": "List of business phone numbers retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/MultiBusinessPhoneNumberResponse"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing authentication token"
-          },
-          "403": {
-            "description": "Forbidden - Insufficient permissions"
-          }
-        },
-        "tags": [
-          "Business Phone Numbers"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/communication/business_phone_numbers/{uid}": {
-      "get": {
-        "operationId": "BusinessPhoneNumbersController_findOne",
-        "summary": "Retrieve a BusinessPhoneNumber",
-        "description": "## Overview\nFetches detailed information about a single business phone number using its unique identifier.\n\nAvailable for **Business and Directory tokens** only. Staff tokens without business context will be rejected.",
-        "parameters": [
-          {
-            "name": "uid",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            },
-            "description": "Unique identifier of the business phone number"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Business phone number retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/businessPhoneNumber.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing authentication token"
-          },
-          "403": {
-            "description": "Forbidden - Insufficient permissions"
-          },
-          "404": {
-            "description": "Not found - Business phone number not found"
-          }
-        },
-        "tags": [
-          "Business Phone Numbers"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      },
-      "put": {
-        "operationId": "BusinessPhoneNumbersController_update",
-        "summary": "Update a BusinessPhoneNumber",
-        "description": "## Overview\nUpdate the verification request data for a business phone number.\n\nAvailable for **Business and Staff tokens** only. Requires business context.",
-        "parameters": [
-          {
-            "name": "uid",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            },
-            "description": "Unique identifier of the business phone number",
-            "example": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateBusinessPhoneNumberRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Business phone number updated successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/businessPhoneNumber.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request - Invalid input data"
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing authentication token"
-          },
-          "403": {
-            "description": "Forbidden - Insufficient permissions"
-          },
-          "404": {
-            "description": "Not found - Business phone number not found"
-          },
-          "422": {
-            "description": "Unprocessable Entity - Validation error in request data",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Business Phone Numbers"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/communication/voice_call_settings": {
-      "post": {
-        "operationId": "SettingsController_create",
-        "summary": "Create a VoiceCallSetting",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RequestDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/voiceCallSetting.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Voice Call Settings"
-        ],
-        "description": "## Overview\nCreate a VoiceCallSetting Available for **Staff, App, and Directory tokens**.",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      },
-      "get": {
-        "operationId": "SettingsController_get",
-        "summary": "Get all VoiceCallSettings",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/MultiResponseEntity"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Voice Call Settings"
-        ],
-        "description": "## Overview\nGet all VoiceCallSettings.",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/communication/voice_call_settings/{uid}": {
-      "put": {
-        "operationId": "SettingsController_update",
-        "summary": "Update VoiceCallSetting",
-        "parameters": [
-          {
-            "name": "uid",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateRequestDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/voiceCallSetting.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Voice Call Settings"
-        ],
-        "description": "## Overview\nUpdate VoiceCallSetting Available for **Staff, App, and Directory tokens**.",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/communication/voice_calls": {
-      "get": {
-        "operationId": "VoiceCallsController_getAll",
-        "summary": "Get all VoiceCalls",
-        "parameters": [
-          {
-            "name": "page",
-            "required": false,
-            "in": "query",
-            "description": "Page number of results.",
-            "schema": {
-              "minimum": 1,
-              "maximum": 10000,
-              "default": 1,
-              "type": "number"
-            }
-          },
-          {
-            "name": "per_page",
-            "required": false,
-            "in": "query",
-            "description": "How many items to return per page. Max: 100",
-            "schema": {
-              "minimum": 1,
-              "maximum": 100,
-              "default": 25,
-              "type": "number"
-            }
-          },
-          {
-            "description": "Sort by fields. Example: sort=created_at:asc,updated_at:desc",
-            "name": "sort",
-            "required": false,
-            "in": "query",
-            "schema": {
-              "default": "updated_at:desc",
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter by a field. Example: filter[created_at][gt]=2019-01-01, filter[name]=my-name",
-            "required": false,
-            "name": "filter",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/MultiVoiceCallResponse"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Voice Call"
-        ],
-        "description": "## Overview\nGet all VoiceCalls.",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      },
-      "post": {
-        "operationId": "VoiceCallsController_create",
-        "summary": "Create a VoiceCall",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateVoiceCall"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/voiceCall.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Voice Call"
-        ],
-        "description": "## Overview\nCreate a VoiceCall Available for **Staff, App, and Directory tokens**.",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/communication/voice_calls/{uid}": {
-      "get": {
-        "operationId": "VoiceCallsController_get",
-        "summary": "Retrieve a VoiceCall",
-        "parameters": [
-          {
-            "name": "uid",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/voiceCall.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Voice Call"
-        ],
-        "description": "## Overview\nRetrieve a VoiceCall.",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      },
-      "put": {
-        "operationId": "VoiceCallsController_update",
-        "summary": "Update a VoiceCall",
-        "parameters": [
-          {
-            "name": "uid",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateVoiceCall"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/voiceCall.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Voice Call"
-        ],
-        "description": "## Overview\nUpdate a VoiceCall Available for **Staff, App, and Directory tokens**.",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/communication/voice_call_recordings/{uid}": {
-      "put": {
-        "operationId": "RecordingsController_updateVoiceCallRecording",
-        "summary": "Update a VoiceCallRecording",
-        "parameters": [
-          {
-            "name": "uid",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateVoiceCallRecording"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Returns a voiceCall entity",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/voiceCall.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Voice Call Recordings"
-        ],
-        "description": "## Overview\nUpdate a VoiceCallRecording Available for **Staff, App, and Directory tokens**.",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      },
-      "delete": {
-        "operationId": "RecordingsController_deleteVoiceCallRecording",
-        "summary": "Delete a VoiceCallRecording",
-        "description": "## Overview\nDeletes a voice call recording and returns a voiceCall entity Available for **Staff, App, and Directory tokens**.",
-        "parameters": [
-          {
-            "name": "uid",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Returns a voiceCall entity",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/voiceCall.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Voice Call Recordings"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/communication/voice_call_quotas": {
-      "get": {
-        "operationId": "QuotasController_getQuota",
-        "summary": "Retrieve a VoiceCallQuota",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/MultiQuotaResponseDto"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Voice Call Quota"
-        ],
-        "description": "## Overview\nRetrieve a VoiceCallQuota.",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/communication/voice_calls/reports/voice_call_stats": {
-      "get": {
-        "operationId": "ReportsController_getVoiceCallStats",
-        "summary": "Get voice call stats",
-        "description": "## Overview\nReturns aggregated voice call status counts for the requested period and status filter.",
-        "parameters": [
-          {
-            "name": "start_date",
-            "in": "query",
-            "required": false,
-            "description": "Start date for the report period in YYYY-MM-DD format. If omitted, returns entries from the beginning of the available data.",
-            "schema": {
-              "type": "string",
-              "format": "date"
-            }
-          },
-          {
-            "name": "end_date",
-            "in": "query",
-            "required": false,
-            "description": "End date for the report period in YYYY-MM-DD format. If omitted, returns entries to the end of the available data.",
-            "schema": {
-              "type": "string",
-              "format": "date"
-            }
-          },
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "description": "Filter by a specific voice call status. If not provided, returns all statuses.",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "INCOMING_CALL",
-                "ANSWERED_BY_STAFF",
-                "MISSED",
-                "ANSWERED_BY_CALLS_PROVIDER",
-                "MISSED_CALL_HANDLED",
-                "VOICEMAIL_RECEIVED"
-              ]
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/VoiceCallStatsResponse"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Voice Call Reports"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/communication/activity_messages": {
-      "post": {
-        "operationId": "sendActivityMessage",
-        "summary": "Create an ActivityMessage",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "business_uid": {
-                    "type": "string",
-                    "description": "The unique identifier of the business that is sending the message"
-                  },
-                  "staff_uid": {
-                    "type": "string",
-                    "description": "The unique identifier of the staff that is sending the message"
-                  },
-                  "client_uid": {
-                    "type": "string",
-                    "description": "The unique identifier of the client the message is sent to"
-                  },
-                  "activity_type": {
-                    "type": "string",
-                    "enum": [
-                      "invite"
-                    ],
-                    "description": "Activity category type from a closed list."
-                  },
-                  "activity_action": {
-                    "type": "string",
-                    "enum": [
-                      "schedule"
-                    ],
-                    "description": "Action related to the activity type property."
-                  },
-                  "channels": {
-                    "type": "array",
-                    "description": "Determines if the message should be sent via email or/and SMS.",
-                    "items": {
-                      "type": "string",
-                      "enum": [
-                        "email",
-                        "sms"
-                      ]
-                    }
-                  },
-                  "message_text": {
-                    "type": "object",
-                    "properties": {
-                      "body": {
-                        "type": "string",
-                        "description": "The main content of the message."
-                      },
-                      "subject": {
-                        "type": "string",
-                        "description": "A summary of the message content (limited to 200 characters)"
-                      }
-                    }
-                  },
-                  "cta_button_text": {
-                    "type": "string",
-                    "description": "In the Email, this text will appear on the button embedded in the email message"
-                  },
-                  "link_url_params": {
-                    "type": "object",
-                    "description": "The parameters for the Email action button or SMS link. for example: {\n\"utm_source\": \"newsletter\",\n\"utm_campaign\": \"summer_sale\"\n}"
-                  }
-                },
-                "required": [
-                  "client_uid",
-                  "activity_type",
-                  "activity_action",
-                  "channels"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/activityMessage.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Error. The request is invalid. (missing required fields, invalid values, etc.)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "missing_field",
-                      "message": "Missing mandatory field."
-                    },
-                    {
-                      "code": "invalid",
-                      "message": "activity_type value is invalid."
-                    },
-                    {
-                      "code": "too_long",
-                      "message": "Sms body text is too long. Maximum length is 550 characters."
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing, invalid or not allowed to access the requested resource.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "unauthorized",
-                      "message": "401 Unauthorized"
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found. The requested resource was not found. (staff, client or business)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "error": "Client Not Found: The specified client ID does not exist."
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate Limit Reached",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "too_many_requests",
-                      "message": "Rate limit exceeded"
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Activity Message"
-        ],
-        "description": "## Overview\nCreate an ActivityMessage Available for **Staff, App, and Directory tokens**.",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
     }
   },
   "components": {
@@ -3295,341 +3279,33 @@
           }
         }
       },
-      "BaseDto": {
-        "properties": {},
-        "type": "object"
-      },
-      "ChannelResponseDto": {
-        "properties": {
-          "channel": {
-            "$ref": "#/components/schemas/ChannelResponseEntity"
-          }
-        },
-        "required": [
-          "channel"
-        ],
-        "type": "object"
-      },
-      "ChannelResponseEntity": {
-        "properties": {
-          "display_name": {
-            "description": "Channel display name.",
-            "type": "string"
-          },
-          "status": {
-            "description": "Channel status. Enum ChannelStatus.",
-            "enum": [
-              "pending",
-              "active",
-              "inactive",
-              "deleted",
-              "blocked",
-              "error"
-            ],
-            "type": "string"
-          },
-          "uid": {
-            "description": "Channel uid. 36 chars uuid, this is the identifier for the created channel.",
-            "type": "string"
-          }
-        },
-        "required": [
-          "uid",
-          "status",
-          "display_name"
-        ],
-        "type": "object"
-      },
-      "CreateChannelDto": {
-        "properties": {
-          "business_uid": {
-            "description": "Business uid. 16 business identifier for which the channel will be created for.",
-            "type": "string"
-          },
-          "display_name": {
-            "description": "channel display name..",
-            "type": "string"
-          },
-          "type": {
-            "description": "Type of channel. Enum ChannelType.",
-            "enum": [
-              "transactional",
-              "promotional"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "business_uid",
-          "type"
-        ],
-        "type": "object"
-      },
-      "CreateMessageDto": {
-        "properties": {
-          "attachments": {
-            "description": "Message attachments",
-            "items": {
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "channel_uid": {
-            "description": "Channel uid. 36 chars uuid.",
-            "type": "string"
-          },
-          "contact_uid": {
-            "description": "Contact Uid",
-            "type": "string"
-          },
-          "created_at": {
-            "description": "Message creation date time [optional | Format: YYYY-MM-DD HH:MM:SS].",
-            "type": "string"
-          },
-          "direction": {
-            "description": "Message Direction.",
-            "enum": [
-              "client_to_business",
-              "business_to_client"
-            ],
-            "type": "string"
-          },
-          "external_uid": {
-            "description": "Paired contact code.",
-            "type": "string"
-          },
-          "message": {
-            "description": "Message content.",
-            "type": "string"
-          },
-          "message_uid": {
-            "description": "Message uid. Max 255 chars identifier. vCita will send message status updates based on this identifier.Must be unique per channel.",
-            "type": "string"
-          }
-        },
-        "required": [
-          "external_uid",
-          "message",
-          "message_uid",
-          "channel_uid"
-        ],
-        "type": "object"
-      },
-      "CreateSessionDto": {
-        "properties": {
-          "business_uid": {
-            "description": "16 chars business identifier.",
-            "type": "string"
-          },
-          "channel_uid": {
-            "description": "36 chars channel identifier.",
-            "type": "string"
-          },
-          "contact_uid": {
-            "description": "vCita contact identifier.",
-            "type": "string"
-          },
-          "external_uid": {
-            "description": "App's contact identifier.",
-            "type": "string"
-          }
-        },
-        "required": [
-          "business_uid",
-          "channel_uid",
-          "contact_uid",
-          "external_uid"
-        ],
-        "type": "object"
-      },
       "ErrorResponse": {
+        "type": "object",
         "properties": {
-          "errors": {
-            "items": {
-              "$ref": "#/components/schemas/StandardError"
-            },
-            "type": "array"
-          },
           "success": {
-            "default": false,
             "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
           }
         },
         "required": [
           "success",
-          "errors"
-        ],
-        "type": "object"
-      },
-      "MessageResponseDto": {
-        "properties": {
-          "message": {
-            "$ref": "#/components/schemas/MessageResponseEntity"
-          }
-        },
-        "required": [
-          "message"
-        ],
-        "type": "object"
-      },
-      "MessageResponseEntity": {
-        "properties": {
-          "status": {
-            "description": "Message status. Enum MessageStatus.",
-            "enum": [
-              "pending",
-              "channel_pending",
-              "sent",
-              "received",
-              "read",
-              "error",
-              "unavailable"
-            ],
-            "type": "string"
-          },
-          "uid": {
-            "description": "Message uid",
-            "type": "string"
-          }
-        },
-        "required": [
-          "uid",
-          "status"
-        ],
-        "type": "object"
-      },
-      "MultiSessionResponseDto": {
-        "properties": {
-          "sessions": {
-            "items": {
-              "$ref": "#/components/schemas/SessionResponse"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "sessions"
-        ],
-        "type": "object"
+          "error"
+        ]
       },
       "Response": {
-        "properties": {
-          "data": {
-            "type": "object"
-          },
-          "success": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "success",
-          "data"
-        ],
-        "type": "object"
-      },
-      "SessionResponse": {
-        "properties": {
-          "status": {
-            "description": "Session status. Enum SessionStatus.",
-            "enum": [
-              "pending",
-              "inactive",
-              "active"
-            ],
-            "type": "string"
-          },
-          "uid": {
-            "description": "Session uid",
-            "type": "string"
-          }
-        },
-        "required": [
-          "uid",
-          "status"
-        ],
-        "type": "object"
-      },
-      "SessionResponseDto": {
-        "properties": {
-          "session": {
-            "$ref": "#/components/schemas/SessionResponse"
-          }
-        },
-        "required": [
-          "session"
-        ],
-        "type": "object"
-      },
-      "StandardError": {
-        "properties": {
-          "code": {
-            "enum": [
-              "missing",
-              "missing_field",
-              "invalid",
-              "already_exists",
-              "duplicate",
-              "too_long",
-              "unexpected",
-              "unauthorized",
-              "timeout"
-            ],
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "message",
-          "code"
-        ],
-        "type": "object"
-      },
-      "UpdateMessageDto": {
-        "properties": {
-          "channel_uid": {
-            "description": "Channel uid of the message.",
-            "type": "string"
-          },
-          "status": {
-            "description": "Message's new status. Enum MessageStatus",
-            "enum": [
-              "pending",
-              "channel_pending",
-              "sent",
-              "received",
-              "read",
-              "error",
-              "unavailable"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "status",
-          "channel_uid"
-        ],
-        "type": "object"
-      },
-      "UpdateSessionDto": {
-        "properties": {
-          "status": {
-            "description": "Session status. Enum SessionStatus.",
-            "enum": [
-              "pending",
-              "inactive",
-              "active"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "status"
-        ],
-        "type": "object"
-      },
-      "Response_business_phone_numbers": {
         "type": "object",
         "properties": {
           "success": {
@@ -3958,19 +3634,19 @@
         }
       },
       "Response_communication": {
-        "type": "object",
         "properties": {
-          "success": {
-            "type": "boolean"
-          },
           "data": {
             "type": "object"
+          },
+          "success": {
+            "type": "boolean"
           }
         },
         "required": [
           "success",
           "data"
-        ]
+        ],
+        "type": "object"
       },
       "ResponseEntity": {
         "type": "object",
@@ -4479,42 +4155,335 @@
           "end_date"
         ]
       },
-      "ErrorResponse_activity_message": {
-        "type": "object",
+      "BaseDto": {
+        "properties": {},
+        "type": "object"
+      },
+      "ChannelResponseDto": {
         "properties": {
-          "success": {
-            "type": "boolean"
+          "channel": {
+            "$ref": "#/components/schemas/ChannelResponseEntity"
+          }
+        },
+        "required": [
+          "channel"
+        ],
+        "type": "object"
+      },
+      "ChannelResponseEntity": {
+        "properties": {
+          "display_name": {
+            "description": "Channel display name.",
+            "type": "string"
           },
-          "errors": {
-            "type": "array",
+          "status": {
+            "description": "Channel status. Enum ChannelStatus.",
+            "enum": [
+              "pending",
+              "active",
+              "inactive",
+              "deleted",
+              "blocked",
+              "error"
+            ],
+            "type": "string"
+          },
+          "uid": {
+            "description": "Channel uid. 36 chars uuid, this is the identifier for the created channel.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "uid",
+          "status",
+          "display_name"
+        ],
+        "type": "object"
+      },
+      "CreateChannelDto": {
+        "properties": {
+          "business_uid": {
+            "description": "Business uid. 16 business identifier for which the channel will be created for.",
+            "type": "string"
+          },
+          "display_name": {
+            "description": "channel display name..",
+            "type": "string"
+          },
+          "type": {
+            "description": "Type of channel. Enum ChannelType.",
+            "enum": [
+              "transactional",
+              "promotional"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "business_uid",
+          "type"
+        ],
+        "type": "object"
+      },
+      "CreateMessageDto": {
+        "properties": {
+          "attachments": {
+            "description": "Message attachments",
             "items": {
-              "type": "object",
-              "properties": {
-                "code": {
-                  "type": "string"
-                },
-                "message": {
-                  "type": "string"
-                }
-              }
-            }
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "channel_uid": {
+            "description": "Channel uid. 36 chars uuid.",
+            "type": "string"
+          },
+          "contact_uid": {
+            "description": "Contact Uid",
+            "type": "string"
+          },
+          "created_at": {
+            "description": "Message creation date time [optional | Format: YYYY-MM-DD HH:MM:SS].",
+            "type": "string"
+          },
+          "direction": {
+            "description": "Message Direction.",
+            "enum": [
+              "client_to_business",
+              "business_to_client"
+            ],
+            "type": "string"
+          },
+          "external_uid": {
+            "description": "Paired contact code.",
+            "type": "string"
+          },
+          "message": {
+            "description": "Message content.",
+            "type": "string"
+          },
+          "message_uid": {
+            "description": "Message uid. Max 255 chars identifier. vCita will send message status updates based on this identifier.Must be unique per channel.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "external_uid",
+          "message",
+          "message_uid",
+          "channel_uid"
+        ],
+        "type": "object"
+      },
+      "CreateSessionDto": {
+        "properties": {
+          "business_uid": {
+            "description": "16 chars business identifier.",
+            "type": "string"
+          },
+          "channel_uid": {
+            "description": "36 chars channel identifier.",
+            "type": "string"
+          },
+          "contact_uid": {
+            "description": "vCita contact identifier.",
+            "type": "string"
+          },
+          "external_uid": {
+            "description": "App's contact identifier.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "business_uid",
+          "channel_uid",
+          "contact_uid",
+          "external_uid"
+        ],
+        "type": "object"
+      },
+      "ErrorResponse_communication": {
+        "properties": {
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/StandardError"
+            },
+            "type": "array"
+          },
+          "success": {
+            "default": false,
+            "type": "boolean"
           }
         },
         "required": [
           "success",
-          "error"
-        ]
+          "errors"
+        ],
+        "type": "object"
+      },
+      "MessageResponseDto": {
+        "properties": {
+          "message": {
+            "$ref": "#/components/schemas/MessageResponseEntity"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "type": "object"
+      },
+      "MessageResponseEntity": {
+        "properties": {
+          "status": {
+            "description": "Message status. Enum MessageStatus.",
+            "enum": [
+              "pending",
+              "channel_pending",
+              "sent",
+              "received",
+              "read",
+              "error",
+              "unavailable"
+            ],
+            "type": "string"
+          },
+          "uid": {
+            "description": "Message uid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "uid",
+          "status"
+        ],
+        "type": "object"
+      },
+      "MultiSessionResponseDto": {
+        "properties": {
+          "sessions": {
+            "items": {
+              "$ref": "#/components/schemas/SessionResponse"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "sessions"
+        ],
+        "type": "object"
+      },
+      "SessionResponse": {
+        "properties": {
+          "status": {
+            "description": "Session status. Enum SessionStatus.",
+            "enum": [
+              "pending",
+              "inactive",
+              "active"
+            ],
+            "type": "string"
+          },
+          "uid": {
+            "description": "Session uid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "uid",
+          "status"
+        ],
+        "type": "object"
+      },
+      "SessionResponseDto": {
+        "properties": {
+          "session": {
+            "$ref": "#/components/schemas/SessionResponse"
+          }
+        },
+        "required": [
+          "session"
+        ],
+        "type": "object"
+      },
+      "StandardError": {
+        "properties": {
+          "code": {
+            "enum": [
+              "missing",
+              "missing_field",
+              "invalid",
+              "already_exists",
+              "duplicate",
+              "too_long",
+              "unexpected",
+              "unauthorized",
+              "timeout"
+            ],
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "message",
+          "code"
+        ],
+        "type": "object"
+      },
+      "UpdateMessageDto": {
+        "properties": {
+          "channel_uid": {
+            "description": "Channel uid of the message.",
+            "type": "string"
+          },
+          "status": {
+            "description": "Message's new status. Enum MessageStatus",
+            "enum": [
+              "pending",
+              "channel_pending",
+              "sent",
+              "received",
+              "read",
+              "error",
+              "unavailable"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "channel_uid"
+        ],
+        "type": "object"
+      },
+      "UpdateSessionDto": {
+        "properties": {
+          "status": {
+            "description": "Session status. Enum SessionStatus.",
+            "enum": [
+              "pending",
+              "inactive",
+              "active"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "type": "object"
       }
     }
   },
   "tags": [
     {
-      "description": "",
-      "name": "communicationgw"
-    },
-    {
       "name": "Business Phone Numbers",
       "description": "Operations for managing business phone numbers"
+    },
+    {
+      "description": "",
+      "name": "communicationgw"
     }
   ]
 }

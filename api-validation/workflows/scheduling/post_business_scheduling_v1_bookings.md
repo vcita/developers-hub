@@ -25,19 +25,22 @@ steps:
     method: GET
     path: "/platform/v1/services"
     params:
-      business_id: "{{business_id}}"
+      business_id: "{{business_uid}}"
     extract:
-      service_id: "$.data.services[0].id"
+      service_id: "$.data.services[?(@.type=='AppointmentService')].id"
     expect:
       status: 200
     onFail: abort
 
-  - id: get_staffs
-    description: "Get staff members for the business"
+  - id: get_clients
+    description: "Get a client for the business"
     method: GET
-    path: "/platform/v1/businesses/{{business_id}}/staffs"
+    path: "/platform/v1/clients"
+    params:
+      business_id: "{{business_uid}}"
+      per_page: "1"
     extract:
-      staff_id: "$.data.staffs[0].id"
+      resolved_client_id: "$.data.clients[0].id"
     expect:
       status: 200
     onFail: abort
@@ -53,11 +56,11 @@ steps:
     path: "/business/scheduling/v1/bookings"
     token: staff
     body:
-      business_id: "{{business_id}}"
+      business_id: "{{business_uid}}"
       service_id: "{{service_id}}"
-      staff_id: "{{staff_id}}"
+      staff_id: "{{staff_uid}}"
       start_time: "{{future_datetime}}"
-      client_id: "{{client_id}}"
+      client_id: "{{resolved_client_id}}"
     expect:
       status: [200, 201]
 ```
