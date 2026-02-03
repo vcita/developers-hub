@@ -3,6 +3,14 @@
  * Serves the UI and API endpoints for validation
  */
 
+// Load environment variables from .env file
+const envPath = require('path').resolve(__dirname, '../../.env');
+console.log('[ENV] Loading from:', envPath);
+require('dotenv').config({ path: envPath, override: true });
+console.log('[ENV] LANGCHAIN_TRACING_V2:', process.env.LANGCHAIN_TRACING_V2);
+console.log('[ENV] LANGCHAIN_PROJECT:', process.env.LANGCHAIN_PROJECT);
+console.log('[ENV] LANGCHAIN_API_KEY:', process.env.LANGCHAIN_API_KEY ? 'SET' : 'NOT SET');
+
 const express = require('express');
 const path = require('path');
 const fs = require('fs');

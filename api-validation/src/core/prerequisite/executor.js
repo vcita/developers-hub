@@ -409,13 +409,14 @@ function parseYamlSteps(yamlContent) {
     } else if (trimmed.startsWith('onFail:')) {
       currentStep.onFail = trimmed.split(':')[1].trim();
       inSection = null;
-    } else if (trimmed === 'extract:') {
+    } else if (trimmed === 'extract:' && inSection !== 'expect') {
       currentStep.extract = {};
       inSection = 'extract';
-    } else if (trimmed === 'params:') {
+    } else if (trimmed === 'params:' && inSection !== 'expect') {
       currentStep.params = {};
       inSection = 'params';
-    } else if (trimmed === 'body:') {
+    } else if (trimmed === 'body:' && inSection !== 'expect') {
+      // Only start body section if not inside expect (expect can have its own body assertions)
       currentStep.body = {};
       inSection = 'body';
       bodyLines = [];

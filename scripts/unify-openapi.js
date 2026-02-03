@@ -376,10 +376,17 @@ function normalizeEndpoints(fileContent, fileName) {
   const isSwagger2 = !!fileContent.swagger;
 
   for (const [originalPath, methods] of Object.entries(fileContent.paths)) {
-    // Smart path normalization - avoid double prefixes
-    // Always prepend basePath when present and not already included
+    // Smart path normalization - avoid double prefixes and protect versioned paths
+    // 
+    // VERSIONED PATH PROTECTION:
+    // Paths that start with their own version prefix (e.g., /v2/, /v3/, /api/v2/)
+    // should NOT have the basePath prepended, as they represent different API versions
+    // that exist at their own root paths.
+    const versionedPathPattern = /^\/(?:api\/)?v\d+\//;
+    const isVersionedPath = versionedPathPattern.test(originalPath);
+    
     let fullPath;
-    if (basePath && !originalPath.startsWith(basePath)) {
+    if (basePath && !originalPath.startsWith(basePath) && !isVersionedPath) {
       fullPath = basePath + originalPath;
     } else {
       fullPath = originalPath;
