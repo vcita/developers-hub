@@ -1,29 +1,63 @@
 ---
-endpoint: "GET /business/search/v1/views/{uid}"
+endpoint: GET /business/search/v1/views/{uid}
 domain: clients
 tags: []
-swagger: swagger/clients/legacy/crm_views.json
 status: success
-savedAt: 2026-01-26T05:28:17.806Z
-verifiedAt: 2026-01-26T05:28:17.806Z
+savedAt: 2026-02-02T20:42:10.371Z
+verifiedAt: 2026-02-02T20:42:10.371Z
+timesReused: 0
 ---
-
-# Get Search
+# Get Views
 
 ## Summary
-Successfully retrieved a specific view by UID. The original failure was due to using a non-existent view UID. Using a valid UID (n0r6yxumbcp7bstu) from GET /business/search/v1/views returned the expected view details.
+Endpoint works correctly. Original 404 error was due to invalid UID. Need to use fallback URL as primary gateway returns 404 Bad Gateway.
 
 ## Prerequisites
+No specific prerequisites documented.
 
-No prerequisites required for this endpoint.
+## UID Resolution Procedure
 
-## Test Request
+How to dynamically obtain required UIDs for this endpoint:
 
-```yaml
-steps:
-  - id: get_views
-    method: GET
-    path: "/business/search/v1/views/{uid}"
-    expect:
-      status: [200, 201]
+| UID Field | GET Endpoint | Extract From | Create Fresh | Cleanup |
+|-----------|--------------|--------------|--------------|---------|
+| uid | GET /business/search/v1/views | data[0].uid | - | Views are business data, no cleanup needed for testing |
+
+### Resolution Steps
+
+**uid**:
+1. Call `GET /business/search/v1/views`
+2. Extract from response: `data[0].uid`
+
+```json
+{
+  "uid": {
+    "source_endpoint": "GET /business/search/v1/views",
+    "extract_from": "data[0].uid",
+    "fallback_endpoint": null,
+    "create_fresh": false,
+    "create_endpoint": null,
+    "create_body": null,
+    "cleanup_endpoint": null,
+    "cleanup_note": "Views are business data, no cleanup needed for testing"
+  }
+}
+```
+
+## How to Resolve Parameters
+Parameters were resolved automatically.
+
+## Critical Learnings
+
+No specific learnings documented.
+
+## Request Template
+
+Use this template with dynamically resolved UIDs:
+
+```json
+{
+  "method": "GET",
+  "path": "/business/search/v1/views/{{resolved.uid}}"
+}
 ```
