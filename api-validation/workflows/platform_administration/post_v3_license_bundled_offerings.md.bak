@@ -1,0 +1,235 @@
+---
+endpoint: POST /v3/license/bundled_offerings
+domain: platform_administration
+tags: [license, bundled-offerings]
+status: success
+savedAt: 2026-01-31T10:00:00.000Z
+verifiedAt: 2026-01-31T10:00:00.000Z
+timesReused: 0
+---
+# Create Bundled Offerings
+
+## Summary
+Creates a bundled offering relationship linking a parent offering with a child offering. When a customer purchases the parent, the bundled child is automatically included. Requires **admin/internal token** and valid offering UIDs of correct types.
+
+## Prerequisites
+1. Requires **admin token** (internal token) for authentication
+2. Must create two separate offerings FIRST:
+   - **Parent offering**: type `package` or `app` with a valid SKU
+   - **Child offering**: type `app` or `addon` (NOT `package`) with a valid SKU
+3. Both offerings must exist before creating the bundled relationship
+4. The two offering UIDs must be different (cannot bundle an offering to itself)
+
+## UID Resolution Procedure
+
+How to dynamically obtain required UIDs for this endpoint:
+
+⚠️ **This test requires creating TWO fresh offerings to avoid "already exists" errors.**
+
+| UID Field | GET Endpoint | Extract From | Create Fresh | Cleanup |
+|-----------|--------------|--------------|--------------|---------|
+| offering_uid | GET /v3/license/offerings?type=package | data.offerings[0].uid | ✓ POST /v3/license/offerings (type: package) | DELETE /v3/license/bundled_offerings/{uid}, then DELETE /v3/license/offerings/{uid} |
+| bundled_offering_uid | GET /v3/license/offerings?type=app | data.offerings[0].uid | ✓ POST /v3/license/offerings (type: app) | DELETE /v3/license/offerings/{uid} |
+
+### Resolution Steps
+
+**Step 1: Get valid SKUs** (REQUIRED PRE-REQUEST):
+1. Call `GET /v3/license/skus?type=package` to get valid package SKU (e.g., "teams", "premium")
+2. Call `GET /v3/license/skus?type=app` to get valid app SKU (e.g., app code_name)
+
+**Step 2: Create parent offering (offering_uid)**:
+1. **Create fresh parent offering**: `POST /v3/license/offerings`
+   - Type must be `package` or `app`
+   - Use a valid SKU from Step 1
+2. Extract `uid` from creation response: `data.uid`
+3. Store this as `offering_uid`
+
+**Step 3: Create child offering (bundled_offering_uid)**:
+1. **Create fresh child offering**: `POST /v3/license/offerings`
+   - Type must be `app` or `addon` (NOT `package`)
+   - Use a DIFFERENT valid SKU from Step 1
+2. Extract `uid` from creation response: `data.uid`
+3. Store this as `bundled_offering_uid`
+
+**Step 4: Create bundled offering relationship**:
+1. Call `POST /v3/license/bundled_offerings` with both UIDs
+2. Both UIDs must be DIFFERENT
+
+**Cleanup** (after test):
+1. Delete the bundled offering: `DELETE /v3/license/bundled_offerings/{bundled_relationship_uid}`
+2. Delete the parent offering: `DELETE /v3/license/offerings/{offering_uid}`
+3. Delete the child offering: `DELETE /v3/license/offerings/{bundled_offering_uid}`
+
+```json
+{
+  "offering_uid": {
+    "source_endpoint": "GET /v3/license/offerings?type=package",
+    "extract_from": "data.offerings[0].uid",
+    "fallback_endpoint": null,
+    "create_fresh": true,
+    "create_endpoint": "POST /v3/license/offerings",
+    "create_body": {
+      "type": "package",
+      "SKU": "teams",
+      "display_name": "Test Package for Bundling",
+      "quantity": 1,
+      "payment_type": "monthly",
+      "is_active": true,
+      "vendor": "inTandem",
+      "prices": [
+        {
+          "price": 49.00,
+          "currency": "USD"
+        },
+        {
+          "price": 45.00,
+          "currency": "EUR"
+        }
+      ],
+      "reporting_tags": ["test"]
+    },
+    "cleanup_endpoint": "DELETE /v3/license/offerings/{uid}",
+    "cleanup_note": "Delete after removing the bundled relationship first"
+  },
+  "bundled_offering_uid": {
+    "source_endpoint": "GET /v3/license/offerings?type=app",
+    "extract_from": "data.offerings[0].uid",
+    "fallback_endpoint": null,
+    "create_fresh": true,
+    "create_endpoint": "POST /v3/license/offerings",
+    "create_body": {
+      "type": "app",
+      "SKU": "{{resolved.app_sku}}",
+      "display_name": "Test App for Bundling",
+      "quantity": 1,
+      "payment_type": "bundle",
+      "is_active": true,
+      "vendor": "inTandem",
+      "prices": [
+        {
+          "price": 0,
+          "currency": "USD"
+        }
+      ],
+      "reporting_tags": ["test"]
+    },
+    "cleanup_endpoint": "DELETE /v3/license/offerings/{uid}",
+    "cleanup_note": "Delete after removing the bundled relationship"
+  }
+}
+```
+
+## How to Resolve Parameters
+
+### Pre-requisite: Obtain Valid SKUs
+
+Before creating offerings, call the SKU endpoints to get valid values:
+
+```bash
+# Get package SKUs
+GET /v3/license/skus?type=package
+# Response: { "data": { "skus": [{ "code_name": "teams", ... }, { "code_name": "premium", ... }] } }
+
+# Get app SKUs  
+GET /v3/license/skus?type=app
+# Response: { "data": { "skus": [{ "code_name": "payments", ... }, { "code_name": "marketing_plus", ... }] } }
+```
+
+### Alternative: Use Existing Offerings
+
+If creating fresh offerings is not possible, you can use existing offerings:
+
+1. `GET /v3/license/offerings?type=package&is_active=true` - find a package offering
+2. `GET /v3/license/offerings?type=app&is_active=true` - find an app offering
+3. Ensure both are DIFFERENT UIDs
+4. Check that the combination doesn't already have a bundled relationship
+
+## Critical Learnings
+
+### Business Rules
+
+**Parent offering (offering_uid) restrictions:**
+- Must be type `package` OR `app`
+- Cannot be type `addon`
+- Error: "Parent offering can only be of type package/app"
+
+**Child offering (bundled_offering_uid) restrictions:**
+- Must be type `app` OR `addon`
+- CANNOT be type `package`
+- Error: "Child offering cannot be of type package"
+
+**Self-bundling not allowed:**
+- `offering_uid` and `bundled_offering_uid` must be DIFFERENT
+- Error: "Can't bundle an offering to itself"
+
+**Duplicate bundles not allowed:**
+- Each parent-child combination must be unique
+- HTTP 409: "There is already a bundledOffering for this offering"
+
+**Staff slot limit:**
+- Only ONE `staff_slot` addon can be bundled to each parent offering
+- Error: "Only one staff slot offering can be bundled to a parent offering"
+
+### Authentication
+- Requires **admin token** (internal token)
+- Staff and Directory tokens are NOT authorized
+
+### Common Errors
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| 404 "offering doesn't exist" | Invalid `offering_uid` | Get valid UID from `GET /v3/license/offerings?type=package` |
+| 404 "bundled_offering doesn't exist" | Invalid `bundled_offering_uid` | Get valid UID from `GET /v3/license/offerings?type=app` |
+| 400 "Can't bundle an offering to itself" | Same UID for both fields | Use two DIFFERENT offering UIDs |
+| 400 "Parent offering can only be of type package/app" | Wrong parent type | Use package or app type offering |
+| 400 "Child offering cannot be of type package" | Package as child | Use app or addon type for child |
+| 409 "There is already a bundledOffering" | Duplicate relationship | Use different offering combination |
+
+## Request Template
+
+Use this template with dynamically resolved UIDs:
+
+```json
+{
+  "method": "POST",
+  "path": "/v3/license/bundled_offerings",
+  "headers": {
+    "Content-Type": "application/json",
+    "Authorization": "Bearer {{admin_token}}"
+  },
+  "body": {
+    "offering_uid": "{{resolved.offering_uid}}",
+    "bundled_offering_uid": "{{resolved.bundled_offering_uid}}"
+  }
+}
+```
+
+### Example with Real Values
+
+```json
+{
+  "method": "POST",
+  "path": "/v3/license/bundled_offerings",
+  "body": {
+    "offering_uid": "bc33f12d-98ee-428f-9f65-18bba589cb95",
+    "bundled_offering_uid": "a1b2c3d4-5678-90ab-cdef-1234567890ab"
+  }
+}
+```
+
+### Expected Success Response (201 Created)
+
+```json
+{
+  "success": true,
+  "data": {
+    "bundled_offering": {
+      "uid": "new-bundled-offering-uid",
+      "offering_uid": "bc33f12d-98ee-428f-9f65-18bba589cb95",
+      "bundled_offering_uid": "a1b2c3d4-5678-90ab-cdef-1234567890ab",
+      "created_at": "2026-01-31T10:00:00Z",
+      "updated_at": "2026-01-31T10:00:00Z"
+    }
+  }
+}
+```
