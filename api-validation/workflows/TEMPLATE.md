@@ -326,64 +326,7 @@ steps:
 
 ---
 
-### 9. Expected Response (Required)
-
-```markdown
-## Expected Response
-
-### Success (200/201)
-
-```json
-{
-  "status": "OK",
-  "data": {
-    "payment": {
-      "uid": "pay_abc123",
-      "amount": 100,
-      "currency": "USD",
-      "status": "completed"
-    }
-  }
-}
-```
-```
-
----
-
-### 10. Error Responses (Required for complex endpoints)
-
-```markdown
-## Error Responses
-
-### 400 - Bad Request
-
-```json
-{
-  "status": "Error",
-  "error": "Mandatory parameter amount is missing",
-  "error_code": "PARAMETER_MISSING"
-}
-```
-
-**Cause**: Required parameter not provided.
-**Fix**: Ensure all required parameters are included.
-
-### 422 - Validation Failed
-
-```json
-{
-  "status": "Error",
-  "error": "Validation failed: Amount must be positive"
-}
-```
-
-**Cause**: Parameter value fails validation.
-**Fix**: Check parameter values meet requirements.
-```
-
----
-
-### 11. Known Issues (Optional)
+### 9. Known Issues (Optional)
 
 ```markdown
 ## Known Issues
@@ -407,7 +350,7 @@ steps:
 
 ---
 
-### 12. Critical Learnings (Optional but recommended)
+### 10. Critical Learnings (Optional but recommended)
 
 ```markdown
 ## Critical Learnings
@@ -419,61 +362,7 @@ steps:
 
 ---
 
-### 13. Test Data Setup (Optional - when special data required)
-
-```markdown
-## Test Data Setup
-
-To test the happy path (200 response), provision the following:
-
-### 1. Create a Booking Package
-
-```bash
-POST /platform/v1/payment/booking_packages
-{
-  "name": "Test Package",
-  "price": 100,
-  "sessions_count": 10,
-  "service_uids": ["{{service_uid}}"]
-}
-```
-
-### 2. Assign Package to Client
-
-```bash
-POST /platform/v1/payment/client_packages
-{
-  "client_uid": "{{client_uid}}",
-  "booking_package_uid": "{{package_uid}}",
-  "sessions_count": 10
-}
-```
-```
-
----
-
-### 14. Code Analysis (Optional - from AI healer)
-
-```markdown
-## Code Analysis
-
-Source code insights from the healing process:
-
-**Service**: core
-**Controller**: `modules/clients/app/controllers/business/clients/v1/matters_controller.rb`
-**Model**: `modules/clients/app/models/matter.rb`
-
-### Key Code Findings
-
-```ruby
-# Line 44-45: Name field extraction logic
-matter_name = custom_fields.select{|cf| cf[:type] == 'name'}.map{|cf| cf[:value]}.first
-```
-```
-
----
-
-### 15. Swagger Discrepancies (Optional - when documentation differs from behavior)
+### 11. Swagger Discrepancies (Optional - when documentation differs from behavior)
 
 ```markdown
 ## Swagger Discrepancies
@@ -486,7 +375,7 @@ matter_name = custom_fields.select{|cf| cf[:type] == 'name'}.map{|cf| cf[:value]
 
 ---
 
-### 16. Notes (Optional)
+### 12. Notes (Optional)
 
 ```markdown
 ## Notes
@@ -580,25 +469,6 @@ steps:
 | title | string | Yes | Payment description |
 | send_receipt | boolean | No | Whether to email receipt (default: true) |
 
-## Expected Response
-
-### Success (200)
-
-```json
-{
-  "status": "OK",
-  "data": {
-    "payment": {
-      "uid": "pay_abc123",
-      "amount": 100,
-      "currency": "USD",
-      "payment_method": "Cash",
-      "status": "completed"
-    }
-  }
-}
-```
-
 ## Critical Learnings
 
 1. **Use client UID**: The `client_id` field expects the UID format, not the hash ID
@@ -628,14 +498,10 @@ Use this checklist when creating or reviewing workflows:
 - [ ] Authentication (when token requirements complex)
 - [ ] UID Resolution Procedure (when path/query params needed)
 - [ ] Parameters Reference (for endpoints with many params)
-- [ ] Expected Response (shows success format)
-- [ ] Error Responses (common error scenarios)
 - [ ] Critical Learnings (key insights)
 
 ### Optional Sections (include when relevant)
 - [ ] Known Issues (bugs or limitations)
-- [ ] Test Data Setup (when special data required)
-- [ ] Code Analysis (from AI healer investigation)
 - [ ] Swagger Discrepancies (documentation vs behavior)
 - [ ] Notes (additional context)
 
