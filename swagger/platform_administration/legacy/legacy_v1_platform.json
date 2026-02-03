@@ -12,7 +12,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Search for a business by external_reference_id or email. A filter is required for the API to return a result.",
+        "description": "## Overview\nSearch for a business by external_reference_id or email.\n\nAvailable for **Directory Tokens only**.\n\n> **Note**: At least one filter parameter (email, external_id, or external_reference_id) is required for the API to return a result.",
         "parameters": [
           {
             "description": "Filter by email specified (make sure its URL-encoded)",
@@ -84,224 +84,250 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Creates a Business. By default, business creation is synchronous. To create a business asynchronously, set the 'synchronized' parameter to false in the 'meta' object. When set to false, the request returns immediately after input parameters validation and an async job is created to handle the business account creation.\n\n**Asynchronous Creation Webhooks:** When 'synchronized' is set to false, webhooks will be sent to notify about the business creation outcome:\n\n- **Success Webhook:** Subscribe to the 'business' entity with event_type 'create' to receive notifications when business creation succeeds. The webhook will be triggered after the business account and its default subscription have been created, and will include the complete business data.\n\n- **Failure Webhook:** Subscribe to the 'account' entity with event_type 'rejected' to receive notifications when business creation fails. The webhook payload includes the email, external_reference_id (if provided), and an errors array containing validation error details.\n\nExample request for asynchronous creation:\n```json\n{\n  \"admin_account\": {\n    \"email\": \"admin@test.com\",\n    \"password\": \"password123\"\n  },\n  \"business\": {\n    \"name\": \"Admin Test\"\n  },\n  \"meta\": {\n    \"synchronized\": false\n  }\n}\n```\n\nExample failure webhook payload:\n```json\n{\n  \"email\": \"admin@test.com\",\n  \"external_reference_id\": \"unique_id\",\n  \"errors\": [\n    {\n      \"business_name\": [\n        \"contains invalid term\"\n      ]\n    }\n  ]\n}\n```",
+        "description": "## Overview\nCreates a Business. By default, business creation is synchronous. To create a business asynchronously, set the 'synchronized' parameter to false in the 'meta' object. When set to false, the request returns immediately after input parameters validation and an async job is created to handle the business account creation.\n\n## Uniqueness Constraint\nThe `admin_account.email` field must be unique across the entire platform. Attempting to create a business with an email that already exists will return a 400 error: 'admin_account.email already in use'.\n\n**Testing Tip**: Use a dynamically generated email (e.g., with timestamp or UUID suffix) to avoid conflicts with existing accounts.\n\nAvailable for **Directory and Internal tokens**.",
         "parameters": [
           {
             "in": "body",
             "name": "body",
             "schema": {
-                                "properties": {
-                                    "admin_account": {
-                                        "properties": {
-                                            "country_name": {
-                                                "description": "Business’s Country. Must be a valid country name",
-                                                "type": "string"
-                                            },
-                                            "display_name": {
-                                                "description": "Owner’s display name. Up to 255 characters, no HTML tags, no new lines (if not provided, FIRST NAME + LAST NAME will be used)",
-                                                "type": "string"
-                                            },
-                                            "email": {
-                                                "description": "Owner's email, also used as the business's main email",
-                                                "type": "string",
-                                                "format": "email"
-                                            },
-                                            "first_name": {
-                                                "description": "Owner’s first name. Up to 255 characters, no HTML tags, no new lines",
-                                                "type": "string"
-                                            },
-                                            "language": {
-                                                "default": "en",
-                                                "description": "One of en,es,fr,it,pt,de,pl,nl,en-GB. Default determined by Directory",
-                                                "type": "string"
-                                            },
-                                            "last_name": {
-                                                "description": "Owner’s last name. Up to 255 characters, no HTML tags, no new lines",
-                                                "type": "string"
-                                            },
-                                            "password": {
-                                                "description": "Owner’s password. 6-20 characters",
-                                                "type": "string"
-                                            },
-                                            "phone": {
-                                                "description": "Business phone number. Up to 20 characters",
-                                                "type": "string"
-                                            }
-                                        },
-                                        "required": [
-                                            "email"
-                                        ],
-                                        "type": "object"
-                                    },
-                                    "business": {
-                                        "properties": {
-                                            "address": {
-                                                "description": "Business address. Up to 255 characters, no HTML tags",
-                                                "type": "string"
-                                            },
-                                            "business_category": {
-                                                "description": "The business main occupation. Must be a valid business category",
-                                                "type": "string"
-                                            },
-                                            "business_maturity_in_years": {
-                                                "description": "Business maturity in years. Valid value is one of [null, 0, 0.5, 0.5-2, 2+]",
-                                                "type": "string"
-                                            },
-                                            "country_name": {
-                                                "description": "The business registered country",
-                                                "type": "string"
-                                            },
-                                            "hide_address": {
-                                                "default": true,
-                                                "description": "Whether to show the business address to clients",
-                                                "type": "boolean"
-                                            },
-                                            "landing_page": {
-                                                "description": "Deprecated - Previously used for marketing purposes, up to 255 characters",
-                                                "type": "string"
-                                            },
-                                            "logo_url": {
-                                                "description": "Business logo URL - A valid image URL. Supporting formats: jpg, jpeg, gif, png, SVG. Make sure the URL includes one of these extensions",
-                                                "type": "string",
-                                                "format": "uri"
-                                            },
-                                            "name": {
-                                                "description": "Business name. Up to 100 characters, no HTML tags, no new lines",
-                                                "type": "string"
-                                            },
-                                            "phone": {
-                                                "description": "Phone number. Up to 20 characters",
-                                                "type": "string"
-                                            },
-                                            "short_description": {
-                                                "description": "Short description of the business. Up to 255 characters, no HTML tags",
-                                                "type": "string"
-                                            },
-                                            "time_zone": {
-                                                "default": "Mountain Time (US & Canada)",
-                                                "description": "Time zone name from MAPPING object found in: https://api.rubyonrails.org/v4.2.3/classes/ActiveSupport/TimeZone.html, Default value is determined by the Directory",
-                                                "type": "string"
-                                            },
-                                            "website_url": {
-                                                "description": "Business's website URL. Must be a valid URL address including http/https.",
-                                                "type": "string",
-                                                "format": "uri"
-                                            }
-                                        },
-                                        "required": [
-                                            "name"
-                                        ],
-                                        "type": "object"
-                                    },
-                                    "meta": {
-                                        "properties": {
-                                            "analytics": {
-                                                "properties": {
-                                                    "google_client_id": {
-                                                        "description": "Google Analytics ID to be embedded in the client portal, helping businesses to track their clients using Google Analytics. Must be a valid ID from Google",
-                                                        "type": "string"
-                                                    },
-                                                    "mixpanel_id": {
-                                                        "description": "Mixpanel ID for mixpanel integration (up to 80 characters). Matching pattern tracking of business actions",
-                                                        "type": "string"
-                                                    }
-                                                },
-                                                "type": "object"
-                                            },
-                                            "audit": {
-                                                "description": "For internal tracking of business actions. Format: [{'action' => 'action_name','context' => {'key' => 'value'}}]",
-                                                "items": {
-                                                    "type": "object"
-                                                },
-                                                "type": "array"
-                                            },
-                                            "external_id": {
-                                                "description": "Legacy, replaced by external_reference_id. It may also be referred to as a 'nickname'. Must contain at least one lowercase letter, can include numbers, and dots, at least 5 characters long, platform unique",
-                                                "type": "string"
-                                            },
-                                            "external_reference_id": {
-                                                "description": "Unique id that represents the business in the partner’s systems",
-                                                "type": "string"
-                                            },
-                                            "identities": {
-                                                "description": "Array of valid identity uids. Identities represent different occupational verticals. To obtain a full list of identities, please contact support",
-                                                "items": {
-                                                    "type": "string"
-                                                },
-                                                "type": "array"
-                                            },
-                                            "in_setup": {
-                                                "default": false,
-                                                "description": "Whether the business is in setup mode",
-                                                "type": "boolean"
-                                            },
-                                            "intents": {
-                                                "description": "List of modules the business wishes to use in the product from this list: [\"accept_payments_tile\", \"documents_and_forms\", \"add_online_scheduling\", \"secure_portal_for_clients\", \"promotions\", \"manage_client_records\"]",
-                                                "items": {
-                                                    "type": "string"
-                                                },
-                                                "type": "array"
-                                            },
-                                            "invite": {
-                                                "description": "Reference id to the marketing channel",
-                                                "type": "string"
-                                            },
-                                            "is_template": {
-                                                "default": false,
-                                                "description": "Whether this account can be used as a template for creating more businesses",
-                                                "type": "boolean"
-                                            },
-                                            "synchronized": {
-                                                "default": true,
-                                                "description": "When set to true, the business account is created synchronously. When set to false, the business account is created asynchronously - the request returns immediately after input parameters validation and an async job is created to handle the business account creation",
-                                                "type": "boolean"
-                                            },
-                                            "note": {
-                                                "description": "An administrative note about the business. Up to 255 characters, no HTML tags, no new lines",
-                                                "type": "string"
-                                            },
-                                            "suggested_identities": {
-                                                "description": "List of suggested identities to tailor the business experience",
-                                                "items": {
-                                                    "type": "string"
-                                                },
-                                                "type": "array"
-                                            },
-                                            "tags": {
-                                                "description": "A list of comma-separated tags. Up to 255 characters, no HTML tags, no new lines",
-                                                "items": {
-                                                    "type": "string"
-                                                },
-                                                "type": "array"
-                                            },
-                                            "template_business_id": {
-                                                "description": "Configure the newly created business similar to the provided business id",
-                                                "type": "string"
-                                            }
-                                        },
-                                        "type": "object"
-                                    }
-                                },
-                                "type": "object"
-                            },
-                            "x-example": {
-                                "admin_account": {
-                                    "email": "admin@mybusiness.com",
-                                    "password": "top_secret123"
-                                },
-                                "business": {
-                                    "name": "Admin Test"
-                                },
-                                "meta": {
-                                    "synchronized": false
-                                }
+              "properties": {
+                "admin_account": {
+                  "properties": {
+                    "country_name": {
+                      "description": "Business’s Country. Must be a valid country name",
+                      "type": "string"
+                    },
+                    "display_name": {
+                      "description": "Owner’s display name. Up to 255 characters, no HTML tags, no new lines (if not provided, FIRST NAME + LAST NAME will be used)",
+                      "type": "string"
+                    },
+                    "email": {
+                      "description": "Owner's email, also used as the business's main email. Must be unique across the platform - attempting to create a business with an email that already exists will return a 400 error.",
+                      "type": "string",
+                      "format": "email",
+                      "x-uniqueness-constraint": true
+                    },
+                    "first_name": {
+                      "description": "Owner’s first name. Up to 255 characters, no HTML tags, no new lines",
+                      "type": "string"
+                    },
+                    "language": {
+                      "default": "en",
+                      "description": "One of en,es,fr,it,pt,de,pl,nl,en-GB. Default determined by Directory",
+                      "type": "string"
+                    },
+                    "last_name": {
+                      "description": "Owner’s last name. Up to 255 characters, no HTML tags, no new lines",
+                      "type": "string"
+                    },
+                    "password": {
+                      "description": "Owner’s password. 6-20 characters",
+                      "type": "string"
+                    },
+                    "phone": {
+                      "description": "Business phone number. Up to 20 characters",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "email"
+                  ],
+                  "type": "object"
+                },
+                "business": {
+                  "properties": {
+                    "address": {
+                      "description": "Business address. Up to 255 characters, no HTML tags",
+                      "type": "string"
+                    },
+                    "business_category": {
+                      "description": "The business main occupation. Must be a valid business category",
+                      "type": "string"
+                    },
+                    "business_maturity_in_years": {
+                      "description": "Business maturity in years.",
+                      "type": "string",
+                      "enum": [
+                        null,
+                        "0",
+                        "0.5",
+                        "0.5-2",
+                        "2+"
+                      ]
+                    },
+                    "country_name": {
+                      "description": "The business registered country",
+                      "type": "string"
+                    },
+                    "hide_address": {
+                      "default": true,
+                      "description": "Whether to show the business address to clients",
+                      "type": "boolean"
+                    },
+                    "landing_page": {
+                      "description": "Deprecated - Previously used for marketing purposes, up to 255 characters",
+                      "type": "string"
+                    },
+                    "logo_url": {
+                      "description": "Business logo URL - A valid image URL. Supporting formats: jpg, jpeg, gif, png, SVG. Make sure the URL includes one of these extensions. The URL will be validated by attempting to download the file to verify it exists.",
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "name": {
+                      "description": "Business name. Up to 100 characters, no HTML tags, no new lines",
+                      "type": "string"
+                    },
+                    "phone": {
+                      "description": "Phone number. Up to 20 characters",
+                      "type": "string"
+                    },
+                    "short_description": {
+                      "description": "Short description of the business. Up to 255 characters, no HTML tags",
+                      "type": "string"
+                    },
+                    "time_zone": {
+                      "default": "Mountain Time (US & Canada)",
+                      "description": "Time zone name from MAPPING object found in: https://api.rubyonrails.org/v4.2.3/classes/ActiveSupport/TimeZone.html, Default value is determined by the Directory",
+                      "type": "string"
+                    },
+                    "website_url": {
+                      "description": "Business's website URL. Must be a valid URL address including http/https.",
+                      "type": "string",
+                      "format": "uri"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ],
+                  "type": "object"
+                },
+                "meta": {
+                  "properties": {
+                    "analytics": {
+                      "properties": {
+                        "google_client_id": {
+                          "description": "Google Analytics ID to be embedded in the client portal, helping businesses to track their clients using Google Analytics. Must be a valid ID from Google",
+                          "type": "string"
+                        },
+                        "mixpanel_id": {
+                          "description": "Mixpanel ID for mixpanel integration (up to 80 characters). Matching pattern tracking of business actions",
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "audit": {
+                      "description": "For internal tracking of business actions. Example: [{\"context\": {\"source_key\": \"string\"}, \"action\": \"marketing_attribution\"}]",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "action": {
+                            "type": "string",
+                            "description": "The action type (e.g., 'marketing_attribution')"
+                          },
+                          "context": {
+                            "type": "object",
+                            "properties": {
+                              "source_key": {
+                                "type": "string",
+                                "description": "The source key for tracking"
+                              }
                             }
+                          }
+                        }
+                      },
+                      "type": "array"
+                    },
+                    "external_id": {
+                      "description": "Legacy, replaced by external_reference_id. It may also be referred to as a 'nickname'. Must contain at least one lowercase letter, can include numbers, and dots, at least 5 characters long, platform unique",
+                      "type": "string"
+                    },
+                    "external_reference_id": {
+                      "description": "Unique id that represents the business in the partner’s systems",
+                      "type": "string"
+                    },
+                    "identities": {
+                      "description": "Array of valid identity uids. Identities represent different occupational verticals. To obtain a full list of identities, please contact support",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array",
+                      "x-reference-to": "business/accounts/v1/identities"
+                    },
+                    "in_setup": {
+                      "default": false,
+                      "description": "Whether the business is in setup mode",
+                      "type": "boolean"
+                    },
+                    "intents": {
+                      "description": "List of modules the business wishes to use in the product from this list: [\"accept_payments_tile\", \"documents_and_forms\", \"add_online_scheduling\", \"secure_portal_for_clients\", \"promotions\", \"manage_client_records\"]",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "invite": {
+                      "description": "Reference id to the marketing channel",
+                      "type": "string"
+                    },
+                    "is_template": {
+                      "default": false,
+                      "description": "Whether this account can be used as a template for creating more businesses",
+                      "type": "boolean"
+                    },
+                    "synchronized": {
+                      "default": true,
+                      "description": "When set to true, the business account is created synchronously. When set to false, the business account is created asynchronously - the request returns immediately after input parameters validation and an async job is created to handle the business account creation",
+                      "type": "boolean"
+                    },
+                    "note": {
+                      "description": "An administrative note about the business. Up to 255 characters, no HTML tags, no new lines",
+                      "type": "string"
+                    },
+                    "suggested_identities": {
+                      "description": "List of suggested identities to tailor the business experience",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array",
+                      "x-reference-to": "business/accounts/v1/identities"
+                    },
+                    "tags": {
+                      "description": "A list of comma-separated tags. Up to 255 characters, no HTML tags, no new lines",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "template_business_id": {
+                      "description": "Configure the newly created business similar to the provided business id",
+                      "type": "string",
+                      "x-reference-to": "business"
+                    }
+                  },
+                  "type": "object"
+                }
+              },
+              "type": "object"
+            },
+            "x-example": {
+              "admin_account": {
+                "email": "admin-{{$timestamp}}@mybusiness.com",
+                "password": "top_secret123"
+              },
+              "business": {
+                "name": "Admin Test"
+              },
+              "meta": {
+                "synchronized": false
+              }
+            },
+            "x-example-note": "Replace {{$timestamp}} with a unique value (e.g., Unix timestamp or UUID) to avoid email uniqueness conflicts."
           }
         ],
         "produces": [
           "application/json"
         ],
-        
         "responses": {
           "200": {
             "description": "Business Created. When 'synchronized' is true (default), the response includes the complete business data. When 'synchronized' is false, the response is returned immediately after validation and the business creation is processed asynchronously. In the asynchronous case, the final result will be delivered via webhook: success notifications are sent to subscribers of the 'business' entity with event_type 'create', and failure notifications are sent to subscribers of the 'account' entity with event_type 'rejected'.",
@@ -317,154 +343,313 @@
                   "type": "object",
                   "description": "Response data container",
                   "properties": {
-                    "admin_account": {
-                      "type": "object",
-                      "description": "Admin account details for the created business",
-                      "properties": {
-                        "country_name": {
-                          "type": "string",
-                          "description": "Country name of the admin"
-                        },
-                        "display_name": {
-                          "type": "string",
-                          "description": "Display name of the admin"
-                        },
-                        "email": {
-                          "type": "string",
-                          "description": "Email address of the admin"
-                        },
-                        "first_name": {
-                          "type": "string",
-                          "description": "First name of the admin"
-                        },
-                        "language": {
-                          "type": "string",
-                          "description": "Preferred language of the admin"
-                        },
-                        "last_name": {
-                          "type": "string",
-                          "description": "Last name of the admin"
-                        },
-                        "phone": {
-                          "type": "string",
-                          "description": "Phone number of the admin"
-                        },
-                        "staff_uid": {
-                          "type": "string",
-                          "description": "Unique identifier for the staff member"
-                        },
-                        "user_id": {
-                          "type": "string",
-                          "description": "User ID of the admin"
-                        }
-                      }
-                    },
                     "business": {
                       "type": "object",
-                      "description": "Business details",
+                      "description": "Business data wrapper containing all business-related information",
                       "properties": {
-                        "business_category": {
-                          "type": "string",
-                          "description": "Category of the business"
-                        },
-                        "business_maturity_in_years": {
-                          "type": "string",
-                          "description": "Business maturity in years"
-                        },
-                        "country_name": {
-                          "type": "string",
-                          "description": "Country where the business is located"
-                        },
-                        "id": {
-                          "type": "string",
-                          "description": "Unique identifier of the business"
-                        },
-                        "landing_page": {
-                          "type": "string",
-                          "description": "Default landing page for the business"
-                        },
-                        "name": {
-                          "type": "string",
-                          "description": "Name of the business"
-                        },
-                        "short_description": {
-                          "type": "string",
-                          "description": "Short description of the business"
-                        }
-                      }
-                    },
-                    "integrations": {
-                      "type": "object",
-                      "description": "Integration configurations for the business"
-                    },
-                    "meta": {
-                      "type": "object",
-                      "description": "Metadata about the business",
-                      "properties": {
-                        "auth_token": {
-                          "type": "string",
-                          "description": "Authentication token for the business"
-                        },
-                        "external_id": {
-                          "type": "string",
-                          "description": "External identifier (deprecated, use external_reference_id)"
-                        },
-                        "external_reference_id": {
-                          "type": "string",
-                          "description": "External reference identifier"
-                        },
-                        "identities": {
-                          "type": "array",
-                          "description": "List of identity identifiers associated with the business",
-                          "items": {
-                            "type": "string"
-                          }
-                        },
-                        "in_setup": {
-                          "type": "string",
-                          "description": "Whether the business is in setup mode"
-                        },
-                        "intents": {
-                          "type": "array",
-                          "description": "List of business intents/features",
-                          "items": {
-                            "type": "string"
-                          }
-                        },
-                        "is_template": {
-                          "type": "string",
-                          "description": "Whether this business is a template"
-                        },
-                        "marketing_channel": {
-                          "type": "string",
-                          "description": "Marketing channel for the business"
-                        },
-                        "note": {
-                          "type": "string",
-                          "description": "Note associated with the business"
-                        },
-                        "plan": {
+                        "admin_account": {
                           "type": "object",
-                          "description": "Subscription plan details",
+                          "description": "Admin account details for the created business",
                           "properties": {
-                            "expires_on": {
+                            "country_name": {
                               "type": "string",
-                              "format": "date-time",
-                              "description": "Plan expiration date"
+                              "description": "Country name of the admin"
                             },
-                            "external_subscription_params": {
+                            "display_name": {
                               "type": "string",
-                              "description": "External subscription parameters"
+                              "description": "Display name of the admin"
                             },
-                            "plan_name": {
+                            "email": {
                               "type": "string",
-                              "description": "Name of the subscription plan"
+                              "description": "Email address of the admin"
+                            },
+                            "first_name": {
+                              "type": "string",
+                              "description": "First name of the admin"
+                            },
+                            "language": {
+                              "type": "string",
+                              "description": "Preferred language of the admin"
+                            },
+                            "last_name": {
+                              "type": "string",
+                              "description": "Last name of the admin"
+                            },
+                            "phone": {
+                              "type": "string",
+                              "description": "Phone number of the admin"
+                            },
+                            "staff_uid": {
+                              "type": "string",
+                              "description": "Unique identifier for the staff member"
+                            },
+                            "user_id": {
+                              "type": "integer",
+                              "description": "User ID of the admin"
                             }
                           }
                         },
-                        "tags": {
-                          "type": "string",
-                          "description": "Comma-separated tags for the business"
+                        "business": {
+                          "type": "object",
+                          "description": "Business details",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "description": "Unique identifier of the business"
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "Name of the business"
+                            },
+                            "time_zone": {
+                              "type": "string",
+                              "description": "Time zone of the business"
+                            },
+                            "created_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Timestamp when the business was created"
+                            },
+                            "updated_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Timestamp when the business was last updated"
+                            },
+                            "directory_id": {
+                              "type": "string",
+                              "description": "Unique identifier of the directory the business belongs to"
+                            },
+                            "business_category": {
+                              "type": "string",
+                              "description": "Category of the business"
+                            },
+                            "country_name": {
+                              "type": "string",
+                              "description": "Country where the business is located"
+                            },
+                            "disable_analytics": {
+                              "type": "boolean",
+                              "description": "Whether analytics are disabled for this business"
+                            },
+                            "short_description": {
+                              "type": "string",
+                              "description": "Short description of the business"
+                            },
+                            "address": {
+                              "type": "string",
+                              "description": "Business address"
+                            },
+                            "phone": {
+                              "type": "string",
+                              "description": "Business phone number"
+                            },
+                            "website_url": {
+                              "type": "string",
+                              "description": "Business website URL"
+                            },
+                            "dedicated_number": {
+                              "type": "string",
+                              "description": "Dedicated phone number for the business"
+                            },
+                            "hide_address": {
+                              "type": "boolean",
+                              "description": "Whether to hide the business address from clients"
+                            },
+                            "landing_page": {
+                              "type": "string",
+                              "description": "Default landing page for the business"
+                            },
+                            "business_maturity_in_years": {
+                              "type": "string",
+                              "description": "Business maturity in years"
+                            },
+                            "account_blocked_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Timestamp when the account was blocked, if applicable"
+                            },
+                            "promotional": {
+                              "type": "object",
+                              "description": "Promotional blocking information",
+                              "properties": {
+                                "blocked_at": {
+                                  "type": "string",
+                                  "format": "date-time",
+                                  "description": "When promotional emails were blocked"
+                                },
+                                "block_count": {
+                                  "type": "integer",
+                                  "description": "Number of times blocked"
+                                }
+                              }
+                            },
+                            "scheduling_disabled": {
+                              "type": "boolean",
+                              "description": "Whether scheduling is disabled for this business"
+                            },
+                            "structured_address": {
+                              "type": "object",
+                              "description": "Structured address components"
+                            }
+                          }
+                        },
+                        "meta": {
+                          "type": "object",
+                          "description": "Metadata about the business",
+                          "properties": {
+                            "auth_token": {
+                              "type": "string",
+                              "description": "Authentication token for the business"
+                            },
+                            "external_id": {
+                              "type": "string",
+                              "description": "External identifier (deprecated, use external_reference_id)"
+                            },
+                            "external_reference_id": {
+                              "type": "string",
+                              "description": "External reference identifier"
+                            },
+                            "identities": {
+                              "type": "array",
+                              "description": "List of identity identifiers associated with the business",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "in_setup": {
+                              "type": "boolean",
+                              "description": "Whether the business is in setup mode"
+                            },
+                            "intents": {
+                              "type": "array",
+                              "description": "List of business intents/features",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "is_template": {
+                              "type": "boolean",
+                              "description": "Whether this business is a template"
+                            },
+                            "marketing_channel": {
+                              "type": "string",
+                              "description": "Marketing channel for the business"
+                            },
+                            "note": {
+                              "type": "string",
+                              "description": "Note associated with the business"
+                            },
+                            "plan": {
+                              "type": "object",
+                              "description": "Subscription plan details",
+                              "properties": {
+                                "plan_name": {
+                                  "type": "string",
+                                  "description": "Name of the subscription plan"
+                                },
+                                "staff_slots": {
+                                  "type": "integer",
+                                  "description": "Number of staff slots allowed"
+                                },
+                                "external_subscription_params": {
+                                  "type": "string",
+                                  "description": "External subscription parameters"
+                                },
+                                "expires_on": {
+                                  "type": "string",
+                                  "format": "date-time",
+                                  "description": "Plan expiration date"
+                                }
+                              }
+                            },
+                            "tags": {
+                              "type": "array",
+                              "description": "Tags for the business",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "invite": {
+                              "type": "string",
+                              "description": "Reference ID to the marketing channel used for business acquisition"
+                            },
+                            "booking_settings": {
+                              "type": "object",
+                              "description": "Settings related to booking and scheduling for the business",
+                              "properties": {
+                                "buffer_before": {
+                                  "type": "integer",
+                                  "description": "Buffer time in minutes before appointments"
+                                },
+                                "buffer_after": {
+                                  "type": "integer",
+                                  "description": "Buffer time in minutes after appointments"
+                                },
+                                "min_advance_booking": {
+                                  "type": "integer",
+                                  "description": "Minimum advance booking time in minutes"
+                                },
+                                "max_advance_booking": {
+                                  "type": "integer",
+                                  "description": "Maximum advance booking time in days"
+                                },
+                                "min_hours_before_meeting": {
+                                  "type": "integer",
+                                  "description": "Minimum hours required before a meeting can be scheduled"
+                                },
+                                "future_bookings_limit": {
+                                  "type": "integer",
+                                  "description": "Maximum number of days in the future that bookings can be made"
+                                }
+                              }
+                            },
+                            "branding": {
+                              "type": "object",
+                              "description": "Branding configuration for the business including colors and visual settings",
+                              "properties": {
+                                "primary_color": {
+                                  "type": "string",
+                                  "description": "Primary brand color in hex format"
+                                },
+                                "secondary_color": {
+                                  "type": "string",
+                                  "description": "Secondary brand color in hex format"
+                                },
+                                "color": {
+                                  "type": "string",
+                                  "description": "Main brand color in hex format"
+                                },
+                                "background_color": {
+                                  "type": "string",
+                                  "description": "Background color in hex format"
+                                },
+                                "logo_url": {
+                                  "type": "string",
+                                  "description": "URL to the business logo"
+                                },
+                                "large_logo_url": {
+                                  "type": "string",
+                                  "description": "URL to the large version of the business logo"
+                                },
+                                "xlarge_logo_url": {
+                                  "type": "string",
+                                  "description": "URL to the extra-large version of the business logo"
+                                },
+                                "profile_picture_url": {
+                                  "type": "string",
+                                  "description": "URL to the business profile picture"
+                                },
+                                "cover_picture_url": {
+                                  "type": "string",
+                                  "description": "URL to the business cover picture"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "integrations": {
+                          "type": "object",
+                          "description": "Integration configurations for the business"
                         }
                       }
                     }
@@ -476,58 +661,142 @@
               "application/json": {
                 "status": "OK",
                 "data": {
-                  "admin_account": {
-                    "country_name": "United States",
-                    "display_name": "DName",
-                    "email": "adminemail@email.com",
-                    "first_name": "FName",
-                    "language": "en",
-                    "last_name": "LName",
-                    "phone": "+154863488",
-                    "staff_uid": "aaa1234567890abcdef",
-                    "user_id": "11111"
-                  },
                   "business": {
-                    "business_category": "aeroclub",
-                    "business_maturity_in_years": "0.5",
-                    "country_name": "United States",
-                    "id": "1a123b456c789",
-                    "landing_page": "Homepage",
-                    "name": "Business name",
-                    "short_description": "My business description"
-                  },
-                  "integrations": {},
-                  "meta": {
-                    "auth_token": "a1a1a1a1a1",
-                    "external_id": "1213444",
-                    "external_reference_id": "id123",
-                    "identities": ["aaa123", "bbb345", "1a3c4f4h"],
-                    "in_setup": "false",
-                    "intents": ["accept_payments_tile", "documents_and_forms"],
-                    "is_template": "true",
-                    "marketing_channel": "Client Channel",
-                    "note": "Client Note",
-                    "plan": {
-                      "expires_on": "2022-06-14T09:31:21.000Z",
-                      "external_subscription_params": "***",
-                      "plan_name": "Essential"
+                    "admin_account": {
+                      "user_id": 11111,
+                      "first_name": "FName",
+                      "last_name": "LName",
+                      "email": "adminemail@email.com",
+                      "country_name": "United States",
+                      "language": "en",
+                      "display_name": "DName",
+                      "phone": "+154863488",
+                      "staff_uid": "aaa1234567890abcdef"
                     },
-                    "tags": "Client tag1, Client tag2"
+                    "business": {
+                      "id": "1a123b456c789",
+                      "name": "Business name",
+                      "time_zone": "Mountain Time (US & Canada)",
+                      "created_at": "2026-01-15T10:30:00.000Z",
+                      "updated_at": "2026-01-15T10:30:00.000Z",
+                      "directory_id": "dir_abc123",
+                      "business_category": "aeroclub",
+                      "country_name": "United States",
+                      "disable_analytics": false,
+                      "short_description": "My business description",
+                      "address": null,
+                      "phone": null,
+                      "website_url": null,
+                      "dedicated_number": null,
+                      "hide_address": true,
+                      "landing_page": "Homepage",
+                      "business_maturity_in_years": "0.5",
+                      "account_blocked_at": null,
+                      "promotional": {
+                        "blocked_at": null,
+                        "block_count": null
+                      },
+                      "scheduling_disabled": false,
+                      "structured_address": null
+                    },
+                    "meta": {
+                      "auth_token": "a1a1a1a1a1",
+                      "external_id": null,
+                      "external_reference_id": "id123",
+                      "identities": [
+                        "aaa123",
+                        "bbb345",
+                        "1a3c4f4h"
+                      ],
+                      "in_setup": false,
+                      "intents": [
+                        "accept_payments_tile",
+                        "documents_and_forms"
+                      ],
+                      "is_template": false,
+                      "marketing_channel": "Client Channel",
+                      "note": "Client Note",
+                      "plan": {
+                        "plan_name": "Essentials",
+                        "staff_slots": 1,
+                        "external_subscription_params": null,
+                        "expires_on": "2026-06-14T09:31:21.000Z"
+                      },
+                      "tags": ["Client tag1", "Client tag2"],
+                      "invite": null,
+                      "booking_settings": {
+                        "buffer_before": 0,
+                        "buffer_after": 0,
+                        "min_advance_booking": 60,
+                        "max_advance_booking": 365,
+                        "min_hours_before_meeting": 1,
+                        "future_bookings_limit": 90
+                      },
+                      "branding": {
+                        "primary_color": "#1976D2",
+                        "secondary_color": "#424242",
+                        "color": "#1976D2",
+                        "background_color": "#FFFFFF",
+                        "logo_url": null,
+                        "large_logo_url": null,
+                        "xlarge_logo_url": null,
+                        "profile_picture_url": null,
+                        "cover_picture_url": null
+                      }
+                    },
+                    "integrations": {}
                   }
                 }
               }
             }
           },
           "400": {
-            "description": "Bad Request - Invalid parameters provided. The request contains invalid or missing required fields, validation errors, or business name contains invalid terms.",
-            "examples": {
-              "application/json": {
-                "message": "Invalid parameters",
-                "status": "Error",
-                "errors": {
-                  "business_name": ["contains invalid term"],
-                  "email": ["invalid email format"]
+            "description": "Bad Request - Invalid parameters provided. Common causes include:\n- **Email uniqueness constraint**: The email address in `admin_account.email` is already in use by another business account. Returns: 'admin_account.email already in use'\n- **Missing required fields**: The `admin_account.email` field is required. Returns: 'admin_account.email is required'\n- **Invalid email format**: The email address doesn't match standard email format. Returns: 'admin_account.email must be valid'\n- **Validation errors**: Business name contains restricted terms, fields exceed length limits, or invalid values provided.",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "description": "Error status indicator",
+                  "example": "Error"
+                },
+                "message": {
+                  "type": "string",
+                  "description": "Human-readable error message describing the issue",
+                  "example": "admin_account.email already in use"
+                },
+                "data": {
+                  "type": "array",
+                  "description": "Array of specific validation error messages",
+                  "items": {
+                    "type": "string"
+                  },
+                  "example": ["admin_account.email already in use"]
                 }
+              }
+            },
+            "examples": {
+              "application/json - email already in use": {
+                "status": "Error",
+                "message": "Unable to create business",
+                "data": [
+                  "admin_account.email already in use"
+                ]
+              },
+              "application/json - required field missing": {
+                "status": "Error",
+                "message": "Unable to create business",
+                "data": [
+                  "admin_account.email is required"
+                ]
+              },
+              "application/json - validation errors": {
+                "status": "Error",
+                "message": "Invalid parameters",
+                "data": [
+                  "business_name contains invalid term",
+                  "email invalid email format"
+                ]
               }
             }
           },
@@ -583,7 +852,7 @@
           "type": "http_proxy",
           "uri": "https:///platform/v1/businesses"
         },
-        "x-auth-type": "Application & Application User"
+        "x-auth-type": "Application"
       }
     },
     "/businesses/validate_login": {
@@ -591,7 +860,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Validates username/password credentials for login. The API will be blocked for the username after 5 failed attempts.",
+        "description": "## Overview\nValidates username/password credentials for login. The API will be blocked for the username after 5 failed attempts.\n\nAvailable for **Directory tokens**.",
         "parameters": [
           {
             "description": "Email address of the business owner (used as username for login)",
@@ -646,7 +915,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "This API performs entitlement verification for businesses seeking to register with a specific partner. It checks if a business meets the necessary criteria to qualify for partnership enrollment.",
+        "description": "## Overview\nThis API performs entitlement verification for businesses seeking to register with a specific partner. It checks if a business exists in the partner's pre-loaded audience list and is eligible to be claimed.\n\n## How It Works\nPartners pre-load their eligible businesses into the `audiences` table (via CSV upload or Audiences API). Each audience record contains a `unique_validation_identifier` field that uniquely identifies the business (e.g., email address, tax ID, membership number).\n\nThis endpoint looks up the audience record by matching:\n- `directory_uid` (from the Directory token)\n- `unique_validation_identifier` (from the request body)\n- `status` is not 'deleted'\n\n## Use Case\nBefore creating a new business account under a partner directory, call this endpoint to verify the business is in the partner's approved audience list.\n\nAvailable for **Directory tokens only**.",
         "parameters": [
           {
             "in": "body",
@@ -654,8 +923,9 @@
             "schema": {
               "properties": {
                 "unique_validation_identifier": {
-                  "description": "The future business' unique validation identifier. This is an object containing validation criteria specific to the partner's requirements. The structure depends on the partner's configuration.",
-                  "type": "object"
+                  "description": "The unique identifier used to look up the business in the partner's audience table. This value must exactly match the `unique_validation_identifier` field of an existing audience record for the partner's directory. Common values include: email address (e.g., 'john@doe.com'), tax ID, membership number, or any partner-specific identifier. The value is provided by the partner when they upload their audience list.",
+                  "type": "string",
+                  "example": "john@doe.com"
                 }
               },
               "required": [
@@ -670,11 +940,111 @@
         ],
         "responses": {
           "200": {
-            "description": "Audience claim validated successfully. Returns true if the business meets the necessary criteria to qualify for partnership enrollment with the specified partner.",
+            "description": "Audience record found. Returns the audience record from the partner's audience table, confirming the business is eligible for partnership enrollment.",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "success": {
+                  "type": "boolean",
+                  "example": true
+                },
+                "data": {
+                  "type": "object",
+                  "description": "The audience record from the audiences table",
+                  "properties": {
+                    "id": {
+                      "type": "integer",
+                      "description": "Internal audience record ID"
+                    },
+                    "directory_uid": {
+                      "type": "string",
+                      "description": "The partner directory's unique identifier"
+                    },
+                    "unique_external_identifier": {
+                      "type": "string",
+                      "description": "Partner's reference ID for this business"
+                    },
+                    "unique_validation_identifier": {
+                      "type": "string",
+                      "description": "The validation identifier used for claim verification"
+                    },
+                    "business_name": {
+                      "type": "string",
+                      "description": "Name of the business"
+                    },
+                    "email": {
+                      "type": "string",
+                      "description": "Business email address"
+                    },
+                    "phone": {
+                      "type": "string",
+                      "description": "Business phone number"
+                    },
+                    "doing_business_as": {
+                      "type": "string",
+                      "description": "DBA (Doing Business As) name"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "not-claimed",
+                        "claimed",
+                        "deleted"
+                      ],
+                      "description": "Current status of the audience record"
+                    },
+                    "business_uid": {
+                      "type": "string",
+                      "description": "vcita business UID (populated after the audience is claimed)"
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updated_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            },
             "examples": {
               "application/json": {
-                "data": true,
-                "success": true
+                "success": true,
+                "data": {
+                  "id": 123,
+                  "directory_uid": "dir_abc123",
+                  "unique_external_identifier": "REF-001",
+                  "unique_validation_identifier": "john@doe.com",
+                  "business_name": "John's Business",
+                  "email": "john@doe.com",
+                  "phone": "555-123-4567",
+                  "doing_business_as": "John's Services",
+                  "status": "not-claimed",
+                  "business_uid": null,
+                  "created_at": "2026-01-15T10:30:00Z",
+                  "updated_at": "2026-01-15T10:30:00Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - No audience record found matching the provided unique_validation_identifier in the partner's directory. The business is not in the partner's approved audience list.",
+            "examples": {
+              "application/json": {
+                "success": false,
+                "code": "invalid",
+                "message": "Audience not found"
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Only Directory tokens are accepted for this endpoint. Staff, App, and Admin tokens will be rejected.",
+            "examples": {
+              "application/json": {
+                "status": "Error",
+                "error": "Unauthorized"
               }
             }
           }
@@ -682,20 +1052,21 @@
         "summary": "Verify Audience Claim",
         "tags": [
           "Business"
-        ]
+        ],
+        "x-auth-type": "Directory"
       }
     },
-    "/businesses/{business_id}": {
+    "/businesses/{business_uid}": {
       "get": {
         "consumes": [
           "application/json"
         ],
-        "description": "Retrieves detailed information about a specific business by its ID, including admin account details and business information.",
+        "description": "## Overview\nRetrieves detailed information about a specific business by its ID, including admin account details and business information.\n\nAvailable for **Staff and Directory tokens**.",
         "parameters": [
           {
-            "description": "Business ID",
+            "description": "Business UID",
             "in": "path",
-            "name": "business_id",
+            "name": "business_uid",
             "required": true,
             "type": "string"
           }
@@ -759,7 +1130,7 @@
                               "description": "Unique identifier for the staff member"
                             },
                             "user_id": {
-                              "type": "string",
+                              "type": "integer",
                               "description": "User ID of the admin"
                             }
                           }
@@ -768,6 +1139,32 @@
                           "type": "object",
                           "description": "Business details",
                           "properties": {
+                            "id": {
+                              "type": "string",
+                              "description": "Unique identifier of the business"
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "Name of the business"
+                            },
+                            "time_zone": {
+                              "type": "string",
+                              "description": "Time zone of the business"
+                            },
+                            "created_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Timestamp when the business was created"
+                            },
+                            "updated_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Timestamp when the business was last updated"
+                            },
+                            "directory_id": {
+                              "type": "string",
+                              "description": "Unique identifier of the directory the business belongs to"
+                            },
                             "business_category": {
                               "type": "string",
                               "description": "Category of the business"
@@ -776,13 +1173,261 @@
                               "type": "string",
                               "description": "Country where the business is located"
                             },
-                            "id": {
-                              "type": "string",
-                              "description": "Unique identifier of the business"
+                            "disable_analytics": {
+                              "type": "boolean",
+                              "description": "Whether analytics tracking is disabled for this business"
                             },
-                            "name": {
-                              "type": "string",
-                              "description": "Name of the business"
+                            "short_description": {
+                              "type": ["string", "null"],
+                              "description": "Short description of the business"
+                            },
+                            "address": {
+                              "type": ["string", "null"],
+                              "description": "Physical address of the business"
+                            },
+                            "phone": {
+                              "type": ["string", "null"],
+                              "description": "Phone number of the business"
+                            },
+                            "website_url": {
+                              "type": ["string", "null"],
+                              "description": "Website URL of the business"
+                            },
+                            "dedicated_number": {
+                              "type": ["string", "null"],
+                              "description": "Dedicated phone number for the business"
+                            },
+                            "hide_address": {
+                              "type": "boolean",
+                              "description": "Whether to hide the business address from public view"
+                            },
+                            "landing_page": {
+                              "type": ["string", "null"],
+                              "description": "Landing page URL for the business"
+                            },
+                            "business_maturity_in_years": {
+                              "type": ["string", "null"],
+                              "description": "How long the business has been operating (e.g., '0.5', '1', '5')"
+                            },
+                            "account_blocked_at": {
+                              "type": ["string", "null"],
+                              "format": "date-time",
+                              "description": "Timestamp when the account was blocked, null if not blocked"
+                            },
+                            "promotional": {
+                              "type": "object",
+                              "description": "Promotional email status information",
+                              "properties": {
+                                "blocked_at": {
+                                  "type": ["string", "null"],
+                                  "format": "date-time",
+                                  "description": "Timestamp when promotional emails were blocked"
+                                },
+                                "block_count": {
+                                  "type": ["integer", "null"],
+                                  "description": "Number of times promotional emails have been blocked"
+                                }
+                              }
+                            },
+                            "scheduling_disabled": {
+                              "type": "boolean",
+                              "description": "Whether scheduling is disabled for this business"
+                            },
+                            "structured_address": {
+                              "type": ["object", "null"],
+                              "description": "Structured address information with individual components"
+                            }
+                          }
+                        },
+                        "meta": {
+                          "type": "object",
+                          "description": "Metadata about the business",
+                          "properties": {
+                            "external_id": {
+                              "type": ["string", "null"],
+                              "description": "External identifier for integration purposes (stored as nickname)"
+                            },
+                            "external_reference_id": {
+                              "type": ["string", "null"],
+                              "description": "External reference identifier for integration purposes"
+                            },
+                            "plan": {
+                              "type": "object",
+                              "description": "Current subscription plan details",
+                              "properties": {
+                                "plan_name": {
+                                  "type": ["string", "null"],
+                                  "description": "Display name of the subscription plan"
+                                },
+                                "staff_slots": {
+                                  "type": ["integer", "null"],
+                                  "description": "Number of staff slots included in the plan"
+                                },
+                                "external_subscription_id": {
+                                  "type": ["string", "null"],
+                                  "description": "External subscription identifier"
+                                },
+                                "external_subscription_params": {
+                                  "type": ["object", "null"],
+                                  "description": "Additional parameters for external subscription management"
+                                },
+                                "expires_on": {
+                                  "type": ["string", "null"],
+                                  "format": "date-time",
+                                  "description": "Subscription expiration date"
+                                }
+                              }
+                            },
+                            "booking_settings": {
+                              "type": "object",
+                              "description": "Business booking configuration settings",
+                              "properties": {
+                                "min_hours_before_meeting": {
+                                  "type": "number",
+                                  "description": "Minimum hours required before a meeting can be booked"
+                                },
+                                "future_bookings_limit": {
+                                  "type": ["integer", "null"],
+                                  "description": "Maximum number of days in advance that bookings can be made"
+                                }
+                              }
+                            },
+                            "branding": {
+                              "type": "object",
+                              "description": "Business branding and visual customization settings",
+                              "properties": {
+                                "color": {
+                                  "type": ["string", "null"],
+                                  "description": "Primary theme color"
+                                },
+                                "background_color": {
+                                  "type": ["string", "null"],
+                                  "description": "Background color"
+                                },
+                                "logo_url": {
+                                  "type": ["string", "null"],
+                                  "description": "URL to the business logo"
+                                },
+                                "large_logo_url": {
+                                  "type": ["string", "null"],
+                                  "description": "URL to the large version of the business logo"
+                                },
+                                "xlarge_logo_url": {
+                                  "type": ["string", "null"],
+                                  "description": "URL to the extra-large version of the business logo"
+                                },
+                                "profile_picture_url": {
+                                  "type": ["string", "null"],
+                                  "description": "URL to the business profile picture"
+                                },
+                                "cover_picture_url": {
+                                  "type": ["string", "null"],
+                                  "description": "URL to the business cover picture"
+                                }
+                              }
+                            },
+                            "note": {
+                              "type": ["string", "null"],
+                              "description": "Internal note or comment about the business"
+                            },
+                            "tags": {
+                              "type": ["string", "null"],
+                              "description": "Tags associated with the business for categorization"
+                            },
+                            "in_setup": {
+                              "type": "boolean",
+                              "description": "Whether the business is currently in setup mode"
+                            },
+                            "is_template": {
+                              "type": "boolean",
+                              "description": "Whether this business is a template business"
+                            },
+                            "identities": {
+                              "type": ["array", "null"],
+                              "description": "List of business identities for content management",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "intents": {
+                              "type": "array",
+                              "description": "List of business onboarding intents/tiles",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "auth_token": {
+                              "type": ["string", "null"],
+                              "description": "Authentication token for the business owner"
+                            },
+                            "marketing_channel": {
+                              "type": ["string", "null"],
+                              "description": "Marketing channel through which the business was acquired"
+                            },
+                            "invite": {
+                              "type": ["string", "null"],
+                              "description": "Referrer key or invite code"
+                            }
+                          }
+                        },
+                        "integrations": {
+                          "type": "object",
+                          "description": "Third-party integrations configured for the business",
+                          "properties": {
+                            "plugins": {
+                              "type": "array",
+                              "description": "List of plugin integrations",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "external_id": {
+                                    "type": "string",
+                                    "description": "External identifier for the plugin instance"
+                                  },
+                                  "type": {
+                                    "type": "string",
+                                    "description": "Type of the plugin (e.g., WixPayments)"
+                                  },
+                                  "plan_started_at": {
+                                    "type": ["string", "null"],
+                                    "format": "date-time",
+                                    "description": "When the plugin plan started"
+                                  },
+                                  "plan_terminated_at": {
+                                    "type": ["string", "null"],
+                                    "format": "date-time",
+                                    "description": "When the plugin plan was terminated"
+                                  },
+                                  "site_url": {
+                                    "type": ["string", "null"],
+                                    "description": "Site URL associated with the plugin"
+                                  },
+                                  "plan_name": {
+                                    "type": ["string", "null"],
+                                    "description": "Name of the plugin plan"
+                                  }
+                                }
+                              }
+                            },
+                            "website_id": {
+                              "type": ["string", "null"],
+                              "description": "External website ID (e.g., Duda)"
+                            },
+                            "yext_id": {
+                              "type": ["string", "null"],
+                              "description": "Yext integration ID"
+                            },
+                            "soci_id": {
+                              "type": ["string", "null"],
+                              "description": "Soci integration ID"
+                            },
+                            "email_account_id": {
+                              "type": ["string", "null"],
+                              "description": "Email account ID for SendGrid"
+                            },
+                            "campaign_keyword": {
+                              "type": ["string", "null"],
+                              "description": "Campaign keyword for Tatango integration"
                             }
                           }
                         }
@@ -798,21 +1443,82 @@
                 "data": {
                   "business": {
                     "admin_account": {
-                      "country_name": "United States",
-                      "display_name": "DName",
-                      "email": "adminemail@email.com",
+                      "user_id": 11111,
                       "first_name": "FName",
-                      "language": "en",
                       "last_name": "LName",
+                      "email": "adminemail@email.com",
+                      "country_name": "United States",
+                      "language": "en",
+                      "display_name": "DName",
                       "phone": "+154863488",
-                      "staff_uid": "aaa1234567890abcdef",
-                      "user_id": "11111"
+                      "staff_uid": "aaa1234567890abcdef"
                     },
                     "business": {
+                      "id": "1a123b456c789",
+                      "name": "Business name",
+                      "time_zone": "America/New_York",
+                      "created_at": "2023-12-06T10:51:44.000Z",
+                      "updated_at": "2026-01-29T08:54:32.000Z",
+                      "directory_id": "dir123456",
                       "business_category": "aeroclub",
                       "country_name": "United States",
-                      "id": "1a123b456c789",
-                      "name": "Business name"
+                      "disable_analytics": false,
+                      "short_description": null,
+                      "address": "123 Main St",
+                      "phone": "555-123-4567",
+                      "website_url": null,
+                      "dedicated_number": null,
+                      "hide_address": false,
+                      "landing_page": null,
+                      "business_maturity_in_years": null,
+                      "account_blocked_at": null,
+                      "promotional": {
+                        "blocked_at": null,
+                        "block_count": null
+                      },
+                      "scheduling_disabled": false,
+                      "structured_address": null
+                    },
+                    "meta": {
+                      "external_id": null,
+                      "external_reference_id": null,
+                      "plan": {
+                        "plan_name": "Premium Plan",
+                        "staff_slots": 2,
+                        "external_subscription_id": null,
+                        "external_subscription_params": null,
+                        "expires_on": null
+                      },
+                      "booking_settings": {
+                        "min_hours_before_meeting": 0.5,
+                        "future_bookings_limit": 90
+                      },
+                      "branding": {
+                        "color": "#1a73e8",
+                        "background_color": "#ffffff",
+                        "logo_url": null,
+                        "large_logo_url": null,
+                        "xlarge_logo_url": null,
+                        "profile_picture_url": null,
+                        "cover_picture_url": null
+                      },
+                      "note": null,
+                      "tags": "",
+                      "in_setup": false,
+                      "is_template": false,
+                      "identities": ["identity1", "identity2"],
+                      "intents": [],
+                      "auth_token": "abc123token",
+                      "marketing_channel": null,
+                      "invite": null
+                    },
+                    "integrations": {
+                      "plugins": [],
+                      "website_id": null,
+                      "yext_id": null,
+                      "soci_id": null,
+                      "email_account_id": null,
+                      "campaign_keyword": null
                     }
                   }
                 }
@@ -842,7 +1548,7 @@
             }
           },
           "type": "http_proxy",
-          "uri": "https:///platform/v1/businesses/{business_id}"
+          "uri": "https:///platform/v1/businesses/{business_uid}"
         },
         "x-auth-type": "Application & Application User"
       },
@@ -850,12 +1556,12 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Updates an existing business. This endpoint allows updating business information, admin account details, integrations, and subscription plan. Only provided fields will be updated.",
+        "description": "## Overview\nUpdates an existing business. This endpoint allows updating business information, admin account details, integrations, and subscription plan. Only provided fields will be updated.\n\nAvailable for **Directory & Internal Tokens**.\n\n> **Note:** Directory Tokens require the directory to be configured with manual billing. Staff Tokens may work for businesses not associated with a directory and with non-Recurly subscriptions.",
         "parameters": [
           {
-            "description": "Business ID",
+            "description": "Business UID",
             "in": "path",
-            "name": "business_id",
+            "name": "business_uid",
             "required": true,
             "type": "string"
           },
@@ -869,20 +1575,20 @@
                     "admin_account": {
                       "properties": {
                         "country_name": {
-                          "description": "Business\u2019s Country. Must be a valid country name",
+                          "description": "Business’s Country. Must be a valid country name",
                           "type": "string"
                         },
                         "display_name": {
-                          "description": "Owner\u2019s display name. Up to 255 characters, no HTML tags, no new lines (if not provided, FIRST NAME + LAST NAME will be used)",
+                          "description": "Owner’s display name. Up to 255 characters, no HTML tags, no new lines (if not provided, FIRST NAME + LAST NAME will be used)",
                           "type": "string"
                         },
                         "email": {
-                          "description": "Owner\u2019s email, also used as the business\u2019s main email",
+                          "description": "Owner’s email, also used as the business’s main email",
                           "type": "string",
                           "format": "email"
                         },
                         "first_name": {
-                          "description": "Owner\u2019s first name. Up to 255 characters, no HTML tags, no new lines",
+                          "description": "Owner’s first name. Up to 255 characters, no HTML tags, no new lines",
                           "type": "string"
                         },
                         "language": {
@@ -891,7 +1597,7 @@
                           "type": "string"
                         },
                         "last_name": {
-                          "description": "Owner\u2019s last name. Up to 255 characters, no HTML tags, no new lines",
+                          "description": "Owner’s last name. Up to 255 characters, no HTML tags, no new lines",
                           "type": "string"
                         },
                         "phone": {
@@ -955,7 +1661,7 @@
                           "type": "string"
                         },
                         "website_url": {
-                          "description": "Business\u2019s website URL. Must be a valid URL address including http/https.",
+                          "description": "Business’s website URL. Must be a valid URL address including http/https.",
                           "type": "string"
                         }
                       },
@@ -1079,7 +1785,7 @@
                       "last_name": "LName",
                       "phone": "+154863488",
                       "staff_uid": "aaa1234567890abcdef",
-                      "user_id": "11111"
+                      "user_id": 11111
                     },
                     "business": {
                       "business_category": "aeroclub",
@@ -1156,6 +1862,15 @@
               }
             }
           },
+          "401": {
+            "description": "Unauthorized - The provided token type is not authorized for this endpoint. This endpoint requires Directory or Internal tokens. Staff tokens are not permitted.",
+            "examples": {
+              "application/json": {
+                "error": "Unauthorized",
+                "status": "Error"
+              }
+            }
+          },
           "500": {
             "description": "Internal Server Error - An unexpected error occurred while processing the request.",
             "examples": {
@@ -1191,9 +1906,9 @@
             }
           },
           "type": "http_proxy",
-          "uri": "https:///platform/v1/businesses/{business_id}/update_business"
+          "uri": "https:///platform/v1/businesses/{business_uid}/update_business"
         },
-        "x-auth-type": "Application & Application User"
+        "x-auth-type": "Directory"
       }
     },
     "/directory/branding": {
@@ -1201,7 +1916,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Get Directory's branding including logo url and colors, available for **Staff & Directory Tokens**",
+        "description": "## Overview\nGet Directory's branding including logo url and colors, available for **Staff & Directory Tokens**.",
         "parameters": [
           {
             "description": "Whitelabel host name",
@@ -1260,7 +1975,6 @@
           }
         ],
         "summary": "Gets Directory's branding",
-        
         "tags": [
           "Directory"
         ],
@@ -1285,7 +1999,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Get tokens list. Tokens can be filtered by app_id, user_id, or directory_id.",
+        "description": "## Overview\nGet tokens list. Tokens can be filtered by app_id, user_id, or directory_id. Available for **Staff, Application, and Directory tokens**.",
         "parameters": [
           {
             "description": "Filter by app_id",
@@ -1373,7 +2087,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Creates a token for authentication. Tokens can be created for applications (app_id), businesses (business_id), or directories (directory_id). At least one identifier must be provided.",
+        "description": "## Overview\nCreates a token for authentication. Tokens can be created for applications (app_id), businesses (business_id), or directories (directory_id). At least one identifier must be provided. Available for **Staff, Application, and Directory tokens**.",
         "parameters": [
           {
             "in": "body",
@@ -1389,8 +2103,8 @@
                   "type": "string"
                 },
                 "directory_id": {
-                  "description": "A unique identifier for a partner.",
-                  "type": "string"
+                  "description": "The numeric ID of a directory (partner). This is the internal database ID, not the UID (e.g., 1121 instead of \"qcpvme5au9c3vf0h\").",
+                  "type": "integer"
                 }
               },
               "type": "object"
@@ -1481,18 +2195,21 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Revoke token",
+        "description": "## Overview\nRevoke a specific access token by providing the token value. The token must be accessible by the authenticated caller (e.g., a Directory token can only revoke tokens it issued).\n\nAvailable for **Staff, Application, and Directory tokens**.\n\n## Authorization Rules\n- **Staff tokens**: Can revoke tokens associated with the authenticated user.\n- **Directory tokens**: Can revoke tokens they issued to users or apps within their directory.\n- **Application tokens**: Can revoke tokens they issued to users within their directory.\n\n## Error Handling\n- Returns 422 with `\"error\": \"Unauthorized\"` if the caller does not have permission to revoke the specified token.\n- Returns 422 with `\"error\": \"invalid token\"` if the provided token value does not exist.",
         "parameters": [
           {
             "in": "body",
             "name": "body",
+            "required": true,
             "schema": {
               "properties": {
                 "token": {
-                  "description": "Token to revoke",
-                  "type": "string"
+                  "description": "The access token value to revoke. This is the actual token string (e.g., \"abc123xyz\"), not a token identifier or UID.",
+                  "type": "string",
+                  "example": "abc123def456ghi789"
                 }
               },
+              "required": ["token"],
               "type": "object"
             }
           }
@@ -1502,31 +2219,31 @@
         ],
         "responses": {
           "201": {
-            "description": "Token revoked successfully. Returns confirmation that the specified token has been revoked and is no longer valid.",
+            "description": "Token revoked successfully. Returns the list of tokens that were revoked.",
             "examples": {
               "application/json": {
+                "status": "OK",
                 "data": {
-                  "revoked": true
-                },
-                "status": "OK"
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid token provided or token is already revoked.",
-            "examples": {
-              "application/json": {
-                "message": "Invalid token",
-                "status": "Error"
+                  "revoked_tokens": ["abc123def456ghi789"]
+                }
               }
             }
           },
           "401": {
-            "description": "Unauthorized - Invalid or missing authentication token.",
+            "description": "Unauthorized - Invalid or missing authentication token in the request header.",
             "examples": {
               "application/json": {
-                "message": "Unauthorized",
-                "status": "Error"
+                "status": "Error",
+                "message": "Unauthorized"
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - The request was valid but could not be processed. This occurs when the caller does not have permission to revoke the specified token, or when the provided token value does not exist.",
+            "examples": {
+              "application/json": {
+                "status": "Error",
+                "error": "Unauthorized"
               }
             }
           },
@@ -1534,8 +2251,8 @@
             "description": "Internal Server Error - An unexpected error occurred while processing the request.",
             "examples": {
               "application/json": {
-                "message": "Internal server error",
-                "status": "Error"
+                "status": "Error",
+                "error": "Internal server error"
               }
             }
           }
@@ -1572,15 +2289,15 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Subscribe to webhook notifications. Webhooks allow you to receive real-time notifications when specific events occur in the system. You must specify the entity (what object to monitor) and the event_type (what action triggers the notification).\n\n**Common Entity and Event Type Combinations:**\n- `business` + `create` - Notify when a business is created\n- `account` + `rejected` - Notify when business creation fails (for asynchronous creation)\n- `client` + `create` - Notify when a client is created\n- `appointment` + `scheduled` - Notify when an appointment is scheduled\n- `payment` + `recorded` - Notify when a payment is recorded\n- `invoice` + `issued` - Notify when an invoice is issued\n\n**Available Entities (40 total):**\n- **Business Management:** `business`, `account`, `staff`, `location`, `service`\n- **Client Management:** `client`, `lead`, `engagement`, `tag`\n- **Scheduling:** `appointment`, `booking`, `meeting`, `event`, `event_attendance`, `cancellation`, `reschedule`, `confirmation`\n- **Financial:** `payment`, `invoice`, `estimate`, `deposit`, `subscription`, `purchasable_subscription`\n- **Communication:** `message`, `conversation`, `conversation_item`, `voice_call`, `notification`, `reminder`\n- **Content:** `document`, `review`, `contact_form`\n- **Integrations:** `application`, `app_subscription`, `payment_gateways_settings`, `voice_calls_settings`, `channel`\n- **Other:** `bulk_import`, `matter`, `pivot`\n\n**Available Event Types (35 total):**\n- **Lifecycle Events:** `create`, `update`, `delete`\n- **Status Changes:** `approved`, `rejected`, `closed`, `completed`, `done`, `deactivated`, `reactivated`\n- **Scheduling Events:** `scheduled`, `cancelled`, `rescheduled`, `no_show`\n- **Financial Events:** `paid`, `refunded`, `recorded`, `issued`\n- **Communication Events:** `sent`, `read`, `business_sent_message`, `client_sent_message`, `reminder_sent`\n- **Integration Events:** `installed`, `uninstalled`, `connected`, `disconnected`, `changed_primary_payment_gateway`\n- **Other Events:** `event`, `status`, `submitted`, `matched`, `requested`, `recover`, `promotional_blocked`\n\nNote: Not all entity/event_type combinations are valid. Refer to the webhook documentation for valid combinations.",
+        "description": "## Overview\nSubscribe to webhook notifications. Webhooks allow you to receive real-time notifications when specific events occur in the system. You must specify the event (a combined string of entity and event_type in the format 'entity/event_type') and the target_url where notifications will be sent.\n\nAvailable for **Staff and Directory Tokens**.\n\n## Event Format\nThe `event` parameter uses the format `entity/event_type` where:\n- **entity**: The object type to monitor (e.g., 'client', 'business', 'meeting', 'payment')\n- **event_type**: The action that triggers the notification (e.g., 'created', 'updated', 'deleted')\n\n## Common Events\n- `client/created` - New client created\n- `business/created` - New business created\n- `meeting/created` - New meeting scheduled\n- `meeting/cancelled` - Meeting cancelled\n- `payment/paid` - Payment received\n- `invoice/issued` - Invoice issued\n\n## Error Responses\nReturns HTTP 500 with `{\"response\": \"Not Subscribed\"}` when subscription fails (e.g., invalid event format, service unavailable).",
         "parameters": [
           {
             "in": "body",
             "name": "body",
             "schema": {
               "properties": {
-                "entity": {
-                  "description": "The entity (object type) to monitor for webhook events. This determines what type of object the webhook will track. Available entities include: 'business' (business accounts), 'client' (client records), 'appointment' (scheduled appointments), 'payment' (payment transactions), 'invoice' (invoices), 'account' (account-related events like business creation failures), and 34 other entity types. See the enum list below for all available entities.",
+                "event": {
+                  "description": "The event to subscribe to in the format 'entity/event_type'. The entity is the object type to monitor (e.g., 'client', 'business', 'meeting') and event_type is the action that triggers the webhook (e.g., 'created', 'updated', 'deleted', 'cancelled').",
                   "type": "string",
                   "enum": [
                     "account",
@@ -1630,60 +2347,18 @@
                 "event_type": {
                   "description": "The type of event that triggers the webhook notification. This specifies what action or state change should trigger the webhook. Common event types include: 'create' (object created), 'update' (object updated), 'delete' (object deleted), 'scheduled' (appointment/event scheduled), 'cancelled' (appointment/event cancelled), 'rejected' (request rejected, e.g., business creation failure), 'paid' (payment received), 'recorded' (payment recorded), 'issued' (invoice/estimate issued), 'sent' (message sent), and 25 other event types. See the enum list below for all available event types.",
                   "type": "string",
-                  "enum": [
-                    "approved",
-                    "business_sent_message",
-                    "cancelled",
-                    "changed_primary_payment_gateway",
-                    "client_sent_message",
-                    "closed",
-                    "completed",
-                    "connected",
-                    "create",
-                    "deactivated",
-                    "delete",
-                    "disconnected",
-                    "done",
-                    "event",
-                    "installed",
-                    "issued",
-                    "matched",
-                    "no_show",
-                    "paid",
-                    "promotional_blocked",
-                    "read",
-                    "reactivated",
-                    "recover",
-                    "recorded",
-                    "refunded",
-                    "rejected",
-                    "reminder_sent",
-                    "requested",
-                    "rescheduled",
-                    "scheduled",
-                    "sent",
-                    "status",
-                    "submitted",
-                    "uninstalled",
-                    "update"
-                  ]
-                },
-                "url": {
-                  "description": "Where to send the webhook response to (e.g. https://my.domain.com/path/of/webhook/call). Must be a valid HTTPS URL.",
-                  "type": "string",
-                  "format": "uri"
+                  "format": "uri",
+                  "example": "https://my.domain.com/webhooks/handler"
                 }
               },
               "required": [
-                "entity",
-                "event_type",
-                "url"
+                "event",
+                "target_url"
               ],
               "type": "object",
               "x-example": {
-                "entity": "business",
-                "event_type": "create",
-                "url": "https://my.domain.com/webhooks/business-created"
+                "event": "business/created",
+                "target_url": "https://my.domain.com/webhooks/business-created"
               }
             }
           }
@@ -1704,10 +2379,10 @@
             }
           },
           "400": {
-            "description": "Bad Request - Invalid parameters provided. The entity/event_type combination may be invalid, the URL format is incorrect, or required fields are missing.",
+            "description": "Bad Request - Invalid parameters provided. The event format may be invalid (must be 'entity/event_type'), the target_url format is incorrect, or required fields are missing.",
             "examples": {
               "application/json": {
-                "message": "Invalid entity/event_type combination",
+                "message": "Invalid event format",
                 "status": "Error"
               }
             }
@@ -1722,11 +2397,10 @@
             }
           },
           "500": {
-            "description": "Internal Server Error - An unexpected error occurred while processing the request.",
+            "description": "Subscription Failed - The webhook subscription could not be created. This typically occurs when the event format is invalid, the target URL is unreachable, or the webhook service encounters an error. Note: This status code is also returned for business-rule failures that should ideally be 400 errors.",
             "examples": {
               "application/json": {
-                "message": "Internal server error",
-                "status": "Error"
+                "response": "Not Subscribed"
               }
             }
           }
@@ -1763,9 +2437,8 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Unsubscribe from webhook. Note: This endpoint uses legacy parameter names ('event' and 'target_url'). The 'target_url' must match exactly the URL used when subscribing. The 'event' parameter is optional and can be used to unsubscribe from a specific event type.",
-       "parameters": [
-
+        "description": "## Overview\nUnsubscribe from webhook. Note: This endpoint uses legacy parameter names ('event' and 'target_url'). The 'target_url' must match exactly the URL used when subscribing. The 'event' parameter is optional and can be used to unsubscribe from a specific event type.\n\nAvailable for **Staff and Directory Tokens**.",
+        "parameters": [
           {
             "in": "body",
             "name": "body",
@@ -1791,7 +2464,7 @@
           "application/json"
         ],
         "responses": {
-          "201": {
+          "200": {
             "description": "Success",
             "examples": {
               "application/json": {
@@ -1835,7 +2508,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Get webhooks list",
+        "description": "## Overview\nGet webhooks list.\n\nAvailable for **Staff and Directory tokens**.",
         "parameters": [
           {
             "description": "Filtering the list of webhooks.\nFilter is a 'deepObject' works with:\n  1. 'entity' - object which listen to event (example: client)\n  2. 'event_type' - type of event to trigger webhook (example: created)\n\nExample:\n  <url>?filter[entity]=client&filter[event_type]=created\n",
@@ -1853,129 +2526,152 @@
             "description": "List webhooks",
             "examples": {
               "application/json": {
-                "status": "OK",
-                "subscriptions": [
-                  {
-                    "entity": "client",
-                    "event_type": "create",
-                    "uid": 32,
-                    "url": "https://my.domain.com/path/of/webhook/call"
+                "response": {
+                  "success": "ok",
+                  "data": {
+                    "subscriptions": [
+                      {
+                        "id": 32,
+                        "entity": "client",
+                        "event_type": "create",
+                        "url": "https://my.domain.com/path/of/webhook/call"
+                      }
+                    ]
                   }
-                ]
+                }
               }
             },
             "schema": {
+              "type": "object",
               "properties": {
-                "status": {
-                  "type": "string"
-                },
-                "subscriptions": {
-                  "items": {
-                    "properties": {
-                      "entity": {
-                        "description": "Object / Event name that the webhook is subscribed to. This is the entity type being monitored. Available entities include: 'business' (business accounts), 'client' (client records), 'appointment' (scheduled appointments), 'payment' (payment transactions), 'invoice' (invoices), 'account' (account-related events), and 34 other entity types. See the enum list below for all available entities.",
-                        "type": "string",
-                        "enum": [
-                          "account",
-                          "app_subscription",
-                          "application",
-                          "appointment",
-                          "booking",
-                          "bulk_import",
-                          "business",
-                          "cancellation",
-                          "channel",
-                          "client",
-                          "confirmation",
-                          "contact_form",
-                          "conversation",
-                          "conversation_item",
-                          "deposit",
-                          "document",
-                          "engagement",
-                          "estimate",
-                          "event",
-                          "event_attendance",
-                          "invoice",
-                          "lead",
-                          "location",
-                          "matter",
-                          "meeting",
-                          "message",
-                          "notification",
-                          "payment",
-                          "payment_gateways_settings",
-                          "pivot",
-                          "purchasable_subscription",
-                          "reminder",
-                          "reschedule",
-                          "review",
-                          "service",
-                          "staff",
-                          "subscription",
-                          "tag",
-                          "voice_call",
-                          "voice_calls_settings"
-                        ]
-                      },
-                      "event_type": {
-                        "description": "The type of event that triggers the webhook notification. This specifies what action or state change triggers the webhook. Common event types include: 'create' (object created), 'update' (object updated), 'delete' (object deleted), 'scheduled' (appointment/event scheduled), 'cancelled' (appointment/event cancelled), 'rejected' (request rejected), 'paid' (payment received), 'recorded' (payment recorded), 'issued' (invoice/estimate issued), 'sent' (message sent), and 25 other event types. See the enum list below for all available event types.",
-                        "type": "string",
-                        "enum": [
-                          "approved",
-                          "business_sent_message",
-                          "cancelled",
-                          "changed_primary_payment_gateway",
-                          "client_sent_message",
-                          "closed",
-                          "completed",
-                          "connected",
-                          "create",
-                          "deactivated",
-                          "delete",
-                          "disconnected",
-                          "done",
-                          "event",
-                          "installed",
-                          "issued",
-                          "matched",
-                          "no_show",
-                          "paid",
-                          "promotional_blocked",
-                          "read",
-                          "reactivated",
-                          "recover",
-                          "recorded",
-                          "refunded",
-                          "rejected",
-                          "reminder_sent",
-                          "requested",
-                          "rescheduled",
-                          "scheduled",
-                          "sent",
-                          "status",
-                          "submitted",
-                          "uninstalled",
-                          "update"
-                        ]
-                      },
-                      "id": {
-                        "type": "integer"
-                      },
-                      "target_url": {
-                        "type": "string"
-                      }
+                "response": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "string",
+                      "description": "Indicates the success status of the request (e.g., \"ok\")."
                     },
-                    "type": "object"
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "subscriptions": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer",
+                                "description": "The unique identifier of the webhook subscription."
+                              },
+                              "entity": {
+                                "type": "string",
+                                "description": "Object / Event name that the webhook is subscribed to. This is the entity type being monitored. Available entities include: 'business' (business accounts), 'client' (client records), 'appointment' (scheduled appointments), 'payment' (payment transactions), 'invoice' (invoices), 'account' (account-related events), and 34 other entity types. See the enum list below for all available entities.",
+                                "enum": [
+                                  "account",
+                                  "app_subscription",
+                                  "application",
+                                  "appointment",
+                                  "booking",
+                                  "bulk_import",
+                                  "business",
+                                  "cancellation",
+                                  "channel",
+                                  "client",
+                                  "confirmation",
+                                  "contact_form",
+                                  "conversation",
+                                  "conversation_item",
+                                  "deposit",
+                                  "document",
+                                  "engagement",
+                                  "estimate",
+                                  "event",
+                                  "event_attendance",
+                                  "invoice",
+                                  "lead",
+                                  "location",
+                                  "matter",
+                                  "meeting",
+                                  "message",
+                                  "notification",
+                                  "payment",
+                                  "payment_gateways_settings",
+                                  "pivot",
+                                  "purchasable_subscription",
+                                  "reminder",
+                                  "reschedule",
+                                  "review",
+                                  "service",
+                                  "staff",
+                                  "subscription",
+                                  "tag",
+                                  "voice_call",
+                                  "voice_calls_settings"
+                                ]
+                              },
+                              "event_type": {
+                                "type": "string",
+                                "description": "The type of event that triggers the webhook notification. This specifies what action or state change triggers the webhook. Common event types include: 'create' (object created), 'update' (object updated), 'delete' (object deleted), 'scheduled' (appointment/event scheduled), 'cancelled' (appointment/event cancelled), 'rejected' (request rejected), 'paid' (payment received), 'recorded' (payment recorded), 'issued' (invoice/estimate issued), 'sent' (message sent), and 25 other event types. See the enum list below for all available event types.",
+                                "enum": [
+                                  "approved",
+                                  "business_sent_message",
+                                  "cancelled",
+                                  "changed_primary_payment_gateway",
+                                  "client_sent_message",
+                                  "closed",
+                                  "completed",
+                                  "connected",
+                                  "create",
+                                  "deactivated",
+                                  "delete",
+                                  "disconnected",
+                                  "done",
+                                  "event",
+                                  "installed",
+                                  "issued",
+                                  "matched",
+                                  "no_show",
+                                  "paid",
+                                  "promotional_blocked",
+                                  "read",
+                                  "reactivated",
+                                  "recover",
+                                  "recorded",
+                                  "refunded",
+                                  "rejected",
+                                  "reminder_sent",
+                                  "requested",
+                                  "rescheduled",
+                                  "scheduled",
+                                  "sent",
+                                  "status",
+                                  "submitted",
+                                  "uninstalled",
+                                  "update"
+                                ]
+                              },
+                              "url": {
+                                "type": "string",
+                                "description": "The target URL where webhook notifications will be sent."
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "required": [
+                        "subscriptions"
+                      ]
+                    }
                   },
-                  "type": "array"
+                  "required": [
+                    "success",
+                    "data"
+                  ]
                 }
               },
               "required": [
-                "status",
-                "subscriptions"
-              ],
-              "type": "object"
+                "response"
+              ]
             }
           }
         },
@@ -2006,17 +2702,17 @@
         "x-auth-type": "Application & Application User"
       }
     },
-    "/businesses/{business_id}/features": {
+    "/businesses/{business_uid}/features": {
       "get": {
         "consumes": [
           "application/json"
         ],
-        "description": "Retrieves a list of features enabled for a specific business. Features represent capabilities and modules available to the business.",
+        "description": "## Overview\nRetrieves a list of features enabled for a specific business. Features represent capabilities and modules available to the business.\n\nAvailable for **Staff, Application, and Directory tokens**.",
         "parameters": [
           {
-            "description": "Business ID",
+            "description": "Business UID",
             "in": "path",
-            "name": "business_id",
+            "name": "business_uid",
             "required": true,
             "type": "string"
           }
@@ -2066,17 +2762,17 @@
         "x-auth-type": "Application & Application User"
       }
     },
-    "/businesses/{business_id}/purchased_items": {
+    "/businesses/{business_uid}/purchased_items": {
       "put": {
         "consumes": [
           "application/json"
         ],
-        "description": "Updates purchased items for a business",
+        "description": "## Overview\nUpdates purchased items for a business.\n\nAvailable for **Staff, Application, and Directory tokens**.",
         "parameters": [
           {
-            "description": "Business ID",
+            "description": "Business UID",
             "in": "path",
-            "name": "business_id",
+            "name": "business_uid",
             "required": true,
             "type": "string"
           },
@@ -2086,26 +2782,35 @@
             "schema": {
               "properties": {
                 "data": {
-                  "description": "Purchased Items data",
-                  "properties": {
-                    "bundled": {
-                      "description": "Bundled items count or identifier. Represents items that are included as part of a bundle package.",
-                      "type": "string"
-                    },
-                    "purchased": {
-                      "description": "Purchased items count or identifier. Represents items that have been individually purchased.",
-                      "type": "string"
+                  "description": "Array of purchased items to update",
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "description": "Type of purchased items being updated. Only 'staffs' and 'sms' are valid types.",
+                        "type": "string",
+                        "enum": ["staffs", "sms"]
+                      },
+                      "data": {
+                        "type": "object",
+                        "properties": {
+                          "bundled": {
+                            "description": "Bundled items count. Represents items that are included as part of a bundle package.",
+                            "type": "number"
+                          },
+                          "purchased": {
+                            "description": "Purchased items count. Represents items that have been individually purchased.",
+                            "type": "number"
+                          }
+                        }
+                      }
                     }
-                  },
-                  "type": "object"
-                },
-                "type": {
-                  "description": "Type of purchased items being updated. This categorizes the items (e.g., 'features', 'modules', 'addons').",
-                  "type": "string"
+                  }
                 }
               },
               "required": [
-                "type"
+                "data"
               ],
               "type": "object"
             }
@@ -2145,17 +2850,17 @@
         "x-auth-type": "Application & Application User"
       }
     },
-    "/businesses/{business_id}/recurly_data": {
+    "/businesses/{business_uid}/recurly_data": {
       "get": {
         "consumes": [
           "application/json"
         ],
-        "description": "Retrieves Recurly subscription data for a business, including account codes and subscription parameters used for billing integration.",
+        "description": "## Overview\nRetrieves Recurly subscription data for a business, including account codes and subscription parameters used for billing integration.\n\nAvailable for **internal recurlybilling app token only**. This is an internal endpoint used by the billing system to retrieve Recurly subscription parameters.",
         "parameters": [
           {
-            "description": "Business ID",
+            "description": "Business UID",
             "in": "path",
-            "name": "business_id",
+            "name": "business_uid",
             "required": true,
             "type": "string"
           }
@@ -2195,17 +2900,17 @@
         "x-auth-type": "Application & Application User"
       }
     },
-    "/businesses/{business_id}/staffs": {
+    "/businesses/{business_uid}/staffs": {
       "get": {
         "consumes": [
           "application/json"
         ],
-        "description": "Get Staff List and Details (ordered by position field).",
+        "description": "## Overview\nGet Staff List and Details (ordered by position field).\n\nAvailable for **Staff, Application, and Directory tokens**.",
         "parameters": [
           {
-            "description": "Business ID",
+            "description": "Business UID",
             "in": "path",
-            "name": "business_id",
+            "name": "business_uid",
             "required": true,
             "type": "string"
           },
@@ -2296,7 +3001,7 @@
             }
           },
           "type": "http_proxy",
-          "uri": "https:///platform/v1/businesses/{business_id}/staffs"
+          "uri": "https:///platform/v1/businesses/{business_uid}/staffs"
         },
         "x-auth-type": "Application & Application User"
       },
@@ -2304,51 +3009,63 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Creates a Staff.",
+        "description": "## Overview\nCreates a Staff Member.\n\nAvailable for **Staff, Application, and Directory tokens**.\n\n**Content-Type**: Requires `application/json` content type header.",
         "parameters": [
           {
-            "description": "Business ID",
+            "description": "Unique identifier of the business to create the staff member for.",
             "in": "path",
-            "name": "business_id",
+            "name": "business_uid",
             "required": true,
-            "type": "string"
+            "type": "string",
+            "x-reference-to": "business"
           },
           {
             "in": "body",
             "name": "body",
+            "required": true,
+            "description": "Request body containing the staff member details. **Important**: The request body must be JSON with Content-Type: application/json header. The body must contain a top-level 'staff' object wrapper with required fields: email and display_name. If the 'staff' wrapper is missing or the body is not valid JSON, the API returns 400 with error 'staff parameters are missing'.",
             "schema": {
               "properties": {
                 "meta": {
+                  "description": "Optional metadata for the staff creation request.",
                   "properties": {
                     "invite": {
-                      "description": "Send invite to staff on creation",
-                      "type": "string"
+                      "description": "Send invite to staff on creation. Defaults to false if not provided.",
+                      "type": "boolean",
+                      "default": false
                     }
                   },
                   "type": "object"
                 },
                 "staff": {
+                  "description": "**Required wrapper object** containing the staff member details. This top-level 'staff' key is mandatory - omitting it results in a 400 error.",
                   "properties": {
                     "display_name": {
-                      "description": "Display name",
-                      "type": "string"
+                      "description": "Display name of the staff member. Must not be longer than 255 characters and must not contain HTML tags or newlines.",
+                      "type": "string",
+                      "maxLength": 255
                     },
                     "email": {
-                      "description": "Email Address",
+                      "description": "Email address of the staff member. Must be unique across the platform - attempting to create a staff member with an email that already exists will return an error.",
                       "type": "string",
                       "format": "email"
                     },
                     "first_name": {
-                      "description": "First Name",
-                      "type": "string"
+                      "description": "First name of the staff member. Must not be longer than 255 characters and must not contain HTML tags or newlines.",
+                      "type": "string",
+                      "maxLength": 255
                     },
                     "last_name": {
-                      "description": "Last Name",
-                      "type": "string"
+                      "description": "Last name of the staff member. Must not be longer than 255 characters and must not contain HTML tags or newlines.",
+                      "type": "string",
+                      "maxLength": 255
                     },
                     "role": {
-                      "description": "Please use the new Access Control API: https://developers.intandem.tech/v3.0/docs/main-concepts",
-                      "type": "string"
+                      "description": "Role code assigned to the staff member within the business. Valid values are: admin, manager, marketing, collaborator, user. Defaults to 'user' if not provided. Note: These correspond to the `code` field from GET /v3/access_control/business_roles endpoint.",
+                      "type": "string",
+                      "enum": ["admin", "manager", "marketing", "collaborator", "user"],
+                      "default": "user",
+                      "x-reference-to": "business_role.code"
                     }
                   },
                   "required": [
@@ -2361,7 +3078,19 @@
               "required": [
                 "staff"
               ],
-              "type": "object"
+              "type": "object",
+              "example": {
+                "staff": {
+                  "email": "new.staff@example.com",
+                  "display_name": "New Staff Member",
+                  "first_name": "New",
+                  "last_name": "Staff",
+                  "role": "user"
+                },
+                "meta": {
+                  "invite": false
+                }
+              }
             }
           }
         ],
@@ -2395,6 +3124,47 @@
                 "status": "OK"
               }
             }
+          },
+          "400": {
+            "description": "Bad Request - Validation error. Common validation errors include:\n- `staff parameters are missing` - The request body must contain a 'staff' object wrapper\n- `staff.email is required` - Email is a mandatory field\n- `staff.email must be valid` - Email format is invalid\n- `staff.email already in use` - Email address is already associated with another user in the platform\n- `staff.display_name is a mandatory field` - Display name is required\n- `staff.role must be valid` - Role must be one of: admin, manager, marketing, collaborator, user\n- `staff.first_name must not be longer than 256` - First name exceeds maximum length\n- `staff.first_name must not contain html tags` - HTML tags are not allowed\n- `staff.first_name must not contain newlines` - Newline characters are not allowed\n- `meta.invite should be true/false` - Invite must be a boolean value",
+            "examples": {
+              "application/json": {
+                "missing_staff_wrapper": {
+                  "status": "Error",
+                  "message": "staff parameters are missing",
+                  "data": null
+                },
+                "email_already_in_use": {
+                  "status": "Error",
+                  "message": "Unable to create staff",
+                  "data": [
+                    "staff.email already in use"
+                  ]
+                },
+                "missing_required_fields": {
+                  "status": "Error",
+                  "message": "Unable to create staff",
+                  "data": [
+                    "staff.email is required",
+                    "staff.display_name is a mandatory field"
+                  ]
+                },
+                "invalid_email_format": {
+                  "status": "Error",
+                  "message": "Unable to create staff",
+                  "data": [
+                    "staff.email must be valid"
+                  ]
+                },
+                "invalid_role": {
+                  "status": "Error",
+                  "message": "Unable to create staff",
+                  "data": [
+                    "staff.role must be valid"
+                  ]
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2422,29 +3192,29 @@
             }
           },
           "type": "http_proxy",
-          "uri": "https:///platform/v1/businesses/{business_id}/staffs"
+          "uri": "https:///platform/v1/businesses/{business_uid}/staffs"
         },
         "x-auth-type": "Application & Application User"
       }
     },
-    "/businesses/{business_id}/staffs/{staff_id}": {
+    "/businesses/{business_uid}/staffs/{staff_uid}": {
       "delete": {
         "consumes": [
           "application/json"
         ],
-        "description": "Delete Staff Member.",
+        "description": "## Overview\nDelete Staff Member Available for **Staff, Application, and Directory tokens**.",
         "parameters": [
           {
-            "description": "Business ID",
+            "description": "Business UID",
             "in": "path",
-            "name": "business_id",
+            "name": "business_uid",
             "required": true,
             "type": "string"
           },
           {
-            "description": "Staff ID",
+            "description": "Staff UID",
             "in": "path",
-            "name": "staff_id",
+            "name": "staff_uid",
             "required": true,
             "type": "string"
           }
@@ -2488,7 +3258,7 @@
             }
           },
           "type": "http_proxy",
-          "uri": "https:///platform/v1/businesses/{business_id}/staffs/{staff_id}"
+          "uri": "https:///platform/v1/businesses/{business_uid}/staffs/{staff_uid}"
         },
         "x-auth-type": "Application & Application User"
       },
@@ -2496,19 +3266,19 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Get Staff Details.",
+        "description": "## Overview\nGet Staff Details.\n\nAvailable for **Staff, Application, and Directory tokens**.",
         "parameters": [
           {
-            "description": "Business ID",
+            "description": "Business UID",
             "in": "path",
-            "name": "business_id",
+            "name": "business_uid",
             "required": true,
             "type": "string"
           },
           {
-            "description": "Staff ID",
+            "description": "Staff UID",
             "in": "path",
-            "name": "staff_id",
+            "name": "staff_uid",
             "required": true,
             "type": "string"
           }
@@ -2571,29 +3341,29 @@
             }
           },
           "type": "http_proxy",
-          "uri": "https:///platform/v1/businesses/{business_id}/staffs/{staff_id}"
+          "uri": "https:///platform/v1/businesses/{business_uid}/staffs/{staff_uid}"
         },
         "x-auth-type": "Application & Application User"
       }
     },
-    "/businesses/{business_id}/staffs/{staff_id}/sessions": {
+    "/businesses/{business_uid}/staffs/{staff_uid}/sessions": {
       "delete": {
         "consumes": [
           "application/json"
         ],
-        "description": "End Staff Member active sessions and log out from browser.",
+        "description": "## Overview\nEnd Staff Member active sessions and log out from browser Available for **Staff, Application, and Directory tokens**.",
         "parameters": [
           {
-            "description": "Business ID",
+            "description": "Business UID",
             "in": "path",
-            "name": "business_id",
+            "name": "business_uid",
             "required": true,
             "type": "string"
           },
           {
-            "description": "Staff ID",
+            "description": "Staff UID",
             "in": "path",
-            "name": "staff_id",
+            "name": "staff_uid",
             "required": true,
             "type": "string"
           }
@@ -2642,22 +3412,22 @@
             }
           },
           "type": "http_proxy",
-          "uri": "https:///platform/v1/businesses/{business_id}/staffs/{staff_id}/sessions"
+          "uri": "https:///platform/v1/businesses/{business_uid}/staffs/{staff_uid}/sessions"
         },
         "x-auth-type": "Application & Application User"
       }
     },
-    "/businesses/{business_id}/wizards": {
+    "/businesses/{business_uid}/wizards": {
       "get": {
         "consumes": [
           "application/json"
         ],
-        "description": "Gets a list of available wizards",
+        "description": "## Overview\nGets a list of available wizards.\n\nAvailable for **Staff, Application, and Directory tokens**.",
         "parameters": [
           {
-            "description": "Business ID",
+            "description": "Business UID",
             "in": "path",
-            "name": "business_id",
+            "name": "business_uid",
             "required": true,
             "type": "string"
           }
@@ -2711,22 +3481,22 @@
             }
           },
           "type": "http_proxy",
-          "uri": "https:///platform/v1/businesses/{business_id}/wizards"
+          "uri": "https:///platform/v1/businesses/{business_uid}/wizards"
         },
         "x-auth-type": "Application & Application User"
       }
     },
-    "/businesses/{business_id}/wizards/{wizard_name}": {
+    "/businesses/{business_uid}/wizards/{wizard_name}": {
       "get": {
         "consumes": [
           "application/json"
         ],
-        "description": "Gets a wizard by given name",
+        "description": "## Overview\nGets a wizard by given name.\n\nAvailable for **Directory Tokens only**.",
         "parameters": [
           {
-            "description": "Business ID",
+            "description": "Business UID",
             "in": "path",
-            "name": "business_id",
+            "name": "business_uid",
             "required": true,
             "type": "string"
           },
@@ -2779,7 +3549,7 @@
             }
           },
           "type": "http_proxy",
-          "uri": "https:///platform/v1/businesses/{business_id}/wizards/{wizard_name}"
+          "uri": "https:///platform/v1/businesses/{business_uid}/wizards/{wizard_name}"
         },
         "x-auth-type": "Application & Application User"
       },
@@ -2787,12 +3557,12 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Update a wizard with given name",
+        "description": "## Overview\nUpdate a wizard with given name Available for **Staff, Application, and Directory tokens**.",
         "parameters": [
           {
-            "description": "Business ID",
+            "description": "Business UID",
             "in": "path",
-            "name": "business_id",
+            "name": "business_uid",
             "required": true,
             "type": "string"
           },
@@ -2862,7 +3632,7 @@
             }
           },
           "type": "http_proxy",
-          "uri": "https:///platform/v1/businesses/{business_id}/wizards/{wizard_name}"
+          "uri": "https:///platform/v1/businesses/{business_uid}/wizards/{wizard_name}"
         },
         "x-auth-type": "Application & Application User"
       }
@@ -2874,7 +3644,7 @@
         ],
         "parameters": [
           {
-            "description": "Business ID",
+            "description": "Business UID - the unique identifier for the business (e.g., \"pihawe0kf7fu7xo1\"). Note: This must be the alphanumeric UID, not the numeric ID.",
             "in": "query",
             "name": "business_id",
             "required": true,
@@ -2948,24 +3718,25 @@
           },
           "type": "http_proxy",
           "uri": "https:///platform/v1/scheduling/staff/"
-        }
+        },
+        "description": "## Overview\nGet Staff List [Alpha].\n\nAvailable for **Staff Tokens**."
       }
     },
-    "/scheduling/staff/{staff_id}": {
+    "/scheduling/staff/{staff_uid}": {
       "get": {
         "consumes": [
           "application/json"
         ],
         "parameters": [
           {
-            "description": "Staff ID",
+            "description": "Staff UID",
             "in": "path",
-            "name": "staff_id",
+            "name": "staff_uid",
             "required": true,
             "type": "string"
           },
           {
-            "description": "Business ID",
+            "description": "Business UID - the unique identifier for the business (e.g., \"pihawe0kf7fu7xo1\"). Note: This must be the alphanumeric UID, not the numeric ID.",
             "in": "query",
             "name": "business_id",
             "required": true,
@@ -3024,8 +3795,9 @@
             }
           },
           "type": "http_proxy",
-          "uri": "https:///platform/v1/scheduling/staff/{staff_id}"
-        }
+          "uri": "https:///platform/v1/scheduling/staff/{staff_uid}"
+        },
+        "description": "## Overview\nGet Staff By ID [Alpha].\n\nAvailable for **Staff Tokens**."
       }
     }
   },
@@ -3051,5 +3823,15 @@
     }
   },
   "swagger": "2.0",
-  "x-throttling-tier": "8ReqPerSec"
+  "x-throttling-tier": "8ReqPerSec",
+  "components": {
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+      }
+    }
+  }
 }

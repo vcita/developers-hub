@@ -1,0 +1,86 @@
+---
+endpoint: GET /platform/v1/businesses
+domain: platform_administration
+tags: []
+status: success
+savedAt: 2026-01-31T00:00:00.000Z
+verifiedAt: 2026-01-31T00:00:00.000Z
+timesReused: 0
+---
+# Search Businesses
+
+## Summary
+Searches for businesses using filter parameters. This endpoint requires at least one filter query parameter: `email`, `external_id`, or `external_reference_id`. To test successfully, first retrieve the admin email from a known business using the business_uid from config.
+
+## Prerequisites
+- Directory token is required
+- Config must have `params.business_uid` set to a valid business UID
+
+## UID Resolution
+
+How to dynamically obtain required UIDs for this endpoint:
+
+| UID Field | GET Endpoint | Extract From | Create Fresh | Cleanup |
+|-----------|--------------|--------------|--------------|---------|
+| email | GET /platform/v1/businesses/{business_uid} | data.business.admin_account.email | No | - |
+
+### Resolution Steps
+
+**email** (query parameter):
+1. Use `config.params.business_uid` to get a known business UID (e.g., `00wutb5f1a08a8kn`)
+2. Call `GET /platform/v1/businesses/00wutb5f1a08a8kn` with directory token
+3. Extract from response: `data.business.admin_account.email`
+4. Use the extracted email as the `email` query parameter
+
+```json
+{
+  "email": {
+    "source_endpoint": "GET /platform/v1/businesses/00wutb5f1a08a8kn",
+    "extract_from": "data.business.admin_account.email",
+    "fallback_endpoint": null,
+    "create_fresh": false,
+    "create_endpoint": null,
+    "create_body": null,
+    "cleanup_endpoint": null,
+    "cleanup_note": "Use admin email from existing test business"
+  }
+}
+```
+
+## How to Resolve Parameters
+
+**IMPORTANT**: This is a search endpoint that requires valid filter data. Follow these steps:
+
+1. **Get business details first**: Call `GET /platform/v1/businesses/00wutb5f1a08a8kn` (using the test business_uid from config)
+2. **Extract admin email**: From the response, get `data.business.admin_account.email`
+3. **Call search endpoint**: Use `GET /platform/v1/businesses?email={extracted_email}`
+
+## Critical Learnings
+
+- **Filter required**: The endpoint MUST have at least one filter: `email`, `external_id`, or `external_reference_id`
+- **No filter = 400**: Without a filter, returns `400 "No filter specified"`
+- **No match = 400**: With a filter but no matching business, returns `400 "No business found"` (not 404!)
+- **Two-step resolution**: Must first get valid email from an existing business before searching
+- **Directory token only**: This endpoint requires a directory-level token
+
+## Request Template
+
+Use this template with dynamically resolved UIDs:
+
+**Pre-requisite call to get valid email:**
+```json
+{
+  "method": "GET",
+  "path": "/platform/v1/businesses/00wutb5f1a08a8kn",
+  "purpose": "uid_resolution",
+  "extract": "data.business.admin_account.email"
+}
+```
+
+**Main test call:**
+```json
+{
+  "method": "GET",
+  "path": "/platform/v1/businesses?email={{resolved.email}}"
+}
+```
