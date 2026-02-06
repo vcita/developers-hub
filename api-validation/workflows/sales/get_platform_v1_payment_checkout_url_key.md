@@ -2,10 +2,11 @@
 endpoint: "GET /platform/v1/payment/checkout/{url_key}"
 domain: sales
 tags: []
-swagger: swagger/sales/legacy/legacy_v1_sales.json
-status: success
-savedAt: 2026-01-26T22:06:09.436Z
-verifiedAt: 2026-01-26T22:06:09.436Z
+swagger: "swagger/sales/legacy/legacy_v1_sales.json"
+status: verified
+savedAt: "2026-01-26T22:06:09.436Z"
+verifiedAt: "2026-01-26T22:06:09.436Z"
+timesReused: 0
 ---
 
 # Get Checkout
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: get_checkout
     method: GET
-    path: "/platform/v1/payment/checkout/{url_key}"
+    path: "/platform/v1/payment/checkout/{{url_key}}"
     expect:
       status: [200, 201]
 ```

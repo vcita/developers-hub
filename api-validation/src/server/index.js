@@ -11,6 +11,7 @@ const { loadConfig, getMaskedConfig, validateConfig } = require('../core/config'
 const { parseAllSwaggersAsync, filterEndpoints, getStatistics } = require('../core/parser/swagger-parser');
 const { groupByDomainAndResource } = require('../core/orchestrator/resource-grouper');
 const { generateMarkdownReport, generateFilename } = require('../core/reporter/markdown-generator');
+const { invalidateIndexCache } = require('../core/workflows/repository');
 
 // Import routes
 const endpointsRouter = require('./routes/endpoints');
@@ -119,7 +120,7 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Reload swagger files
+// Reload swagger files and workflow index
 app.post('/api/reload', async (req, res) => {
   try {
     console.log('Reloading swagger files...');
@@ -130,6 +131,9 @@ app.post('/api/reload', async (req, res) => {
     appState.byDomain = byDomain;
     appState.domains = domains;
     appState.statistics = getStatistics(endpoints);
+    
+    // Also invalidate workflow index cache so workflows are re-read from files
+    invalidateIndexCache();
     
     console.log(`Reloaded ${endpoints.length} endpoints from ${Object.keys(domains).length} domains`);
     

@@ -2,10 +2,11 @@
 endpoint: "PUT /business/payments/v1/carts/{uid}/cancel"
 domain: sales
 tags: []
-swagger: swagger/sales/legacy/payments.json
-status: success
-savedAt: 2026-01-26T22:18:20.623Z
-verifiedAt: 2026-01-26T22:18:20.623Z
+swagger: "swagger/sales/legacy/payments.json"
+status: verified
+savedAt: "2026-01-26T22:18:20.623Z"
+verifiedAt: "2026-01-26T22:18:20.623Z"
+timesReused: 0
 ---
 
 # Update Cancel
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: put_cancel
     method: PUT
-    path: "/business/payments/v1/carts/{uid}/cancel"
+    path: "/business/payments/v1/carts/{{uid}}/cancel"
     body:
       cancel_payment_statuses_items: true
     expect:

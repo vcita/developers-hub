@@ -2,10 +2,11 @@
 endpoint: "POST /platform/v1/messages"
 domain: communication
 tags: []
-swagger: swagger/communication/legacy/legacy_v1_communication.json
-status: success
-savedAt: 2026-01-27T06:26:22.574Z
-verifiedAt: 2026-01-27T06:26:22.574Z
+swagger: "swagger/communication/legacy/legacy_v1_communication.json"
+status: verified
+savedAt: "2026-01-27T06:26:22.574Z"
+verifiedAt: "2026-01-27T06:26:22.574Z"
+timesReused: 0
 ---
 
 # Create Messages

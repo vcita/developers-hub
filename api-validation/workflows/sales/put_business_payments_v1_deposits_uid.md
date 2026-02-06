@@ -2,10 +2,11 @@
 endpoint: "PUT /business/payments/v1/deposits/{uid}"
 domain: sales
 tags: []
-swagger: swagger/sales/legacy/payments.json
-status: success
-savedAt: 2026-01-26T22:21:47.859Z
-verifiedAt: 2026-01-26T22:21:47.859Z
+swagger: "swagger/sales/legacy/payments.json"
+status: verified
+savedAt: "2026-01-26T22:21:47.859Z"
+verifiedAt: "2026-01-26T22:21:47.859Z"
+timesReused: 0
 ---
 
 # Update Deposits
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: put_deposits
     method: PUT
-    path: "/business/payments/v1/deposits/{uid}"
+    path: "/business/payments/v1/deposits/{{uid}}"
     body:
       deposit:
         amount:

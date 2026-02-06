@@ -2,10 +2,11 @@
 endpoint: "PUT /business/payments/v1/tax_bulk"
 domain: sales
 tags: []
-swagger: swagger/sales/legacy/payments.json
-status: success
-savedAt: 2026-01-26T22:38:36.467Z
-verifiedAt: 2026-01-26T22:38:36.467Z
+swagger: "swagger/sales/legacy/payments.json"
+status: verified
+savedAt: "2026-01-26T22:38:36.467Z"
+verifiedAt: "2026-01-26T22:38:36.467Z"
+timesReused: 0
 ---
 
 # Update Tax bulk

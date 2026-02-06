@@ -2,10 +2,11 @@
 endpoint: "PUT /business/payments/v1/invoices/{invoice_uid}"
 domain: sales
 tags: []
-swagger: swagger/sales/legacy/payments.json
-status: success
-savedAt: 2026-01-27T05:08:36.251Z
-verifiedAt: 2026-01-27T05:08:36.251Z
+swagger: "swagger/sales/legacy/payments.json"
+status: verified
+savedAt: "2026-01-27T05:08:36.251Z"
+verifiedAt: "2026-01-27T05:08:36.251Z"
+timesReused: 0
 ---
 
 # Update Invoices
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: put_invoices
     method: PUT
-    path: "/business/payments/v1/invoices/{invoice_uid}"
+    path: "/business/payments/v1/invoices/{{invoice_uid}}"
     body:
       invoice:
         additional_recipients:

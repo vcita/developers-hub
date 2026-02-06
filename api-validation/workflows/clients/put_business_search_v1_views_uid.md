@@ -2,10 +2,12 @@
 endpoint: "PUT /business/search/v1/views/{uid}"
 domain: clients
 tags: []
-swagger: swagger/clients/legacy/crm_views.json
-status: success
-savedAt: 2026-01-26T05:32:22.049Z
-verifiedAt: 2026-01-26T05:32:22.049Z
+swagger: "swagger/clients/legacy/crm_views.json"
+status: verified
+savedAt: "2026-01-26T05:32:22.049Z"
+verifiedAt: "2026-01-26T05:32:22.049Z"
+timesReused: 0
+useFallbackApi: true
 ---
 
 # Update Search
@@ -23,7 +25,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: put_views
     method: PUT
-    path: "/business/search/v1/views/{uid}"
+    path: "/business/search/v1/views/{{uid}}"
     body:
       view:
         level: account

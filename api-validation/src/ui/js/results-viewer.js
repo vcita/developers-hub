@@ -276,6 +276,8 @@ const ResultsViewer = {
             <div class="detail-value">Response matches documented schema</div>
           </div>
           
+          ${details.executionLog?.length > 0 ? this.renderExecutionLog(details.executionLog) : ''}
+          
           ${details.healingInfo ? this.renderHealingInfo(details.healingInfo) : ''}
           
           ${details.documentationIssues?.length > 0 ? this.renderDocumentationIssues(details.documentationIssues) : ''}
@@ -298,7 +300,7 @@ const ResultsViewer = {
               📋 JIRA Prompt
             </button>
             <button class="btn btn-small btn-fix" onclick="event.stopPropagation(); ResultsViewer.copyFixPrompt(this)">
-              🔧 Fix It
+              🔧 Fix Prompt
             </button>
             <button class="btn btn-small btn-retry" onclick="event.stopPropagation(); ResultsViewer.retryEndpoint(this)">
               🔄 Retry
@@ -365,6 +367,8 @@ const ResultsViewer = {
           </div>
         ` : ''}
         
+        ${details.executionLog?.length > 0 ? this.renderExecutionLog(details.executionLog) : ''}
+        
         ${details.healingInfo ? this.renderHealingInfo(details.healingInfo) : ''}
         
         ${details.documentationIssues?.length > 0 ? this.renderDocumentationIssues(details.documentationIssues) : ''}
@@ -385,6 +389,9 @@ const ResultsViewer = {
           </button>
           <button class="btn btn-small" onclick="event.stopPropagation(); ResultsViewer.copyJiraPrompt(this)">
             📋 JIRA Prompt
+          </button>
+          <button class="btn btn-small btn-fix" onclick="event.stopPropagation(); ResultsViewer.copyFixPrompt(this)">
+            🔧 Fix Prompt
           </button>
           <button class="btn btn-small btn-retry" onclick="event.stopPropagation(); ResultsViewer.retryEndpoint(this)">
             🔄 Retry
@@ -445,6 +452,116 @@ const ResultsViewer = {
     
     if (clean.length <= maxLength) return clean;
     return clean.substring(0, maxLength) + '...';
+  },
+  
+  /**
+   * Render execution log section (calls made before healer)
+   * @param {Array} executionLog - Array of execution log entries
+   * @returns {string} HTML string
+   */
+  renderExecutionLog(executionLog) {
+    if (!executionLog || executionLog.length === 0) return '';
+    
+    const entries = executionLog.map((entry, index) => {
+      let icon, title, content, typeClass;
+      
+      switch (entry.type) {
+        case 'workflow_start':
+          icon = '📋';
+          title = 'Workflow Started';
+          content = entry.hasPrerequisites 
+            ? `Executing workflow with ${entry.prerequisiteCount} prerequisite(s)`
+            : 'Executing workflow (no prerequisites)';
+          typeClass = 'workflow-start';
+          break;
+        case 'workflow_step_success':
+          icon = '✅';
+          title = `Step: ${entry.stepId}`;
+          content = `${entry.method || 'REQUEST'} → Status ${entry.status}`;
+          if (entry.extracted && Object.keys(entry.extracted).length > 0) {
+            content += `\nExtracted: ${Object.keys(entry.extracted).join(', ')}`;
+          }
+          typeClass = 'success';
+          break;
+        case 'workflow_step_failed':
+          icon = '❌';
+          title = `Step Failed: ${entry.stepId}`;
+          content = entry.error || `Status ${entry.status}`;
+          typeClass = 'failed';
+          break;
+        case 'workflow_complete':
+          icon = entry.success ? '✅' : '⚠️';
+          title = entry.success ? 'Workflow Completed' : 'Workflow Incomplete';
+          content = entry.success 
+            ? `Status ${entry.status} (${entry.duration})`
+            : `Stopped at phase: ${entry.phase}`;
+          typeClass = entry.success ? 'success' : 'warning';
+          break;
+        case 'workflow_failed':
+          icon = '❌';
+          title = 'Workflow Failed';
+          content = `Phase: ${entry.phase}\nStep: ${entry.failedStep || 'unknown'}\nReason: ${entry.reason}`;
+          typeClass = 'failed';
+          break;
+        case 'workflow_error':
+          icon = '⚠️';
+          title = 'Workflow Error';
+          content = entry.error;
+          typeClass = 'warning';
+          break;
+        case 'api_request':
+          icon = '🔗';
+          title = `${entry.method} Request`;
+          content = `URL: ${entry.url}\nToken: ${entry.tokenType || 'none'}`;
+          if (entry.bodyPreview) {
+            content += `\nBody: ${entry.bodyPreview}${entry.bodyPreview.length >= 200 ? '...' : ''}`;
+          }
+          typeClass = 'request';
+          break;
+        case 'api_response':
+          icon = entry.success ? '✅' : '⚠️';
+          title = `Response: ${entry.status}`;
+          content = `Duration: ${entry.duration}`;
+          if (entry.usedFallback) {
+            content += '\n(Used fallback URL)';
+          }
+          if (entry.responsePreview) {
+            content += `\n${entry.responsePreview}${entry.responsePreview.length >= 300 ? '...' : ''}`;
+          }
+          typeClass = entry.success ? 'success' : 'warning';
+          break;
+        case 'api_error':
+          icon = '❌';
+          title = 'Request Error';
+          content = entry.error || 'Network error';
+          typeClass = 'failed';
+          break;
+        default:
+          icon = '•';
+          title = entry.type;
+          content = JSON.stringify(entry, null, 2);
+          typeClass = '';
+      }
+      
+      return `
+        <div class="execution-entry ${typeClass}">
+          <div class="execution-icon">${icon}</div>
+          <div class="execution-content">
+            <div class="execution-title">${this.escapeHtml(title)}</div>
+            ${content ? `<pre class="execution-code">${this.escapeHtml(content)}</pre>` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+    
+    return `
+      <div class="execution-log">
+        <h5>📝 Execution Log (Pre-Healer)</h5>
+        <div class="execution-timeline">
+          ${entries}
+        </div>
+      </div>
+    `;
   },
   
   /**
@@ -1105,7 +1222,7 @@ ${result.swaggerFile || result.domain || 'Unknown'}`;
     const agentLogSummary = this.formatAgentLogForPrompt(healingInfo.agentLog || []);
     
     // Build the prompt
-    const prompt = `Fix this documentation error. Make sure to dig deep into the code.
+    const prompt = `Fix this documentation error. Make sure to dig deep into the code start with frontage to see how this is implemented in the frontend and then move to the controller code. Never alter mcp_swagger files (auto-generated). Always use /swagger directory
 
 ## Failure Details
 
@@ -1141,6 +1258,8 @@ ${agentLogSummary}
 2. Assume this is a documentation bug
 3. Fix either the documentation or the workflow. do not change source code.
 4. Make sure to validate your fixes with the source code
+5. **Test your fix by running the actual workflow against the real API**
+6. **Definition of Done: A 200 (or 2xx) response from the API**
 
 ## Token Used
 ${result.tokenUsed || 'Unknown'}
@@ -1231,7 +1350,10 @@ ${result.swaggerFile || result.domain || 'Unknown'}`;
             domain: result.domain || 'unknown'
           }],
           options: {
-            enableHealing: true
+            enableHealing: true,
+            aiOptions: {
+              autoFixSwagger: document.getElementById('auto-fix-swagger')?.checked ?? false
+            }
           }
         })
       });
@@ -1246,21 +1368,66 @@ ${result.swaggerFile || result.domain || 'Unknown'}`;
       // Connect to SSE stream for this retry
       const eventSource = new EventSource(`/api/validate/stream/${sessionId}`);
       
-      // Show progress in button
-      eventSource.addEventListener('healing_start', () => {
+      // Show progress section and init healing log
+      document.getElementById('progress-section')?.classList.remove('hidden');
+      
+      // Wire healing events into the TestRunner healing log
+      eventSource.addEventListener('healing_start', (event) => {
+        const data = JSON.parse(event.data);
         button.innerHTML = '🔧 Healing...';
+        TestRunner.initHealingLog(data.endpoint);
+        TestRunner.appendHealingLog(data.endpoint, '🤖', 'AI Agent starting...', 'start');
+        ResultsViewer.setResultHealing(data.endpoint, true);
       });
       
-      eventSource.addEventListener('healing_analyzing', () => {
+      eventSource.addEventListener('healing_analyzing', (event) => {
+        const data = JSON.parse(event.data);
         button.innerHTML = '🤖 AI Analyzing...';
+        const msg = data.thought ? `Thinking: ${data.thought.substring(0, 80)}...` : 
+                    data.iteration ? `Iteration ${data.iteration}` : 'Analyzing...';
+        TestRunner.appendHealingLog(data.endpoint || endpointText, '🤔', msg, 'thinking');
       });
       
-      eventSource.addEventListener('healing_creating', () => {
+      eventSource.addEventListener('healing_action', (event) => {
+        const data = JSON.parse(event.data);
+        const { icon, label } = TestRunner.getHealingActionDisplay(data.action);
+        const detail = data.details ? `: ${data.details.substring(0, 120)}${data.details.length > 120 ? '...' : ''}` : '';
+        TestRunner.appendHealingLog(data.endpoint || endpointText, icon, `${label}${detail}`, data.action);
+      });
+      
+      eventSource.addEventListener('healing_creating', (event) => {
+        const data = JSON.parse(event.data);
         button.innerHTML = '📦 Creating...';
+        const action = data.input ? `${data.tool}: ${data.input.method || ''} ${data.input.path || ''}` : data.tool;
+        TestRunner.appendHealingLog(data.endpoint || endpointText, '🔧', action, 'tool-call');
       });
       
-      eventSource.addEventListener('healing_retry', () => {
-        button.innerHTML = '🔄 Retrying...';
+      eventSource.addEventListener('healing_created', (event) => {
+        const data = JSON.parse(event.data);
+        const icon = data.success ? '✅' : '❌';
+        TestRunner.appendHealingLog(data.endpoint || endpointText, icon, `Result: ${data.status || 'done'}`, data.success ? 'success' : 'failed');
+      });
+      
+      eventSource.addEventListener('swagger_file_updated', (event) => {
+        const data = JSON.parse(event.data);
+        TestRunner.appendHealingLog(data.endpoint || endpointText, '📝', `Updated: ${data.file} - ${data.description}`, 'swagger');
+      });
+      
+      eventSource.addEventListener('healing_complete', (event) => {
+        const data = JSON.parse(event.data);
+        let status, icon, msg;
+        if (data.success) {
+          status = data.hasDocumentationIssues ? 'WARN' : 'PASS';
+          icon = data.hasDocumentationIssues ? '⚠️' : '✅';
+          msg = data.hasDocumentationIssues ? `Fixed but docs need update! ${data.summary || ''}` : `Fixed! ${data.summary || ''}`;
+        } else {
+          status = 'FAIL';
+          icon = '❌';
+          msg = `Failed: ${data.reason || ''}`;
+        }
+        TestRunner.appendHealingLog(data.endpoint || endpointText, icon, msg, status === 'PASS' ? 'success' : 'failed');
+        TestRunner.finalizeHealingLog(data.endpoint || endpointText, status, `${icon} ${msg}`);
+        ResultsViewer.setResultHealing(data.endpoint || endpointText, false);
       });
       
       // Handle completion
@@ -1974,6 +2141,7 @@ ${result.swaggerFile || result.domain || 'Unknown'}`;
         durationMs: totalDurationMs
       },
       documentationIssues: [],
+      swaggerFileChanges: TestRunner.getSwaggerFileChanges(),
       results,
       byDomain
     };

@@ -2,10 +2,11 @@
 endpoint: "GET /v3/license/offerings"
 domain: platform_administration
 tags: [license, offerings]
-swagger: swagger/platform_administration/license.json
-status: success
-savedAt: 2026-01-28T07:31:54.815Z
-verifiedAt: 2026-01-28T07:31:54.815Z
+swagger: "swagger/platform_administration/license.json"
+status: verified
+savedAt: "2026-01-28T07:31:54.815Z"
+verifiedAt: "2026-01-28T07:31:54.815Z"
+timesReused: 0
 ---
 
 # Get Offerings

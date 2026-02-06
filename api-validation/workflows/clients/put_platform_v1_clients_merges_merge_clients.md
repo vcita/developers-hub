@@ -1,68 +1,101 @@
 ---
-endpoint: PUT /platform/v1/clients/merges/merge_clients
+endpoint: "PUT /platform/v1/clients/merges/merge_clients"
 domain: clients
-tags: []
-status: success
-savedAt: 2026-02-02T20:43:58.732Z
-verifiedAt: 2026-02-02T20:43:58.732Z
+tags: [clients, merges]
+swagger: "mcp_swagger/clients.json"
+status: verified
+savedAt: 2026-02-06T11:04:44.353Z
+verifiedAt: 2026-02-06T11:04:44.353Z
 timesReused: 0
+tokens: [staff]
 ---
-# Update Merge clients
+
+# Merge Clients
 
 ## Summary
-Endpoint works correctly with proper query parameters. Original failure due to missing to_client_uid and from_client_uids query parameters. Successfully merged clients when valid UIDs provided.
+
+Merges one or more source clients into a destination client. The merge operation combines client data from `from_client_uids` into `to_client_uid`. Both parameters are required query parameters. The source and destination client UIDs must be distinct.
+
+**Token Type**: This endpoint requires a **Staff token**.
+
+## Response Codes
+
+| Status | Meaning |
+|--------|---------|
+| 200 | Success - Clients merged |
+| 404 | Not Found - Missing required query parameters |
+| 422 | Unprocessable Entity - Invalid client UIDs |
 
 ## Prerequisites
-No specific prerequisites documented.
+
+```yaml
+steps:
+  - id: create_source_client
+    description: "Create a source client to merge from"
+    method: POST
+    path: "/platform/v1/clients"
+    body:
+      first_name: "Merge"
+      last_name: "Source"
+      email: "merge_source_{{timestamp}}@example.com"
+    extract:
+      source_client_uid: "$.data.client.id"
+    expect:
+      status: [200, 201]
+    onFail: abort
+
+  - id: create_dest_client
+    description: "Create a destination client to merge into"
+    method: POST
+    path: "/platform/v1/clients"
+    body:
+      first_name: "Merge"
+      last_name: "Destination"
+      email: "merge_dest_{{timestamp}}@example.com"
+    extract:
+      dest_client_uid: "$.data.client.id"
+    expect:
+      status: [200, 201]
+    onFail: abort
+```
 
 ## UID Resolution Procedure
 
-How to dynamically obtain required UIDs for this endpoint:
+| UID Field | Source Endpoint | Extract Path | Notes |
+|-----------|-----------------|--------------|-------|
+| to_client_uid | POST /platform/v1/clients | $.data.client.id | Destination client (survives merge) |
+| from_client_uids | POST /platform/v1/clients | $.data.client.id | Source client(s) (merged into destination) |
 
-| UID Field | GET Endpoint | Extract From | Create Fresh | Cleanup |
-|-----------|--------------|--------------|--------------|---------|
-| client_uid | GET /platform/v1/clients | data.clients array - use different clients that represent different contact persons | - | Merge operation cannot be undone, but this is expected behavior for this endpoint |
+## Test Request
 
-### Resolution Steps
-
-**client_uid**:
-1. Call `GET /platform/v1/clients`
-2. Extract from response: `data.clients array - use different clients that represent different contact persons`
-
-```json
-{
-  "client_uid": {
-    "source_endpoint": "GET /platform/v1/clients",
-    "extract_from": "data.clients array - use different clients that represent different contact persons",
-    "fallback_endpoint": null,
-    "create_fresh": false,
-    "create_endpoint": null,
-    "create_body": null,
-    "cleanup_endpoint": null,
-    "cleanup_note": "Merge operation cannot be undone, but this is expected behavior for this endpoint"
-  }
-}
+```yaml
+steps:
+  - id: merge_clients
+    description: "Merge source client into destination client"
+    method: PUT
+    path: "/platform/v1/clients/merges/merge_clients?to_client_uid={{dest_client_uid}}&from_client_uids={{source_client_uid}}"
+    expect:
+      status: [200]
 ```
 
-## How to Resolve Parameters
-Parameters were resolved automatically.
+## Parameters Reference
+
+### Query Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| to_client_uid | string | Yes | UID of the destination client (data is merged into this client) |
+| from_client_uids | string | Yes | Comma-separated UIDs of source clients to merge from |
+
+## Swagger Discrepancies
+
+| Aspect | Swagger Says | Actual Behavior | Evidence |
+|--------|--------------|-----------------|----------|
+| to_client_uid | Required query parameter | Required; controller accesses params['to_client_uid'] directly | merges_controller.rb:12-18 |
+| from_client_uids | Required query parameter (comma-separated) | Required; split(',') called on params['from_client_uids'] | merges_controller.rb:12-18 |
 
 ## Critical Learnings
 
-No specific learnings documented.
-
-## Request Template
-
-Use this template with dynamically resolved UIDs:
-
-```json
-{
-  "method": "PUT",
-  "path": "/platform/v1/clients/merges/merge_clients?to_client_uid=238ns0xfsbz7xnvz&from_client_uids=3ucvl074fs4pjh6p",
-  "body": {},
-  "params": {
-    "to_client_uid": "238ns0xfsbz7xnvz",
-    "from_client_uids": "3ucvl074fs4pjh6p"
-  }
-}
-```
+1. **Parameters are query params, not body** - Both to_client_uid and from_client_uids go in the URL query string
+2. **UIDs must be distinct** - Source and destination must be different clients
+3. **404 without params** - Omitting query params returns 404, not 422

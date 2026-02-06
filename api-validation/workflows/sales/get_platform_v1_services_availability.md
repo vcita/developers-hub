@@ -2,10 +2,11 @@
 endpoint: "GET /platform/v1/services/availability"
 domain: sales
 tags: []
-swagger: swagger/sales/legacy/legacy_v1_sales.json
-status: success
-savedAt: 2026-01-26T20:15:02.242Z
-verifiedAt: 2026-01-26T20:15:02.242Z
+swagger: "swagger/sales/legacy/legacy_v1_sales.json"
+status: verified
+savedAt: "2026-01-26T20:15:02.242Z"
+verifiedAt: "2026-01-26T20:15:02.242Z"
+timesReused: 0
 ---
 
 # Get Availability

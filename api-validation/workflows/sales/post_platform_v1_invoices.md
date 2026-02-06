@@ -2,10 +2,11 @@
 endpoint: "POST /platform/v1/invoices"
 domain: sales
 tags: [invoices]
-swagger: swagger/sales/legacy/legacy_v1_sales.json
-status: skip
-savedAt: 2026-01-26T22:22:22.590Z
-verifiedAt: 2026-01-26T22:22:22.590Z
+swagger: "swagger/sales/legacy/legacy_v1_sales.json"
+status: skipped
+savedAt: "2026-01-26T22:22:22.590Z"
+verifiedAt: "2026-01-26T22:22:22.590Z"
+timesReused: 0
 ---
 
 # Create Invoices

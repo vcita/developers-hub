@@ -2,10 +2,11 @@
 endpoint: "PUT /business/payments/v1/packages/reorder"
 domain: sales
 tags: []
-swagger: swagger/sales/legacy/payments.json
-status: success
-savedAt: 2026-01-26T22:28:03.824Z
-verifiedAt: 2026-01-26T22:28:03.824Z
+swagger: "swagger/sales/legacy/payments.json"
+status: verified
+savedAt: "2026-01-26T22:28:03.824Z"
+verifiedAt: "2026-01-26T22:28:03.824Z"
+timesReused: 0
 ---
 
 # Update Reorder

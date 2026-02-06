@@ -2,10 +2,11 @@
 endpoint: "GET /platform/v1/services/{service_id}/availability"
 domain: sales
 tags: []
-swagger: swagger/sales/legacy/legacy_v1_sales.json
-status: success
-savedAt: 2026-01-26T22:07:07.177Z
-verifiedAt: 2026-01-26T22:07:07.177Z
+swagger: "swagger/sales/legacy/legacy_v1_sales.json"
+status: verified
+savedAt: "2026-01-26T22:07:07.177Z"
+verifiedAt: "2026-01-26T22:07:07.177Z"
+timesReused: 0
 ---
 
 # Get Availability
@@ -27,7 +28,7 @@ steps:
     extract:
       service_id: "$.data.services[0].id"
     expect:
-      status: 200
+      status: [200]
     onFail: abort
 ```
 
@@ -37,7 +38,7 @@ steps:
 steps:
   - id: get_availability
     method: GET
-    path: "/platform/v1/services/{service_id}/availability"
+    path: "/platform/v1/services/{{service_id}}/availability"
     expect:
       status: [200, 201]
 ```

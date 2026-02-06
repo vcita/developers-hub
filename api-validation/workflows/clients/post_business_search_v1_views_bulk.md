@@ -1,91 +1,61 @@
 ---
-endpoint: POST /business/search/v1/views/bulk
+endpoint: "POST /business/search/v1/views/bulk"
 domain: clients
 tags: []
-status: success
-savedAt: 2026-02-02T20:21:25.094Z
-verifiedAt: 2026-02-02T20:21:25.094Z
+swagger: "swagger/clients/legacy/manage_clients.json"
+status: verified
+savedAt: "2026-02-03T22:00:00.000Z"
+verifiedAt: "2026-02-03T22:00:00.000Z"
 timesReused: 0
+useFallbackApi: true
 ---
-# Create Bulk
+
+# Bulk Update Views
 
 ## Summary
-Endpoint works correctly. Successfully performed bulk updates on views with minimal (uid only) and full update payloads. Returns 201 with updated view data.
+Bulk update views endpoint. Requires a valid view UID from GET /business/search/v1/views. The primary gateway (/apigw) intermittently returns 404 Bad Gateway; fallback (/api2) works.
 
 ## Prerequisites
-No specific prerequisites documented.
 
-## UID Resolution Procedure
-
-How to dynamically obtain required UIDs for this endpoint:
-
-⚠️ **This test requires creating fresh test data to avoid "already exists" errors.**
-
-| UID Field | GET Endpoint | Extract From | Create Fresh | Cleanup |
-|-----------|--------------|--------------|--------------|---------|
-| views[].uid | GET /business/search/v1/views | data[0].uid | - | Views can be deleted via DELETE /business/search/v1/views/{uid} |
-
-### Resolution Steps
-
-**views[].uid**:
-1. **Create fresh test entity**: `POST /business/search/v1/views`
-   - Body template: `{"view":{"name":"Test View {{timestamp}}","description":"Test description","columns":[{"label":"Client Name","type":"text","identifier":"client_name","sortable":true}],"level":"account"}}`
-2. Extract UID from creation response: `data[0].uid`
-3. Run the test with this fresh UID
-4. **Cleanup note**: Views can be deleted via DELETE /business/search/v1/views/{uid}
-
-```json
-{
-  "views[].uid": {
-    "source_endpoint": "GET /business/search/v1/views",
-    "extract_from": "data[0].uid",
-    "fallback_endpoint": null,
-    "create_fresh": false,
-    "create_endpoint": "POST /business/search/v1/views",
-    "create_body": {
-      "view": {
-        "name": "Test View {{timestamp}}",
-        "description": "Test description",
-        "columns": [
-          {
-            "label": "Client Name",
-            "type": "text",
-            "identifier": "client_name",
-            "sortable": true
-          }
-        ],
-        "level": "account"
-      }
-    },
-    "cleanup_endpoint": null,
-    "cleanup_note": "Views can be deleted via DELETE /business/search/v1/views/{uid}"
-  }
-}
+```yaml
+steps:
+  - id: create_view
+    description: "Create a test view to get a valid UID"
+    method: POST
+    path: "/business/search/v1/views"
+    token: staff
+    body:
+      view:
+        name: "Test View for Bulk Update"
+        description: "Temporary test view"
+        view_type: "client"
+        level: "staff"
+        columns: [{"label": "Test", "type": "ContactFullName", "identifier": "contact_full_name", "sortable": true, "sort_options": {}}]
+        sorting_column: "contact_full_name"
+        sorting_direction: "asc"
+        filter: "{}"
+    expect:
+      status: [200, 201]
+    extract:
+      view_uid: "$.data.uid"
+    onFail: abort
 ```
 
-## How to Resolve Parameters
-Parameters were resolved automatically.
+## Test Request
+
+```yaml
+steps:
+  - id: bulk_update_views
+    method: POST
+    path: "/business/search/v1/views/bulk"
+    body:
+      views: [{"uid": "{{view_uid}}", "pinned": true, "order": 2}]
+    expect:
+      status: [200, 201]
+```
 
 ## Critical Learnings
 
-No specific learnings documented.
-
-## Request Template
-
-Use this template with dynamically resolved UIDs:
-
-```json
-{
-  "method": "POST",
-  "path": "/business/search/v1/views/bulk",
-  "body": {
-    "views": [
-      {
-        "uid": "{{resolved.uid}}",
-        "name": "Updated Client View",
-        "order": 5
-      }
-    ]
-  }
-}
-```
+- **views[].uid is required**: Each view item must have a valid UID that exists in the business
+- **filter must be JSON string**: If updating filter, it must be a JSON-encoded string like `"{}"`, not a JSON object
+- **Primary gateway unreliable**: Use fallback URL (/api2) as primary gateway returns Bad Gateway for this endpoint

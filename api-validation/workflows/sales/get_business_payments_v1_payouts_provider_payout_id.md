@@ -2,10 +2,11 @@
 endpoint: "GET /business/payments/v1/payouts/{provider_payout_id}"
 domain: sales
 tags: []
-swagger: swagger/sales/legacy/payments.json
-status: success
-savedAt: 2026-01-26T22:03:21.950Z
-verifiedAt: 2026-01-26T22:03:21.950Z
+swagger: "swagger/sales/legacy/payments.json"
+status: verified
+savedAt: "2026-01-26T22:03:21.950Z"
+verifiedAt: "2026-01-26T22:03:21.950Z"
+timesReused: 0
 ---
 
 # Get Payouts
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: get_payouts
     method: GET
-    path: "/business/payments/v1/payouts/{provider_payout_id}"
+    path: "/business/payments/v1/payouts/{{provider_payout_id}}"
     expect:
       status: [200, 201]
 ```

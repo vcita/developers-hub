@@ -2,10 +2,11 @@
 endpoint: "POST /platform/v1/payment/cards/sync_card"
 domain: sales
 tags: []
-swagger: swagger/sales/legacy/legacy_v1_sales.json
-status: success
-savedAt: 2026-01-27T04:21:19.647Z
-verifiedAt: 2026-01-27T04:21:19.647Z
+swagger: "swagger/sales/legacy/legacy_v1_sales.json"
+status: verified
+savedAt: "2026-01-27T04:21:19.647Z"
+verifiedAt: "2026-01-27T04:21:19.647Z"
+timesReused: 0
 ---
 
 # Create Sync card
@@ -27,7 +28,7 @@ steps:
     extract:
       client_id: "$.data.clients[0].id"
     expect:
-      status: 200
+      status: [200]
     onFail: abort
 ```
 

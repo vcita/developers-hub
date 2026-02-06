@@ -2,10 +2,11 @@
 endpoint: "POST /platform/v1/payment/client_packages"
 domain: sales
 tags: []
-swagger: swagger/sales/legacy/legacy_v1_sales.json
-status: success
-savedAt: 2026-01-27T04:22:09.837Z
-verifiedAt: 2026-01-27T04:22:09.837Z
+swagger: "swagger/sales/legacy/legacy_v1_sales.json"
+status: verified
+savedAt: "2026-01-27T04:22:09.837Z"
+verifiedAt: "2026-01-27T04:22:09.837Z"
+timesReused: 0
 ---
 
 # Create Client packages
@@ -27,7 +28,7 @@ steps:
     extract:
       client_id: "$.data.clients[0].id"
     expect:
-      status: 200
+      status: [200]
     onFail: abort
 ```
 

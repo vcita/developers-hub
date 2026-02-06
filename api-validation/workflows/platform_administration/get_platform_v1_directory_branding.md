@@ -2,10 +2,11 @@
 endpoint: "GET /platform/v1/directory/branding"
 domain: platform_administration
 tags: []
-swagger: swagger/platform_administration/legacy/legacy_v1_platform.json
-status: success
-savedAt: 2026-01-27T09:25:08.359Z
-verifiedAt: 2026-01-27T09:25:08.359Z
+swagger: "swagger/platform_administration/legacy/legacy_v1_platform.json"
+status: verified
+savedAt: "2026-01-27T09:25:08.359Z"
+verifiedAt: "2026-01-27T09:25:08.359Z"
+timesReused: 0
 ---
 
 # Get Branding

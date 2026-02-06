@@ -20,6 +20,7 @@ const { createReport, addResult, finalizeReport } = require('../../core/reporter
 const { runAgentHealer, isUnrecoverableError, extractUidFieldsFromSchema, findUidSourceEndpoints } = require('../../core/runner/ai-agent-healer');
 const workflowRepo = require('../../core/workflows/repository');
 const { filterKnownIssues } = workflowRepo;
+const { executeWorkflow, createRequestFunction } = require('../../core/prerequisite');
 
 // Store for active validation sessions
 const activeSessions = new Map();
@@ -454,6 +455,15 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
   const config = loadConfig();
   console.log('Config loaded, baseUrl:', config.baseUrl);
   
+  // Apply UI-provided AI options to config
+  if (options.aiOptions) {
+    config.ai = config.ai || {};
+    if (options.aiOptions.autoFixSwagger !== undefined) {
+      config.ai.autoFixSwagger = options.aiOptions.autoFixSwagger;
+      console.log('AI autoFixSwagger override from UI:', config.ai.autoFixSwagger);
+    }
+  }
+  
   const { sequence } = buildTestSequence(endpoints, {
     runDelete: options.runDelete || false
   });
@@ -528,6 +538,9 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
     
     let result;
     
+    // Track execution log for UI display (calls made before healer)
+    const executionLog = [];
+    
     // Handle skipped tests
     if (skip) {
       result = {
@@ -542,12 +555,180 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
         details: { reason: 'SKIPPED', friendlyMessage: skipReason }
       };
     } else {
-      // Build context with resolved params and UID
+      // ============== WORKFLOW-FIRST EXECUTION ==============
+      // Check if a workflow exists and execute it first
+      // Execute workflow if:
+      // 1. Status is 'verified' AND has test request/prerequisites, OR
+      // 2. Workflow has useFallbackApi: true (regardless of status) - ensures fallback is handled consistently
+      const endpointKey = `${endpoint.method} ${endpoint.path}`;
+      const existingWorkflow = workflowRepo.get(endpointKey);
+      
+      const shouldExecuteWorkflow = existingWorkflow && 
+        (existingWorkflow.testRequest || existingWorkflow.prerequisites) &&
+        (existingWorkflow.status === 'verified' || existingWorkflow.useFallbackApi === true);
+      
+      if (shouldExecuteWorkflow) {
+        const useFallback = existingWorkflow.useFallbackApi === true;
+        console.log(`\n📋 Found verified workflow for ${endpointKey}, executing it...`);
+        console.log(`  [DEBUG] useFallbackApi value: ${existingWorkflow.useFallbackApi} (type: ${typeof existingWorkflow.useFallbackApi})`);
+        console.log(`  [DEBUG] useFallback resolved to: ${useFallback}`);
+        console.log(`  [DEBUG] config.fallbackUrl: ${config.fallbackUrl}`);
+        if (useFallback) {
+          console.log(`  📍 Workflow requires fallback API - will use ${config.fallbackUrl}`);
+        }
+        broadcastEvent(session, 'workflow_start', {
+          endpoint: endpointKey,
+          hasPrerequisites: !!existingWorkflow.prerequisites,
+          hasTestRequest: !!existingWorkflow.testRequest,
+          useFallbackApi: useFallback
+        });
+        
+        // Log workflow execution start
+        executionLog.push({
+          type: 'workflow_start',
+          timestamp: new Date().toISOString(),
+          message: `Executing verified workflow for ${endpointKey}`,
+          hasPrerequisites: !!existingWorkflow.prerequisites,
+          prerequisiteCount: existingWorkflow.prerequisites?.steps?.length || 0,
+          useFallbackApi: useFallback
+        });
+        
+        const startTime = Date.now();
+        try {
+          // Create request function for workflow execution, respecting useFallbackApi from workflow
+          const makeRequest = createRequestFunction(config.baseUrl, {
+            fallbackUrl: config.fallbackUrl,
+            useFallback: useFallback
+          });
+          
+          // Execute the workflow (Prerequisites + Test Request) with recursive workflow lookup
+          const workflowResult = await executeWorkflow(existingWorkflow, config, makeRequest, { workflowRepo });
+          const duration = Date.now() - startTime;
+          
+          // Log all workflow steps for UI display
+          if (workflowResult.steps && workflowResult.steps.length > 0) {
+            for (const step of workflowResult.steps) {
+              executionLog.push({
+                type: step.success ? 'workflow_step_success' : 'workflow_step_failed',
+                timestamp: new Date().toISOString(),
+                stepId: step.stepId,
+                method: step.method || 'REQUEST',
+                path: step.path || 'N/A',
+                status: step.status,
+                success: step.success,
+                error: step.error,
+                extracted: step.extracted
+              });
+            }
+          }
+          
+          if (workflowResult.success) {
+            // Workflow executed successfully!
+            console.log(`  ✓ Workflow passed with status ${workflowResult.status}`);
+            
+            // Log workflow success
+            executionLog.push({
+              type: 'workflow_complete',
+              timestamp: new Date().toISOString(),
+              success: true,
+              status: workflowResult.status,
+              duration: `${duration}ms`,
+              variablesExtracted: Object.keys(workflowResult.variables || {})
+            });
+            
+            // Update test context with extracted variables
+            if (workflowResult.variables) {
+              testContext.setParams({ ...testContext.getParams(), ...workflowResult.variables });
+            }
+            
+            // Capture UID if needed
+            if (captureUid && workflowResult.response?.data) {
+              const uid = extractUidFromResponse(workflowResult.response.data);
+              if (uid) {
+                testContext.setUid(resourceKey, uid);
+              }
+            }
+            
+            result = buildValidationResult({
+              endpoint,
+              status: 'PASS',
+              httpStatus: workflowResult.status,
+              duration,
+              tokenUsed: 'staff',
+              request: workflowResult.steps?.[workflowResult.steps.length - 1] || null,
+              response: { status: workflowResult.status, data: workflowResult.response?.data }
+            });
+            
+            // Add workflow info to result
+            result.details = result.details || {};
+            result.details.workflowInfo = {
+              followedWorkflow: true,
+              prerequisiteSteps: existingWorkflow.prerequisites?.steps?.length || 0,
+              summary: existingWorkflow.sections?.Summary || null
+            };
+            // Add execution log to result
+            result.details.executionLog = executionLog;
+            
+            broadcastEvent(session, 'workflow_complete', {
+              endpoint: endpointKey,
+              success: true,
+              status: workflowResult.status
+            });
+          } else {
+            // Workflow failed - log and fall through to swagger-based testing or healing
+            console.log(`  ⚠ Workflow failed at ${workflowResult.phase}: ${workflowResult.failedReason}`);
+            
+            // Log workflow failure
+            executionLog.push({
+              type: 'workflow_failed',
+              timestamp: new Date().toISOString(),
+              success: false,
+              phase: workflowResult.phase,
+              failedStep: workflowResult.failedStep,
+              reason: workflowResult.failedReason,
+              duration: `${duration}ms`
+            });
+            
+            broadcastEvent(session, 'workflow_complete', {
+              endpoint: endpointKey,
+              success: false,
+              phase: workflowResult.phase,
+              reason: workflowResult.failedReason
+            });
+            // Don't set result - let it fall through to swagger-based testing
+          }
+        } catch (workflowError) {
+          console.log(`  ⚠ Workflow execution error: ${workflowError.message}`);
+          
+          // Log workflow error
+          executionLog.push({
+            type: 'workflow_error',
+            timestamp: new Date().toISOString(),
+            success: false,
+            error: workflowError.message
+          });
+          
+          broadcastEvent(session, 'workflow_complete', {
+            endpoint: endpointKey,
+            success: false,
+            error: workflowError.message
+          });
+          // Don't set result - let it fall through to swagger-based testing
+        }
+      }
+      // ============== END WORKFLOW-FIRST EXECUTION ==============
+      
+      // Skip swagger-based testing if workflow already produced a result
+      if (result) {
+        console.log(`  Workflow produced result, skipping swagger-based testing`);
+      }
+      
+      // Build context with resolved params and UID (for swagger-based testing if workflow didn't succeed)
       const context = {
         params: testContext.getParams() // Include all pre-fetched dynamic params
       };
       
-      if (requiresUid) {
+      if (!result && requiresUid) {
         const uid = testContext.getUid(resourceKey);
         if (!uid) {
           // Don't skip immediately - let the AI healer try to resolve the UID
@@ -726,10 +907,39 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
             console.log(`  Using token: ${tokenType || 'none'}`);
           }
           
-          let { success, response, duration, error, usedFallback, fallbackInfo } = await rateLimiter.execute(
-            () => executeRequest(apiClient, requestConfig)
+          // Log the initial API request attempt
+          executionLog.push({
+            type: 'api_request',
+            timestamp: new Date().toISOString(),
+            method: requestConfig.method?.toUpperCase() || endpoint.method,
+            url: `${config.baseUrl}${requestConfig.url}`,
+            tokenType: tokenType,
+            hasBody: !!requestConfig.data,
+            bodyPreview: requestConfig.data ? JSON.stringify(requestConfig.data).substring(0, 200) : null
+          });
+          
+          // Check if workflow specifies useFallbackApi for direct fallback routing
+          const workflowUseFallback = existingWorkflow?.useFallbackApi === true;
+          if (workflowUseFallback) {
+            console.log(`  [Workflow] useFallbackApi=true, will use fallback URL directly`);
+          }
+          
+          let { success, response, duration, error, usedFallback, usedFallbackDirect, fallbackInfo } = await rateLimiter.execute(
+            () => executeRequest(apiClient, requestConfig, { useFallback: workflowUseFallback })
           );
-          console.log(`  Response: status=${response?.status}, duration=${duration}ms, error=${error?.message || 'none'}${usedFallback ? ', usedFallback=true' : ''}`);
+          console.log(`  Response: status=${response?.status}, duration=${duration}ms, error=${error?.message || 'none'}${usedFallback ? (usedFallbackDirect ? ', usedFallbackDirect=true' : ', usedFallback=true') : ''}`);
+          
+          // Log the response
+          executionLog.push({
+            type: response ? 'api_response' : 'api_error',
+            timestamp: new Date().toISOString(),
+            status: response?.status || null,
+            duration: `${duration}ms`,
+            success: response && response.status >= 200 && response.status < 300,
+            error: error?.message || null,
+            usedFallback: usedFallback || false,
+            responsePreview: response?.data ? JSON.stringify(response.data).substring(0, 300) : null
+          });
           
           // Build full request info for debugging (including actual URL and token)
           const fullRequestInfo = {
@@ -743,19 +953,26 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
           // Track documentation issues found during validation
           let docIssues = [];
           
-          // Track if fallback URL was used due to bad gateway error (502 or 404 with "bad gateway" message)
+          // Track if fallback URL was used
           if (usedFallback && fallbackInfo) {
-            console.log(`  [Fallback] Primary URL returned bad gateway error (status ${fallbackInfo.primaryStatus}), succeeded on fallback URL`);
-            docIssues.push({
-              type: FAILURE_REASONS.BAD_GATEWAY_FALLBACK,
-              message: `Primary URL (${fallbackInfo.primaryUrl}) returned bad gateway error (status ${fallbackInfo.primaryStatus}). Request succeeded using fallback URL (${fallbackInfo.fallbackUrl}).`,
-              suggestion: `Investigate gateway/load balancer issues on the primary URL. The fallback URL is working correctly.`,
-              primaryUrl: fallbackInfo.primaryUrl,
-              fallbackUrl: fallbackInfo.fallbackUrl,
-              primaryStatus: fallbackInfo.primaryStatus,
-              fallbackStatus: fallbackInfo.fallbackStatus,
-              fallbackDuration: fallbackInfo.fallbackDuration
-            });
+            if (usedFallbackDirect) {
+              // Direct fallback - workflow specified useFallbackApi: true
+              console.log(`  [Fallback] Used fallback URL directly per workflow setting (status ${fallbackInfo.fallbackStatus})`);
+              // No doc issue - this is expected behavior based on the workflow
+            } else {
+              // Reactive fallback - bad gateway error triggered fallback
+              console.log(`  [Fallback] Primary URL returned bad gateway error (status ${fallbackInfo.primaryStatus}), succeeded on fallback URL`);
+              docIssues.push({
+                type: FAILURE_REASONS.BAD_GATEWAY_FALLBACK,
+                message: `Primary URL (${fallbackInfo.primaryUrl}) returned bad gateway error (status ${fallbackInfo.primaryStatus}). Request succeeded using fallback URL (${fallbackInfo.fallbackUrl}).`,
+                suggestion: `Investigate gateway/load balancer issues on the primary URL. The fallback URL is working correctly. Consider setting useFallbackApi: true in the workflow.`,
+                primaryUrl: fallbackInfo.primaryUrl,
+                fallbackUrl: fallbackInfo.fallbackUrl,
+                primaryStatus: fallbackInfo.primaryStatus,
+                fallbackStatus: fallbackInfo.fallbackStatus,
+                fallbackDuration: fallbackInfo.fallbackDuration
+              });
+            }
           }
           
           // Flag if fallback token was used
@@ -1053,6 +1270,12 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
       }
     }
     
+    // Add execution log to result (calls made before healer)
+    if (result && executionLog.length > 0) {
+      result.details = result.details || {};
+      result.details.executionLog = executionLog;
+    }
+    
     // ============== SELF-HEALING LOGIC ==============
     // Deterministic UID resolution approach:
     // 1. Agent extracts required UIDs from swagger schema
@@ -1087,20 +1310,31 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
           apiClient,
           maxRetries: 30,  // Increased to allow source code exploration
           onProgress: (progress) => {
-            // Map agent events to SSE
+            // Map agent events to SSE event types
             const eventMap = {
               'agent_start': 'healing_analyzing',
               'agent_thinking': 'healing_analyzing',
               'agent_thought': 'healing_analyzing',
               'agent_tool_call': 'healing_creating',
               'agent_tool_result': 'healing_created',
-              'agent_complete': 'healing_complete'
+              'agent_complete': 'healing_complete',
+              'swagger_file_updated': 'swagger_file_updated'
             };
             
-            broadcastEvent(session, eventMap[progress.type] || 'healing_analyzing', {
-              endpoint: endpointKey,
-              ...progress
-            });
+            // For agent_action events, map to a dedicated SSE event that preserves action details
+            if (progress.type === 'agent_action') {
+              broadcastEvent(session, 'healing_action', {
+                endpoint: endpointKey,
+                action: progress.action,
+                details: progress.details,
+                ...progress
+              });
+            } else {
+              broadcastEvent(session, eventMap[progress.type] || 'healing_analyzing', {
+                endpoint: endpointKey,
+                ...progress
+              });
+            }
           }
         });
         
@@ -1212,6 +1446,7 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
             summary: healingResult.summary,
             workflowSaved: healingResult.savedWorkflows?.length > 0,
             docFixCount: healingResult.docFixSuggestions?.length || 0,
+            swaggerFileChanges: healingResult.swaggerFileChanges || [],
             // Include updated result so UI can update in place
             updatedResult: result
           });
@@ -1248,6 +1483,7 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
             summary: healingResult.summary,
             workflowSaved: false,
             docFixCount: healingResult.docFixSuggestions?.length || 0,
+            swaggerFileChanges: healingResult.swaggerFileChanges || [],
             // Include updated result so UI can update in place
             updatedResult: result
           });
@@ -1275,6 +1511,7 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
             reason: healingResult.reason,
             unresolvedUids: healingResult.unresolvedUids || [],
             docFixCount: healingResult.docFixSuggestions?.length || 0,
+            swaggerFileChanges: healingResult.swaggerFileChanges || [],
             // Include updated result so UI can update in place (shows healing info even if failed)
             updatedResult: result
           });

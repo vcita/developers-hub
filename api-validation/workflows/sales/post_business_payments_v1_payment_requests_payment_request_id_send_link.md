@@ -2,9 +2,11 @@
 endpoint: "POST /business/payments/v1/payment_requests/{payment_request_id}/send_link"
 domain: sales
 tags: []
-status: success
-savedAt: 2026-01-26T21:29:31.220Z
-verifiedAt: 2026-01-26T21:29:31.220Z
+swagger: "swagger/sales/legacy/payments.json"
+status: verified
+savedAt: "2026-01-26T21:29:31.220Z"
+verifiedAt: "2026-01-26T21:29:31.220Z"
+timesReused: 0
 ---
 
 # Create Send link
@@ -22,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: post_send_link
     method: POST
-    path: "/business/payments/v1/payment_requests/{payment_request_id}/send_link"
+    path: "/business/payments/v1/payment_requests/{{payment_request_id}}/send_link"
     body:
       channel: email
     expect:

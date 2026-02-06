@@ -2,10 +2,11 @@
 endpoint: "GET /client/payments/v1/invoices"
 domain: clients
 tags: []
-swagger: swagger/clients/legacy/clients_payments.json
-status: success
-savedAt: 2026-01-26T05:22:48.274Z
-verifiedAt: 2026-01-26T05:22:48.274Z
+swagger: "swagger/clients/legacy/clients_payments.json"
+status: verified
+savedAt: "2026-01-26T05:22:48.274Z"
+verifiedAt: "2026-01-26T05:22:48.274Z"
+timesReused: 0
 ---
 
 # Get Invoices

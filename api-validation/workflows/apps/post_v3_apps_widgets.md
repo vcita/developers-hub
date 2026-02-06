@@ -2,10 +2,11 @@
 endpoint: "POST /v3/apps/widgets"
 domain: apps
 tags: []
-swagger: swagger/apps/widgets_and_boards.json
-status: success
-savedAt: 2026-01-25T05:30:13.157Z
-verifiedAt: 2026-01-25T05:30:13.157Z
+swagger: "swagger/apps/widgets_and_boards.json"
+status: verified
+savedAt: "2026-01-25T05:30:13.157Z"
+verifiedAt: "2026-01-25T05:30:13.157Z"
+timesReused: 0
 ---
 
 # Create Widgets

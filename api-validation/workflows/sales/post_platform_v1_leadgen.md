@@ -2,10 +2,11 @@
 endpoint: "POST /platform/v1/leadgen"
 domain: sales
 tags: []
-swagger: swagger/sales/legacy/legacy_v1_sales.json
-status: success
-savedAt: 2026-01-26T21:42:53.839Z
-verifiedAt: 2026-01-26T21:42:53.839Z
+swagger: "swagger/sales/legacy/legacy_v1_sales.json"
+status: verified
+savedAt: "2026-01-26T21:42:53.839Z"
+verifiedAt: "2026-01-26T21:42:53.839Z"
+timesReused: 0
 ---
 
 # Create Leadgen

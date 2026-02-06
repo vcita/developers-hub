@@ -2,9 +2,11 @@
 endpoint: "PUT /business/payments/v1/products/{product_id}"
 domain: sales
 tags: []
-status: success
-savedAt: 2026-01-26T22:30:27.011Z
-verifiedAt: 2026-01-26T22:30:27.011Z
+swagger: "swagger/sales/legacy/payments.json"
+status: verified
+savedAt: "2026-01-26T22:30:27.011Z"
+verifiedAt: "2026-01-26T22:30:27.011Z"
+timesReused: 0
 ---
 
 # Update Products
@@ -22,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: put_products
     method: PUT
-    path: "/business/payments/v1/products/{product_id}"
+    path: "/business/payments/v1/products/{{product_id}}"
     body:
       product:
         cost: 1

@@ -2,10 +2,11 @@
 endpoint: "POST /v3/apps/staff_widgets_boards"
 domain: apps
 tags: []
-swagger: swagger/apps/widgets_and_boards.json
-status: success
-savedAt: 2026-01-25T05:28:44.779Z
-verifiedAt: 2026-01-25T05:28:44.779Z
+swagger: "swagger/apps/widgets_and_boards.json"
+status: verified
+savedAt: "2026-01-25T05:28:44.779Z"
+verifiedAt: "2026-01-25T05:28:44.779Z"
+timesReused: 0
 ---
 
 # Create Staff widgets boards

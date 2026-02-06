@@ -2,10 +2,11 @@
 endpoint: "POST /v3/communication/staff_notifications"
 domain: communication
 tags: []
-swagger: swagger/communication/staff_notification.json
-status: success
-savedAt: 2026-01-27T06:22:34.971Z
-verifiedAt: 2026-01-27T06:22:34.971Z
+swagger: "swagger/communication/staff_notification.json"
+status: verified
+savedAt: "2026-01-27T06:22:34.971Z"
+verifiedAt: "2026-01-27T06:22:34.971Z"
+timesReused: 0
 ---
 
 # Create Staff notifications
@@ -26,7 +27,7 @@ steps:
     extract:
       staff_id: "$.data.staffs[0].uid"
     expect:
-      status: 200
+      status: [200]
     onFail: abort
 ```
 

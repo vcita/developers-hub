@@ -19,6 +19,7 @@ const TestRunner = {
     this.results = [];
     this.sessionId = null;
     this.isRunning = true;
+    this.swaggerFileChanges = [];  // Clear swagger changes for new run
     this.clearPreflightLog();
     this.updateProgress(0, endpoints.length, 'Starting...');
     
@@ -125,7 +126,8 @@ const TestRunner = {
     // Agent healing events
     this.eventSource.addEventListener('healing_start', (event) => {
       const data = JSON.parse(event.data);
-      this.updateProgressLog(data.endpoint, 'healing', '🤖 AI Agent starting...');
+      this.initHealingLog(data.endpoint);
+      this.appendHealingLog(data.endpoint, '🤖', 'AI Agent starting...', 'start');
       
       // Mark the result as being healed in the UI
       ResultsViewer.setResultHealing(data.endpoint, true);
@@ -133,21 +135,50 @@ const TestRunner = {
     
     this.eventSource.addEventListener('healing_analyzing', (event) => {
       const data = JSON.parse(event.data);
-      const msg = data.thought ? `Thinking: ${data.thought.substring(0, 50)}...` : 
+      const msg = data.thought ? `Thinking: ${data.thought.substring(0, 80)}...` : 
                   data.iteration ? `Iteration ${data.iteration}` : 'Analyzing...';
-      this.updateProgressLog(data.endpoint, 'healing', `🤔 ${msg}`);
+      this.appendHealingLog(data.endpoint, '🤔', msg, 'thinking');
+    });
+    
+    // Rich agent action events with specific icons per action type
+    this.eventSource.addEventListener('healing_action', (event) => {
+      const data = JSON.parse(event.data);
+      const { icon, label } = this.getHealingActionDisplay(data.action);
+      const detail = data.details ? `: ${data.details.substring(0, 120)}${data.details.length > 120 ? '...' : ''}` : '';
+      this.appendHealingLog(data.endpoint, icon, `${label}${detail}`, data.action);
     });
     
     this.eventSource.addEventListener('healing_creating', (event) => {
       const data = JSON.parse(event.data);
       const action = data.input ? `${data.tool}: ${data.input.method || ''} ${data.input.path || ''}` : data.tool;
-      this.updateProgressLog(data.endpoint, 'healing', `🔧 ${action}`);
+      this.appendHealingLog(data.endpoint, '🔧', action, 'tool-call');
     });
     
     this.eventSource.addEventListener('healing_created', (event) => {
       const data = JSON.parse(event.data);
-      const status = data.success ? '✅' : '❌';
-      this.updateProgressLog(data.endpoint, 'healing', `${status} Result: ${data.status || 'done'}`);
+      const icon = data.success ? '✅' : '❌';
+      this.appendHealingLog(data.endpoint, icon, `Result: ${data.status || 'done'}`, data.success ? 'success' : 'failed');
+    });
+    
+    this.eventSource.addEventListener('swagger_file_updated', (event) => {
+      const data = JSON.parse(event.data);
+      // Track swagger file changes
+      if (!this.swaggerFileChanges) {
+        this.swaggerFileChanges = [];
+      }
+      this.swaggerFileChanges.push({
+        endpoint: data.endpoint,
+        file: data.file,
+        operation: data.operation,
+        description: data.description,
+        evidence: data.evidence
+      });
+      
+      // Show in healing log
+      this.appendHealingLog(data.endpoint, '📝', `Updated: ${data.file} - ${data.description}`, 'swagger');
+      
+      // Update the swagger changes count in UI
+      this.updateSwaggerChangesCount();
     });
     
     this.eventSource.addEventListener('healing_complete', (event) => {
@@ -169,7 +200,10 @@ const TestRunner = {
         icon = '❌';
         msg = `Failed: ${data.reason || ''}`;
       }
-      this.updateProgressLog(data.endpoint, status, `${icon} ${msg}`);
+      
+      // Add final entry to healing log and finalize it
+      this.appendHealingLog(data.endpoint, icon, msg, status === 'PASS' ? 'success' : 'failed');
+      this.finalizeHealingLog(data.endpoint, status, `${icon} ${msg}`);
       
       // Remove the healing indicator
       ResultsViewer.setResultHealing(data.endpoint, false);
@@ -354,33 +388,189 @@ const TestRunner = {
   updateProgressLog(endpoint, status, duration) {
     const entryId = endpoint.replace(/[^a-zA-Z0-9]/g, '-');
     const entry = document.getElementById(`log-${entryId}`);
+    if (!entry) return;
     
-    if (entry) {
-      // Handle healing status differently - show message instead of duration
-      if (status === 'healing') {
-        entry.innerHTML = `
-          <span class="status-icon status-healing">🔄</span>
-          <span class="endpoint-name">${endpoint}</span>
-          <span class="healing-status">${duration}</span>
-          <span class="status-badge status-healing">HEALING</span>
-        `;
-        return;
-      }
-      
-      const statusClass = status === 'PASS' ? 'pass' : 
-                          status === 'FAIL' ? 'fail' : 
-                          status === 'WARN' ? 'warn' : 'skip';
-      const icon = status === 'PASS' ? '✓' : 
-                   status === 'FAIL' ? '✗' : 
-                   status === 'WARN' ? '⚠' : '○';
-      
-      entry.innerHTML = `
-        <span class="status-icon status-${statusClass}">${icon}</span>
-        <span class="endpoint-name">${endpoint}</span>
-        <span class="duration">${duration || '-'}</span>
-        <span class="status-badge status-${statusClass}">${status}</span>
-      `;
+    // If this entry has a healing log, don't overwrite it -- finalize instead
+    if (entry.classList.contains('progress-entry-healing')) {
+      this.finalizeHealingLog(endpoint, status, `${duration || status}`);
+      return;
     }
+    
+    const statusClass = status === 'PASS' ? 'pass' : 
+                        status === 'FAIL' ? 'fail' : 
+                        status === 'WARN' ? 'warn' : 'skip';
+    const icon = status === 'PASS' ? '✓' : 
+                 status === 'FAIL' ? '✗' : 
+                 status === 'WARN' ? '⚠' : '○';
+    
+    entry.innerHTML = `
+      <span class="status-icon status-${statusClass}">${icon}</span>
+      <span class="endpoint-name">${endpoint}</span>
+      <span class="duration">${duration || '-'}</span>
+      <span class="status-badge status-${statusClass}">${status}</span>
+    `;
+  },
+  
+  /**
+   * Initialize a healing log container for an endpoint (replaces the simple progress row)
+   * @param {string} endpoint - The endpoint string
+   */
+  initHealingLog(endpoint) {
+    const logEl = document.getElementById('progress-log');
+    if (!logEl) return;
+    
+    const entryId = endpoint.replace(/[^a-zA-Z0-9]/g, '-');
+    let entry = document.getElementById(`log-${entryId}`);
+    
+    if (!entry) {
+      entry = document.createElement('div');
+      entry.id = `log-${entryId}`;
+      logEl.appendChild(entry);
+    }
+    
+    // Replace simple row with healing log structure (open by default)
+    entry.className = 'progress-entry progress-entry-healing';
+    entry.innerHTML = `
+      <div class="healing-log-header" onclick="TestRunner.toggleHealingLog('${entryId}')">
+        <span class="status-icon status-healing">🔄</span>
+        <span class="endpoint-name">${endpoint}</span>
+        <span class="healing-log-count" id="healing-count-${entryId}">0 steps</span>
+        <span class="status-badge status-healing">HEALING</span>
+        <span class="healing-log-toggle" id="healing-toggle-${entryId}">▼</span>
+      </div>
+      <div class="healing-log-entries" id="healing-entries-${entryId}">
+      </div>
+    `;
+    
+    logEl.scrollTop = logEl.scrollHeight;
+  },
+  
+  /**
+   * Append an entry to the healing log for an endpoint
+   * @param {string} endpoint - The endpoint string
+   * @param {string} icon - Emoji icon for this entry
+   * @param {string} text - Description text
+   * @param {string} type - Entry type for styling (e.g., 'start', 'thinking', 'success', 'failed')
+   */
+  appendHealingLog(endpoint, icon, text, type) {
+    const entryId = endpoint.replace(/[^a-zA-Z0-9]/g, '-');
+    const entriesEl = document.getElementById(`healing-entries-${entryId}`);
+    if (!entriesEl) return;
+    
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    
+    const logEntry = document.createElement('div');
+    logEntry.className = `healing-log-entry healing-log-${type || 'default'}`;
+    logEntry.innerHTML = `
+      <span class="healing-log-icon">${icon}</span>
+      <span class="healing-log-text">${text}</span>
+      <span class="healing-log-time">${timeStr}</span>
+    `;
+    entriesEl.appendChild(logEntry);
+    
+    // Update step count
+    const count = entriesEl.children.length;
+    const countEl = document.getElementById(`healing-count-${entryId}`);
+    if (countEl) {
+      countEl.textContent = `${count} step${count !== 1 ? 's' : ''}`;
+    }
+    
+    // Auto-scroll the entries container and the parent progress log
+    entriesEl.scrollTop = entriesEl.scrollHeight;
+    const logEl = document.getElementById('progress-log');
+    if (logEl) logEl.scrollTop = logEl.scrollHeight;
+  },
+  
+  /**
+   * Finalize the healing log after healing completes (update header, collapse)
+   * @param {string} endpoint - The endpoint string
+   * @param {string} finalStatus - Final status (PASS, FAIL, WARN)
+   * @param {string} summary - Summary text
+   */
+  finalizeHealingLog(endpoint, finalStatus, summary) {
+    const entryId = endpoint.replace(/[^a-zA-Z0-9]/g, '-');
+    const entry = document.getElementById(`log-${entryId}`);
+    if (!entry) return;
+    
+    const statusClass = finalStatus === 'PASS' ? 'pass' : 
+                        finalStatus === 'FAIL' ? 'fail' : 
+                        finalStatus === 'WARN' ? 'warn' : 'skip';
+    const statusIcon = finalStatus === 'PASS' ? '✓' : 
+                       finalStatus === 'FAIL' ? '✗' : 
+                       finalStatus === 'WARN' ? '⚠' : '○';
+    
+    // Update the header to show final status
+    const header = entry.querySelector('.healing-log-header');
+    if (header) {
+      const iconEl = header.querySelector('.status-icon');
+      if (iconEl) {
+        iconEl.className = `status-icon status-${statusClass}`;
+        iconEl.textContent = statusIcon;
+      }
+      const badgeEl = header.querySelector('.status-badge');
+      if (badgeEl) {
+        badgeEl.className = `status-badge status-${statusClass}`;
+        badgeEl.textContent = finalStatus;
+      }
+    }
+    
+    // Update the entry class
+    entry.className = `progress-entry progress-entry-healing healing-done healing-done-${statusClass}`;
+    
+    // Collapse the log after completion
+    const entriesEl = document.getElementById(`healing-entries-${entryId}`);
+    if (entriesEl) {
+      entriesEl.classList.add('collapsed');
+    }
+    const toggleEl = document.getElementById(`healing-toggle-${entryId}`);
+    if (toggleEl) {
+      toggleEl.textContent = '▶';
+    }
+  },
+  
+  /**
+   * Toggle the healing log entries visibility
+   * @param {string} entryId - The sanitized entry ID
+   */
+  toggleHealingLog(entryId) {
+    const entriesEl = document.getElementById(`healing-entries-${entryId}`);
+    const toggleEl = document.getElementById(`healing-toggle-${entryId}`);
+    if (!entriesEl) return;
+    
+    const isCollapsed = entriesEl.classList.toggle('collapsed');
+    if (toggleEl) {
+      toggleEl.textContent = isCollapsed ? '▶' : '▼';
+    }
+  },
+  
+  /**
+   * Get icon and label for a healing action type
+   * @param {string} action - The action type
+   * @returns {{ icon: string, label: string }}
+   */
+  getHealingActionDisplay(action) {
+    const actionMap = {
+      'extract_required_uids':    { icon: '📋', label: 'Extracting UIDs' },
+      'find_uid_source':          { icon: '🔍', label: 'Finding UID source' },
+      'find_service_for_endpoint':{ icon: '🗺️', label: 'Finding service' },
+      'search_source_code':       { icon: '🔎', label: 'Searching code' },
+      'read_source_file':         { icon: '📖', label: 'Reading source' },
+      'execute_api':              { icon: '⚡', label: 'API call' },
+      'analyze_discrepancies':    { icon: '🔬', label: 'Analyzing discrepancies' },
+      'investigate_failure':      { icon: '🕵️', label: 'Investigating failure' },
+      'acquire_token':            { icon: '🔑', label: 'Acquiring token' },
+      'app_oauth':                { icon: '🔐', label: 'App OAuth' },
+      'client_jwt':               { icon: '🎫', label: 'Client JWT' },
+      'list':                     { icon: '📃', label: 'Listing entities' },
+      'create':                   { icon: '➕', label: 'Creating entity' },
+      'update_swagger_file':      { icon: '📝', label: 'Updating swagger' },
+      'report_result':            { icon: '📊', label: 'Reporting result' },
+      'prerequisite_start':       { icon: '⏳', label: 'Running prerequisites' },
+      'prerequisite_complete':    { icon: '✅', label: 'Prerequisites done' },
+      'workflow_test_request':    { icon: '🧪', label: 'Testing workflow' }
+    };
+    return actionMap[action] || { icon: '🤖', label: action || 'Working' };
   },
   
   /**
@@ -508,5 +698,29 @@ const TestRunner = {
       runBtn?.classList.remove('hidden');
       stopBtn?.classList.add('hidden');
     }
+  },
+  
+  /**
+   * Update swagger changes count display
+   */
+  updateSwaggerChangesCount() {
+    const countEl = document.getElementById('results-swagger-changes');
+    if (countEl) {
+      const count = this.swaggerFileChanges?.length || 0;
+      countEl.textContent = count;
+      
+      // Show/hide the swagger changes badge
+      const badge = countEl.closest('.badge');
+      if (badge) {
+        badge.classList.toggle('hidden', count === 0);
+      }
+    }
+  },
+  
+  /**
+   * Get swagger file changes for report
+   */
+  getSwaggerFileChanges() {
+    return this.swaggerFileChanges || [];
   }
 };

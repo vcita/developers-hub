@@ -2,10 +2,11 @@
 endpoint: "PUT /business/payments/v1/carts/{uid}/cart_completed"
 domain: sales
 tags: []
-swagger: swagger/sales/legacy/payments.json
-status: success
-savedAt: 2026-01-26T22:19:04.860Z
-verifiedAt: 2026-01-26T22:19:04.860Z
+swagger: "swagger/sales/legacy/payments.json"
+status: verified
+savedAt: "2026-01-26T22:19:04.860Z"
+verifiedAt: "2026-01-26T22:19:04.860Z"
+timesReused: 0
 ---
 
 # Update Cart completed
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: put_cart_completed
     method: PUT
-    path: "/business/payments/v1/carts/{uid}/cart_completed"
+    path: "/business/payments/v1/carts/{{uid}}/cart_completed"
     expect:
       status: [200, 201]
 ```

@@ -2,9 +2,11 @@
 endpoint: "PUT /business/payments/v1/taxes/{tax_id}"
 domain: sales
 tags: []
-status: success
-savedAt: 2026-01-26T22:39:39.810Z
-verifiedAt: 2026-01-26T22:39:39.810Z
+swagger: "swagger/sales/legacy/payments.json"
+status: verified
+savedAt: "2026-01-26T22:39:39.810Z"
+verifiedAt: "2026-01-26T22:39:39.810Z"
+timesReused: 0
 ---
 
 # Update Taxes
@@ -22,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: put_taxes
     method: PUT
-    path: "/business/payments/v1/taxes/{tax_id}"
+    path: "/business/payments/v1/taxes/{{tax_id}}"
     body:
       tax:
         default_for_categories: {}

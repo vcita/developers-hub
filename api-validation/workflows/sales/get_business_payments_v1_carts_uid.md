@@ -2,10 +2,11 @@
 endpoint: "GET /business/payments/v1/carts/{uid}"
 domain: sales
 tags: []
-swagger: swagger/sales/legacy/payments.json
-status: success
-savedAt: 2026-01-26T22:10:26.635Z
-verifiedAt: 2026-01-26T22:10:26.635Z
+swagger: "swagger/sales/legacy/payments.json"
+status: verified
+savedAt: "2026-01-26T22:10:26.635Z"
+verifiedAt: "2026-01-26T22:10:26.635Z"
+timesReused: 0
 ---
 
 # Get Carts
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: get_carts
     method: GET
-    path: "/business/payments/v1/carts/{uid}"
+    path: "/business/payments/v1/carts/{{uid}}"
     expect:
       status: [200, 201]
 ```

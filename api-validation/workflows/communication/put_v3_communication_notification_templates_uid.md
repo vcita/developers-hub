@@ -2,10 +2,11 @@
 endpoint: "PUT /v3/communication/notification_templates/{uid}"
 domain: communication
 tags: []
-swagger: swagger/communication/notification_template.json
-status: success
-savedAt: 2026-01-27T06:51:33.256Z
-verifiedAt: 2026-01-27T06:51:33.256Z
+swagger: "swagger/communication/notification_template.json"
+status: verified
+savedAt: "2026-01-27T06:51:33.256Z"
+verifiedAt: "2026-01-27T06:51:33.256Z"
+timesReused: 0
 ---
 
 # Update Notification templates
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: put_notification_templates
     method: PUT
-    path: "/v3/communication/notification_templates/{uid}"
+    path: "/v3/communication/notification_templates/{{uid}}"
     body:
       title:
         "0":

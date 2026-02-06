@@ -2,10 +2,11 @@
 endpoint: "PUT /business/payments/v1/payouts/{provider_payout_id}"
 domain: sales
 tags: []
-swagger: swagger/sales/legacy/payments.json
-status: success
-savedAt: 2026-01-26T22:29:09.915Z
-verifiedAt: 2026-01-26T22:29:09.915Z
+swagger: "swagger/sales/legacy/payments.json"
+status: verified
+savedAt: "2026-01-26T22:29:09.915Z"
+verifiedAt: "2026-01-26T22:29:09.915Z"
+timesReused: 0
 ---
 
 # Update Payouts
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: put_payouts
     method: PUT
-    path: "/business/payments/v1/payouts/{provider_payout_id}"
+    path: "/business/payments/v1/payouts/{{provider_payout_id}}"
     body:
       payout:
         account_number: test_string

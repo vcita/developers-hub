@@ -2,10 +2,11 @@
 endpoint: "POST /business/payments/v1/estimates"
 domain: sales
 tags: []
-swagger: swagger/sales/legacy/payments.json
-status: success
-savedAt: 2026-01-26T18:42:14.710Z
-verifiedAt: 2026-01-26T18:42:14.710Z
+swagger: "swagger/sales/legacy/payments.json"
+status: verified
+savedAt: "2026-01-26T18:42:14.710Z"
+verifiedAt: "2026-01-26T18:42:14.710Z"
+timesReused: 0
 ---
 
 # Create Estimates

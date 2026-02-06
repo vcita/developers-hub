@@ -2,9 +2,11 @@
 endpoint: "PUT /v3/operators/op_roles/{uid}"
 domain: platform_administration
 tags: [operators]
-status: skip
-savedAt: 2026-01-28T20:24:13.804Z
-verifiedAt: 2026-01-28T20:24:13.804Z
+swagger: "swagger/platform_administration/legacy/legacy_v1_businesses.json"
+status: skipped
+savedAt: "2026-01-28T20:24:13.804Z"
+verifiedAt: "2026-01-28T20:24:13.804Z"
+timesReused: 0
 ---
 
 # Update Op roles
@@ -22,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: put_op_roles
     method: PUT
-    path: "/v3/operators/op_roles/{uid}"
+    path: "/v3/operators/op_roles/{{uid}}"
     expect:
       status: [200, 201]
 ```

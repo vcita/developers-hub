@@ -2,10 +2,11 @@
 endpoint: "GET /platform/v1/invoices/{invoice_id}"
 domain: sales
 tags: []
-swagger: swagger/sales/legacy/legacy_v1_sales.json
-status: success
-savedAt: 2026-01-26T22:04:57.737Z
-verifiedAt: 2026-01-26T22:04:57.737Z
+swagger: "swagger/sales/legacy/legacy_v1_sales.json"
+status: verified
+savedAt: "2026-01-26T22:04:57.737Z"
+verifiedAt: "2026-01-26T22:04:57.737Z"
+timesReused: 0
 ---
 
 # Get Invoices
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: get_invoices
     method: GET
-    path: "/platform/v1/invoices/{invoice_id}"
+    path: "/platform/v1/invoices/{{invoice_id}}"
     expect:
       status: [200, 201]
 ```

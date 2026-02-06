@@ -2,10 +2,11 @@
 endpoint: "POST /platform/v1/payment/settings"
 domain: sales
 tags: []
-swagger: swagger/sales/legacy/legacy_v1_sales.json
-status: success
-savedAt: 2026-01-26T20:05:40.839Z
-verifiedAt: 2026-01-26T20:05:40.839Z
+swagger: "swagger/sales/legacy/legacy_v1_sales.json"
+status: verified
+savedAt: "2026-01-26T20:05:40.839Z"
+verifiedAt: "2026-01-26T20:05:40.839Z"
+timesReused: 0
 ---
 
 # Create Settings

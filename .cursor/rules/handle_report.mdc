@@ -2,6 +2,15 @@
 
 When processing ai-fixes.md validation reports, use this rule to fix all documentation issues.
 
+## IMPORTANT: Workflow Template Reference
+
+**ALWAYS read the workflow template before creating/modifying workflows:**
+```
+api-validation/workflows/TEMPLATE.md
+```
+
+This is the single source of truth for workflow format. Read it before creating any workflow.
+
 ## MANDATORY: CREATE A PLAN BEFORE EXECUTION
 
 Before making ANY changes, you MUST create a detailed plan using the CreatePlan tool.
@@ -13,7 +22,7 @@ Before making ANY changes, you MUST create a detailed plan using the CreatePlan 
    - Missing workflow files (test runner sends empty body `{}`)
    - Workflows missing required query parameters
    - Workflows with incorrect/placeholder test data
-   - **Validate your findings with the source code**
+   - **Validate your findings with the source code - start with frontage, looking on how this endpoint is used from the front-end. Only if needed go to the controller code**
 3. **Compare each issue with the test log** - Understand WHY it failed
 4. **Verify each fix will produce 2xx result** - Don't just document errors
 5. **Create the plan** with these sections:
@@ -87,6 +96,54 @@ The primary goal is to make tests PASS (return 2xx), NOT to document errors.
 | 422 "invalid value" | Workflow has placeholder/fake data | Use real data or dynamic reference |
 | 401 Unauthorized | Workflow missing auth query param | Add auth-related param |
 | 404 Not Found | UID doesn't exist | Fix UID resolution in workflow |
+| **422 "Unauthorized"** | **Wrong token type or missing headers** | **Check similar verified workflows for correct token pattern (directory + X-On-Behalf-Of, etc.)** |
+| **403 Forbidden** | **Token lacks permission or wrong token type** | **Check similar verified workflows - may need different token type** |
+
+### CRITICAL: Check Similar Verified Workflows FIRST
+
+**Before debugging or attempting fixes, look at verified workflows with similar path patterns.**
+
+This is often the fastest way to identify the correct authentication pattern, required headers, or token type.
+
+**Steps:**
+1. **Identify the path pattern** - Extract the base pattern from the failing endpoint
+   - Example: `/platform/v1/clients/{client_id}/payments` → pattern is `/platform/v1/clients/{client_id}/*`
+   
+2. **Search for similar verified workflows:**
+   ```bash
+   # Find workflows with similar path patterns
+   grep -r "platform/v1/clients/{client_id}" api-validation/workflows/ --include="*.md"
+   
+   # Or use glob to find by filename pattern
+   ls api-validation/workflows/*/get_platform_v1_clients_client_id_*.md
+   ```
+
+3. **Read 2-3 verified workflows** with similar patterns and note:
+   - What **token type** do they use? (`token: staff`, `token: directory`, `token: client`)
+   - Do they require special **headers**? (e.g., `X-On-Behalf-Of`)
+   - What **prerequisites** do they have?
+   - What **response codes** do they expect?
+
+4. **Apply the same pattern** to the failing endpoint
+
+**Example - Pattern Recognition:**
+| Failing Endpoint | Similar Verified Endpoints | Pattern Learned |
+|------------------|---------------------------|-----------------|
+| `GET /platform/v1/clients/{client_id}/payments` | `GET /platform/v1/clients/{client_id}/estimates`, `GET /platform/v1/clients/{client_id}/invoices` | All use `token: directory` with `X-On-Behalf-Of` header |
+| `POST /business/clients/v1/matters` | `PUT /business/clients/v1/matters/{uid}` | Both require `token: staff` and matter_uid from prerequisite |
+
+**Common Path Patterns and Their Token Requirements:**
+| Path Pattern | Typical Token | Notes |
+|-------------|---------------|-------|
+| `/platform/v1/clients/{client_id}/*` | `directory` | Requires `X-On-Behalf-Of: {{business_id}}` header |
+| `/business/clients/v1/*` | `staff` | Staff token with business context |
+| `/client/payments/v1/*` | `client` | Client JWT token |
+| `/v3/access_control/*` | `staff` or `directory` | Depends on operation |
+
+**Why This Matters:**
+- Authentication/authorization issues (401, 403, 422 "Unauthorized") are often solved by using the correct token pattern
+- Looking at similar working endpoints is faster than debugging the backend code
+- Patterns are consistent within path families
 
 ### Check If Workflow Exists FIRST
 
@@ -122,37 +179,11 @@ ls api-validation/workflows/{domain}/
 # Look for: {method}_{path_with_underscores}.md
 ```
 
-**Create workflow with:**
-```yaml
----
-endpoint: "METHOD /path/{param}"
-domain: {domain}
-tags: []
-swagger: swagger/{domain}/file.json
-status: pending
----
+**Create workflow following the canonical template:**
 
-# {Action} {Resource}
+> **REQUIRED**: Read `api-validation/workflows/TEMPLATE.md` before creating any workflow!
 
-## Summary
-{Brief description}
-
-## Prerequisites
-{Any setup needed}
-
-## Test Request
-
-```yaml
-steps:
-  - id: {action}_{resource}
-    method: {METHOD}
-    path: "/path/{param}"
-    body:
-      {required_field}: {valid_value}
-    expect:
-      status: [200, 201]
-```
-```
+The template defines all required sections, frontmatter fields, and YAML step format.
 
 ### Priority 2: Fix Existing Workflows
 Workflows exist but have incorrect/missing data.
@@ -229,6 +260,12 @@ For each issue in the report:
 - Real UIDs look like: `lk9wgeze3ee1nl1v`, `fc2ca1c54e528bc4`
 - If a UID is short, sequential, or contains words like "test/example/sample" → IT'S FAKE
 
+## Feature Flags in Documentation
+
+- **Do not add or document feature flags** in swagger, workflows, or JIRA tickets unless the flag is in the **packagable** list. See `api-validation/docs/packagable-feature-flags.md` for the canonical list and directive.
+- **Before treating a feature flag as the cause of a failure**, check **GET /v3/license/features_packages** (same token/business as the test). If the staff has that feature, the failure is not due to the feature flag.
+- Redundant/non-packagable flags (e.g. `tags_features`) should not be documented; create a JIRA to remove them from code.
+
 ## Allowed Changes
 - You are ONLY allowed to change documentation (swagger files, workflow files)
 - You are NOT allowed to change application code
@@ -240,9 +277,11 @@ For each issue in the report:
 1. Read complete ai-fixes.md file
 2. Extract ALL issues from JSON section
 3. For each failed endpoint:
+   - **Check similar verified workflows first** (same path pattern, e.g., `/platform/v1/clients/{client_id}/*`)
+   - Note the token type, headers, and prerequisites used by similar working endpoints
    - Check if workflow file exists
    - Read the error message to understand root cause
-   - Determine fix that will produce 2xx
+   - Determine fix that will produce 2xx (often: use same pattern as similar verified workflows)
 4. Create plan using CreatePlan tool
 5. Wait for user approval before proceeding
 
@@ -255,10 +294,12 @@ For each endpoint without a workflow:
 
 ### Phase 3: Fix Existing Workflows
 For workflows with issues:
-1. Add missing query parameters to path
-2. Add missing body fields
-3. Fix placeholder/fake data
-4. Add prerequisites for UID resolution
+1. **Check similar verified workflows first** - copy their token type, headers, and patterns
+2. Add missing query parameters to path
+3. Add missing body fields
+4. Fix placeholder/fake data
+5. Add prerequisites for UID resolution
+6. If auth errors persist, verify token type matches similar working endpoints
 
 ### Phase 4: Swagger Schema Updates
 After workflows are ready:
@@ -267,7 +308,23 @@ After workflows are ready:
 3. Add `x-reference-to` annotations
 4. Add error response schemas
 
-### Phase 5: Generate Reports
+### Phase 5: Test your changes (MANDATORY)
+**Definition of Done: A 200 (or 2xx) response from the actual API**
+
+You MUST test each fix by running the actual workflow and endpoints:
+1. Run the workflow file you created/modified against the real API
+2. Use the tokens from `api-validation/config/tokens.json` for authentication
+3. Verify you get a **200 (or appropriate 2xx) response** - this is the ONLY success criteria
+4. If the response is NOT 2xx:
+   - Analyze the error response to understand what's wrong
+   - Go back and fix the workflow (search for root cause again)
+   - Retry the test
+5. If retry still fails, mark the fix as failed in the progress tracking file with the error details
+6. **Do NOT proceed to the next endpoint until you have a 2xx response or documented failure**
+
+**A fix is NOT complete until you have verified it with an actual API call returning 2xx.**
+
+### Phase 6: Generate Reports
 - Create `{report-folder}/fix-progress.md`
 - Create `{report-folder}/endpoints-to-retest.md`
 
@@ -280,6 +337,7 @@ Create `{report-folder}/fix-progress.md` with:
 - Workflows fixed count
 - Swagger changes count
 - Checklist of every endpoint and its status
+- Endpoints that could not be fixed
 
 ### 2. Endpoints to Retest
 Create `{report-folder}/endpoints-to-retest.md` with:
@@ -345,13 +403,18 @@ When fixing swagger documentation, **fix the JSON Schema itself**:
 
 ## Completion Criteria
 
+**Definition of Done: A 200 (or 2xx) response from the actual API**
+
 You are NOT done until:
 - [ ] Plan created and approved
 - [ ] Every missing workflow file created
 - [ ] Every existing workflow fixed
+- [ ] **Each fix tested by running the actual workflow against the real API**
+- [ ] **Each fix verified to return a 200 (or 2xx) response**
 - [ ] Swagger required fields marked
 - [ ] fix-progress.md shows 100% completion
 - [ ] endpoints-to-retest.md generated
-- [ ] All fixes verified to produce 2xx (in theory)
+
+**CRITICAL: A fix is NOT complete without an actual 200 response. Theoretical fixes are not accepted.**
 
 **If you find yourself wanting to skip something or stop early - DON'T. Go back and continue processing.**

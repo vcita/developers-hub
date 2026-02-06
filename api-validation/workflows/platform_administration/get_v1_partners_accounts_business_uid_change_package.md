@@ -2,10 +2,11 @@
 endpoint: "GET /v1/partners/accounts/{business_uid}/change_package"
 domain: platform_administration
 tags: [partners, change-package]
-swagger: swagger/platform_administration/legacy/partners-api.json
-status: skip
-savedAt: 2026-01-31T12:41:23.206Z
-verifiedAt: 2026-01-31T12:41:23.206Z
+swagger: "swagger/platform_administration/legacy/partners-api.json"
+status: skipped
+savedAt: "2026-01-31T12:41:23.206Z"
+verifiedAt: "2026-01-31T12:41:23.206Z"
+timesReused: 0
 ---
 
 # Get Change package
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: get_change_package
     method: GET
-    path: "/v1/partners/accounts/{business_uid}/change_package"
+    path: "/v1/partners/accounts/{{business_uid}}/change_package"
     expect:
       status: [200, 201]
 ```

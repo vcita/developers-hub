@@ -2,8 +2,10 @@
 endpoint: "POST /business/clients/v1/matters/{matter_uid}/notes"
 domain: clients
 tags: []
-swagger: swagger/clients/legacy/manage_clients.json
+swagger: "swagger/clients/legacy/manage_clients.json"
 status: pending
+savedAt: "2026-02-03T18:27:27.712Z"
+timesReused: 0
 ---
 
 # Create Note
@@ -22,7 +24,7 @@ steps:
     extract:
       matter_uid: "$.data.matters[0].uid"
     expect:
-      status: 200
+      status: [200]
     onFail: abort
 ```
 
@@ -32,7 +34,7 @@ steps:
 steps:
   - id: post_notes
     method: POST
-    path: "/business/clients/v1/matters/{matter_uid}"
+    path: "/business/clients/v1/matters/{{matter_uid}}"
     body:
       note:
         content: "Test note content created by API validation"

@@ -2,9 +2,11 @@
 endpoint: "GET /v3/operators/op_roles/{uid}"
 domain: platform_administration
 tags: [operators]
-status: skip
-savedAt: 2026-01-29T22:10:36.971Z
-verifiedAt: 2026-01-29T22:10:36.971Z
+swagger: "swagger/platform_administration/legacy/legacy_v1_businesses.json"
+status: skipped
+savedAt: "2026-01-29T22:10:36.971Z"
+verifiedAt: "2026-01-29T22:10:36.971Z"
+timesReused: 0
 ---
 
 # Get Op roles
@@ -22,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: get_op_roles
     method: GET
-    path: "/v3/operators/op_roles/{uid}"
+    path: "/v3/operators/op_roles/{{uid}}"
     expect:
       status: [200, 201]
 ```

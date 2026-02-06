@@ -2,10 +2,11 @@
 endpoint: "GET /business/payments/v1/scheduled_payments_rules/{uid}"
 domain: sales
 tags: []
-swagger: swagger/sales/legacy/payments.json
-status: success
-savedAt: 2026-01-27T05:22:05.868Z
-verifiedAt: 2026-01-27T05:22:05.868Z
+swagger: "swagger/sales/legacy/payments.json"
+status: verified
+savedAt: "2026-01-27T05:22:05.868Z"
+verifiedAt: "2026-01-27T05:22:05.868Z"
+timesReused: 0
 ---
 
 # Get Scheduled payments rules
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: get_scheduled_payments_rules
     method: GET
-    path: "/business/payments/v1/scheduled_payments_rules/{uid}"
+    path: "/business/payments/v1/scheduled_payments_rules/{{uid}}"
     expect:
       status: [200, 201]
 ```

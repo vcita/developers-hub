@@ -2,10 +2,11 @@
 endpoint: "POST /business/payments/v1/refunds"
 domain: sales
 tags: []
-swagger: swagger/sales/legacy/payments.json
-status: success
-savedAt: 2026-01-26T21:31:23.416Z
-verifiedAt: 2026-01-26T21:31:23.416Z
+swagger: "swagger/sales/legacy/payments.json"
+status: verified
+savedAt: "2026-01-26T21:31:23.416Z"
+verifiedAt: "2026-01-26T21:31:23.416Z"
+timesReused: 0
 ---
 
 # Create Refunds

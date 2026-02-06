@@ -1,13 +1,14 @@
 /**
- * AI Agent Healer - Deterministic UID Resolution with Source Code Exploration
+ * AI Agent Healer - Deterministic UID Resolution with Frontend-First Source Code Exploration
  * 
  * The agent follows a strict workflow:
- * 1. Extract all required UIDs from swagger schema
- * 2. For each UID, find GET endpoint to fetch existing entity
- * 3. If empty, find POST endpoint to create entity
- * 4. Only after ALL UIDs are resolved, retry the original request
- * 5. If structure is unclear, explore source code to understand expected format
- * 6. Document findings in workflow AND as doc_issues for documentation improvement
+ * 1. Search FRONTEND code first (frontage/client-portal) to understand how the endpoint is used
+ * 2. Extract all required UIDs from swagger schema
+ * 3. For each UID, find GET endpoint to fetch existing entity
+ * 4. If empty, find POST endpoint to create entity
+ * 5. Only after ALL UIDs are resolved, retry the original request
+ * 6. If structure is still unclear, explore backend source code (controller/DTO)
+ * 7. Document findings in workflow AND as doc_issues for documentation improvement
  * 
  * UID resolution steps are NOT counted as retries.
  * Only the actual endpoint retries count toward max iterations.
@@ -50,7 +51,9 @@ const REPO_PATHS = {
   permissionsmanager: `${GITHUB_BASE}/permissionsmanager`,
   aiplatform: `${GITHUB_BASE}/aiplatform`,
   phonenumbersmanager: `${GITHUB_BASE}/phonenumbersmanager`,
-  'communication-gw': `${GITHUB_BASE}/communication-gw`
+  'communication-gw': `${GITHUB_BASE}/communication-gw`,
+  frontage: `${GITHUB_BASE}/frontage`,
+  'client-portal': `${GITHUB_BASE}/client-portal`
 };
 
 // API Gateway routing configuration - maps path prefixes to services
@@ -189,6 +192,28 @@ const TOOLS = [
         use_fallback: {
           type: "boolean",
           description: "Use the fallback API URL instead of the primary URL. Try this if you get 404/routing errors on the primary URL. Default is false."
+        },
+        content_type: {
+          type: "string",
+          enum: ["json", "multipart"],
+          description: "Content type for the request. Use 'multipart' for file uploads (multipart/form-data). Default is 'json' (application/json)."
+        },
+        form_fields: {
+          type: "object",
+          description: "For multipart requests: key-value pairs for form fields. Use bracket notation for nested fields (e.g., {'form_data[fields][title]': 'My Document', 'form_data[fields][message]': 'Please review'})."
+        },
+        file_fields: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              field_name: { type: "string", description: "Form field name with bracket notation (e.g., 'form_data[fields][documents][]')" },
+              file_path: { type: "string", description: "Relative path to file in test-files directory (e.g., 'sample.pdf')" },
+              filename: { type: "string", description: "Filename to use in the upload (e.g., 'document.pdf')" }
+            },
+            required: ["field_name", "file_path"]
+          },
+          description: "For multipart requests: array of file attachments. Each file specifies field_name (with bracket notation), file_path (relative to test-files/), and optional filename."
         }
       },
       required: ["method", "path", "purpose"]
@@ -196,7 +221,7 @@ const TOOLS = [
   },
   {
     name: "find_service_for_endpoint",
-    description: "Find which microservice handles a given API endpoint by checking the API gateway routing configuration. CALL THIS FIRST before searching source code to know which repository to search in!",
+    description: "Find which microservice handles a given API endpoint by checking the API gateway routing configuration. This also tells you which frontend repo to search. Remember: ALWAYS search the frontend code (frontage or client-portal) FIRST before diving into the backend controller!",
     input_schema: {
       type: "object",
       properties: {
@@ -210,22 +235,22 @@ const TOOLS = [
   },
   {
     name: "search_source_code",
-    description: "Search for code patterns in a repository. FIRST call find_service_for_endpoint to know which repository handles your endpoint! Use this when API errors are unclear, you need to understand validation rules, or the expected request format differs from documentation.",
+    description: "Search for code patterns in a repository. FRONTEND-FIRST STRATEGY: Always search 'frontage' (or 'client-portal' for /client/* paths) FIRST to see how the endpoint is used from the UI (services, stores, API calls). This reveals required fields, expected payload structure, and real-world usage patterns much faster than reading backend controllers. Only search the backend repository (via find_service_for_endpoint) if the frontend search doesn't give enough clarity.",
     input_schema: {
       type: "object",
       properties: {
         repository: {
           type: "string",
-          enum: ["core", "vcita", "apigw", "subscriptionsmng", "notificationscenter", "voicecalls", "availability", "resources", "permissionsmanager", "aiplatform", "phonenumbersmanager", "communication-gw"],
-          description: "Which repository to search in. Use find_service_for_endpoint first to determine the correct repository!"
+          enum: ["core", "vcita", "apigw", "subscriptionsmng", "notificationscenter", "voicecalls", "availability", "resources", "permissionsmanager", "aiplatform", "phonenumbersmanager", "communication-gw", "frontage", "client-portal"],
+          description: "Which repository to search in. IMPORTANT: Search 'frontage' FIRST (for staff/business endpoints) or 'client-portal' (for /client/* endpoints) to understand how the endpoint is actually used from the frontend. Look for service files, store actions, and API calls. Only then search the backend repo if needed."
         },
         search_pattern: {
           type: "string",
-          description: "Text or regex pattern to search for (e.g., 'def create', 'validates :name', 'packages_api', controller names)"
+          description: "Text or regex pattern to search for (e.g., 'def create', 'validates :name', 'packages_api', controller names, API path segments like '/business/clients/v1/matters')"
         },
         file_glob: {
           type: "string",
-          description: "Optional file pattern to filter (e.g., '*.rb', '*controller*', '*.ts')"
+          description: "Optional file pattern to filter (e.g., '*.rb', '*controller*', '*.ts', '*Service*', '*service*', '*.vue', '*.js')"
         }
       },
       required: ["repository", "search_pattern"]
@@ -233,14 +258,14 @@ const TOOLS = [
   },
   {
     name: "read_source_file",
-    description: "Read a specific source file from a repository to understand implementation details. Use this after search_source_code finds relevant files.",
+    description: "Read a specific source file from a repository to understand implementation details. Use this after search_source_code finds relevant files. Prioritize reading frontend service/store files first - they show real-world usage of the endpoint.",
     input_schema: {
       type: "object",
       properties: {
         repository: {
           type: "string",
-          enum: ["core", "vcita", "apigw", "subscriptionsmng", "notificationscenter", "voicecalls", "availability", "resources", "permissionsmanager", "aiplatform", "phonenumbersmanager", "communication-gw"],
-          description: "Which repository to read from"
+          enum: ["core", "vcita", "apigw", "subscriptionsmng", "notificationscenter", "voicecalls", "availability", "resources", "permissionsmanager", "aiplatform", "phonenumbersmanager", "communication-gw", "frontage", "client-portal"],
+          description: "Which repository to read from. Prefer reading frontend files (frontage, client-portal) first to understand endpoint usage."
         },
         file_path: {
           type: "string",
@@ -256,6 +281,141 @@ const TOOLS = [
         }
       },
       required: ["repository", "file_path"]
+    }
+  },
+  {
+    name: "analyze_discrepancies",
+    description: "After exploring source code, use this to document discrepancies between swagger and actual code implementation. Call this AFTER you've found the controller/DTO. This creates a structured comparison that will be used for evidence-based documentation.",
+    input_schema: {
+      type: "object",
+      properties: {
+        code_findings: {
+          type: "object",
+          description: "What you found in the source code",
+          properties: {
+            service: {
+              type: "string",
+              description: "Which microservice handles this endpoint (e.g., 'core', 'subscriptionsmng')"
+            },
+            controller_file: {
+              type: "string",
+              description: "Path to the controller file (e.g., 'src/carts/carts.controller.ts')"
+            },
+            controller_lines: {
+              type: "string",
+              description: "Relevant line numbers in controller (e.g., '45-120')"
+            },
+            dto_file: {
+              type: "string",
+              description: "Path to the DTO/model file (e.g., 'src/carts/dto/create-cart.dto.ts')"
+            },
+            required_fields: {
+              type: "array",
+              items: { type: "string" },
+              description: "Fields that code requires (from @IsNotEmpty, validates :presence, etc.)"
+            },
+            optional_fields: {
+              type: "array",
+              items: { type: "string" },
+              description: "Fields that code marks as optional (from @IsOptional, etc.)"
+            },
+            validations: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  field: { type: "string" },
+                  rule: { type: "string" },
+                  code_snippet: { type: "string" }
+                }
+              },
+              description: "Validation rules found in code (regex, enum values, type constraints)"
+            },
+            type_definitions: {
+              type: "object",
+              description: "Field types as defined in code (e.g., { 'total_price': 'string', 'quantity': 'number' })"
+            },
+            uid_dependencies: {
+              type: "array",
+              items: { type: "string" },
+              description: "UID/ID fields that reference other entities (foreign keys)"
+            }
+          }
+        },
+        swagger_findings: {
+          type: "object",
+          description: "What swagger says about this endpoint",
+          properties: {
+            required_fields: {
+              type: "array",
+              items: { type: "string" },
+              description: "Fields marked as required in swagger"
+            },
+            optional_fields: {
+              type: "array",
+              items: { type: "string" },
+              description: "Fields NOT in required array"
+            },
+            type_definitions: {
+              type: "object",
+              description: "Field types as defined in swagger"
+            }
+          }
+        },
+        discrepancies: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              aspect: {
+                type: "string",
+                enum: ["required_field", "optional_field", "type_mismatch", "validation_rule", "missing_field", "extra_field", "enum_values"],
+                description: "What kind of discrepancy"
+              },
+              field: { type: "string", description: "Which field has the discrepancy" },
+              swagger_says: { type: "string", description: "What swagger documentation says" },
+              code_says: { type: "string", description: "What the actual code does" },
+              evidence: {
+                type: "object",
+                properties: {
+                  file: { type: "string" },
+                  line: { type: "string" },
+                  snippet: { type: "string" }
+                },
+                description: "Code evidence for this discrepancy"
+              }
+            }
+          },
+          description: "List of discrepancies found between swagger and code"
+        }
+      },
+      required: ["code_findings", "discrepancies"]
+    }
+  },
+  {
+    name: "investigate_failure",
+    description: "When an API retry fails, use this to analyze the error and get guidance on what to search for in source code. This helps you understand validation errors, missing field errors, and other failures.",
+    input_schema: {
+      type: "object",
+      properties: {
+        error_response: {
+          type: "object",
+          description: "The error response from the API (status, data, headers)"
+        },
+        request_sent: {
+          type: "object",
+          description: "The request that was sent (method, path, body, headers)"
+        },
+        previous_findings: {
+          type: "object",
+          description: "Code findings from previous analyze_discrepancies call"
+        },
+        retry_count: {
+          type: "integer",
+          description: "How many retries have been attempted"
+        }
+      },
+      required: ["error_response", "request_sent"]
     }
   },
   {
@@ -387,11 +547,126 @@ const TOOLS = [
             }
           },
           description: "Documentation issues discovered - include if you found discrepancies between docs and actual behavior"
+        },
+        code_analysis: {
+          type: "object",
+          description: "Source code analysis results from the code-first exploration phase",
+          properties: {
+            service: { type: "string", description: "Which microservice handles this endpoint" },
+            controller_file: { type: "string", description: "Path to controller file" },
+            controller_lines: { type: "string", description: "Relevant line numbers" },
+            dto_file: { type: "string", description: "Path to DTO/model file" },
+            dto_lines: { type: "string", description: "Relevant line numbers in DTO" }
+          }
+        },
+        swagger_changes_required: {
+          type: "array",
+          description: "Swagger/entity documentation changes required based on code analysis evidence",
+          items: {
+            type: "object",
+            properties: {
+              file: { type: "string", description: "Swagger or entity file path (e.g., 'swagger/sales/packages.json' or 'entities/sales/package.json')" },
+              field: { type: "string", description: "Which field needs to be changed" },
+              change_type: { 
+                type: "string", 
+                enum: ["add_required", "remove_required", "change_type", "add_field", "remove_field", "add_validation", "fix_description", "add_enum_values"],
+                description: "Type of change needed"
+              },
+              current_value: { type: "string", description: "What swagger currently says" },
+              correct_value: { type: "string", description: "What it should say based on code" },
+              evidence: {
+                type: "object",
+                description: "Code evidence supporting this change",
+                properties: {
+                  code_file: { type: "string", description: "Source file path" },
+                  line_numbers: { type: "string", description: "Line numbers (e.g., '45-50')" },
+                  code_snippet: { type: "string", description: "Relevant code snippet" }
+                }
+              }
+            }
+          }
+        },
+        workflow_changes_required: {
+          type: "array",
+          description: "Workflow file changes required based on findings",
+          items: {
+            type: "object",
+            properties: {
+              section: { type: "string", description: "Which workflow section (e.g., 'prerequisites', 'uid_resolution', 'test_request')" },
+              change: { type: "string", description: "Description of what change is needed" },
+              evidence: {
+                type: "object",
+                properties: {
+                  source: { type: "string", description: "Where this was discovered (code file or API response)" },
+                  details: { type: "string", description: "Details supporting this change" }
+                }
+              }
+            }
+          }
+        },
+        discrepancies_found: {
+          type: "array",
+          description: "Summary of discrepancies found between swagger and code (from analyze_discrepancies)",
+          items: {
+            type: "object",
+            properties: {
+              aspect: { type: "string", description: "What aspect differs" },
+              field: { type: "string", description: "Which field" },
+              swagger_says: { type: "string" },
+              code_says: { type: "string" },
+              evidence_file: { type: "string" },
+              evidence_line: { type: "string" }
+            }
+          }
         }
-        // NOTE: fixed_issues removed - workflows no longer store doc issues
       },
       required: ["status", "summary"]
     }
+  },
+  // OPTIONAL TOOL - Only available when autoFixSwagger is enabled
+  {
+    name: "update_swagger_file",
+    description: "Update a swagger/entity JSON file with fixes based on code analysis. ONLY available when autoFixSwagger is enabled. Use this to fix discrepancies found between swagger documentation and actual code implementation. Provide the file path, the JSON path to the field, and the new value.",
+    input_schema: {
+      type: "object",
+      properties: {
+        file_path: {
+          type: "string",
+          description: "Relative path to the swagger/entity file from the repository root (e.g., 'swagger/clients/legacy/manage_clients.json' or 'entities/clients/contact.json')"
+        },
+        json_path: {
+          type: "string",
+          description: "JSON path to the field to update using dot notation (e.g., 'paths./business/clients/v1/contacts/{client_uid}/matters.post.requestBody.content.application/json.schema.properties.client_uid.type')"
+        },
+        operation: {
+          type: "string",
+          enum: ["set", "add_required", "remove_required", "add_property", "remove_property"],
+          description: "Operation to perform: 'set' replaces a value, 'add_required' adds to required array, 'remove_required' removes from required array, 'add_property' adds a new property, 'remove_property' removes a property"
+        },
+        value: {
+          type: "string",
+          description: "The new value to set (for 'set' operation) or the field name (for required operations)"
+        },
+        new_property: {
+          type: "object",
+          description: "For 'add_property' operation - the property definition object to add"
+        },
+        evidence: {
+          type: "object",
+          description: "Evidence from code analysis supporting this change",
+          properties: {
+            source_file: { type: "string", description: "Source code file where evidence was found" },
+            line_number: { type: "string", description: "Line number in source file" },
+            code_snippet: { type: "string", description: "Relevant code snippet" },
+            reason: { type: "string", description: "Explanation of why this change is needed" }
+          },
+          required: ["reason"]
+        }
+      },
+      required: ["file_path", "operation", "evidence"]
+    },
+    // This tool is conditionally available
+    _conditional: true
   }
 ];
 
@@ -1338,6 +1613,10 @@ async function executeTool(toolName, toolInput, context) {
         }
       }
       
+      // Determine which frontend repo to search based on path
+      const frontendRepo = endpoint_path.startsWith('/client/') ? 'client-portal' : 'frontage';
+      const frontendRepoExists = REPO_PATHS[frontendRepo] && fs.existsSync(REPO_PATHS[frontendRepo]);
+      
       if (matchedService) {
         const repoExists = REPO_PATHS[matchedService] && fs.existsSync(REPO_PATHS[matchedService]);
         return {
@@ -1347,12 +1626,13 @@ async function executeTool(toolName, toolInput, context) {
           repository: matchedService,
           repository_path: REPO_PATHS[matchedService] || 'Not configured',
           repository_available: repoExists,
-          tip: repoExists 
-            ? `Use search_source_code with repository="${matchedService}" to find the implementation.`
-            : `Repository ${matchedService} is not available locally. Try searching in 'core' as a fallback.`,
+          frontend_repo: frontendRepo,
+          frontend_repo_available: frontendRepoExists,
+          tip: `IMPORTANT: Search the frontend FIRST! Use search_source_code with repository="${frontendRepo}" to find how the endpoint is used from the UI (service files, store actions). Frontend code reveals the exact payload structure and required fields. Only then search the backend with repository="${matchedService}" if needed.`,
           search_suggestions: [
-            `Search for controller: search_source_code(repository="${matchedService}", search_pattern="${endpoint_path.split('/').pop()}")`,
-            `Search for route definition: search_source_code(repository="${matchedService}", search_pattern="${endpoint_path}")`
+            `FIRST: Search frontend usage: search_source_code(repository="${frontendRepo}", search_pattern="${endpoint_path}", file_glob="*.js")`,
+            `THEN if needed - Search backend controller: search_source_code(repository="${matchedService}", search_pattern="${endpoint_path.split('/').pop()}")`,
+            `THEN if needed - Search backend route: search_source_code(repository="${matchedService}", search_pattern="${endpoint_path}")`
           ]
         };
       }
@@ -1362,14 +1642,16 @@ async function executeTool(toolName, toolInput, context) {
         found: false,
         service: 'core',
         repository: 'core',
+        frontend_repo: frontendRepo,
+        frontend_repo_available: frontendRepoExists,
         note: `No specific routing found for ${endpoint_path}. Defaulting to 'core' repository.`,
-        tip: 'Most /platform/v1/* and /business/* endpoints are served by core.',
+        tip: `IMPORTANT: Search the frontend FIRST! Use search_source_code with repository="${frontendRepo}" to find how the endpoint is used from the UI. Most /platform/v1/* and /business/* endpoints are served by core.`,
         all_known_routes: Object.keys(APIGW_ROUTING)
       };
     }
     
     case "execute_api": {
-      const { method, path: apiPath, params, body, token_type = 'staff', on_behalf_of, purpose, use_fallback = false } = toolInput;
+      const { method, path: apiPath, params, body, token_type = 'staff', on_behalf_of, purpose, use_fallback = false, content_type = 'json', form_fields, file_fields } = toolInput;
       
       // Track whether this counts as a retry
       const isRetry = purpose === 'retry_original';
@@ -1399,22 +1681,25 @@ async function executeTool(toolName, toolInput, context) {
       onProgress?.({
         type: 'agent_action',
         action: 'execute_api',
-        details: `${method} ${fullPath}${use_fallback ? ' (fallback)' : ''}${on_behalf_of ? ` (on-behalf-of: ${on_behalf_of})` : ''}`,
+        details: `${method} ${fullPath}${use_fallback ? ' (fallback)' : ''}${on_behalf_of ? ` (on-behalf-of: ${on_behalf_of})` : ''}${content_type === 'multipart' ? ' (multipart)' : ''}`,
         purpose,
         isRetry,
         useFallback: use_fallback,
-        onBehalfOf: on_behalf_of
+        onBehalfOf: on_behalf_of,
+        contentType: content_type
       });
+      
+      // Track if this is a multipart request (used in both try and catch)
+      const isMultipart = content_type === 'multipart';
       
       try {
         const token = config.tokens?.[token_type] || config.tokens?.staff;
         // Admin tokens use "Admin" prefix, all others use "Bearer"
         const authPrefix = token_type === 'admin' ? 'Admin' : 'Bearer';
         
-        // Build headers
+        // Build headers - start with auth only, Content-Type depends on request type
         const headers = {
-          'Authorization': `${authPrefix} ${token}`,
-          'Content-Type': 'application/json'
+          'Authorization': `${authPrefix} ${token}`
         };
         
         // Add X-On-Behalf-Of header when explicitly requested
@@ -1425,13 +1710,63 @@ async function executeTool(toolName, toolInput, context) {
           console.log(`  [AI Healer] Using X-On-Behalf-Of header: ${on_behalf_of}`);
         }
         
+        // Build request data - handle multipart/form-data vs JSON
+        let requestData = body;
+        
+        if (isMultipart) {
+          const FormData = require('form-data');
+          const fs = require('fs');
+          const pathModule = require('path');
+          const formData = new FormData();
+          
+          // Add form fields (text fields)
+          if (form_fields && typeof form_fields === 'object') {
+            for (const [key, value] of Object.entries(form_fields)) {
+              formData.append(key, String(value));
+              console.log(`  [AI Healer] Adding form field: ${key}=${String(value).substring(0, 50)}`);
+            }
+          }
+          
+          // Add file fields
+          if (file_fields && Array.isArray(file_fields)) {
+            for (const file of file_fields) {
+              const { field_name, file_path, filename } = file;
+              // Resolve path relative to test-files directory
+              const absolutePath = pathModule.resolve(__dirname, '../../../test-files', file_path);
+              
+              if (fs.existsSync(absolutePath)) {
+                const fileStream = fs.createReadStream(absolutePath);
+                const uploadFilename = filename || pathModule.basename(file_path);
+                formData.append(field_name, fileStream, uploadFilename);
+                console.log(`  [AI Healer] Adding file: ${field_name} -> ${uploadFilename} (from ${file_path})`);
+              } else {
+                console.log(`  [AI Healer] WARNING: File not found: ${absolutePath}`);
+              }
+            }
+          }
+          
+          requestData = formData;
+          // FormData sets its own Content-Type with boundary
+          Object.assign(headers, formData.getHeaders());
+          console.log(`  [AI Healer] Using multipart/form-data with Content-Type: ${headers['Content-Type'] || headers['content-type']}`);
+        } else {
+          // Default JSON content type
+          headers['Content-Type'] = 'application/json';
+        }
+        
         // Build full URL if using fallback
         const requestConfig = {
           method: method.toLowerCase(),
           url: use_fallback ? `${baseUrl}${fullPath}` : fullPath,
-          data: body,
+          data: requestData,
           headers
         };
+        
+        // For multipart requests, we need to set maxContentLength and maxBodyLength
+        if (isMultipart) {
+          requestConfig.maxContentLength = Infinity;
+          requestConfig.maxBodyLength = Infinity;
+        }
         
         // If using fallback, we need to use axios directly with full URL
         const response = use_fallback 
@@ -1449,11 +1784,17 @@ async function executeTool(toolName, toolInput, context) {
           context.hasSuccessfulRetry = true;
           context.successfulRequest = { method, path: fullPath, body, params };
           context.lastSuccessfulResponse = response.data;
+          // Track if fallback API was used for the successful retry
+          if (use_fallback) {
+            context.usedFallbackApi = true;
+          }
         }
         
-        console.log(`  [AI Healer] execute_api ${method} ${fullPath} => ${response.status}${isRetry ? ' (retry)' : ''}`);
-        if (body) {
+        console.log(`  [AI Healer] execute_api ${method} ${fullPath} => ${response.status}${isRetry ? ' (retry)' : ''}${isMultipart ? ' (multipart)' : ''}`);
+        if (body && !isMultipart) {
           console.log(`  [AI Healer] Request body:`, JSON.stringify(body, null, 2).substring(0, 300));
+        } else if (isMultipart) {
+          console.log(`  [AI Healer] Request: multipart/form-data with ${Object.keys(form_fields || {}).length} form fields and ${(file_fields || []).length} files`);
         }
         
         return {
@@ -1465,12 +1806,13 @@ async function executeTool(toolName, toolInput, context) {
           retryCount: context.retryCount || 0,
           usedFallback: use_fallback,
           baseUrl: baseUrl,
+          contentType: content_type,
           // Include full request config for UI display
           requestConfig: {
             method: method.toUpperCase(),
             url: use_fallback ? `${baseUrl}${fullPath}` : `${primaryUrl}${fullPath}`,
-            headers: { ...headers },
-            data: body
+            headers: { ...headers, 'Content-Type': isMultipart ? 'multipart/form-data' : 'application/json' },
+            data: isMultipart ? { form_fields, file_fields, note: 'Multipart form-data request' } : body
           }
         };
       } catch (error) {
@@ -1485,9 +1827,11 @@ async function executeTool(toolName, toolInput, context) {
           : (errorData || error.message);
         const isAlreadyExistsError = /already exists/i.test(errorMessage);
         
-        console.log(`  [AI Healer] execute_api ${method} ${apiPath} => ERROR ${status}${isRetry ? ' (retry)' : ''}${isAlreadyExistsError ? ' (ALREADY_EXISTS)' : ''}`);
-        if (body) {
+        console.log(`  [AI Healer] execute_api ${method} ${apiPath} => ERROR ${status}${isRetry ? ' (retry)' : ''}${isAlreadyExistsError ? ' (ALREADY_EXISTS)' : ''}${isMultipart ? ' (multipart)' : ''}`);
+        if (body && !isMultipart) {
           console.log(`  [AI Healer] Request body:`, JSON.stringify(body, null, 2).substring(0, 300));
+        } else if (isMultipart) {
+          console.log(`  [AI Healer] Request: multipart/form-data with ${Object.keys(form_fields || {}).length} form fields and ${(file_fields || []).length} files`);
         }
         console.log(`  [AI Healer] Error response:`, JSON.stringify(error.response?.data, null, 2)?.substring(0, 300) || error.message);
         
@@ -1982,9 +2326,422 @@ async function executeTool(toolName, toolInput, context) {
       }
     }
     
+    case "analyze_discrepancies": {
+      const { code_findings, swagger_findings, discrepancies: rawDiscrepancies } = toolInput;
+      
+      // Ensure discrepancies is always an array (AI might send object or other types)
+      const discrepancies = Array.isArray(rawDiscrepancies) 
+        ? rawDiscrepancies 
+        : (rawDiscrepancies ? [rawDiscrepancies] : []);
+      
+      onProgress?.({
+        type: 'agent_action',
+        action: 'analyze_discrepancies',
+        details: `Analyzing ${discrepancies.length} discrepancies between swagger and code`
+      });
+      
+      console.log(`  [analyze_discrepancies] Service: ${code_findings?.service || 'unknown'}`);
+      console.log(`  [analyze_discrepancies] Controller: ${code_findings?.controller_file || 'not found'}`);
+      console.log(`  [analyze_discrepancies] DTO: ${code_findings?.dto_file || 'not found'}`);
+      console.log(`  [analyze_discrepancies] Discrepancies found: ${discrepancies?.length || 0}`);
+      
+      // Store findings in context for later use by report_result
+      if (!context.codeAnalysis) {
+        context.codeAnalysis = {};
+      }
+      context.codeAnalysis.code_findings = code_findings;
+      context.codeAnalysis.swagger_findings = swagger_findings;
+      context.codeAnalysis.discrepancies = discrepancies || [];
+      
+      // Build a structured summary of discrepancies
+      const discrepancySummary = (discrepancies || []).map(d => {
+        return `- ${d.aspect}: '${d.field}' - Swagger says: "${d.swagger_says}", Code says: "${d.code_says}"${d.evidence?.file ? ` (${d.evidence.file}:${d.evidence.line || ''})` : ''}`;
+      }).join('\n');
+      
+      // Extract UIDs from code findings that may not be in swagger
+      const codeRequiredUids = (code_findings?.uid_dependencies || []).filter(uid => {
+        const swaggerRequired = swagger_findings?.required_fields || [];
+        return !swaggerRequired.includes(uid);
+      });
+      
+      return {
+        success: true,
+        analysis_complete: true,
+        discrepancy_count: discrepancies?.length || 0,
+        discrepancies_summary: discrepancySummary || 'No discrepancies found',
+        code_required_uids: codeRequiredUids,
+        all_required_fields: {
+          from_swagger: swagger_findings?.required_fields || [],
+          from_code: code_findings?.required_fields || [],
+          combined: [...new Set([
+            ...(swagger_findings?.required_fields || []),
+            ...(code_findings?.required_fields || [])
+          ])]
+        },
+        type_mismatches: (discrepancies || []).filter(d => d.aspect === 'type_mismatch'),
+        validation_differences: (discrepancies || []).filter(d => d.aspect === 'validation_rule'),
+        hint: 'Use these findings when building request body and when reporting swagger_changes_required in report_result'
+      };
+    }
+    
+    case "investigate_failure": {
+      const { error_response, request_sent, previous_findings, retry_count } = toolInput;
+      
+      onProgress?.({
+        type: 'agent_action',
+        action: 'investigate_failure',
+        details: `Investigating failure (retry ${retry_count || 0}): ${error_response?.status || 'unknown status'}`
+      });
+      
+      console.log(`  [investigate_failure] Error status: ${error_response?.status || 'unknown'}`);
+      console.log(`  [investigate_failure] Error data: ${JSON.stringify(error_response?.data || {}).substring(0, 300)}`);
+      console.log(`  [investigate_failure] Request method: ${request_sent?.method || 'unknown'}`);
+      console.log(`  [investigate_failure] Request path: ${request_sent?.path || 'unknown'}`);
+      
+      // Analyze the error to provide guidance on what to search for
+      const status = error_response?.status;
+      const errorData = error_response?.data || {};
+      const errorMessage = errorData.message || errorData.error || errorData.errors?.[0]?.message || '';
+      
+      let guidance = {
+        search_suggestions: [],
+        possible_causes: [],
+        next_steps: []
+      };
+      
+      // Analyze based on status code
+      if (status === 400 || status === 422) {
+        // Validation error
+        guidance.possible_causes.push('Validation error - request body does not match expected format');
+        
+        // Extract field names from error message
+        const fieldMatch = errorMessage.match(/['"]([a-z_]+)['"]/gi);
+        if (fieldMatch) {
+          const fields = fieldMatch.map(f => f.replace(/['"]/g, ''));
+          guidance.search_suggestions.push(`Search for validation rules: ${fields.join(', ')}`);
+          guidance.next_steps.push(`Read the DTO/model file to understand required format for: ${fields.join(', ')}`);
+        }
+        
+        // Check for type issues
+        if (errorMessage.includes('type') || errorMessage.includes('must be') || errorMessage.includes('expected')) {
+          guidance.possible_causes.push('Type mismatch - field has wrong type (string vs number, etc.)');
+          guidance.search_suggestions.push('Search for @IsNumber, @IsString, type annotations in DTO');
+        }
+        
+        // Check for required field issues
+        if (errorMessage.includes('required') || errorMessage.includes('mandatory') || errorMessage.includes('missing')) {
+          guidance.possible_causes.push('Missing required field');
+          guidance.search_suggestions.push('Search for @IsNotEmpty, validates :presence, required: true');
+        }
+      } else if (status === 401 || status === 403) {
+        guidance.possible_causes.push('Authentication/authorization error');
+        guidance.next_steps.push('Try a different token type or check if endpoint requires special permissions');
+        guidance.search_suggestions.push('Search for @Auth, @Roles, authorization decorators');
+      } else if (status === 404) {
+        guidance.possible_causes.push('Resource not found or wrong endpoint path');
+        guidance.search_suggestions.push('Search for route definitions, @Get, @Post decorators');
+      } else if (status === 409) {
+        guidance.possible_causes.push('Conflict - resource already exists or state conflict');
+        guidance.next_steps.push('May need to create fresh test data or use different identifiers');
+      } else if (status === 500) {
+        guidance.possible_causes.push('Server error - may indicate bug in API or unexpected input');
+        guidance.search_suggestions.push('Search for error handling, try-catch blocks in controller');
+      }
+      
+      // Compare with previous findings if available
+      if (previous_findings?.code_findings) {
+        const codeRequired = previous_findings.code_findings.required_fields || [];
+        const sentFields = Object.keys(request_sent?.body || {});
+        const missingFields = codeRequired.filter(f => !sentFields.includes(f));
+        
+        if (missingFields.length > 0) {
+          guidance.possible_causes.push(`Missing fields that code requires: ${missingFields.join(', ')}`);
+          guidance.next_steps.push(`Add missing fields to request body: ${missingFields.join(', ')}`);
+        }
+      }
+      
+      return {
+        success: true,
+        error_analysis: {
+          status,
+          error_message: errorMessage,
+          error_type: status === 400 || status === 422 ? 'validation' : 
+                      status === 401 || status === 403 ? 'auth' :
+                      status === 404 ? 'not_found' :
+                      status === 409 ? 'conflict' : 'server_error'
+        },
+        guidance,
+        recommendation: guidance.next_steps[0] || 'Search source code for more details on the error',
+        hint: 'Use search_source_code or read_source_file to investigate further based on the suggestions'
+      };
+    }
+    
+    case "update_swagger_file": {
+      const { file_path, json_path, operation, value, new_property, evidence } = toolInput;
+      
+      // Check if autoFixSwagger is enabled
+      if (!context.autoFixSwagger) {
+        return {
+          success: false,
+          error: 'autoFixSwagger is disabled. This tool is only available when ai.autoFixSwagger is set to true in config.',
+          hint: 'Document the required changes in swagger_changes_required field of report_result instead.'
+        };
+      }
+      
+      onProgress?.({
+        type: 'agent_action',
+        action: 'update_swagger_file',
+        details: `Updating ${file_path}: ${operation} at ${json_path || 'root'}`
+      });
+      
+      console.log(`  [update_swagger_file] File: ${file_path}`);
+      console.log(`  [update_swagger_file] Operation: ${operation}`);
+      console.log(`  [update_swagger_file] JSON Path: ${json_path || 'N/A'}`);
+      console.log(`  [update_swagger_file] Evidence: ${evidence?.reason || 'none provided'}`);
+      
+      try {
+        // Determine the full file path
+        const repoRoot = path.resolve(__dirname, '../../../../');
+        const fullPath = path.join(repoRoot, file_path);
+        
+        // Check if file exists
+        if (!fs.existsSync(fullPath)) {
+          return {
+            success: false,
+            error: `File not found: ${file_path}`,
+            hint: 'Check the file path - it should be relative to the repository root (e.g., "swagger/clients/legacy/manage_clients.json")'
+          };
+        }
+        
+        // Read current file content
+        const fileContent = fs.readFileSync(fullPath, 'utf8');
+        let jsonData;
+        try {
+          jsonData = JSON.parse(fileContent);
+        } catch (parseError) {
+          return {
+            success: false,
+            error: `Invalid JSON in file: ${parseError.message}`,
+            hint: 'The file contains invalid JSON and cannot be parsed'
+          };
+        }
+        
+        // Helper function to navigate JSON path
+        const navigatePath = (obj, pathStr) => {
+          if (!pathStr) return { parent: null, key: null, target: obj };
+          const parts = pathStr.split('.');
+          let current = obj;
+          for (let i = 0; i < parts.length - 1; i++) {
+            const key = parts[i];
+            if (current[key] === undefined) {
+              return { parent: null, key: null, target: null, error: `Path not found at: ${parts.slice(0, i + 1).join('.')}` };
+            }
+            current = current[key];
+          }
+          return { parent: current, key: parts[parts.length - 1], target: current[parts[parts.length - 1]] };
+        };
+        
+        let changeApplied = false;
+        let changeDescription = '';
+        
+        switch (operation) {
+          case 'set': {
+            if (!json_path) {
+              return { success: false, error: 'json_path is required for "set" operation' };
+            }
+            const { parent, key, error } = navigatePath(jsonData, json_path);
+            if (error) {
+              return { success: false, error };
+            }
+            const oldValue = parent[key];
+            parent[key] = value;
+            changeApplied = true;
+            changeDescription = `Set ${json_path} from "${oldValue}" to "${value}"`;
+            break;
+          }
+          
+          case 'add_required': {
+            if (!json_path) {
+              return { success: false, error: 'json_path is required for "add_required" operation' };
+            }
+            const { parent, key, target, error } = navigatePath(jsonData, json_path);
+            if (error) {
+              return { success: false, error };
+            }
+            // Navigate to the 'required' array at the specified path
+            const requiredPath = json_path.endsWith('.required') ? json_path : `${json_path}.required`;
+            const reqNav = navigatePath(jsonData, requiredPath);
+            
+            if (!reqNav.target) {
+              // Create required array if it doesn't exist
+              if (reqNav.parent) {
+                reqNav.parent[reqNav.key] = [value];
+                changeApplied = true;
+                changeDescription = `Created required array with "${value}"`;
+              } else {
+                return { success: false, error: `Cannot create required array at ${requiredPath}` };
+              }
+            } else if (Array.isArray(reqNav.target)) {
+              if (!reqNav.target.includes(value)) {
+                reqNav.target.push(value);
+                changeApplied = true;
+                changeDescription = `Added "${value}" to required array at ${requiredPath}`;
+              } else {
+                return { success: false, error: `"${value}" is already in required array` };
+              }
+            } else {
+              return { success: false, error: `${requiredPath} is not an array` };
+            }
+            break;
+          }
+          
+          case 'remove_required': {
+            if (!json_path) {
+              return { success: false, error: 'json_path is required for "remove_required" operation' };
+            }
+            const requiredPath = json_path.endsWith('.required') ? json_path : `${json_path}.required`;
+            const reqNav = navigatePath(jsonData, requiredPath);
+            
+            if (!reqNav.target || !Array.isArray(reqNav.target)) {
+              return { success: false, error: `No required array found at ${requiredPath}` };
+            }
+            
+            const idx = reqNav.target.indexOf(value);
+            if (idx === -1) {
+              return { success: false, error: `"${value}" not found in required array` };
+            }
+            reqNav.target.splice(idx, 1);
+            changeApplied = true;
+            changeDescription = `Removed "${value}" from required array at ${requiredPath}`;
+            break;
+          }
+          
+          case 'add_property': {
+            if (!json_path || !new_property) {
+              return { success: false, error: 'json_path and new_property are required for "add_property" operation' };
+            }
+            const { parent, key, error } = navigatePath(jsonData, json_path);
+            if (error) {
+              return { success: false, error };
+            }
+            if (parent[key] !== undefined) {
+              return { success: false, error: `Property "${key}" already exists at ${json_path}` };
+            }
+            parent[key] = new_property;
+            changeApplied = true;
+            changeDescription = `Added property "${key}" at ${json_path}`;
+            break;
+          }
+          
+          case 'remove_property': {
+            if (!json_path) {
+              return { success: false, error: 'json_path is required for "remove_property" operation' };
+            }
+            const { parent, key, error } = navigatePath(jsonData, json_path);
+            if (error) {
+              return { success: false, error };
+            }
+            if (parent[key] === undefined) {
+              return { success: false, error: `Property "${key}" does not exist at ${json_path}` };
+            }
+            delete parent[key];
+            changeApplied = true;
+            changeDescription = `Removed property "${key}" from ${json_path}`;
+            break;
+          }
+          
+          default:
+            return { success: false, error: `Unknown operation: ${operation}` };
+        }
+        
+        if (changeApplied) {
+          // Write back to file with pretty formatting
+          fs.writeFileSync(fullPath, JSON.stringify(jsonData, null, 2) + '\n', 'utf8');
+          
+          // Track the change in context
+          if (!context.swaggerFileChanges) {
+            context.swaggerFileChanges = [];
+          }
+          const changeRecord = {
+            file: file_path,
+            operation,
+            json_path,
+            value,
+            evidence,
+            description: changeDescription,
+            timestamp: new Date().toISOString()
+          };
+          context.swaggerFileChanges.push(changeRecord);
+          
+          console.log(`  [update_swagger_file] SUCCESS: ${changeDescription}`);
+          
+          // Emit progress event for live UI update
+          onProgress?.({
+            type: 'swagger_file_updated',
+            file: file_path,
+            operation,
+            description: changeDescription,
+            evidence: evidence?.reason
+          });
+          
+          return {
+            success: true,
+            change_applied: changeDescription,
+            file_path,
+            evidence_recorded: {
+              reason: evidence?.reason,
+              source_file: evidence?.source_file,
+              line_number: evidence?.line_number
+            },
+            hint: 'The swagger file has been updated. Continue with validation or report results.'
+          };
+        }
+        
+        return { success: false, error: 'No change was applied' };
+        
+      } catch (error) {
+        console.error(`  [update_swagger_file] ERROR: ${error.message}`);
+        return {
+          success: false,
+          error: `Failed to update swagger file: ${error.message}`,
+          hint: 'Document this as a swagger_changes_required in report_result instead'
+        };
+      }
+    }
+    
     case "report_result": {
-      const { status, summary, skip_reason, skip_suggestion, uid_resolution, unresolved_uids, doc_issues } = toolInput;
+      const { 
+        status, 
+        summary, 
+        skip_reason, 
+        skip_suggestion, 
+        uid_resolution, 
+        unresolved_uids, 
+        doc_issues,
+        // New code-first fields
+        code_analysis,
+        swagger_changes_required: rawSwaggerChanges,
+        workflow_changes_required: rawWorkflowChanges,
+        discrepancies_found: rawDiscrepancies
+      } = toolInput;
       const endpointKey = `${endpoint.method} ${endpoint.path}`;
+      
+      // Ensure array fields are always arrays (AI might send objects or other types)
+      const swaggerChangesArray = Array.isArray(rawSwaggerChanges) 
+        ? rawSwaggerChanges 
+        : (rawSwaggerChanges ? [rawSwaggerChanges] : []);
+      const workflowChangesArray = Array.isArray(rawWorkflowChanges) 
+        ? rawWorkflowChanges 
+        : (rawWorkflowChanges ? [rawWorkflowChanges] : []);
+      const discrepanciesArray = Array.isArray(rawDiscrepancies) 
+        ? rawDiscrepancies 
+        : (rawDiscrepancies ? [rawDiscrepancies] : []);
+      
+      // Merge code_analysis from tool input with any stored during analyze_discrepancies
+      const finalCodeAnalysis = code_analysis || context.codeAnalysis?.code_findings || null;
+      const finalDiscrepancies = discrepanciesArray.length > 0 
+        ? discrepanciesArray 
+        : (context.codeAnalysis?.discrepancies || []);
       
       // Map status to result
       // Note: Agent should NEVER use status="skip" directly anymore
@@ -2013,15 +2770,30 @@ async function executeTool(toolName, toolInput, context) {
       // Only save workflow for SUCCESS - skip suggestions require user approval
       // Skip workflows will be saved via the /approve-skip endpoint after user approves
       // NOTE: Doc issues are NOT stored in workflows - they're transient findings
-      if (isSuccess && uid_resolution) {
+      // NOTE: We now save workflows even without uid_resolution - the AI may forget to include it
+      //       but we still want to capture useFallbackApi and other important findings
+      if (isSuccess) {
+        // Log warning if uid_resolution is missing - helps identify AI prompt improvements needed
+        if (!uid_resolution || Object.keys(uid_resolution).length === 0) {
+          console.log(`  [AI Healer] Warning: Saving workflow without uid_resolution for ${endpointKey}`);
+        }
+        
         const workflowData = {
           summary,
           status: 'success',
-          uidResolution: uid_resolution,
+          uidResolution: uid_resolution || {},
           successfulRequest: context.successfulRequest,
           domain: endpoint.domain,
-          tags: []
-          // docFixes intentionally NOT included - workflows are success paths only
+          tags: [],
+          // Track if fallback API was required for this endpoint
+          useFallbackApi: context.usedFallbackApi || false,
+          // Propagate swagger file reference so workflows link to their source documentation
+          swagger: endpoint.swaggerFile || null,
+          // New code-first analysis fields
+          codeAnalysis: finalCodeAnalysis,
+          discrepancies: finalDiscrepancies,
+          swaggerChangesRequired: swaggerChangesArray,
+          workflowChangesRequired: workflowChangesArray
         };
         
         workflowRepo.save(endpointKey, workflowData);
@@ -2102,6 +2874,12 @@ async function executeTool(toolName, toolInput, context) {
       // Track filtered issues for reporting
       context.filteredOutDocIssues = filteredOutIssues;
       
+      // Store code-first analysis results in context
+      context.codeAnalysisResult = finalCodeAnalysis;
+      context.swaggerChangesRequired = swaggerChangesArray;
+      context.workflowChangesRequired = workflowChangesArray;
+      context.discrepanciesFound = finalDiscrepancies;
+      
       return {
         done: true,
         status: finalStatus,
@@ -2113,7 +2891,12 @@ async function executeTool(toolName, toolInput, context) {
         docIssuesRecorded: filteredDocIssues.length,
         docIssuesFiltered: filteredOutIssues.length,
         followedWorkflow: workflowComparison.followedWorkflow,
-        workflowDeviations: workflowComparison.deviations
+        workflowDeviations: workflowComparison.deviations,
+        // Code-first analysis results
+        codeAnalysis: finalCodeAnalysis,
+        swaggerChangesRequired: swaggerChangesArray,
+        workflowChangesRequired: workflowChangesArray,
+        discrepancies: finalDiscrepancies
       };
     }
     
@@ -2242,29 +3025,55 @@ Do NOT report doc_issues for requirements that are already documented in the swa
     // Workflows are success paths only - doc issues are transient findings reported once
   }
 
-  return `You are an API testing agent with a simple error handling philosophy.
+  return `You are an API testing agent with a CODE-FIRST error handling philosophy.
 
 ## CORE PRINCIPLE
 
+**Always explore source code FIRST to understand the actual implementation before trying to fix errors.**
 **Assume endpoints fundamentally work. Most errors are documentation issues.**
 
 ## Your Tools
 
-1. **extract_required_uids** - Extract all UID/ID fields needed by the failing endpoint
-2. **find_uid_source** - Find GET/POST endpoints that can provide a specific UID value
-3. **execute_api** - Make API calls to fetch/create entities or retry the original request
-4. **acquire_token** - Dynamically acquire tokens when needed
-5. **find_service_for_endpoint** - Find which microservice handles an endpoint
-6. **search_source_code** - Search backend code for implementation details
-7. **read_source_file** - Read specific source files
-8. **report_result** - Report success/failure and document findings
+### Code Exploration Tools (USE THESE FIRST!)
+1. **find_service_for_endpoint** - ALWAYS call first to find which microservice handles the endpoint
+2. **search_source_code** - Search backend code for controllers, DTOs, validators
+3. **read_source_file** - Read specific source files to understand implementation
 
+### Analysis Tools
+4. **analyze_discrepancies** - After code exploration, document discrepancies between swagger and code
+5. **investigate_failure** - When a retry fails, analyze the error and get guidance on what to search for
+
+### UID Resolution Tools
+6. **extract_required_uids** - Extract all UID/ID fields needed (uses BOTH swagger AND code findings)
+7. **find_uid_source** - Find GET/POST endpoints that can provide a specific UID value
+
+### Execution Tools
+8. **execute_api** - Make API calls to fetch/create entities or retry the original request
+9. **acquire_token** - Dynamically acquire tokens when needed
+
+### Reporting Tool
+10. **report_result** - Report success/failure with evidence from code and swagger
+${config?.ai?.autoFixSwagger ? `
+### Swagger Auto-Fix Tool (ENABLED)
+11. **update_swagger_file** - Directly update swagger/entity JSON files with fixes
+   - Use ONLY when you have clear evidence from code analysis
+   - Must provide evidence (source file, line number, reason)
+   - Operations: set, add_required, remove_required, add_property, remove_property
+   - File paths are relative to repo root (e.g., "swagger/clients/legacy/manage_clients.json")
+   - Use this AFTER documenting discrepancies to automatically fix swagger documentation
+` : ''}
 ## API Documentation Terminology
 
 **IMPORTANT**: In swagger/OpenAPI documentation:
 - "**Internal Token**" means "**admin**" token (use token_type="admin")
 - "Internal" and "Admin" are interchangeable terms for the same token type
 - If documentation says "Available for Internal Tokens only", use token_type="admin"
+
+## Feature Flags (Documentation and Fixes)
+
+- Do **not** add or document feature flags in swagger/workflows/doc_issues unless they are **packagable**. See api-validation/docs/packagable-feature-flags.md for the list.
+- Before treating a feature flag as the cause of a failure, check **GET /v3/license/features_packages** (same token/business as test). If the staff has that feature, do not blame the flag.
+- Redundant flags (e.g. tags_features) should not be documented; suggest a JIRA to remove them from code.
 
 ## Available Tokens
 
@@ -2290,15 +3099,117 @@ may cause authorization errors even if they're resolved. Follow the workflow's g
 ${swaggerContext}
 ${workflowContext}
 
-## SIMPLIFIED WORKFLOW
+## MANDATORY CODE-FIRST WORKFLOW
 
-### Step 1: Resolve UIDs
-1. Call \`extract_required_uids\` to identify needed UIDs
-2. For each unresolved UID, use \`find_uid_source\` then \`execute_api\` to get valid values
-3. UIDs resolution calls use purpose: "uid_resolution" (not counted as retries)
+**IMPORTANT: You MUST follow these steps IN ORDER. Do not skip code exploration!**
 
-### Step 2: Retry with Valid Data
-1. Once UIDs are resolved, **construct the request body** with all resolved UIDs
+### Step 1: SOURCE CODE EXPLORATION (ALWAYS DO THIS FIRST!)
+
+**Before attempting any UID resolution or API retries, you MUST explore the source code.**
+
+**CRITICAL: FRONTEND-FIRST STRATEGY!**
+It is much more efficient to look at the frontend code first to understand how an endpoint is used, 
+what fields it expects, and what a real request looks like. The frontend service/store files show you 
+the exact payload structure, required parameters, and real-world usage patterns. Only go to the backend 
+controller if the frontend doesn't provide enough clarity.
+
+**Step 1a: Search FRONTEND code first (frontage or client-portal)**
+
+1. Search the \`frontage\` repository for the endpoint path (for staff/business/platform endpoints)
+   - Or search \`client-portal\` for \`/client/*\` endpoints
+2. Look for **service files** (e.g., \`*Service*.js\`, \`*service*.js\`) that call this endpoint
+3. Look for **store actions** (e.g., \`*Store*.js\`, \`*store*.js\`) that use the service
+4. Read the service/store files to understand:
+   - **Request payload structure**: What fields does the frontend send?
+   - **Required parameters**: What query params or body fields are always included?
+   - **How UIDs are resolved**: Where does the frontend get entity UIDs from?
+   - **Token/auth patterns**: What auth mechanism does the frontend use?
+
+**Step 1b: Search BACKEND code only if needed**
+
+If the frontend code doesn't provide enough clarity (e.g., endpoint is backend-only, or you need 
+validation rules not visible in frontend):
+
+1. Call \`find_service_for_endpoint\` to determine which backend repository handles this endpoint
+2. Call \`search_source_code\` to find:
+   - The controller (search for route path segments, e.g., "matters" for /business/clients/v1/matters)
+   - The DTO/model (search for "CreateXxxDto", "XxxRequest", or model class names)
+   - Validation rules (search for "@IsNotEmpty", "validates :presence", "required")
+3. Call \`read_source_file\` on key files to understand:
+   - **Required fields**: From DTO decorators (@IsNotEmpty, @IsDefined) or model validations
+   - **Type expectations**: String vs number vs object (look at type annotations)
+   - **UID/ID dependencies**: Foreign key references, belongs_to associations
+   - **Validation rules**: Regex patterns, enum values, conditional requirements
+
+**Example: Frontend-first exploration:**
+\`\`\`javascript
+// Step 1a: Search frontend for how endpoint is used
+search_source_code({ repository: "frontage", search_pattern: "business/clients/v1/matters", file_glob: "*.js" })
+// Found: pov/src/modules/matters/services/mattersService.js, vue/src/modules/matters/services/matterService.js
+
+// Step 1a: Read the frontend service to understand payload structure
+read_source_file({ repository: "frontage", file_path: "pov/src/modules/matters/services/mattersService.js" })
+// This reveals: POST body needs { matter: { name: "...", client_uid: "..." } }, uses staff token
+
+// Step 1b (only if needed): Search backend for validation details
+find_service_for_endpoint({ endpoint_path: "/business/clients/v1/matters" })
+// Returns: "core"
+search_source_code({ repository: "core", search_pattern: "matters", file_glob: "*controller*" })
+read_source_file({ repository: "core", file_path: "modules/clients/app/controllers/api/v1/matters_controller.rb" })
+\`\`\`
+
+**Why frontend-first works better:**
+- Frontend services show the EXACT payload structure used in production
+- Store actions reveal the complete flow including prerequisite data fetching
+- You skip the complexity of reading backend validation decorators/models
+- Real-world usage patterns are more reliable than swagger documentation
+
+### Step 2: ANALYZE DISCREPANCIES
+
+After exploring the code, call \`analyze_discrepancies\` to document what you found:
+
+\`\`\`javascript
+analyze_discrepancies({
+  code_findings: {
+    service: "core",
+    controller_file: "modules/clients/app/controllers/api/v1/matters_controller.rb",
+    controller_lines: "45-120",
+    dto_file: "modules/clients/app/models/matter.rb",
+    required_fields: ["name", "client_uid"],  // From code validations
+    validations: [
+      { field: "name", rule: "presence: true", code_snippet: "validates :name, presence: true" }
+    ],
+    type_definitions: { "name": "string", "status": "string" },
+    uid_dependencies: ["client_uid", "assigned_staff_uid"]
+  },
+  swagger_findings: {
+    required_fields: ["matter"],  // From swagger required array
+    type_definitions: { "matter": "object" }
+  },
+  discrepancies: [
+    {
+      aspect: "required_field",
+      field: "name",
+      swagger_says: "not marked as required",
+      code_says: "validates :name, presence: true",
+      evidence: { file: "modules/clients/app/models/matter.rb", line: "15", snippet: "validates :name, presence: true" }
+    }
+  ]
+})
+\`\`\`
+
+### Step 3: Extract UIDs (Using Code AND Swagger)
+
+Now that you understand the code, call \`extract_required_uids\` and supplement with code findings:
+
+1. Call \`extract_required_uids\` to get UIDs from swagger schema
+2. ADD any UID dependencies you discovered in the code that aren't in swagger
+3. For each unresolved UID, use \`find_uid_source\` then \`execute_api\` to get valid values
+4. UIDs resolution calls use purpose: "uid_resolution" (not counted as retries)
+
+### Step 4: Retry with Valid Data
+
+1. Once UIDs are resolved, **construct the request body** based on BOTH code and swagger requirements
 2. For POST/PUT/PATCH requests, you MUST include the \`body\` parameter in \`execute_api\`:
    \`\`\`javascript
    execute_api({
@@ -2329,11 +3240,74 @@ ${workflowContext}
 
 This reduces the chance of triggering validation edge cases and makes failures easier to diagnose.
 
-### Step 3: Handle Errors
+### Step 5: Handle Failures - GO BACK TO CODE!
 
-**ERROR HANDLING PHILOSOPHY:**
+**When a retry fails, use \`investigate_failure\` and go back to source code exploration:**
 
-When the endpoint returns an error, assume it's a **documentation issue** unless it's one of these 2 exceptions:
+\`\`\`javascript
+// When execute_api with purpose="retry_original" fails:
+investigate_failure({
+  error_response: { status: 422, data: { message: "name is required" } },
+  request_sent: { method: "POST", path: "/v3/...", body: { ... } },
+  previous_findings: { /* your code_findings from analyze_discrepancies */ },
+  retry_count: 1
+})
+
+// This gives you guidance on what to search for next
+// Then go back to search_source_code or read_source_file to investigate
+\`\`\`
+
+**Loop until success (2xx) or max retries reached:**
+1. Try retry with purpose="retry_original"
+2. If fail → call \`investigate_failure\` for guidance
+3. Search source code based on guidance - **check frontend (frontage/client-portal) first**, then backend if needed
+4. Update your understanding of required fields/types
+5. Try again with updated request body
+6. Repeat until success or max retries
+
+### Step 6: Report Results with Evidence
+
+**When reporting results, include evidence from your code exploration:**
+
+\`\`\`javascript
+report_result({
+  status: "pass",  // or "fail"
+  summary: "Successfully created matter after discovering name field is required",
+  code_analysis: {
+    service: "core",
+    controller_file: "modules/clients/app/controllers/api/v1/matters_controller.rb",
+    controller_lines: "45-120",
+    dto_file: "modules/clients/app/models/matter.rb"
+  },
+  swagger_changes_required: [
+    {
+      file: "swagger/clients/matters.json",
+      field: "name",
+      change_type: "add_required",
+      current_value: "not marked required",
+      correct_value: "required: true",
+      evidence: {
+        code_file: "modules/clients/app/models/matter.rb",
+        line_numbers: "15",
+        code_snippet: "validates :name, presence: true"
+      }
+    }
+  ],
+  workflow_changes_required: [
+    {
+      section: "prerequisites",
+      change: "Add step to verify name field is provided",
+      evidence: { source: "matter.rb:15", details: "validates :name, presence: true" }
+    }
+  ],
+  discrepancies_found: [/* from analyze_discrepancies */],
+  doc_issues: [/* additional doc issues */]
+})
+\`\`\`
+
+### ERROR HANDLING PHILOSOPHY
+
+When the endpoint returns an error, assume it's a **documentation issue** unless it's one of these exceptions:
 
 #### Exception 1: BAD GATEWAY (Infrastructure Issue)
 - Response message contains "bad gateway", "502 Bad Gateway", or similar
@@ -2616,24 +3590,38 @@ async function runAgentHealer(options) {
       details: `Executing ${existingWorkflow.prerequisites.steps.length} prerequisite step(s) deterministically`
     });
     
-    // Create a request function that uses the apiClient
+    // Check if workflow requires fallback API
+    const useFallbackApi = existingWorkflow.useFallbackApi === true;
+    const baseUrl = useFallbackApi && config.fallbackUrl ? config.fallbackUrl : config.baseUrl;
+    
+    if (useFallbackApi) {
+      console.log(`  [Healer] Workflow requires fallback API - using ${baseUrl}`);
+    }
+    
+    // Create a request function that respects useFallbackApi
     const makeRequest = async (requestConfig, cfg) => {
       const url = requestConfig.path;
       const method = requestConfig.method.toLowerCase();
       
       // Build query params for GET
-      let fullUrl = url;
+      let fullUrl = `${baseUrl}${url}`;
       if (method === 'get' && requestConfig.params) {
         const params = new URLSearchParams(requestConfig.params).toString();
-        fullUrl = `${url}?${params}`;
+        fullUrl = `${fullUrl}?${params}`;
       }
       
       try {
-        const response = await apiClient.request({
+        // Use axios directly with the correct base URL
+        const axios = require('axios');
+        const response = await axios({
           method,
           url: fullUrl,
           data: method !== 'get' ? requestConfig.body : undefined,
-          headers: requestConfig.headers
+          headers: {
+            ...requestConfig.headers,
+            ...apiClient.defaults.headers.common  // Include auth headers
+          },
+          validateStatus: () => true  // Don't throw on non-2xx
         });
         return { status: response.status, data: response.data };
       } catch (error) {
@@ -2644,11 +3632,12 @@ async function runAgentHealer(options) {
       }
     };
     
-    // Execute prerequisites
+    // Execute prerequisites with recursive workflow lookup
     const prereqResult = await executePrerequisites(
       existingWorkflow,
       { ...config, params: { ...config.params, ...resolvedParams } },
-      makeRequest
+      makeRequest,
+      { workflowRepo }  // Pass workflow repo for recursive lookup
     );
     
     if (prereqResult.failed) {
@@ -3045,8 +4034,22 @@ async function runAgentHealer(options) {
     docFixSuggestions: [],
     healingLog,  // Track actions for workflow comparison
     filteredOutDocIssues: [],
-    workflowDeviation: null
+    workflowDeviation: null,
+    // Code-first analysis tracking
+    codeAnalysis: null,             // Stores code findings from analyze_discrepancies
+    swaggerChangesRequired: [],     // Swagger documentation changes with evidence
+    workflowChangesRequired: [],    // Workflow changes needed
+    discrepanciesFound: [],         // Discrepancies between swagger and code
+    codeExplorationComplete: false, // Track if code exploration phase is done
+    // Swagger auto-fix feature
+    autoFixSwagger: config?.ai?.autoFixSwagger === true,  // Whether to allow automatic swagger updates
+    swaggerFileChanges: []          // Track swagger file changes made during this run
   };
+  
+  // Determine which tools to expose based on config
+  const availableTools = context.autoFixSwagger 
+    ? TOOLS  // Include all tools including update_swagger_file
+    : TOOLS.filter(t => !t._conditional);  // Exclude conditional tools
   
   const systemPrompt = buildSystemPrompt(endpoint, allEndpoints, config, allParams);
   
@@ -3065,15 +4068,36 @@ ${JSON.stringify(result.details?.request?.data || {}, null, 2)}
 ${JSON.stringify(result.details?.response?.data || {}, null, 2)}
 \`\`\`
 
-Follow the MANDATORY WORKFLOW:
-1. Call extract_required_uids
-2. For each unresolved UID: find_uid_source → execute_api (GET) → execute_api (POST if needed)
-3. Once ALL UIDs resolved: execute_api with retry_original
-4. If errors are unclear (especially 500 errors):
-   a. FIRST call find_service_for_endpoint to discover which service handles this endpoint
-   b. Then use search_source_code with the CORRECT repository
-   c. Use read_source_file to examine the actual implementation
-5. Call report_result with your findings - ALWAYS include doc_issues for any documentation discrepancies!`;
+## MANDATORY CODE-FIRST WORKFLOW - Follow These Steps IN ORDER!
+
+**PHASE 1: SOURCE CODE EXPLORATION (DO THIS FIRST!)**
+1. Call find_service_for_endpoint to discover which repository handles this endpoint
+2. Call search_source_code to find the controller and DTO/model
+3. Call read_source_file on key files to understand:
+   - Required fields (from DTO decorators or model validations)
+   - Type expectations (string vs number)
+   - UID/ID dependencies (foreign keys)
+   - Validation rules
+
+**PHASE 2: ANALYZE DISCREPANCIES**
+4. Call analyze_discrepancies to document what swagger says vs what code says
+
+**PHASE 3: UID RESOLUTION**
+5. Call extract_required_uids - ADD any UIDs found in code but not in swagger
+6. For each unresolved UID: find_uid_source → execute_api (GET) → execute_api (POST if needed)
+
+**PHASE 4: RETRY LOOP**
+7. Once ALL UIDs resolved: execute_api with purpose="retry_original"
+8. If retry fails: call investigate_failure → go back to code → fix request → retry again
+9. Continue until 2xx response or max retries
+
+**PHASE 5: REPORT WITH EVIDENCE**
+10. Call report_result with:
+    - code_analysis: what you found in the code
+    - swagger_changes_required: documentation changes needed with evidence
+    - workflow_changes_required: workflow changes needed
+    - discrepancies_found: list of swagger vs code differences
+    - doc_issues: any other documentation problems`;
 
   const messages = [{ role: "user", content: userMessage }];
   // healingLog is now tracked in context for workflow comparison
@@ -3178,7 +4202,7 @@ Follow the MANDATORY WORKFLOW:
         model: aiModel,
         max_tokens: 4000,
         system: systemPrompt,
-        tools: TOOLS,
+        tools: availableTools,
         messages
       });
       
@@ -3280,7 +4304,8 @@ Follow the MANDATORY WORKFLOW:
           retryCount: context.retryCount,
           healingLog: context.healingLog,
           resolvedParams: context.resolvedParams,
-          unresolvedUids: toolResult.unresolvedUids || []
+          unresolvedUids: toolResult.unresolvedUids || [],
+          swaggerFileChanges: context.swaggerFileChanges || []
         };
       }
     }
@@ -3355,7 +4380,8 @@ Follow the MANDATORY WORKFLOW:
     iterations,
     retryCount: context.retryCount,
     healingLog: context.healingLog,
-    resolvedParams: context.resolvedParams
+    resolvedParams: context.resolvedParams,
+    swaggerFileChanges: context.swaggerFileChanges || []
   };
 }
 

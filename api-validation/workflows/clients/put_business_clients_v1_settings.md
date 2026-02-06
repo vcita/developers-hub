@@ -2,8 +2,10 @@
 endpoint: "PUT /business/clients/v1/settings"
 domain: clients
 tags: []
-swagger: swagger/clients/legacy/manage_clients.json
+swagger: "swagger/clients/legacy/manage_clients.json"
 status: pending
+savedAt: "2026-02-03T18:27:27.715Z"
+timesReused: 0
 ---
 
 # Update Settings

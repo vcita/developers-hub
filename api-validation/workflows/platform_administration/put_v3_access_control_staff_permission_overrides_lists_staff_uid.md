@@ -2,10 +2,11 @@
 endpoint: "PUT /v3/access_control/staff_permission_overrides_lists/{staff_uid}"
 domain: platform_administration
 tags: [access_control, permissions]
-swagger: swagger/platform_administration/access_control.json
-status: success
-savedAt: 2026-01-29T21:00:00.000Z
-verifiedAt: 2026-01-29T21:00:00.000Z
+swagger: "swagger/platform_administration/access_control.json"
+status: verified
+savedAt: "2026-01-29T21:00:00.000Z"
+verifiedAt: "2026-01-29T21:00:00.000Z"
+timesReused: 0
 ---
 
 # Update Staff permission overrides lists
@@ -26,7 +27,7 @@ steps:
     extract:
       staff_id: "$.data.staffs[0].uid"
     expect:
-      status: 200
+      status: [200]
     onFail: abort
 ```
 
@@ -36,7 +37,7 @@ steps:
 steps:
   - id: put_staff_permission_overrides_lists
     method: PUT
-    path: "/v3/access_control/staff_permission_overrides_lists/{staff_uid}"
+    path: "/v3/access_control/staff_permission_overrides_lists/{{staff_uid}}"
     body:
       permissions:
         "0":

@@ -2,10 +2,11 @@
 endpoint: "POST /business/messaging/v1/channels/typing"
 domain: communication
 tags: []
-swagger: swagger/communication/legacy/messages.json
-status: success
-savedAt: 2026-01-27T06:19:17.837Z
-verifiedAt: 2026-01-27T06:19:17.837Z
+swagger: "swagger/communication/legacy/messages.json"
+status: verified
+savedAt: "2026-01-27T06:19:17.837Z"
+verifiedAt: "2026-01-27T06:19:17.837Z"
+timesReused: 0
 ---
 
 # Create Typing

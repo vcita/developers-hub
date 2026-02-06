@@ -2,10 +2,11 @@
 endpoint: "PUT /business/accounts/v1/identities"
 domain: platform_administration
 tags: []
-swagger: swagger/platform_administration/legacy/accounts.json
-status: success
-savedAt: 2026-01-29T08:08:29.450Z
-verifiedAt: 2026-01-29T08:08:29.450Z
+swagger: "swagger/platform_administration/legacy/accounts.json"
+status: verified
+savedAt: "2026-01-29T08:08:29.450Z"
+verifiedAt: "2026-01-29T08:08:29.450Z"
+timesReused: 0
 ---
 
 # Update Identities

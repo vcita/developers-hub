@@ -2,10 +2,11 @@
 endpoint: "POST /v3/license/subscriptions"
 domain: platform_administration
 tags: []
-swagger: swagger/platform_administration/license.json
-status: success
-savedAt: 2026-01-28T20:45:43.592Z
-verifiedAt: 2026-01-28T20:45:43.592Z
+swagger: "swagger/platform_administration/license.json"
+status: verified
+savedAt: "2026-01-28T20:45:43.592Z"
+verifiedAt: "2026-01-28T20:45:43.592Z"
+timesReused: 0
 ---
 
 # Create Subscriptions

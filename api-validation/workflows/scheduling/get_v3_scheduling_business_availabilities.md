@@ -2,15 +2,22 @@
 endpoint: "GET /v3/scheduling/business_availabilities"
 domain: scheduling
 tags: [scheduling, availability, directory]
-swagger: swagger/scheduling/availability.json
-status: working
-savedAt: 2026-02-01T23:30:00.000Z
+swagger: "swagger/scheduling/availability.json"
+status: verified
+savedAt: "2026-02-01T23:30:00.000Z"
+verifiedAt: "2026-02-01T23:30:00.000Z"
+timesReused: 0
 ---
 
 # Get Business Availabilities
 
 ## Summary
 Returns available booking slots for all businesses in your directory with pagination support.
+
+## Prerequisites
+
+None required for this endpoint.
+
 
 ## Authentication
 Available for **Directory tokens** only. Staff tokens will receive a 403 Forbidden error.
@@ -29,7 +36,7 @@ steps:
       page: 0
       per_page: 10
     expect:
-      status: 200
+      status: [200]
 ```
 
 ## Query Parameters

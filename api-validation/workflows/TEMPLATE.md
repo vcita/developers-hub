@@ -129,6 +129,24 @@ Brief description of what this endpoint does and any key insights discovered dur
 
 ---
 
+### 2a. Fallback API Notice (Required when useFallbackApi: true)
+
+When an endpoint requires the fallback API URL (bypassing the main API gateway), add a prominent notice immediately after the Summary:
+
+```markdown
+> **⚠️ Fallback API Required**
+> This endpoint must use the fallback API URL. The main API gateway does not support this endpoint.
+```
+
+**When to use:**
+- Endpoint returns errors through the main API gateway but works via direct service URL
+- Endpoint is not yet routed through the API gateway
+- Legacy endpoints that bypass the gateway
+
+**YAML Frontmatter:** Also set `useFallbackApi: true` in the frontmatter.
+
+---
+
 ### 3. Response Codes (Required for complex endpoints)
 
 ```markdown
@@ -494,6 +512,7 @@ Use this checklist when creating or reviewing workflows:
 - [ ] Test Request (with YAML steps)
 
 ### Recommended Sections (include when applicable)
+- [ ] Fallback API Notice (when `useFallbackApi: true` in frontmatter)
 - [ ] Response Codes (for non-trivial endpoints)
 - [ ] Authentication (when token requirements complex)
 - [ ] UID Resolution Procedure (when path/query params needed)

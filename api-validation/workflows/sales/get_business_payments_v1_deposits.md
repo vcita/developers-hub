@@ -2,10 +2,11 @@
 endpoint: "GET /business/payments/v1/deposits"
 domain: sales
 tags: []
-swagger: swagger/sales/legacy/payments.json
-status: success
-savedAt: 2026-01-26T14:44:39.415Z
-verifiedAt: 2026-01-26T14:44:39.415Z
+swagger: "swagger/sales/legacy/payments.json"
+status: verified
+savedAt: "2026-01-26T14:44:39.415Z"
+verifiedAt: "2026-01-26T14:44:39.415Z"
+timesReused: 0
 ---
 
 # Get Deposits

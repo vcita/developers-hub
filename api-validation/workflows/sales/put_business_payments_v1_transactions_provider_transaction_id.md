@@ -2,10 +2,11 @@
 endpoint: "PUT /business/payments/v1/transactions/{provider_transaction_id}"
 domain: sales
 tags: []
-swagger: swagger/sales/legacy/payments.json
-status: success
-savedAt: 2026-01-26T22:40:11.889Z
-verifiedAt: 2026-01-26T22:40:11.889Z
+swagger: "swagger/sales/legacy/payments.json"
+status: verified
+savedAt: "2026-01-26T22:40:11.889Z"
+verifiedAt: "2026-01-26T22:40:11.889Z"
+timesReused: 0
 ---
 
 # Update Transactions
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: put_transactions
     method: PUT
-    path: "/business/payments/v1/transactions/{provider_transaction_id}"
+    path: "/business/payments/v1/transactions/{{provider_transaction_id}}"
     body:
       transaction:
         card_bin: "411111"

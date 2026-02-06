@@ -2,10 +2,11 @@
 endpoint: "POST /platform/v1/numbers/twilio"
 domain: communication
 tags: []
-swagger: swagger/communication/legacy/legacy_v1_communication.json
-status: success
-savedAt: 2026-01-27T06:29:35.320Z
-verifiedAt: 2026-01-27T06:29:35.320Z
+swagger: "swagger/communication/legacy/legacy_v1_communication.json"
+status: verified
+savedAt: "2026-01-27T06:29:35.320Z"
+verifiedAt: "2026-01-27T06:29:35.320Z"
+timesReused: 0
 ---
 
 # Create Twilio

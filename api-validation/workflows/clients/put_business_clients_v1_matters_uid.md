@@ -1,82 +1,50 @@
 ---
-endpoint: PUT /business/clients/v1/matters/{uid}
+endpoint: "PUT /business/clients/v1/matters/{uid}"
 domain: clients
-tags: []
-status: success
-savedAt: 2026-02-02T20:43:03.321Z
-verifiedAt: 2026-02-02T20:43:03.321Z
+tags: [matters, update]
+swagger: /Users/ram.almog/Documents/GitHub/developers-hub/mcp_swagger/clients.json
+status: verified
+savedAt: 2026-02-04T08:12:05.238Z
+verifiedAt: 2026-02-04T16:10:00.000Z
 timesReused: 0
 ---
 # Update Matters
 
 ## Summary
-Endpoint works correctly with valid matter UID. The original error was caused by using an invalid/non-existent matter UID in the path parameter.
+
+PUT /business/clients/v1/matters/{uid} updates a matter's fields. Requires a valid matter UID from the business. The `{{matter_uid}}` is available from config (tokens.json) and points to a pre-existing matter for the test business.
+
+**Token Type**: This endpoint requires a **Staff token**.
 
 ## Prerequisites
-No specific prerequisites documented.
 
-## UID Resolution Procedure
+None required for this endpoint. The `{{matter_uid}}` is provided from config.
 
-How to dynamically obtain required UIDs for this endpoint:
+## Test Request
 
-| UID Field | GET Endpoint | Extract From | Create Fresh | Cleanup |
-|-----------|--------------|--------------|--------------|---------|
-| uid | GET /business/clients/v1/contacts/{client_uid}/matters | data.matters[0].uid | - | No cleanup needed - updating existing matters doesn't require deletion |
-| matter.fields[].uid | GET /business/clients/v1/matters/{uid} | data.matter.fields[0].uid | - | Field UIDs are retrieved from the matter being updated - no separate creation needed |
-
-### Resolution Steps
-
-**uid**:
-1. Call `GET /business/clients/v1/contacts/{client_uid}/matters`
-2. Extract from response: `data.matters[0].uid`
-3. If empty, create via `POST /business/clients/v1/contacts/{client_uid}/matters`
-
-**matter.fields[].uid**:
-1. Call `GET /business/clients/v1/matters/{uid}`
-2. Extract from response: `data.matter.fields[0].uid`
-
-```json
-{
-  "uid": {
-    "source_endpoint": "GET /business/clients/v1/contacts/{client_uid}/matters",
-    "extract_from": "data.matters[0].uid",
-    "fallback_endpoint": "POST /business/clients/v1/contacts/{client_uid}/matters",
-    "create_fresh": false,
-    "create_endpoint": null,
-    "create_body": null,
-    "cleanup_endpoint": null,
-    "cleanup_note": "No cleanup needed - updating existing matters doesn't require deletion"
-  },
-  "matter.fields[].uid": {
-    "source_endpoint": "GET /business/clients/v1/matters/{uid}",
-    "extract_from": "data.matter.fields[0].uid",
-    "fallback_endpoint": null,
-    "create_fresh": false,
-    "create_endpoint": null,
-    "create_body": null,
-    "cleanup_endpoint": null,
-    "cleanup_note": "Field UIDs are retrieved from the matter being updated - no separate creation needed"
-  }
-}
+```yaml
+steps:
+  - id: main_request
+    description: "Update matter with empty fields array (validates endpoint accessibility)"
+    method: PUT
+    path: "/business/clients/v1/matters/{{matter_uid}}"
+    body:
+      matter:
+        fields: []
+    expect:
+      status: [200, 201]
 ```
 
-## How to Resolve Parameters
-Parameters were resolved automatically.
+## Swagger Discrepancies
 
-## Critical Learnings
+| Aspect | Swagger Says | Actual Behavior | Evidence |
+|--------|--------------|-----------------|----------|
+| validation_rule: uid (path) | Matter UID must exist and be accessible (documented). | Invalid/non-existent UID produces 422 invalid with message "This matter doesn't exist". | - |
+| required_field: fields | Fields array is optional | Empty fields array is accepted and returns 200 | Tested with empty fields |
 
-No specific learnings documented.
+## Notes
 
-## Request Template
-
-Use this template with dynamically resolved UIDs:
-
-```json
-{
-  "method": "PUT",
-  "path": "/business/clients/v1/matters/{{resolved.uid}}",
-  "body": {
-    "matter": {}
-  }
-}
-```
+- The `{{matter_uid}}` variable comes from config (tokens.json params section)
+- The matter must belong to the business associated with the staff token
+- Fields array can be empty; the endpoint validates matter exists and user has permission
+- To update actual field values, get field UIDs from `GET /platform/v1/fields` (filter by `object_type=matter`)

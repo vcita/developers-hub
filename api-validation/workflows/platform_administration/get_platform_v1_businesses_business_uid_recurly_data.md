@@ -2,10 +2,11 @@
 endpoint: "GET /platform/v1/businesses/{business_uid}/recurly_data"
 domain: platform_administration
 tags: [businesses, recurly-data]
-swagger: swagger/platform_administration/legacy/legacy_v1_platform.json
-status: skip
-savedAt: 2026-01-30T07:24:35.659Z
-verifiedAt: 2026-01-30T07:24:35.659Z
+swagger: "swagger/platform_administration/legacy/legacy_v1_platform.json"
+status: skipped
+savedAt: "2026-01-30T07:24:35.659Z"
+verifiedAt: "2026-01-30T07:24:35.659Z"
+timesReused: 0
 ---
 
 # Get Recurly data
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: get_recurly_data
     method: GET
-    path: "/platform/v1/businesses/{business_uid}/recurly_data"
+    path: "/platform/v1/businesses/{{business_uid}}/recurly_data"
     expect:
       status: [200, 201]
 ```

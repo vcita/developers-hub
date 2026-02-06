@@ -2,10 +2,11 @@
 endpoint: "POST /business/payments/v1/card_requests"
 domain: sales
 tags: []
-swagger: swagger/sales/legacy/payments.json
-status: success
-savedAt: 2026-01-26T21:20:10.231Z
-verifiedAt: 2026-01-26T21:20:10.231Z
+swagger: "swagger/sales/legacy/payments.json"
+status: verified
+savedAt: "2026-01-26T21:20:10.231Z"
+verifiedAt: "2026-01-26T21:20:10.231Z"
+timesReused: 0
 ---
 
 # Create Card requests

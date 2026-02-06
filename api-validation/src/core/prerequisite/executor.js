@@ -76,26 +76,110 @@ function getDynamicDateVariables() {
 }
 
 /**
- * Execute a single prerequisite step
+ * Execute a single prerequisite step with recursive workflow lookup
+ * 
+ * If the step's endpoint has its own workflow, that workflow's settings are used:
+ * - useFallbackApi: If true, the step uses the fallback URL
+ * - prerequisites: Executed recursively before this step
  * 
  * @param {Object} step - The step to execute
  * @param {Object} context - Current context with resolved variables
  * @param {Object} config - Configuration with tokens and baseUrl
  * @param {Function} makeRequest - Function to make HTTP requests
+ * @param {Object} options - Additional options
+ * @param {Object} options.workflowRepo - Workflow repository for recursive lookup
+ * @param {number} options.depth - Current recursion depth (for logging)
  * @returns {Promise<Object>} Result of the step execution
  */
-async function executeStep(step, context, config, makeRequest) {
-  const { id, method, path, params, body, extract: extractConfig, expect, onFail, token } = step;
+async function executeStep(step, context, config, makeRequest, options = {}) {
+  const { workflowRepo, depth = 0 } = options;
+  const { id, method, path, params, body, extract: extractConfig, expect, onFail, token, content_type, form_fields, file_fields } = step;
   
   // Resolve variables in path, params, and body
   const resolvedPath = resolve(path, context);
   const resolvedParams = resolveObject(params || {}, context);
   const resolvedBody = resolveObject(body || {}, context);
   
+  // Resolve variables in form_fields if present
+  const resolvedFormFields = form_fields ? resolveObject(form_fields, context) : null;
+  
   // Check for unresolved variables
   const unresolved = findAllUnresolved({ path: resolvedPath, params: resolvedParams, body: resolvedBody }, context);
   if (unresolved.length > 0) {
     console.log(`  [WARN] Step ${id}: Unresolved variables: ${unresolved.join(', ')}`);
+  }
+  
+  // RECURSIVE WORKFLOW LOOKUP: Check if this step's endpoint has its own workflow
+  let effectiveMakeRequest = makeRequest;
+  const endpointKey = `${method} ${resolvedPath}`;
+  
+  if (workflowRepo) {
+    const stepWorkflow = workflowRepo.get(endpointKey);
+    
+    if (stepWorkflow) {
+      const indent = '  '.repeat(depth + 1);
+      
+      // Check if step's workflow requires fallback API
+      if (stepWorkflow.useFallbackApi === true && config.fallbackUrl) {
+        console.log(`${indent}[Workflow] ${endpointKey} requires fallback API`);
+        console.log(`${indent}[Workflow] Will use fallback URL: ${config.fallbackUrl}`);
+        
+        // Create a new makeRequest that uses the fallback URL
+        const axios = require('axios');
+        effectiveMakeRequest = async (requestConfig, cfg) => {
+          const url = `${config.fallbackUrl}${requestConfig.path}`;
+          console.log(`    [DEBUG] effectiveMakeRequest: ${requestConfig.method} ${url}`);
+          console.log(`    [DEBUG] Body: ${JSON.stringify(requestConfig.body)?.substring(0, 200)}`);
+          console.log(`    [DEBUG] Has auth header: ${requestConfig.headers?.Authorization ? 'Yes' : 'No'}`);
+          try {
+            const response = await axios({
+              method: requestConfig.method,
+              url,
+              data: requestConfig.body,
+              headers: requestConfig.headers,
+              params: requestConfig.params,
+              validateStatus: () => true
+            });
+            console.log(`    [DEBUG] Response status: ${response.status}`);
+            if (response.status >= 400) {
+              console.log(`    [DEBUG] Response error data: ${JSON.stringify(response.data)?.substring(0, 300)}`);
+            }
+            return { status: response.status, data: response.data };
+          } catch (error) {
+            console.log(`    [DEBUG] Request error: ${error.message}`);
+            if (error.response) {
+              return { status: error.response.status, data: error.response.data };
+            }
+            throw error;
+          }
+        };
+      }
+      
+      // Check if step's workflow has its own prerequisites (recursive)
+      if (stepWorkflow.prerequisites?.steps?.length > 0 && depth < 5) {
+        console.log(`${indent}[Workflow] ${endpointKey} has ${stepWorkflow.prerequisites.steps.length} prerequisite(s) - executing recursively`);
+        
+        const prereqResult = await executePrerequisites(
+          stepWorkflow,
+          { ...config, params: { ...config.params, ...context } },
+          effectiveMakeRequest,
+          { workflowRepo, depth: depth + 1 }
+        );
+        
+        if (prereqResult.failed) {
+          console.log(`${indent}[Workflow] Recursive prerequisite failed: ${prereqResult.failedReason}`);
+          return {
+            success: false,
+            stepId: id,
+            error: `Recursive prerequisite '${prereqResult.failedStep}' failed: ${prereqResult.failedReason}`,
+            onFail: onFail || 'abort'
+          };
+        }
+        
+        // Merge extracted variables from recursive prerequisites
+        Object.assign(context, prereqResult.variables || {});
+      }
+    }
   }
   
   // Determine which token to use
@@ -111,23 +195,85 @@ async function executeStep(step, context, config, makeRequest) {
     };
   }
   
-  // Build the request
+  // Build the request - handle multipart vs JSON
+  const isMultipart = content_type === 'multipart';
+  let requestData;
+  let requestHeaders = {
+    'Authorization': `Bearer ${authToken}`
+  };
+
+  // Directory tokens acting on behalf of a business must include X-On-Behalf-Of.
+  // Source of truth is config.params.business_uid (merged into params/context by executePrerequisites).
+  if (tokenType === 'directory') {
+    const onBehalfOf = config?.params?.business_uid || config?.params?.business_id || context?.business_uid;
+    if (onBehalfOf) {
+      requestHeaders['X-On-Behalf-Of'] = onBehalfOf;
+      console.log(`    [Headers] Added X-On-Behalf-Of for directory token: ${onBehalfOf}`);
+    } else {
+      console.log(`    [Headers] WARNING: directory token used but no business_uid available for X-On-Behalf-Of`);
+    }
+  }
+  
+  if (isMultipart) {
+    // Build multipart form data
+    const FormData = require('form-data');
+    const fs = require('fs');
+    const pathModule = require('path');
+    const formData = new FormData();
+    
+    // Add form fields (resolved text fields)
+    if (resolvedFormFields && typeof resolvedFormFields === 'object') {
+      for (const [key, value] of Object.entries(resolvedFormFields)) {
+        formData.append(key, String(value));
+        console.log(`    [Multipart] Adding form field: ${key}=${String(value).substring(0, 50)}`);
+      }
+    }
+    
+    // Add file fields
+    if (file_fields && Array.isArray(file_fields)) {
+      const filesDir = pathModule.resolve(__dirname, '../../test-files');
+      for (const file of file_fields) {
+        const { field_name, file_path, filename } = file;
+        const absolutePath = pathModule.resolve(filesDir, file_path);
+        
+        if (fs.existsSync(absolutePath)) {
+          const fileStream = fs.createReadStream(absolutePath);
+          const uploadFilename = filename || pathModule.basename(file_path);
+          formData.append(field_name, fileStream, uploadFilename);
+          console.log(`    [Multipart] Adding file: ${field_name} -> ${uploadFilename}`);
+        } else {
+          console.log(`    [Multipart] WARNING: File not found: ${absolutePath}`);
+        }
+      }
+    }
+    
+    requestData = formData;
+    Object.assign(requestHeaders, formData.getHeaders());
+  } else {
+    // Standard JSON request
+    requestData = Object.keys(resolvedBody).length > 0 ? resolvedBody : undefined;
+    requestHeaders['Content-Type'] = 'application/json';
+  }
+  
   const requestConfig = {
     method,
     path: resolvedPath,
     params: Object.keys(resolvedParams).length > 0 ? resolvedParams : undefined,
-    body: Object.keys(resolvedBody).length > 0 ? resolvedBody : undefined,
-    headers: {
-      'Authorization': `Bearer ${authToken}`,
-      'Content-Type': 'application/json'
-    }
+    body: requestData,
+    headers: requestHeaders,
+    isMultipart
   };
   
-  console.log(`  [${id}] ${method} ${resolvedPath}`);
+  console.log(`  [${id}] ${method} ${resolvedPath}${isMultipart ? ' (multipart)' : ''}`);
+  if (!isMultipart) {
+    console.log(`    [DEBUG] Using effectiveMakeRequest, body keys: ${Object.keys(resolvedBody).join(', ') || 'none'}`);
+  } else {
+    console.log(`    [DEBUG] Using effectiveMakeRequest, multipart with ${Object.keys(resolvedFormFields || {}).length} form fields and ${(file_fields || []).length} files`);
+  }
   
   try {
-    // Execute the request
-    const response = await makeRequest(requestConfig, config);
+    // Execute the request using effectiveMakeRequest (may use fallback URL from step's workflow)
+    const response = await effectiveMakeRequest(requestConfig, config);
     
     // Check expected status
     const expectedStatus = expect?.status || 200;
@@ -154,6 +300,12 @@ async function executeStep(step, context, config, makeRequest) {
     // Extract values from response
     const extracted = {};
     if (extractConfig && Object.keys(extractConfig).length > 0) {
+      // Log response structure for debugging
+      console.log(`    [DEBUG] Response data keys: ${JSON.stringify(Object.keys(response.data || {}))}`);
+      if (response.data?.data) {
+        console.log(`    [DEBUG] data.* keys: ${JSON.stringify(Object.keys(response.data.data || {}))}`);
+      }
+      
       for (const [key, jsonPath] of Object.entries(extractConfig)) {
         // Try nested query first (for complex paths)
         let value = queryNested(response.data, jsonPath);
@@ -168,6 +320,7 @@ async function executeStep(step, context, config, makeRequest) {
           console.log(`    → ${key}: ${JSON.stringify(value).substring(0, 100)}`);
         } else {
           console.log(`    → ${key}: [NOT FOUND] (path: ${jsonPath})`);
+          console.log(`    [DEBUG] Response data: ${JSON.stringify(response.data).substring(0, 300)}`);
         }
       }
     }
@@ -197,13 +350,18 @@ async function executeStep(step, context, config, makeRequest) {
  * @param {Object} workflow - The workflow object with prerequisites
  * @param {Object} config - Configuration with tokens, params, and baseUrl
  * @param {Function} makeRequest - Function to make HTTP requests
+ * @param {Object} options - Additional options
+ * @param {Object} options.workflowRepo - Workflow repository for recursive lookup
+ * @param {number} options.depth - Current recursion depth (for logging)
  * @returns {Promise<Object>} Result containing success status, extracted variables, and any errors
  */
-async function executePrerequisites(workflow, config, makeRequest) {
+async function executePrerequisites(workflow, config, makeRequest, options = {}) {
+  const { workflowRepo, depth = 0 } = options;
   const prerequisites = workflow.prerequisites?.steps || [];
+  const indent = '  '.repeat(depth);
   
   if (prerequisites.length === 0) {
-    console.log('  No prerequisites defined');
+    console.log(`${indent}  No prerequisites defined`);
     return {
       success: true,
       variables: { ...config.params },
@@ -211,7 +369,7 @@ async function executePrerequisites(workflow, config, makeRequest) {
     };
   }
   
-  console.log(`\n📋 Executing ${prerequisites.length} prerequisite(s)...`);
+  console.log(`${depth === 0 ? '\n' : ''}${indent}📋 Executing ${prerequisites.length} prerequisite(s)...`);
   
   // Initialize context with config params and dynamic date variables
   const context = { 
@@ -221,7 +379,8 @@ async function executePrerequisites(workflow, config, makeRequest) {
   const results = [];
   
   for (const step of prerequisites) {
-    const result = await executeStep(step, context, config, makeRequest);
+    // Pass workflowRepo for recursive lookup
+    const result = await executeStep(step, context, config, makeRequest, { workflowRepo, depth });
     results.push(result);
     
     if (result.success) {
@@ -230,7 +389,7 @@ async function executePrerequisites(workflow, config, makeRequest) {
     } else {
       // Handle failure based on onFail strategy
       if (result.onFail === 'abort') {
-        console.log(`\n  ⛔ Prerequisite '${result.stepId}' failed - aborting workflow`);
+        console.log(`\n${indent}  ⛔ Prerequisite '${result.stepId}' failed - aborting workflow`);
         return {
           success: false,
           failed: true,
@@ -240,17 +399,17 @@ async function executePrerequisites(workflow, config, makeRequest) {
           steps: results
         };
       } else if (result.onFail === 'skip') {
-        console.log(`  ⚠ Prerequisite '${result.stepId}' failed - skipping (onFail: skip)`);
+        console.log(`${indent}  ⚠ Prerequisite '${result.stepId}' failed - skipping (onFail: skip)`);
         continue;
       } else if (result.onFail === 'warn') {
-        console.log(`  ⚠ Prerequisite '${result.stepId}' failed - continuing with warning`);
+        console.log(`${indent}  ⚠ Prerequisite '${result.stepId}' failed - continuing with warning`);
         continue;
       }
     }
   }
   
-  console.log(`\n✓ All prerequisites completed successfully`);
-  console.log(`  Variables available: ${Object.keys(context).join(', ')}`);
+  console.log(`\n${indent}✓ All prerequisites completed successfully`);
+  console.log(`${indent}  Variables available: ${Object.keys(context).join(', ')}`);
   
   return {
     success: true,
@@ -265,15 +424,31 @@ async function executePrerequisites(workflow, config, makeRequest) {
  * Falls back to native http/https if axios not available
  * 
  * @param {string} baseUrl - Base URL for requests
+ * @param {Object} options - Options
+ * @param {string} options.fallbackUrl - Fallback URL to use instead of baseUrl when useFallback is true
+ * @param {boolean} options.useFallback - If true, use fallbackUrl as the base URL
  * @returns {Function} Request function
  */
-function createRequestFunction(baseUrl) {
+function createRequestFunction(baseUrl, options = {}) {
+  const { fallbackUrl, useFallback = false } = options;
+  
+  // Determine which URL to use as the base
+  const effectiveBaseUrl = useFallback && fallbackUrl ? fallbackUrl : baseUrl;
+  
+  if (useFallback && fallbackUrl) {
+    console.log(`  [RequestFunction] Using fallback URL: ${effectiveBaseUrl}`);
+  }
+  
   // Try to use axios if available
   try {
     const axios = require('axios');
     
     return async (requestConfig, config) => {
-      const url = `${config.baseUrl || baseUrl}${requestConfig.path}`;
+      // Use effectiveBaseUrl as the primary, but allow config to override
+      const urlBase = useFallback && fallbackUrl 
+        ? fallbackUrl 
+        : (config.baseUrl || effectiveBaseUrl);
+      const url = `${urlBase}${requestConfig.path}`;
       
       const axiosConfig = {
         method: requestConfig.method,
@@ -290,6 +465,12 @@ function createRequestFunction(baseUrl) {
       // Add body for non-GET requests
       if (requestConfig.method !== 'GET' && requestConfig.body) {
         axiosConfig.data = requestConfig.body;
+        
+        // For multipart requests, set unlimited content length
+        if (requestConfig.isMultipart) {
+          axiosConfig.maxContentLength = Infinity;
+          axiosConfig.maxBodyLength = Infinity;
+        }
       }
       
       const response = await axios(axiosConfig);
@@ -305,7 +486,10 @@ function createRequestFunction(baseUrl) {
     
     return async (requestConfig, config) => {
       return new Promise((resolve, reject) => {
-        const url = new URL(`${config.baseUrl || baseUrl}${requestConfig.path}`);
+        const urlBase = useFallback && fallbackUrl 
+          ? fallbackUrl 
+          : (config.baseUrl || effectiveBaseUrl);
+        const url = new URL(`${urlBase}${requestConfig.path}`);
         
         // Add query params
         if (requestConfig.params) {
@@ -381,7 +565,9 @@ function parseYamlSteps(yamlContent) {
     if (trimmed.startsWith('- id:')) {
       if (currentStep) {
         if (bodyLines.length > 0) {
+          console.log(`[DEBUG parseYamlSteps] Mid-parse body lines:\n${bodyLines.join('\n')}`);
           currentStep.body = parseSimpleYaml(bodyLines.join('\n'));
+          console.log(`[DEBUG parseYamlSteps] Mid-parse body: ${JSON.stringify(currentStep.body)}`);
           bodyLines = [];
         }
         result.steps.push(currentStep);
@@ -393,36 +579,27 @@ function parseYamlSteps(yamlContent) {
     
     if (!currentStep) continue;
     
-    // Parse step properties
-    if (trimmed.startsWith('description:')) {
-      currentStep.description = trimmed.split(':').slice(1).join(':').trim().replace(/^["']|["']$/g, '');
-      inSection = null;
-    } else if (trimmed.startsWith('method:')) {
-      currentStep.method = trimmed.split(':')[1].trim();
-      inSection = null;
-    } else if (trimmed.startsWith('path:')) {
-      currentStep.path = trimmed.split(':').slice(1).join(':').trim().replace(/^["']|["']$/g, '');
-      inSection = null;
-    } else if (trimmed.startsWith('token:')) {
-      currentStep.token = trimmed.split(':')[1].trim();
-      inSection = null;
-    } else if (trimmed.startsWith('onFail:')) {
-      currentStep.onFail = trimmed.split(':')[1].trim();
-      inSection = null;
-    } else if (trimmed === 'extract:') {
-      currentStep.extract = {};
-      inSection = 'extract';
-    } else if (trimmed === 'params:') {
-      currentStep.params = {};
-      inSection = 'params';
-    } else if (trimmed === 'body:') {
-      currentStep.body = {};
-      inSection = 'body';
-      bodyLines = [];
-    } else if (trimmed === 'expect:') {
-      currentStep.expect = {};
-      inSection = 'expect';
-    } else if (inSection && indent > 4) {
+    // IMPORTANT: Check for section content FIRST (deeply indented lines)
+    // This prevents nested body fields like "description:" from being misinterpreted
+    // as step-level properties
+    if (inSection && indent > 4) {
+      // Handle file_fields array items (- field_name: "...")
+      if (inSection === 'file_fields') {
+        if (trimmed.startsWith('- field_name:')) {
+          // Start new file field item
+          const value = trimmed.split(':').slice(1).join(':').trim().replace(/^["']|["']$/g, '');
+          currentStep.file_fields.push({ field_name: value });
+        } else if (currentStep.file_fields.length > 0) {
+          // Add properties to current file field item
+          const propMatch = trimmed.match(/^(\w+):\s*["']?(.+?)["']?$/);
+          if (propMatch) {
+            const [, key, value] = propMatch;
+            currentStep.file_fields[currentStep.file_fields.length - 1][key] = value.replace(/^["']|["']$/g, '');
+          }
+        }
+        continue;
+      }
+      
       const match = trimmed.match(/^["']?([^"':]+)["']?:\s*["']?(.+?)["']?$/);
       if (match) {
         let [, key, value] = match;
@@ -440,19 +617,66 @@ function parseYamlSteps(yamlContent) {
         
         if (inSection === 'body') {
           bodyLines.push(line);
+          console.log(`[DEBUG parseYamlSteps] Added body line (matched): ${line.trim()}`);
+        } else if (inSection === 'form_fields') {
+          currentStep.form_fields[key] = value;
         } else {
           currentStep[inSection][key] = value;
         }
       } else if (inSection === 'body') {
         bodyLines.push(line);
+        console.log(`[DEBUG parseYamlSteps] Added body line (no match): ${line.trim()}`);
       }
+      continue;
+    }
+    
+    // Parse step-level properties (only at step indent level, not nested)
+    if (trimmed.startsWith('description:')) {
+      currentStep.description = trimmed.split(':').slice(1).join(':').trim().replace(/^["']|["']$/g, '');
+      inSection = null;
+    } else if (trimmed.startsWith('method:')) {
+      currentStep.method = trimmed.split(':')[1].trim();
+      inSection = null;
+    } else if (trimmed.startsWith('path:')) {
+      currentStep.path = trimmed.split(':').slice(1).join(':').trim().replace(/^["']|["']$/g, '');
+      inSection = null;
+    } else if (trimmed.startsWith('token:')) {
+      currentStep.token = trimmed.split(':')[1].trim();
+      inSection = null;
+    } else if (trimmed.startsWith('onFail:')) {
+      currentStep.onFail = trimmed.split(':')[1].trim();
+      inSection = null;
+    } else if (trimmed.startsWith('content_type:')) {
+      currentStep.content_type = trimmed.split(':')[1].trim();
+      inSection = null;
+    } else if (trimmed === 'form_fields:') {
+      currentStep.form_fields = {};
+      inSection = 'form_fields';
+    } else if (trimmed === 'file_fields:') {
+      currentStep.file_fields = [];
+      inSection = 'file_fields';
+    } else if (trimmed === 'extract:') {
+      currentStep.extract = {};
+      inSection = 'extract';
+    } else if (trimmed === 'params:') {
+      currentStep.params = {};
+      inSection = 'params';
+    } else if (trimmed === 'body:') {
+      currentStep.body = {};
+      inSection = 'body';
+      bodyLines = [];
+    } else if (trimmed === 'expect:') {
+      currentStep.expect = {};
+      inSection = 'expect';
     }
   }
   
   // Add last step
   if (currentStep) {
     if (bodyLines.length > 0) {
+      console.log(`[DEBUG parseYamlSteps] Body lines to parse:\n${bodyLines.join('\n')}`);
       currentStep.body = parseSimpleYaml(bodyLines.join('\n'));
+      console.log(`[DEBUG parseYamlSteps] Parsed body: ${JSON.stringify(currentStep.body)}`);
     }
     result.steps.push(currentStep);
   }

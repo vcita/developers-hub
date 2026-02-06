@@ -2,10 +2,11 @@
 endpoint: "POST /v3/payment_processing/payment_gateway_assignments"
 domain: sales
 tags: []
-swagger: swagger/sales/payment_gateway.json
-status: success
-savedAt: 2026-01-27T04:20:22.927Z
-verifiedAt: 2026-01-27T04:20:22.927Z
+swagger: "swagger/sales/payment_gateway.json"
+status: verified
+savedAt: "2026-01-27T04:20:22.927Z"
+verifiedAt: "2026-01-27T04:20:22.927Z"
+timesReused: 0
 ---
 
 # Create Payment gateway assignments

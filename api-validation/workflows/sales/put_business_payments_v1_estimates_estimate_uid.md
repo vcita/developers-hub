@@ -2,10 +2,11 @@
 endpoint: "PUT /business/payments/v1/estimates/{estimate_uid}"
 domain: sales
 tags: []
-swagger: swagger/sales/legacy/payments.json
-status: success
-savedAt: 2026-01-26T22:24:06.349Z
-verifiedAt: 2026-01-26T22:24:06.349Z
+swagger: "swagger/sales/legacy/payments.json"
+status: verified
+savedAt: "2026-01-26T22:24:06.349Z"
+verifiedAt: "2026-01-26T22:24:06.349Z"
+timesReused: 0
 ---
 
 # Update Estimates
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: put_estimates
     method: PUT
-    path: "/business/payments/v1/estimates/{estimate_uid}"
+    path: "/business/payments/v1/estimates/{{estimate_uid}}"
     body:
       estimate:
         billing_address: 123 Updated Test St

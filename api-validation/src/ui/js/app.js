@@ -13,12 +13,16 @@ const AppState = {
     domain: '',
     method: '',
     tokenType: '',
+    workflowStatus: '',
     search: ''
   },
   rateLimit: {
     preset: 'normal',
     concurrent: 3,
     retryOn429: true
+  },
+  aiOptions: {
+    autoFixSwagger: false
   },
   config: null
 };
@@ -114,12 +118,16 @@ function setupEventListeners() {
   document.getElementById('domain-filter')?.addEventListener('change', onFilterChange);
   document.getElementById('method-filter')?.addEventListener('change', onFilterChange);
   document.getElementById('token-filter')?.addEventListener('change', onFilterChange);
+  document.getElementById('status-filter')?.addEventListener('change', onFilterChange);
   document.getElementById('search-filter')?.addEventListener('input', debounce(onFilterChange, 300));
   
   // Rate limit changes
   document.getElementById('rate-preset')?.addEventListener('change', onRateLimitChange);
   document.getElementById('concurrent')?.addEventListener('change', onRateLimitChange);
   document.getElementById('retry-429')?.addEventListener('change', onRateLimitChange);
+  
+  // AI options changes
+  document.getElementById('auto-fix-swagger')?.addEventListener('change', onAiOptionsChange);
   
   // Action buttons
   document.getElementById('select-all-btn')?.addEventListener('click', selectAll);
@@ -138,6 +146,7 @@ function onFilterChange() {
   AppState.filters.domain = document.getElementById('domain-filter')?.value || '';
   AppState.filters.method = document.getElementById('method-filter')?.value || '';
   AppState.filters.tokenType = document.getElementById('token-filter')?.value || '';
+  AppState.filters.workflowStatus = document.getElementById('status-filter')?.value || '';
   AppState.filters.search = document.getElementById('search-filter')?.value || '';
   
   renderEndpoints();
@@ -150,6 +159,13 @@ function onRateLimitChange() {
   AppState.rateLimit.preset = document.getElementById('rate-preset')?.value || 'normal';
   AppState.rateLimit.concurrent = parseInt(document.getElementById('concurrent')?.value || '3', 10);
   AppState.rateLimit.retryOn429 = document.getElementById('retry-429')?.checked ?? true;
+}
+
+/**
+ * Handle AI options changes
+ */
+function onAiOptionsChange() {
+  AppState.aiOptions.autoFixSwagger = document.getElementById('auto-fix-swagger')?.checked ?? false;
 }
 
 /**
@@ -203,6 +219,12 @@ function getFilteredEndpoints() {
     }
     if (AppState.filters.tokenType && !endpoint.tokenInfo.tokens.includes(AppState.filters.tokenType)) {
       return false;
+    }
+    if (AppState.filters.workflowStatus) {
+      const endpointStatus = normalizeStatus(endpoint.workflowStatus || 'none');
+      if (endpointStatus !== AppState.filters.workflowStatus) {
+        return false;
+      }
     }
     if (AppState.filters.search) {
       const search = AppState.filters.search.toLowerCase();
@@ -340,6 +362,9 @@ async function runTests() {
       rateLimit: {
         maxConcurrent: AppState.rateLimit.concurrent,
         retryOn429: AppState.rateLimit.retryOn429
+      },
+      aiOptions: {
+        autoFixSwagger: AppState.aiOptions.autoFixSwagger
       }
     });
   } catch (error) {

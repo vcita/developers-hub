@@ -2,10 +2,11 @@
 endpoint: "PUT /v3/payment_processing/payment_gateways/{uid}"
 domain: sales
 tags: []
-swagger: swagger/sales/payment_gateway.json
-status: success
-savedAt: 2026-01-26T22:41:27.128Z
-verifiedAt: 2026-01-26T22:41:27.128Z
+swagger: "swagger/sales/payment_gateway.json"
+status: verified
+savedAt: "2026-01-26T22:41:27.128Z"
+verifiedAt: "2026-01-26T22:41:27.128Z"
+timesReused: 0
 ---
 
 # Update Payment gateways
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: put_payment_gateways
     method: PUT
-    path: "/v3/payment_processing/payment_gateways/{uid}"
+    path: "/v3/payment_processing/payment_gateways/{{uid}}"
     body:
       gateway_logo_url: https://example.com/logo.png
       default_locale: en

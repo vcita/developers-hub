@@ -1,19 +1,21 @@
 ---
-endpoint: GET /platform/v1/clients/{client_id}/estimates
+endpoint: "GET /platform/v1/clients/{client_id}/estimates"
 domain: clients
 tags: []
-status: success
-savedAt: 2026-02-02T21:15:00.194Z
-verifiedAt: 2026-02-02T21:15:00.194Z
+swagger: "swagger/clients/legacy/manage_clients.json"
+status: verified
+savedAt: "2026-02-02T21:15:00.194Z"
+verifiedAt: "2026-02-02T21:15:00.194Z"
 timesReused: 0
+tokens: [directory]
 ---
 # Get Estimates
 
 ## Summary
-Endpoint works with directory token, but fails with staff token due to missing permissions. Documentation incorrectly suggests all staff tokens work.
+**Requires Directory token with X-On-Behalf-Of header.** Staff OAuth tokens fail with 422 "Unauthorized" even when they have `payments.manage` permission, due to authorization type mismatch in `EstimatesAPI.authorize_action` which requires `authorize_params[:type] == 'user'`.
 
 ## Prerequisites
-No specific prerequisites documented.
+None required for this endpoint.
 
 ## UID Resolution Procedure
 
@@ -29,37 +31,32 @@ How to dynamically obtain required UIDs for this endpoint:
 1. Call `Already resolved in config`
 2. Extract from response: `config parameters`
 
-```json
-{
-  "client_id": {
-    "source_endpoint": "Already resolved in config",
-    "extract_from": "config parameters",
-    "fallback_endpoint": null,
-    "create_fresh": false,
-    "create_endpoint": null,
-    "create_body": null,
-    "cleanup_endpoint": null,
-    "cleanup_note": "No cleanup needed - using existing client"
-  }
-}
-```
+
 
 ## How to Resolve Parameters
 Parameters were resolved automatically.
 
 ## Critical Learnings
 
-No specific learnings documented.
+1. **Staff tokens fail despite having `payments.manage` permission** - The authorization logic in `EstimatesAPI.authorize_action` requires `authorize_params[:type] == 'user'`, which Staff OAuth tokens don't satisfy.
+2. **Directory tokens with X-On-Behalf-Of work** - When a Directory token with `X-On-Behalf-Of` header is used, the authentication flow converts it to `type: 'user'` with the staff user, satisfying the authorization check.
+3. **Use Directory token pattern for payment-related endpoints** - This is the reliable authentication pattern for endpoints using `EstimatesAPI` authorization.
 
-## Request Template
+## Test Request
 
 Use this template with dynamically resolved UIDs:
 
-```json
-{
-  "method": "GET",
-  "path": "/platform/v1/clients/{{resolved.uid}}/estimates"
-}
+```yaml
+steps:
+  - id: get_estimates
+    description: "Get estimates for client using directory token"
+    method: GET
+    path: "/platform/v1/clients/{{client_id}}/estimates"
+    token: directory
+    headers:
+      X-On-Behalf-Of: "{{business_id}}"
+    expect:
+      status: [200, 201]
 ```
 
 ## Code Analysis

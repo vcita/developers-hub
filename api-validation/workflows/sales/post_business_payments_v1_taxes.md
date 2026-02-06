@@ -2,10 +2,11 @@
 endpoint: "POST /business/payments/v1/taxes"
 domain: sales
 tags: []
-swagger: swagger/sales/legacy/payments.json
-status: success
-savedAt: 2026-01-26T21:35:28.064Z
-verifiedAt: 2026-01-26T21:35:28.064Z
+swagger: "swagger/sales/legacy/payments.json"
+status: verified
+savedAt: "2026-01-26T21:35:28.064Z"
+verifiedAt: "2026-01-26T21:35:28.064Z"
+timesReused: 0
 ---
 
 # Create Taxes

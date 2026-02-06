@@ -2,10 +2,11 @@
 endpoint: "PUT /platform/v1/payment/packages/{package_id}"
 domain: sales
 tags: []
-swagger: swagger/sales/legacy/legacy_v1_sales.json
-status: success
-savedAt: 2026-01-26T22:47:12.384Z
-verifiedAt: 2026-01-26T22:47:12.384Z
+swagger: "swagger/sales/legacy/legacy_v1_sales.json"
+status: verified
+savedAt: "2026-01-26T22:47:12.384Z"
+verifiedAt: "2026-01-26T22:47:12.384Z"
+timesReused: 0
 ---
 
 # Update Packages
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: put_packages
     method: PUT
-    path: "/platform/v1/payment/packages/{package_id}"
+    path: "/platform/v1/payment/packages/{{package_id}}"
     body:
       package:
         currency: USD

@@ -2,10 +2,11 @@
 endpoint: "POST /business/payments/v1/scheduled_payments_rules"
 domain: sales
 tags: []
-swagger: swagger/sales/legacy/payments.json
-status: success
-savedAt: 2026-01-27T05:37:36.671Z
-verifiedAt: 2026-01-27T05:37:36.671Z
+swagger: "swagger/sales/legacy/payments.json"
+status: verified
+savedAt: "2026-01-27T05:37:36.671Z"
+verifiedAt: "2026-01-27T05:37:36.671Z"
+timesReused: 0
 ---
 
 # Create Scheduled payments rules

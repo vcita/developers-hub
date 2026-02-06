@@ -2,10 +2,11 @@
 endpoint: "POST /platform/v1/payment/packages"
 domain: sales
 tags: []
-swagger: swagger/sales/legacy/legacy_v1_sales.json
-status: success
-savedAt: 2026-01-27T04:23:18.093Z
-verifiedAt: 2026-01-27T04:23:18.093Z
+swagger: "swagger/sales/legacy/legacy_v1_sales.json"
+status: verified
+savedAt: "2026-01-27T04:23:18.093Z"
+verifiedAt: "2026-01-27T04:23:18.093Z"
+timesReused: 0
 ---
 
 # Create Packages

@@ -3,6 +3,12 @@
  * 
  * A searchable, LLM-friendly repository for API workflows.
  * Designed to be reusable across agentic frameworks.
+ * 
+ * IMPORTANT: All workflows follow the canonical format defined in:
+ * - TEMPLATE.md: Canonical workflow format
+ * - CONSISTENCY_AUDIT.md: Consistency requirements
+ * 
+ * @see workflows/TEMPLATE.md for the authoritative workflow format
  */
 
 const fs = require('fs');
@@ -12,36 +18,184 @@ const { parseYamlSteps } = require('../prerequisite/executor');
 // Repository paths
 const WORKFLOWS_DIR = path.join(__dirname, '../../../workflows');
 const INDEX_PATH = path.join(WORKFLOWS_DIR, 'index.json');
+const TEMPLATE_PATH = path.join(WORKFLOWS_DIR, 'TEMPLATE.md');
+
+// In-memory cache for the dynamically built index
+let cachedIndex = null;
 
 /**
- * Load the workflow index
- * @returns {Object} Index object
+ * Recursively scan a directory for workflow .md files
+ * @param {string} dir - Directory to scan
+ * @param {string} baseDir - Base directory for relative paths
+ * @returns {Array} Array of {filePath, relativePath} objects
  */
-function loadIndex() {
+function scanWorkflowFiles(dir, baseDir = dir) {
+  const files = [];
+  
   try {
-    if (fs.existsSync(INDEX_PATH)) {
-      return JSON.parse(fs.readFileSync(INDEX_PATH, 'utf8'));
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      
+      if (entry.isDirectory()) {
+        // Recurse into subdirectories
+        files.push(...scanWorkflowFiles(fullPath, baseDir));
+      } else if (entry.isFile() && entry.name.endsWith('.md') && entry.name !== 'TEMPLATE.md') {
+        // Add .md files (except TEMPLATE.md)
+        const relativePath = path.relative(baseDir, fullPath);
+        files.push({ filePath: fullPath, relativePath });
+      }
     }
   } catch (e) {
-    console.error('Failed to load workflow index:', e.message);
+    console.error(`Failed to scan directory ${dir}:`, e.message);
   }
-  return {
+  
+  return files;
+}
+
+/**
+ * Build the workflow index dynamically from workflow files
+ * @returns {Object} Index object
+ */
+function buildIndexFromFiles() {
+  const index = {
     version: '1.0',
-    lastUpdated: null,
+    lastUpdated: new Date().toISOString(),
     workflows: {},
     byDomain: {},
     byTag: {}
   };
+  
+  const workflowFiles = scanWorkflowFiles(WORKFLOWS_DIR);
+  
+  for (const { filePath, relativePath } of workflowFiles) {
+    try {
+      const content = fs.readFileSync(filePath, 'utf8');
+      
+      // Parse YAML frontmatter
+      const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
+      if (!frontmatterMatch) continue;
+      
+      const frontmatter = frontmatterMatch[1];
+      const metadata = {};
+      
+      // Simple YAML parsing for frontmatter
+      let currentArray = null;
+      let currentKey = null;
+      
+      frontmatter.split('\n').forEach(line => {
+        // Array item
+        if (currentArray && line.match(/^\s+-\s+/)) {
+          const value = line.replace(/^\s+-\s+/, '').trim();
+          currentArray.push(value);
+          return;
+        }
+        
+        // Key-value pair
+        const kvMatch = line.match(/^(\w+):\s*(.*)$/);
+        if (kvMatch) {
+          const [, key, value] = kvMatch;
+          currentKey = key;
+          
+          if (value.startsWith('[') && value.endsWith(']')) {
+            // Inline array like [views, crm]
+            const items = value.slice(1, -1).split(',').map(s => s.trim()).filter(Boolean);
+            metadata[key] = items;
+            currentArray = null;
+          } else if (value === '' || value === '[]') {
+            // Start of array or empty array
+            metadata[key] = [];
+            currentArray = metadata[key];
+          } else if (value === 'true') {
+            metadata[key] = true;
+            currentArray = null;
+          } else if (value === 'false') {
+            metadata[key] = false;
+            currentArray = null;
+          } else {
+            // Remove quotes if present
+            metadata[key] = value.replace(/^["']|["']$/g, '');
+            currentArray = null;
+          }
+        }
+      });
+      
+      // Skip if no endpoint defined
+      if (!metadata.endpoint) continue;
+      
+      const endpoint = metadata.endpoint;
+      const domain = metadata.domain || 'unknown';
+      const tags = metadata.tags || [];
+      const status = metadata.status || 'pending';
+      
+      // Add to index
+      index.workflows[endpoint] = {
+        file: relativePath,
+        domain,
+        tags,
+        status,
+        skipReason: metadata.skipReason || null,
+        timesReused: metadata.timesReused || 0,
+        savedAt: metadata.savedAt || null,
+        verifiedAt: metadata.verifiedAt || null
+      };
+      
+      // Index by domain
+      if (!index.byDomain[domain]) {
+        index.byDomain[domain] = [];
+      }
+      index.byDomain[domain].push(endpoint);
+      
+      // Index by tag
+      for (const tag of tags) {
+        if (!index.byTag[tag]) {
+          index.byTag[tag] = [];
+        }
+        index.byTag[tag].push(endpoint);
+      }
+      
+    } catch (e) {
+      console.error(`Failed to parse workflow ${filePath}:`, e.message);
+    }
+  }
+  
+  return index;
+}
+
+/**
+ * Load the workflow index (dynamically built from files)
+ * @param {boolean} forceRebuild - Force rebuild even if cached
+ * @returns {Object} Index object
+ */
+function loadIndex(forceRebuild = false) {
+  if (!cachedIndex || forceRebuild) {
+    console.log('[Workflow Index] Building index dynamically from workflow files...');
+    cachedIndex = buildIndexFromFiles();
+    console.log(`[Workflow Index] Indexed ${Object.keys(cachedIndex.workflows).length} workflows`);
+  }
+  return cachedIndex;
+}
+
+/**
+ * Invalidate the cached index (call when workflows are modified)
+ */
+function invalidateIndexCache() {
+  cachedIndex = null;
 }
 
 /**
  * Save the workflow index
+ * NOTE: With dynamic index building, this is mainly for persisting changes
+ * that should survive restarts (like timesReused counters)
  * @param {Object} index - Index object to save
  */
 function saveIndex(index) {
   try {
     index.lastUpdated = new Date().toISOString();
     fs.writeFileSync(INDEX_PATH, JSON.stringify(index, null, 2));
+    // Invalidate cache so next load picks up changes
+    invalidateIndexCache();
   } catch (e) {
     console.error('Failed to save workflow index:', e.message);
   }
@@ -233,6 +387,12 @@ function get(endpoint) {
     return null;
   }
   
+  // Parse useFallbackApi - handle both boolean and string 'true'
+  const rawUseFallbackApi = parsed.metadata?.useFallbackApi;
+  const useFallbackApi = rawUseFallbackApi === true || rawUseFallbackApi === 'true';
+  
+  console.log(`  [workflow.get] ${endpoint} - raw useFallbackApi: "${rawUseFallbackApi}" (${typeof rawUseFallbackApi}) -> resolved: ${useFallbackApi}`);
+  
   return {
     endpoint,
     file: entry.file,
@@ -242,6 +402,7 @@ function get(endpoint) {
     skipReason: entry.skipReason || parsed.metadata?.skipReason || null,  // Include skip reason
     knownIssues: parsed.metadata?.knownIssues || [],  // Include known issues to suppress in validation
     timesReused: entry.timesReused || 0,
+    useFallbackApi,  // Include useFallbackApi flag for workflows that require fallback URL
     uidResolution: parsed.uidResolution || null,  // Include UID resolution mappings
     prerequisites: parsed.prerequisites || null,  // Include structured prerequisites for deterministic execution
     testRequest: parsed.testRequest || null,  // Include structured test request
@@ -400,7 +561,124 @@ function search(query = {}) {
 }
 
 /**
+ * Convert uidResolution documentation into executable YAML prerequisites
+ * This bridges the gap between AI healer findings and executable workflows
+ * @param {Object} uidResolution - UID resolution mappings from healer
+ * @param {string} tokenType - Token type to use for requests (default: 'staff')
+ * @returns {string|null} YAML prerequisites string or null if none needed
+ */
+function generateExecutablePrerequisites(uidResolution, tokenType = 'staff') {
+  if (!uidResolution || Object.keys(uidResolution).length === 0) {
+    return null;
+  }
+  
+  const steps = [];
+  let stepIndex = 1;
+  
+  for (const [field, resolution] of Object.entries(uidResolution)) {
+    // Normalize field name to valid variable name (remove brackets, dots)
+    const varName = field.replace(/\[\]/g, '').replace(/\./g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+    
+    if (resolution.create_fresh && resolution.create_endpoint) {
+      // Fresh data creation workflow
+      const [method, ...pathParts] = resolution.create_endpoint.split(' ');
+      const path = pathParts.join(' ') || resolution.create_endpoint;
+      
+      const step = {
+        id: `create_${varName}`,
+        description: `Create fresh ${field} for testing`,
+        method: method || 'POST',
+        path: path.startsWith('/') ? path : `/${path}`,
+        token: tokenType,
+        expect: { status: [200, 201] },
+        extract: {}
+      };
+      
+      // Add body if provided
+      if (resolution.create_body) {
+        step.body = resolution.create_body;
+      }
+      
+      // Add extraction - determine the response path
+      const extractPath = resolution.extract_from || 'data.uid';
+      step.extract[varName] = extractPath;
+      
+      steps.push(step);
+      
+      // Add cleanup step if endpoint provided
+      if (resolution.cleanup_endpoint) {
+        // Note: cleanup would need to reference the created UID
+        // We'll document this but not add as a step (cleanup happens post-test)
+      }
+    } else if (resolution.source_endpoint) {
+      // Standard GET and extract workflow
+      const [method, ...pathParts] = resolution.source_endpoint.split(' ');
+      const path = pathParts.join(' ') || resolution.source_endpoint;
+      
+      const step = {
+        id: `get_${varName}`,
+        description: `Fetch ${field} from existing data`,
+        method: method || 'GET',
+        path: path.startsWith('/') ? path : `/${path}`,
+        token: tokenType,
+        expect: { status: [200] },
+        extract: {},
+        onFail: 'abort'
+      };
+      
+      // Add extraction
+      const extractPath = resolution.extract_from || 'data[0].uid';
+      step.extract[varName] = extractPath;
+      
+      steps.push(step);
+    }
+    
+    stepIndex++;
+  }
+  
+  if (steps.length === 0) {
+    return null;
+  }
+  
+  // Generate YAML string
+  const yamlLines = ['```yaml', 'steps:'];
+  
+  for (const step of steps) {
+    yamlLines.push(`  - id: ${step.id}`);
+    yamlLines.push(`    description: "${step.description}"`);
+    yamlLines.push(`    method: ${step.method}`);
+    yamlLines.push(`    path: "${step.path}"`);
+    yamlLines.push(`    token: ${step.token}`);
+    
+    // Expect section
+    yamlLines.push(`    expect:`);
+    yamlLines.push(`      status: [${step.expect.status.join(', ')}]`);
+    
+    // Extract section
+    yamlLines.push(`    extract:`);
+    for (const [varName, extractPath] of Object.entries(step.extract)) {
+      yamlLines.push(`      ${varName}: "${extractPath}"`);
+    }
+    
+    // OnFail if present
+    if (step.onFail) {
+      yamlLines.push(`    onFail: ${step.onFail}`);
+    }
+    
+    // Body if present (inline JSON for simplicity)
+    if (step.body) {
+      yamlLines.push(`    body: ${JSON.stringify(step.body)}`);
+    }
+  }
+  
+  yamlLines.push('```');
+  
+  return yamlLines.join('\n');
+}
+
+/**
  * Generate markdown content for a workflow
+ * Following the canonical format defined in workflows/TEMPLATE.md
  * @param {Object} data - Workflow data
  * @returns {string} Markdown content
  */
@@ -409,35 +687,51 @@ function generateMarkdown(data) {
     endpoint,
     domain,
     tags = [],
+    swagger = null,
     summary = '',
     prerequisites = '',
     howToResolve = '',
     learnings = [],
     successfulRequest = {},
     uidResolution = null,  // UID resolution mappings
-    status = 'verified',   // 'verified' or 'skip'
-    skipReason = null      // Reason for skipping (if status is 'skip')
-    // NOTE: docFixes intentionally NOT stored in workflows
-    // Workflows are success paths only - doc issues are transient findings
+    status = 'verified',   // 'verified', 'pending', 'failed', 'skipped'
+    skipReason = null,     // Reason for skipping (if status is 'skipped')
+    tokenType = null,      // Token type required for this endpoint
+    responseCodes = null,  // Response codes table data
+    discrepancies = [],    // Swagger vs actual behavior discrepancies (for Swagger Discrepancies section)
+    useFallbackApi = false // Whether this endpoint requires the fallback API URL
+    // NOTE: codeAnalysis, swaggerChangesRequired, workflowChangesRequired removed
+    // Workflows are test definitions only - not logs of healer process
   } = data;
   
   const now = new Date().toISOString();
   
-  // Build frontmatter
+  // Build frontmatter - following TEMPLATE.md format
   const frontmatterLines = [
     '---',
-    `endpoint: ${endpoint}`,
+    `endpoint: "${endpoint}"`,  // Quote the endpoint for consistency
     `domain: ${domain}`,
-    `tags: [${tags.join(', ')}]`,
-    `status: ${status}`,
-    `savedAt: ${now}`,
-    `verifiedAt: ${now}`,
-    `timesReused: 0`
+    `tags: [${tags.join(', ')}]`
   ];
+  
+  // Add swagger reference if provided
+  if (swagger) {
+    frontmatterLines.push(`swagger: ${swagger}`);
+  }
+  
+  frontmatterLines.push(`status: ${status}`);
+  frontmatterLines.push(`savedAt: ${now}`);
+  frontmatterLines.push(`verifiedAt: ${now}`);
+  frontmatterLines.push(`timesReused: 0`);
   
   // Add skipReason if present
   if (skipReason) {
-    frontmatterLines.push(`skipReason: ${skipReason}`);
+    frontmatterLines.push(`skipReason: "${skipReason}"`);
+  }
+  
+  // Add useFallbackApi if this endpoint requires the fallback API URL
+  if (useFallbackApi) {
+    frontmatterLines.push(`useFallbackApi: true`);
   }
   
   frontmatterLines.push('---');
@@ -451,19 +745,33 @@ function generateMarkdown(data) {
   const action = actionMap[method] || method;
   const title = `${action} ${resourceName.charAt(0).toUpperCase() + resourceName.slice(1).replace(/_/g, ' ')}`;
   
-  // Build body
+  // Build body - following TEMPLATE.md section order
   const body = [
     '',
     `# ${title}`,
     '',
     '## Summary',
-    summary || `${action} operation for ${resourceName}`,
-    ''
+    '',
+    summary || `${action} operation for ${resourceName}.`
   ];
   
+  // Add token type if provided
+  if (tokenType) {
+    body.push('');
+    body.push(`**Token Type**: This endpoint requires a **${tokenType} token**.`);
+  }
+  body.push('');
+  
+  // Add Fallback API Notice if this endpoint requires the fallback API URL
+  if (useFallbackApi) {
+    body.push('> **⚠️ Fallback API Required**');
+    body.push('> This endpoint must use the fallback API URL. The main API gateway does not support this endpoint.');
+    body.push('');
+  }
+  
   // Add skip reason section if this is a skipped endpoint
-  if (status === 'skip' && skipReason) {
-    body.push('## ⚠️ Skip Reason');
+  if ((status === 'skip' || status === 'skipped') && skipReason) {
+    body.push('## Skip Reason');
     body.push('');
     body.push(`**This endpoint should be SKIPPED in automated testing.**`);
     body.push('');
@@ -473,8 +781,36 @@ function generateMarkdown(data) {
     body.push('');
   }
   
+  // Add Response Codes section if provided
+  if (responseCodes && responseCodes.length > 0) {
+    body.push('## Response Codes');
+    body.push('');
+    body.push('| Status | Meaning |');
+    body.push('|--------|---------|');
+    responseCodes.forEach(rc => {
+      body.push(`| ${rc.status} | ${rc.meaning} |`);
+    });
+    body.push('');
+  }
+  
+  // Prerequisites section - generate executable YAML if uidResolution is available
   body.push('## Prerequisites');
-  body.push(prerequisites || 'No specific prerequisites documented.');
+  body.push('');
+  
+  // First check if explicit prerequisites were provided
+  if (prerequisites) {
+    body.push(prerequisites);
+  } else if (uidResolution && Object.keys(uidResolution).length > 0) {
+    // Auto-generate executable prerequisites from uidResolution
+    const executablePrereqs = generateExecutablePrerequisites(uidResolution, tokenType || 'staff');
+    if (executablePrereqs) {
+      body.push(executablePrereqs);
+    } else {
+      body.push('None required for this endpoint.');
+    }
+  } else {
+    body.push('None required for this endpoint.');
+  }
   body.push('');
   
   // Add UID Resolution section if present - PROCEDURES ONLY, NO VALUES
@@ -556,31 +892,77 @@ function generateMarkdown(data) {
     body.push('');
   }
   
-  body.push('## How to Resolve Parameters');
-  body.push(howToResolve || 'Parameters were resolved automatically.');
-  body.push('');
-  body.push('## Critical Learnings');
-  body.push('');
-  
-  if (learnings.length > 0) {
-    learnings.forEach(l => {
-      body.push(`- **${l.title || 'Note'}** - ${l.description || l}`);
-    });
-  } else {
-    body.push('No specific learnings documented.');
+  // How to Resolve Parameters - only include if there's content
+  if (howToResolve) {
+    body.push('## How to Resolve Parameters');
+    body.push('');
+    body.push(howToResolve);
+    body.push('');
   }
   
-  body.push('');
-  body.push('## Request Template');
-  body.push('');
-  body.push('Use this template with dynamically resolved UIDs:');
+  // Critical Learnings - only include if there are learnings
+  if (learnings.length > 0) {
+    body.push('## Critical Learnings');
+    body.push('');
+    learnings.forEach(l => {
+      body.push(`- **${l.title || 'Note'}**: ${l.description || l}`);
+    });
+    body.push('');
+  }
+  
+  // Test Request section - YAML format per TEMPLATE.md
+  body.push('## Test Request');
   body.push('');
   
-  // Sanitize the successful request to replace hardcoded UIDs with placeholders
+  // Convert successful request to YAML step format
   const sanitizedRequest = sanitizeRequestForTemplate(successfulRequest);
-  body.push('```json');
-  body.push(JSON.stringify(sanitizedRequest, null, 2));
+  body.push('```yaml');
+  body.push('steps:');
+  body.push(`  - id: main_request`);
+  body.push(`    description: "${action} ${resourceName}"`);
+  body.push(`    method: ${sanitizedRequest.method || method}`);
+  body.push(`    path: "${sanitizedRequest.path || pathStr}"`);
+  
+  // Add body if present
+  if (sanitizedRequest.body && Object.keys(sanitizedRequest.body).length > 0) {
+    body.push('    body:');
+    for (const [key, value] of Object.entries(sanitizedRequest.body)) {
+      if (typeof value === 'object') {
+        body.push(`      ${key}: ${JSON.stringify(value)}`);
+      } else if (typeof value === 'string') {
+        body.push(`      ${key}: "${value}"`);
+      } else {
+        body.push(`      ${key}: ${value}`);
+      }
+    }
+  }
+  
+  // Add params if present
+  if (sanitizedRequest.params && Object.keys(sanitizedRequest.params).length > 0) {
+    body.push('    params:');
+    for (const [key, value] of Object.entries(sanitizedRequest.params)) {
+      body.push(`      ${key}: "${value}"`);
+    }
+  }
+  
+  body.push('    expect:');
+  body.push('      status: [200, 201]');
   body.push('```');
+  
+  // Add Swagger Discrepancies section if present (documentation vs actual behavior)
+  if (discrepancies && discrepancies.length > 0) {
+    body.push('');
+    body.push('## Swagger Discrepancies');
+    body.push('');
+    body.push('| Aspect | Swagger Says | Actual Behavior | Evidence |');
+    body.push('|--------|--------------|-----------------|----------|');
+    
+    discrepancies.forEach(d => {
+      const aspect = d.field ? `${d.aspect || 'Field'}: ${d.field}` : (d.aspect || '-');
+      body.push(`| ${aspect} | ${d.swagger_says || '-'} | ${d.code_says || '-'} | ${d.evidence || '-'} |`);
+    });
+    body.push('');
+  }
   
   // NOTE: Documentation issues are NOT stored in workflows
   // Workflows are success paths only - doc issues are reported once and not cached
@@ -905,6 +1287,9 @@ function updateWorkflowMetadata(endpoint, metadataUpdates) {
     const updatedContent = `---\n${updatedFrontmatter}\n---\n${body}`;
     fs.writeFileSync(filePath, updatedContent, 'utf8');
     
+    // Invalidate cache so changes are picked up
+    invalidateIndexCache();
+    
     console.log(`[Workflow] Updated metadata for ${endpoint}: ${JSON.stringify(metadataUpdates)}`);
     return true;
     
@@ -912,6 +1297,21 @@ function updateWorkflowMetadata(endpoint, metadataUpdates) {
     console.error(`[Workflow] Failed to update ${endpoint}: ${error.message}`);
     return false;
   }
+}
+
+/**
+ * Get the workflow template content
+ * @returns {string|null} Template markdown content or null if not found
+ */
+function getTemplate() {
+  try {
+    if (fs.existsSync(TEMPLATE_PATH)) {
+      return fs.readFileSync(TEMPLATE_PATH, 'utf8');
+    }
+  } catch (e) {
+    console.error('Failed to read workflow template:', e.message);
+  }
+  return null;
 }
 
 module.exports = {
@@ -923,10 +1323,13 @@ module.exports = {
   getIndex,
   incrementReuse,
   loadIndex,
+  invalidateIndexCache,
   parseWorkflowFile,
   generateMarkdown,
   matchesKnownIssue,
   filterKnownIssues,
   updateWorkflowMetadata,
-  WORKFLOWS_DIR
+  getTemplate,
+  WORKFLOWS_DIR,
+  TEMPLATE_PATH
 };
