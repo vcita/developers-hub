@@ -4,26 +4,29 @@ domain: sales
 tags: [invoices]
 swagger: "swagger/sales/legacy/legacy_v1_sales.json"
 status: verified
-savedAt: "2026-02-05T00:00:00.000Z"
-verifiedAt: "2026-02-05T00:00:00.000Z"
+savedAt: "2026-02-08T16:45:00.000Z"
+verifiedAt: "2026-02-08T16:45:00.000Z"
 timesReused: 0
+useFallbackApi: true
 ---
 
-# Get Invoices List (Staff-compatible)
+# Get Invoices List
 
 ## Summary
+Retrieves a list of invoices for the business. **Token Type**: Requires a **staff token**.
 
-Retrieves a list of invoices for the business. This endpoint is staff-oriented, but for deterministic validation in this runner we use a **Directory token** (acting on behalf of the business) and filter by `client_id` as a query parameter.
+> ⚠️ Fallback API Required
+> This endpoint must use the fallback API URL. The main API gateway may return errors for Staff tokens.
 
 ## Prerequisites
 
 ```yaml
 steps:
-  - id: get_client
-    description: "Fetch a client from the business"
+  - id: get_client_id
+    description: "Fetch a client ID for the business"
     method: GET
-    token: directory
     path: "/platform/v1/clients"
+    token: staff
     params:
       business_id: "{{business_id}}"
       per_page: "1"
@@ -38,19 +41,14 @@ steps:
 
 ```yaml
 steps:
-  - id: get_invoices_list_for_client
-    description: "Get invoices list filtered by client_id (query param)"
+  - id: get_invoices_list
+    description: "Get invoices list for the business"
     method: GET
-    token: directory
     path: "/platform/v1/invoices"
+    token: staff
     params:
-      client_id: "{{client_id}}"
+      business_id: "{{business_id}}"
+      per_page: "5"
     expect:
       status: [200, 201]
 ```
-
-## Notes
-
-- `client_id` here is treated as a client UID in Core (`params[:client_id]`), even though it is not documented as a query parameter in Swagger for this endpoint.
-- This endpoint still requires staff permissions to view payments (e.g., `can_view_payments?`).
-

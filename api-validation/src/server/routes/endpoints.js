@@ -23,7 +23,7 @@ router.get('/', (req, res) => {
   const workflowIndex = loadIndex();
   const workflowStatusMap = {};
   for (const [endpoint, entry] of Object.entries(workflowIndex.workflows || {})) {
-    workflowStatusMap[endpoint] = entry.status || 'pending';
+    workflowStatusMap[endpoint] = entry.displayStatus || entry.status || 'pending';
   }
   
   // Apply filters
@@ -104,7 +104,7 @@ router.get('/:domain', (req, res) => {
   const workflowIndex = loadIndex();
   const workflowStatusMap = {};
   for (const [endpoint, entry] of Object.entries(workflowIndex.workflows || {})) {
-    workflowStatusMap[endpoint] = entry.status || 'pending';
+    workflowStatusMap[endpoint] = entry.displayStatus || entry.status || 'pending';
   }
   
   const domainEndpoints = byDomain[domain];

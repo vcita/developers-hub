@@ -71,63 +71,20 @@ function buildIndexFromFiles() {
   
   for (const { filePath, relativePath } of workflowFiles) {
     try {
-      const content = fs.readFileSync(filePath, 'utf8');
+      const parsed = parseWorkflowFile(filePath);
+      if (!parsed || !parsed.metadata || !parsed.metadata.endpoint) continue;
       
-      // Parse YAML frontmatter
-      const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---/);
-      if (!frontmatterMatch) continue;
-      
-      const frontmatter = frontmatterMatch[1];
-      const metadata = {};
-      
-      // Simple YAML parsing for frontmatter
-      let currentArray = null;
-      let currentKey = null;
-      
-      frontmatter.split('\n').forEach(line => {
-        // Array item
-        if (currentArray && line.match(/^\s+-\s+/)) {
-          const value = line.replace(/^\s+-\s+/, '').trim();
-          currentArray.push(value);
-          return;
-        }
-        
-        // Key-value pair
-        const kvMatch = line.match(/^(\w+):\s*(.*)$/);
-        if (kvMatch) {
-          const [, key, value] = kvMatch;
-          currentKey = key;
-          
-          if (value.startsWith('[') && value.endsWith(']')) {
-            // Inline array like [views, crm]
-            const items = value.slice(1, -1).split(',').map(s => s.trim()).filter(Boolean);
-            metadata[key] = items;
-            currentArray = null;
-          } else if (value === '' || value === '[]') {
-            // Start of array or empty array
-            metadata[key] = [];
-            currentArray = metadata[key];
-          } else if (value === 'true') {
-            metadata[key] = true;
-            currentArray = null;
-          } else if (value === 'false') {
-            metadata[key] = false;
-            currentArray = null;
-          } else {
-            // Remove quotes if present
-            metadata[key] = value.replace(/^["']|["']$/g, '');
-            currentArray = null;
-          }
-        }
-      });
-      
-      // Skip if no endpoint defined
-      if (!metadata.endpoint) continue;
-      
+      const metadata = parsed.metadata;
       const endpoint = metadata.endpoint;
       const domain = metadata.domain || 'unknown';
       const tags = metadata.tags || [];
       const status = metadata.status || 'pending';
+      
+      const expectedStatuses = resolveExpectedStatuses(metadata, parsed.testRequest);
+      const is2xxExpected = expectedStatuses.length > 0
+        ? expectedStatuses.every(code => code >= 200 && code < 300)
+        : false;
+      const displayStatus = resolveDisplayStatus(status, is2xxExpected);
       
       // Add to index
       index.workflows[endpoint] = {
@@ -135,10 +92,15 @@ function buildIndexFromFiles() {
         domain,
         tags,
         status,
+        displayStatus,
+        expectedStatuses,
+        is2xxExpected,
         skipReason: metadata.skipReason || null,
         timesReused: metadata.timesReused || 0,
         savedAt: metadata.savedAt || null,
-        verifiedAt: metadata.verifiedAt || null
+        verifiedAt: metadata.verifiedAt || null,
+        expectedOutcome: metadata.expectedOutcome ?? null,
+        expectedOutcomeReason: metadata.expectedOutcomeReason ?? null
       };
       
       // Index by domain
@@ -175,6 +137,44 @@ function loadIndex(forceRebuild = false) {
     console.log(`[Workflow Index] Indexed ${Object.keys(cachedIndex.workflows).length} workflows`);
   }
   return cachedIndex;
+}
+
+function resolveDisplayStatus(rawStatus, is2xxExpected) {
+  const status = (rawStatus || 'pending').toLowerCase();
+  if ((status === 'verified' || status === 'success') && is2xxExpected === false) {
+    return 'pending';
+  }
+  if (status === 'success') {
+    return 'verified';
+  }
+  return status;
+}
+
+function resolveExpectedStatuses(metadata, testRequest) {
+  const fromExpectedOutcome = metadata?.expectedOutcome;
+  const fromTestRequest = testRequest?.expect?.status;
+  
+  if (fromExpectedOutcome !== undefined && fromExpectedOutcome !== null && fromExpectedOutcome !== '') {
+    return normalizeStatusList(fromExpectedOutcome);
+  }
+  
+  if (fromTestRequest !== undefined && fromTestRequest !== null && fromTestRequest !== '') {
+    return normalizeStatusList(fromTestRequest);
+  }
+  
+  return [200];
+}
+
+function normalizeStatusList(value) {
+  const asArray = Array.isArray(value) ? value : [value];
+  const normalized = asArray
+    .map(item => {
+      const num = parseInt(item, 10);
+      return Number.isFinite(num) ? num : null;
+    })
+    .filter(item => item !== null);
+  
+  return normalized;
 }
 
 /**
@@ -273,7 +273,8 @@ function parseWorkflowFile(filePath) {
           metadata[key] = [];
           currentArray = metadata[key];
         } else {
-          metadata[key] = value;
+          // Strip surrounding quotes from YAML string values (e.g., "POST /business/payments/v1/deposits")
+          metadata[key] = value.replace(/^["'](.*)["']$/, '$1');
         }
       }
     });
@@ -486,7 +487,7 @@ function list(domain) {
       file: entry?.file,
       domain: entry?.domain,
       tags: entry?.tags,
-      status: entry?.status,
+      status: entry?.displayStatus || entry?.status,
       timesReused: entry?.timesReused || 0
     };
   });
@@ -530,7 +531,11 @@ function search(query = {}) {
   
   // Filter by status
   if (query.status) {
-    results = results.filter(ep => index.workflows[ep].status === query.status);
+    results = results.filter(ep => {
+      const entry = index.workflows[ep];
+      const displayStatus = entry.displayStatus || entry.status;
+      return displayStatus === query.status;
+    });
   }
   
   // Full-text search in content
@@ -554,7 +559,7 @@ function search(query = {}) {
       file: entry.file,
       domain: entry.domain,
       tags: entry.tags,
-      status: entry.status,
+      status: entry.displayStatus || entry.status,
       timesReused: entry.timesReused || 0
     };
   });

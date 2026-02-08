@@ -1,22 +1,40 @@
 ---
 endpoint: "PUT /business/payments/v1/taxes/{tax_id}"
 domain: sales
-tags: []
+tags: [taxes]
 swagger: "swagger/sales/legacy/payments.json"
-status: verified
+status: success
 savedAt: "2026-01-26T22:39:39.810Z"
-verifiedAt: "2026-01-26T22:39:39.810Z"
+verifiedAt: "2026-02-06T20:52:00.000Z"
 timesReused: 0
+useFallbackApi: true
 ---
 
-# Update Taxes
+# Update Tax
 
 ## Summary
-Test passes after correcting default_for_categories from string to array format. The API expects an array of category strings, not a string value.
+
+Updates a tax by its ID. The `default_for_categories` field must be an array. The endpoint works via the fallback API; APIGW returns 401.
+
+**Token Type**: This endpoint requires a **Staff token** (via fallback API).
+
+> **⚠️ Fallback API Required**
+> This endpoint must use the fallback API URL. The main API gateway returns 401 for staff tokens.
 
 ## Prerequisites
 
-No prerequisites required for this endpoint.
+```yaml
+steps:
+  - id: get_taxes
+    description: "Fetch taxes to get a valid tax ID"
+    method: GET
+    path: "/business/payments/v1/taxes"
+    extract:
+      tax_id: "$.data.taxes[0].id"
+    expect:
+      status: 200
+    onFail: abort
+```
 
 ## Test Request
 
@@ -27,9 +45,9 @@ steps:
     path: "/business/payments/v1/taxes/{{tax_id}}"
     body:
       tax:
-        default_for_categories: {}
-        name: Updated Test Tax Name
-        rate: 12.5
+        default_for_categories: ["packages"]
+        name: "Sales Tax"
+        rate: 8.5
     expect:
-      status: [200, 201]
+      status: [200]
 ```

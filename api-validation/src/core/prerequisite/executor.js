@@ -7,6 +7,57 @@
 
 const { query, queryNested, extract } = require('./jsonpath');
 const { resolve, resolveObject, findAllUnresolved } = require('./variables');
+const fs = require('fs');
+const path = require('path');
+
+const PROJECT_ROOT = path.resolve(__dirname, '../../../../');
+const swaggerCache = new Map();
+
+function loadSwaggerSpec(swaggerPath) {
+  if (!swaggerPath) return null;
+  const fullPath = path.resolve(PROJECT_ROOT, swaggerPath);
+  if (swaggerCache.has(fullPath)) {
+    return swaggerCache.get(fullPath);
+  }
+  if (!fs.existsSync(fullPath)) {
+    swaggerCache.set(fullPath, null);
+    return null;
+  }
+  try {
+    const content = fs.readFileSync(fullPath, 'utf8');
+    const spec = JSON.parse(content);
+    swaggerCache.set(fullPath, spec);
+    return spec;
+  } catch (error) {
+    console.log(`    [Headers] Failed to parse swagger: ${swaggerPath} (${error.message})`);
+    swaggerCache.set(fullPath, null);
+    return null;
+  }
+}
+
+function getSwaggerOperation(spec, method, requestPath) {
+  if (!spec?.paths) return null;
+  const lowerMethod = method.toLowerCase();
+  let lookupPath = requestPath;
+  if (!spec.paths[lookupPath] && spec.basePath && lookupPath.startsWith(spec.basePath)) {
+    lookupPath = lookupPath.slice(spec.basePath.length) || '/';
+  }
+  const pathItem = spec.paths[lookupPath];
+  return pathItem?.[lowerMethod] || null;
+}
+
+function requiresOnBehalfOfFromSwagger(spec, method, requestPath) {
+  const operation = getSwaggerOperation(spec, method, requestPath);
+  if (!operation) return false;
+  if (operation['x-on-behalf-of'] === true) return true;
+  const parameters = operation.parameters || [];
+  const hasHeader = parameters.some(
+    param => param.in === 'header' && param.name?.toLowerCase() === 'x-on-behalf-of'
+  );
+  if (hasHeader) return true;
+  const description = (operation.description || '').toLowerCase();
+  return description.includes('x-on-behalf-of');
+}
 
 /**
  * Generate dynamic date variables for workflows
@@ -93,7 +144,7 @@ function getDynamicDateVariables() {
  */
 async function executeStep(step, context, config, makeRequest, options = {}) {
   const { workflowRepo, depth = 0 } = options;
-  const { id, method, path, params, body, extract: extractConfig, expect, onFail, token, content_type, form_fields, file_fields } = step;
+  const { id, method, path, params, body, extract: extractConfig, expect, onFail, token, content_type, form_fields, file_fields, x_on_behalf_of } = step;
   
   // Resolve variables in path, params, and body
   const resolvedPath = resolve(path, context);
@@ -113,8 +164,9 @@ async function executeStep(step, context, config, makeRequest, options = {}) {
   let effectiveMakeRequest = makeRequest;
   const endpointKey = `${method} ${resolvedPath}`;
   
+  let stepWorkflow = null;
   if (workflowRepo) {
-    const stepWorkflow = workflowRepo.get(endpointKey);
+    stepWorkflow = workflowRepo.get(endpointKey);
     
     if (stepWorkflow) {
       const indent = '  '.repeat(depth + 1);
@@ -163,7 +215,7 @@ async function executeStep(step, context, config, makeRequest, options = {}) {
           stepWorkflow,
           { ...config, params: { ...config.params, ...context } },
           effectiveMakeRequest,
-          { workflowRepo, depth: depth + 1 }
+          { workflowRepo, depth: depth + 1, workflow: stepWorkflow }
         );
         
         if (prereqResult.failed) {
@@ -204,7 +256,20 @@ async function executeStep(step, context, config, makeRequest, options = {}) {
 
   // Directory tokens acting on behalf of a business must include X-On-Behalf-Of.
   // Source of truth is config.params.business_uid (merged into params/context by executePrerequisites).
-  if (tokenType === 'directory') {
+  let swaggerRequiresOnBehalfOf = false;
+  const workflowForSwagger = stepWorkflow || options.workflow;
+  const swaggerPath = workflowForSwagger?.metadata?.swagger || workflowForSwagger?.swagger || null;
+  if (swaggerPath) {
+    const swaggerSpec = loadSwaggerSpec(swaggerPath);
+    swaggerRequiresOnBehalfOf = requiresOnBehalfOfFromSwagger(swaggerSpec, method, resolvedPath);
+  }
+
+  const useOnBehalfOf =
+    x_on_behalf_of === true ||
+    x_on_behalf_of === 'true' ||
+    (x_on_behalf_of === undefined && swaggerRequiresOnBehalfOf);
+
+  if (tokenType === 'directory' && useOnBehalfOf) {
     const onBehalfOf = config?.params?.business_uid || config?.params?.business_id || context?.business_uid;
     if (onBehalfOf) {
       requestHeaders['X-On-Behalf-Of'] = onBehalfOf;
@@ -212,6 +277,8 @@ async function executeStep(step, context, config, makeRequest, options = {}) {
     } else {
       console.log(`    [Headers] WARNING: directory token used but no business_uid available for X-On-Behalf-Of`);
     }
+  } else if (tokenType === 'directory' && !useOnBehalfOf) {
+    console.log('    [Headers] X-On-Behalf-Of not requested for directory token');
   }
   
   if (isMultipart) {
@@ -379,8 +446,12 @@ async function executePrerequisites(workflow, config, makeRequest, options = {})
   const results = [];
   
   for (const step of prerequisites) {
-    // Pass workflowRepo for recursive lookup
-    const result = await executeStep(step, context, config, makeRequest, { workflowRepo, depth });
+    // Pass workflowRepo and current workflow for swagger-based headers
+    const result = await executeStep(step, context, config, makeRequest, {
+      workflowRepo,
+      depth,
+      workflow
+    });
     results.push(result);
     
     if (result.success) {
@@ -646,6 +717,10 @@ function parseYamlSteps(yamlContent) {
     } else if (trimmed.startsWith('onFail:')) {
       currentStep.onFail = trimmed.split(':')[1].trim();
       inSection = null;
+    } else if (trimmed.startsWith('x_on_behalf_of:')) {
+      const value = trimmed.split(':')[1].trim();
+      currentStep.x_on_behalf_of = value === 'true';
+      inSection = null;
     } else if (trimmed.startsWith('content_type:')) {
       currentStep.content_type = trimmed.split(':')[1].trim();
       inSection = null;
@@ -685,7 +760,42 @@ function parseYamlSteps(yamlContent) {
 }
 
 /**
- * Parse simple YAML key-value pairs
+ * Parse a YAML primitive value string into the appropriate JS type
+ */
+function parseYamlPrimitive(valueStr) {
+  if (valueStr === '' || valueStr === undefined) return '';
+  if (valueStr === 'null') return null;
+  if (valueStr === 'true') return true;
+  if (valueStr === 'false') return false;
+  if (/^-?\d+$/.test(valueStr)) return parseInt(valueStr, 10);
+  if (/^-?\d+\.\d+$/.test(valueStr)) return parseFloat(valueStr);
+  
+  // Inline JSON object
+  if (valueStr.startsWith('{') && valueStr.endsWith('}')) {
+    try { return JSON.parse(valueStr); } catch (e) { /* fall through */ }
+  }
+  // Inline JSON array
+  if (valueStr.startsWith('[') && valueStr.endsWith(']')) {
+    try { return JSON.parse(valueStr); } catch (e) { /* fall through */ }
+  }
+  
+  // String value - remove surrounding quotes if present
+  return valueStr.replace(/^["']|["']$/g, '');
+}
+
+/**
+ * Parse simple YAML key-value pairs (with array support)
+ * 
+ * Supports:
+ *   key: value                   -> { key: value }
+ *   parent:                      -> nested object or array (auto-detected)
+ *     child: value               -> { parent: { child: value } }
+ *   list:
+ *     - value1                   -> { list: ["value1", "value2"] }
+ *     - value2
+ *   objects:
+ *     - uid: "abc"               -> { objects: [{ uid: "abc", enabled: true }] }
+ *       enabled: true
  */
 function parseSimpleYaml(content) {
   const result = {};
@@ -704,7 +814,56 @@ function parseSimpleYaml(content) {
       stack.pop();
     }
     
-    const parent = stack[stack.length - 1].obj;
+    const parentEntry = stack[stack.length - 1];
+    let parent = parentEntry.obj;
+    
+    // ── Handle YAML array items (lines starting with "- ") ──
+    if (trimmed.startsWith('- ')) {
+      const itemContent = trimmed.substring(2).trim();
+      
+      // Determine target array
+      let targetArray;
+      if (Array.isArray(parent)) {
+        targetArray = parent;
+      } else if (typeof parent === 'object' && parent !== null
+                 && Object.keys(parent).length === 0 && stack.length > 1) {
+        // Parent was created as {} for a key with empty value (e.g., "staff_data:")
+        // but the children are array items — convert to []
+        const arr = [];
+        const grandparentEntry = stack[stack.length - 2];
+        if (parentEntry.key != null && !Array.isArray(grandparentEntry.obj)) {
+          grandparentEntry.obj[parentEntry.key] = arr;
+        }
+        parentEntry.obj = arr;
+        parent = arr;
+        targetArray = arr;
+      } else {
+        // Cannot determine array context, skip line
+        continue;
+      }
+      
+      // Check if item is a key:value pair (→ object array item) or a simple value
+      const colonIdx = itemContent.indexOf(':');
+      const isQuoted = itemContent.startsWith('"') || itemContent.startsWith("'");
+      
+      if (colonIdx > 0 && !isQuoted) {
+        // Object array item, e.g. "- uid: abc"
+        const key = itemContent.substring(0, colonIdx).replace(/^["']|["']$/g, '').trim();
+        const valueStr = itemContent.substring(colonIdx + 1).trim();
+        const newObj = {};
+        newObj[key] = parseYamlPrimitive(valueStr);
+        targetArray.push(newObj);
+        // Push onto stack so subsequent deeper-indented lines become properties of this object
+        stack.push({ obj: newObj, indent: indent, key: null });
+      } else {
+        // Simple value item, e.g. "- tag1"
+        targetArray.push(parseYamlPrimitive(itemContent));
+      }
+      continue;
+    }
+    
+    // ── Only process key:value for object parents ──
+    if (Array.isArray(parent)) continue;
     
     // Parse key: value
     const colonIdx = trimmed.indexOf(':');
@@ -713,47 +872,42 @@ function parseSimpleYaml(content) {
     const key = trimmed.substring(0, colonIdx).replace(/^["']|["']$/g, '').trim();
     const valueStr = trimmed.substring(colonIdx + 1).trim();
     
-    if (valueStr === '' || valueStr === '{}' || valueStr === '[]') {
-      // Empty object or array - create nested structure
-      const newObj = valueStr === '[]' ? [] : {};
+    if (valueStr === '' || valueStr === '{}') {
+      // Empty value — create nested object (may be converted to array later if children are "- " items)
+      const newObj = {};
       parent[key] = newObj;
       stack.push({ obj: newObj, indent: indent, key: key });
-    } else if (valueStr.startsWith('{') && valueStr.endsWith('}')) {
-      // Inline JSON object
-      try {
-        parent[key] = JSON.parse(valueStr);
-      } catch (e) {
-        parent[key] = valueStr;
-      }
-    } else if (valueStr.startsWith('[') && valueStr.endsWith(']')) {
-      // Inline JSON array
-      try {
-        parent[key] = JSON.parse(valueStr);
-      } catch (e) {
-        parent[key] = valueStr;
-      }
-    } else if (valueStr === 'null') {
-      parent[key] = null;
-    } else if (valueStr === 'true') {
-      parent[key] = true;
-    } else if (valueStr === 'false') {
-      parent[key] = false;
-    } else if (/^-?\d+$/.test(valueStr)) {
-      parent[key] = parseInt(valueStr, 10);
-    } else if (/^-?\d+\.\d+$/.test(valueStr)) {
-      parent[key] = parseFloat(valueStr);
+    } else if (valueStr === '[]') {
+      // Explicit empty array
+      const newArr = [];
+      parent[key] = newArr;
+      stack.push({ obj: newArr, indent: indent, key: key });
     } else {
-      // String value - remove quotes if present
-      parent[key] = valueStr.replace(/^["']|["']$/g, '');
+      parent[key] = parseYamlPrimitive(valueStr);
     }
   }
   
   return result;
 }
 
+/**
+ * Clear cached swagger spec(s) so that modified files are re-read on next use.
+ * @param {string} [swaggerPath] - Relative path (e.g. "swagger/sales/legacy/payments.json").
+ *   If omitted, the entire cache is cleared.
+ */
+function clearSwaggerCache(swaggerPath) {
+  if (swaggerPath) {
+    const fullPath = path.resolve(PROJECT_ROOT, swaggerPath);
+    swaggerCache.delete(fullPath);
+  } else {
+    swaggerCache.clear();
+  }
+}
+
 module.exports = {
   executeStep,
   executePrerequisites,
   createRequestFunction,
-  parseYamlSteps
+  parseYamlSteps,
+  clearSwaggerCache
 };

@@ -5,7 +5,7 @@
  * workflow execution before API validation tests.
  */
 
-const { executeStep, executePrerequisites, createRequestFunction, parseYamlSteps } = require('./executor');
+const { executeStep, executePrerequisites, createRequestFunction, parseYamlSteps, clearSwaggerCache } = require('./executor');
 const { query, queryNested, extract } = require('./jsonpath');
 const { resolve, resolveObject, findUnresolved, findAllUnresolved, listBuiltIns, addGenerator, BUILT_IN_GENERATORS } = require('./variables');
 
@@ -47,7 +47,7 @@ async function executeWorkflow(workflow, config, makeRequest, options = {}) {
   }
   
   // Step 1: Execute prerequisites (with recursive workflow lookup)
-  const prereqResult = await executePrerequisites(workflow, config, makeRequest, { workflowRepo });
+  const prereqResult = await executePrerequisites(workflow, config, makeRequest, { workflowRepo, workflow });
   
   if (!prereqResult.success) {
     console.log(`  ✗ Prerequisites failed: ${prereqResult.failedReason || 'Unknown error'}`);
@@ -80,7 +80,7 @@ async function executeWorkflow(workflow, config, makeRequest, options = {}) {
   console.log(`\n🎯 Executing test request...`);
   
   // Execute the test request step (with recursive workflow lookup)
-  const testResult = await executeStep(testRequest, prereqResult.variables, config, makeRequest, { workflowRepo });
+  const testResult = await executeStep(testRequest, prereqResult.variables, config, makeRequest, { workflowRepo, workflow });
   
   if (!testResult.success) {
     console.log(`  ✗ Test request failed: ${testResult.error || 'Unknown error'}`);
@@ -116,6 +116,7 @@ module.exports = {
   executeWorkflow,
   createRequestFunction,
   parseYamlSteps,
+  clearSwaggerCache,
   
   // JSONPath
   query,

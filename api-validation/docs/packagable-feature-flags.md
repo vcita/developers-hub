@@ -133,4 +133,3 @@ api
 backoffice_branding
 ```
 
-Note: **tags_features** (with 's') is redundant; the packagable flag is **tags_feature**. Do not document tags_features; create a JIRA to remove it from code.

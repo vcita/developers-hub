@@ -1034,7 +1034,12 @@ const ResultsViewer = {
     const agentLogSummary = this.formatAgentLogForPrompt(healingInfo.agentLog || []);
     
     // Build the comprehensive prompt
-    const prompt = `Create a JIRA ticket for the following API validation failure.
+    const prompt = `Fix this documentation error:
+- Look at api-validation/docs/healing-knowledge-base for possible common scenarios.
+- Make sure to dig deep into the code start with frontage to see how this is implemented in the frontend and then move to the controller code.
+- Never alter mcp_swagger files (auto-generated). Always use /swagger directory
+
+Create a JIRA ticket for the following API validation failure.
 
 ## Epic
 Associate this ticket with epic: https://myvcita.atlassian.net/browse/VCITA2-11611
@@ -1222,7 +1227,10 @@ ${result.swaggerFile || result.domain || 'Unknown'}`;
     const agentLogSummary = this.formatAgentLogForPrompt(healingInfo.agentLog || []);
     
     // Build the prompt
-    const prompt = `Fix this documentation error. Make sure to dig deep into the code start with frontage to see how this is implemented in the frontend and then move to the controller code. Never alter mcp_swagger files (auto-generated). Always use /swagger directory
+    const prompt = `Fix this documentation error:
+- Look at api-validation/docs/healing-knowledge-base for possible common scenarios.
+- Make sure to dig deep into the code start with frontage to see how this is implemented in the frontend and then move to the controller code.
+- Never alter mcp_swagger files (auto-generated). Always use /swagger directory
 
 ## Failure Details
 
@@ -1339,6 +1347,31 @@ ${result.swaggerFile || result.domain || 'Unknown'}`;
       
       button.innerHTML = '⏳ Retrying...';
       
+      // Clear old progress log entry for this endpoint so only the new retry's log is shown
+      const entryId = endpointText.replace(/[^a-zA-Z0-9]/g, '-');
+      const oldLogEntry = document.getElementById(`log-${entryId}`);
+      if (oldLogEntry) {
+        oldLogEntry.remove();
+      }
+      
+      // Collapse and reset the old result details to avoid showing stale data
+      const resultId = `result-${entryId}`;
+      const resultEl = document.getElementById(resultId);
+      if (resultEl) {
+        resultEl.classList.remove('expanded');
+        // Clear old details content
+        const oldDetails = resultEl.querySelector('.result-details');
+        if (oldDetails) {
+          oldDetails.remove();
+        }
+        // Update status to show retrying
+        const statusEl = resultEl.querySelector('.result-status');
+        if (statusEl) {
+          statusEl.className = 'result-status status-healing';
+          statusEl.textContent = 'RETRYING';
+        }
+      }
+      
       // Start validation for just this endpoint
       const response = await fetch('/api/validate', {
         method: 'POST',
@@ -1368,8 +1401,10 @@ ${result.swaggerFile || result.domain || 'Unknown'}`;
       // Connect to SSE stream for this retry
       const eventSource = new EventSource(`/api/validate/stream/${sessionId}`);
       
-      // Show progress section and init healing log
+      // Show progress section without scrolling the page
+      const scrollY = window.scrollY;
       document.getElementById('progress-section')?.classList.remove('hidden');
+      window.scrollTo(0, scrollY);
       
       // Wire healing events into the TestRunner healing log
       eventSource.addEventListener('healing_start', (event) => {
@@ -2718,6 +2753,49 @@ ${result.swaggerFile || result.domain || 'Unknown'}`;
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+    }
+  },
+
+  /**
+   * Auto-fix all failed endpoints using the AI doc fixer agent.
+   * Collects FAIL/ERROR results from TestRunner and sends them to the fix-report orchestrator.
+   */
+  autoFixAllFailed() {
+    // Results are stored on TestRunner, not ResultsViewer
+    const allResults = (typeof TestRunner !== 'undefined' && TestRunner.results) ? TestRunner.results : [];
+
+    if (!allResults || allResults.length === 0) {
+      alert('No results available. Run a validation first.');
+      return;
+    }
+
+    // Collect failed and errored results
+    const failedResults = allResults.filter(r => 
+      r.status === 'FAIL' || r.status === 'ERROR'
+    ).map(r => ({
+      endpoint: r.endpoint,
+      method: r.method || (r.endpoint ? r.endpoint.split(' ')[0] : 'GET'),
+      path: r.path || (r.endpoint ? r.endpoint.split(' ').slice(1).join(' ') : ''),
+      status: r.status,
+      httpStatus: r.httpStatus,
+      domain: r.domain,
+      swaggerFile: r.swaggerFile,
+      tokenUsed: r.tokenUsed,
+      reason: r.details?.reason || r.reason,
+      details: r.details || {},
+      healingInfo: r.healingInfo || {}
+    }));
+
+    if (failedResults.length === 0) {
+      alert('No failed endpoints to fix. All tests passed!');
+      return;
+    }
+
+    // Start the fix session via FixRunner
+    if (typeof FixRunner !== 'undefined') {
+      FixRunner.startFixSession(failedResults);
+    } else {
+      alert('Fix runner module not loaded.');
     }
   }
 };

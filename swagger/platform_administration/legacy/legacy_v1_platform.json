@@ -4,7 +4,7 @@
   "info": {
     "title": "Platform Administration Legacy API v1",
     "version": "v1.0",
-    "description": "Legacy v1 Platform API endpoints for platform administration domain including businesses, staff, tokens, webhooks, categories, fields, forms, and directory management"
+    "description": "Legacy v1 Platform API endpoints for platform administration domain including businesses, staff, tokens, webhooks, categories, fields, forms, automation, and directory management"
   },
   "paths": {
     "/businesses": {
@@ -3798,6 +3798,646 @@
           "uri": "https:///platform/v1/scheduling/staff/{staff_uid}"
         },
         "description": "## Overview\nGet Staff By ID [Alpha].\n\nAvailable for **Staff Tokens**."
+      }
+    },
+    "/business/jobber/flows": {
+      "put": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "## Overview\nUpdates or creates an automation flow for a business. Automation flows define scheduled rules that trigger automated actions such as creating draft invoices, processing payments, or other business automation tasks.\n\nThis endpoint supports both creating new flows and updating existing ones. When a `uid` is provided in the request body, the flow with that UID will be updated. If no `uid` is provided, a new flow will be created.\n\n## Flow Types\nFlows can be configured for different modules and flow types:\n- **automatic_billing**: Automated invoice creation and billing workflows\n- **scheduled_payments**: Recurring payment processing\n- Other module-specific automation types\n\n## Scheduling Rules\nEach flow contains one or more scheduling rules that define when the automation should execute:\n- **interval_type**: The frequency type (e.g., \"weekly\", \"monthly\", \"daily\")\n- **interval_hour**: The time of day when the automation should run (format: \"HH:MM\")\n- **interval_week_days**: Array of weekday abbreviations (e.g., [\"mo\", \"we\", \"fr\"] for Monday, Wednesday, Friday)\n- **event_name**: The event that triggers the automation (e.g., \"invoice:create_draft\", \"payment:create\")\n\n## Active Status\nSet `active` to `true` to enable the automation flow, or `false` to disable it without deleting the flow configuration.\n\nAvailable for **Staff and Directory tokens**.",
+        "parameters": [
+          {
+            "description": "Optional JSON-encoded filter object for teams view filtering. Typically an empty object `{}`.",
+            "in": "query",
+            "name": "teams_view_filter",
+            "required": false,
+            "type": "string",
+            "default": "{}"
+          },
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "properties": {
+                "uid": {
+                  "description": "Unique identifier for the automation flow. Required when updating an existing flow. Omit when creating a new flow.",
+                  "type": "string",
+                  "example": "ab35fa9d-a39e-4074-aae7-c3d2d3d84413"
+                },
+                "entity_uid": {
+                  "description": "The unique identifier of the entity that owns this flow. For business-level automations, this is the business UID.",
+                  "type": "string",
+                  "required": true,
+                  "example": "o9vdqy629zrlln2i"
+                },
+                "entity_type": {
+                  "description": "The type of entity that owns this flow. Currently supports \"business\" for business-level automations.",
+                  "type": "string",
+                  "enum": [
+                    "business"
+                  ],
+                  "required": true,
+                  "example": "business"
+                },
+                "module_name": {
+                  "description": "The module this automation flow belongs to. Determines the domain of automation:\n- **automatic_billing**: Invoice automation workflows (creating drafts, issuing invoices, sending payment links)\n- **scheduled_payments**: Recurring payment processing automation",
+                  "type": "string",
+                  "enum": [
+                    "automatic_billing",
+                    "scheduled_payments"
+                  ],
+                  "required": true,
+                  "example": "automatic_billing"
+                },
+                "flow_type": {
+                  "description": "The type of automation flow. Defines what action the automation performs. Valid values depend on the `module_name`:\n\n**For `automatic_billing` module:**\n- **create_draft**: Creates draft invoices automatically based on the schedule\n- **create_and_send**: Creates and sends invoices automatically (can be configured to send immediately or after a delay)\n- **send_link**: Sends payment links to clients for balance settlement\n\n**For `scheduled_payments` module:**\n- **create_payment**: Processes recurring payments automatically based on the schedule",
+                  "type": "string",
+                  "enum": [
+                    "create_draft",
+                    "create_and_send",
+                    "send_link",
+                    "create_payment"
+                  ],
+                  "required": true,
+                  "example": "create_draft"
+                },
+                "time_zone_name": {
+                  "description": "The timezone in which the automation schedule should be interpreted. Must be a valid IANA timezone name (e.g., \"America/Los_Angeles\", \"Europe/London\").",
+                  "type": "string",
+                  "required": true,
+                  "example": "America/Los_Angeles"
+                },
+                "active": {
+                  "description": "Whether the automation flow is currently active. Set to `true` to enable the automation, `false` to disable it.",
+                  "type": "boolean",
+                  "required": true,
+                  "example": true
+                },
+                "rules": {
+                  "description": "Array of scheduling rules that define when and how the automation should execute. Each rule specifies the schedule and event trigger.",
+                  "type": "array",
+                  "required": true,
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "description": "The type of rule. Currently supports \"schedule\" for time-based scheduling.",
+                        "type": "string",
+                        "enum": [
+                          "schedule"
+                        ],
+                        "required": true,
+                        "example": "schedule"
+                      },
+                      "interval_type": {
+                        "description": "The frequency interval type. Valid values: \"daily\", \"weekly\", \"monthly\". Determines how often the automation runs.",
+                        "type": "string",
+                        "enum": [
+                          "daily",
+                          "weekly",
+                          "monthly"
+                        ],
+                        "required": true,
+                        "example": "weekly"
+                      },
+                      "interval_hour": {
+                        "description": "The time of day when the automation should execute, in 24-hour format (HH:MM). Must be in the timezone specified by `time_zone_name`.",
+                        "type": "string",
+                        "pattern": "^([0-1][0-9]|2[0-3]):[0-5][0-9]$",
+                        "required": true,
+                        "example": "08:00"
+                      },
+                      "interval_week_days": {
+                        "description": "Array of weekday abbreviations when the automation should run. Only applicable when `interval_type` is \"weekly\". Valid values: \"mo\" (Monday), \"tu\" (Tuesday), \"we\" (Wednesday), \"th\" (Thursday), \"fr\" (Friday), \"sa\" (Saturday), \"su\" (Sunday).",
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "mo",
+                            "tu",
+                            "we",
+                            "th",
+                            "fr",
+                            "sa",
+                            "su"
+                          ]
+                        },
+                        "required": false,
+                        "example": [
+                          "mo"
+                        ]
+                      },
+                      "event_name": {
+                        "description": "The event name that triggers this automation. Common values include \"invoice:create_draft\" for invoice automation and \"payment:create\" for payment automation.",
+                        "type": "string",
+                        "required": true,
+                        "example": "invoice:create_draft"
+                      },
+                      "start_date": {
+                        "description": "The date when the automation should start. Format: YYYY-MM-DD. If not provided, the automation starts immediately.",
+                        "type": "string",
+                        "format": "date",
+                        "required": false,
+                        "example": "2026-02-10"
+                      },
+                      "cycles": {
+                        "description": "The number of times the automation should execute. If not specified, the automation runs indefinitely (for recurring flows).",
+                        "type": "integer",
+                        "minimum": 1,
+                        "required": false,
+                        "example": 12
+                      },
+                      "interval": {
+                        "description": "The interval multiplier for the `interval_type`. For example, if `interval_type` is \"weekly\" and `interval` is 2, the automation runs every 2 weeks. Defaults to 1 if not specified.",
+                        "type": "integer",
+                        "minimum": 1,
+                        "required": false,
+                        "example": 1
+                      },
+                      "interval_month_day": {
+                        "description": "For monthly intervals, specifies which day of the month to run. Can be a number (1-28) or \"last day\" for the last day of the month. Required when `interval_type` is \"monthly\" and the start date's day is greater than 28.",
+                        "type": "string",
+                        "required": false,
+                        "example": "last day"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "interval_type",
+                      "interval_hour",
+                      "event_name"
+                    ]
+                  },
+                  "example": [
+                    {
+                      "type": "schedule",
+                      "interval_type": "weekly",
+                      "interval_hour": "08:00",
+                      "interval_week_days": [
+                        "mo"
+                      ],
+                      "event_name": "invoice:create_draft"
+                    }
+                  ]
+                },
+                "allow_multi_flows": {
+                  "description": "Whether multiple flows of the same type are allowed for this entity. Set to `true` to allow multiple flows, `false` to restrict to a single flow.",
+                  "type": "boolean",
+                  "required": false,
+                  "example": true
+                }
+              },
+              "required": [
+                "entity_uid",
+                "entity_type",
+                "module_name",
+                "flow_type",
+                "time_zone_name",
+                "active",
+                "rules"
+              ],
+              "type": "object"
+            }
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Automation flow created or updated successfully.",
+            "examples": {
+              "application/json": {
+                "data": {
+                  "uid": "ab35fa9d-a39e-4074-aae7-c3d2d3d84413",
+                  "entity_uid": "o9vdqy629zrlln2i",
+                  "entity_type": "business",
+                  "module_name": "automatic_billing",
+                  "flow_type": "create_draft",
+                  "time_zone_name": "America/Los_Angeles",
+                  "active": true,
+                  "rules": [
+                    {
+                      "type": "schedule",
+                      "interval_type": "weekly",
+                      "interval_hour": "08:00",
+                      "interval_week_days": [
+                        "mo"
+                      ],
+                      "event_name": "invoice:create_draft"
+                    }
+                  ]
+                },
+                "status": "OK"
+              }
+            },
+            "schema": {
+              "properties": {
+                "data": {
+                  "properties": {
+                    "uid": {
+                      "description": "Unique identifier for the automation flow",
+                      "type": "string"
+                    },
+                    "entity_uid": {
+                      "description": "The unique identifier of the entity that owns this flow",
+                      "type": "string"
+                    },
+                    "entity_type": {
+                      "description": "The type of entity that owns this flow",
+                      "type": "string"
+                    },
+                    "module_name": {
+                      "description": "The module this automation flow belongs to. Valid values: \"automatic_billing\", \"scheduled_payments\"",
+                      "type": "string",
+                      "enum": [
+                        "automatic_billing",
+                        "scheduled_payments"
+                      ]
+                    },
+                    "flow_type": {
+                      "description": "The type of automation flow. Valid values: \"create_draft\", \"create_and_send\", \"send_link\", \"create_payment\"",
+                      "type": "string",
+                      "enum": [
+                        "create_draft",
+                        "create_and_send",
+                        "send_link",
+                        "create_payment"
+                      ]
+                    },
+                    "time_zone_name": {
+                      "description": "The timezone for the automation schedule",
+                      "type": "string"
+                    },
+                    "active": {
+                      "description": "Whether the automation flow is currently active",
+                      "type": "boolean"
+                    },
+                    "rules": {
+                      "description": "Array of scheduling rules",
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  },
+                  "type": "object"
+                },
+                "status": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid request parameters or malformed request body.",
+            "examples": {
+              "application/json": {
+                "errors": [
+                  {
+                    "field": "rules",
+                    "code": "invalid",
+                    "message": "At least one rule is required"
+                  }
+                ],
+                "status": "ERROR"
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error. The request syntax is valid but the data fails validation.",
+            "examples": {
+              "application/json": {
+                "errors": [
+                  {
+                    "field": "time_zone_name",
+                    "code": "invalid",
+                    "message": "Invalid timezone name"
+                  }
+                ],
+                "status": "ERROR"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "default": [
+              "platform"
+            ]
+          }
+        ],
+        "summary": "Update or Create Automation Flow",
+        "tags": [
+          "Automation"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "PUT",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///business/jobber/flows"
+        },
+        "x-auth-type": "Application & Application User"
+      },
+      "get": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "## Overview\nRetrieves automation flows for a business based on the specified filters. This endpoint allows you to query existing automation flows by entity, module, and other criteria.\n\n## Use Cases\n- Retrieve all automation flows for a specific business\n- Get flows for a specific module (e.g., automatic_billing, scheduled_payments)\n- Check if an automation flow exists before creating a new one\n- Retrieve flow configuration for display or editing\n\n## Response\nReturns an array of automation flows matching the specified criteria. Each flow includes its complete configuration including scheduling rules, active status, and metadata.\n\nAvailable for **Staff and Directory tokens**.",
+        "parameters": [
+          {
+            "description": "The unique identifier of the entity that owns the flows. For business-level automations, this is the business UID.",
+            "in": "query",
+            "name": "entity_uid",
+            "required": true,
+            "type": "string",
+            "example": "o9vdqy629zrlln2i"
+          },
+          {
+            "description": "The type of entity that owns the flows. Currently supports \"business\" for business-level automations.",
+            "in": "query",
+            "name": "entity_type",
+            "required": true,
+            "type": "string",
+            "enum": [
+              "business"
+            ],
+            "example": "business"
+          },
+          {
+            "description": "Filter flows by module name. Valid values:\n- **automatic_billing**: Invoice automation workflows\n- **scheduled_payments**: Recurring payment processing automation\n\nIf not specified, returns flows for all modules.",
+            "in": "query",
+            "name": "module_name",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "automatic_billing",
+              "scheduled_payments"
+            ],
+            "example": "automatic_billing"
+          },
+          {
+            "description": "Optional JSON-encoded filter object for teams view filtering. Typically an empty object `{}`.",
+            "in": "query",
+            "name": "teams_view_filter",
+            "required": false,
+            "type": "string",
+            "default": "{}"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Automation flows retrieved successfully.",
+            "examples": {
+              "application/json": {
+                "data": {
+                  "uid": "ab35fa9d-a39e-4074-aae7-c3d2d3d84413",
+                  "entity_uid": "o9vdqy629zrlln2i",
+                  "entity_type": "business",
+                  "module_name": "automatic_billing",
+                  "flow_type": "create_draft",
+                  "time_zone_name": "America/Los_Angeles",
+                  "active": true,
+                  "rules": [
+                    {
+                      "type": "schedule",
+                      "interval_type": "weekly",
+                      "interval_hour": "08:00",
+                      "interval_week_days": [
+                        "mo"
+                      ],
+                      "event_name": "invoice:create_draft"
+                    }
+                  ]
+                },
+                "status": "OK"
+              }
+            },
+            "schema": {
+              "properties": {
+                "data": {
+                  "properties": {
+                    "uid": {
+                      "description": "Unique identifier for the automation flow",
+                      "type": "string"
+                    },
+                    "entity_uid": {
+                      "description": "The unique identifier of the entity that owns this flow",
+                      "type": "string"
+                    },
+                    "entity_type": {
+                      "description": "The type of entity that owns this flow",
+                      "type": "string"
+                    },
+                    "module_name": {
+                      "description": "The module this automation flow belongs to. Valid values: \"automatic_billing\", \"scheduled_payments\"",
+                      "type": "string",
+                      "enum": [
+                        "automatic_billing",
+                        "scheduled_payments"
+                      ]
+                    },
+                    "flow_type": {
+                      "description": "The type of automation flow. Valid values: \"create_draft\", \"create_and_send\", \"send_link\", \"create_payment\"",
+                      "type": "string",
+                      "enum": [
+                        "create_draft",
+                        "create_and_send",
+                        "send_link",
+                        "create_payment"
+                      ]
+                    },
+                    "time_zone_name": {
+                      "description": "The timezone for the automation schedule",
+                      "type": "string"
+                    },
+                    "active": {
+                      "description": "Whether the automation flow is currently active",
+                      "type": "boolean"
+                    },
+                    "rules": {
+                      "description": "Array of scheduling rules",
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  },
+                  "type": "object"
+                },
+                "status": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid request parameters.",
+            "examples": {
+              "application/json": {
+                "errors": [
+                  {
+                    "field": "entity_uid",
+                    "code": "missing",
+                    "message": "entity_uid is required"
+                  }
+                ],
+                "status": "ERROR"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "default": [
+              "platform"
+            ]
+          }
+        ],
+        "summary": "Get Automation Flows",
+        "tags": [
+          "Automation"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "GET",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///business/jobber/flows"
+        },
+        "x-auth-type": "Application & Application User"
+      }
+    },
+    "/business/jobber/executions": {
+      "get": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "## Overview\nRetrieves the next scheduled execution time for a specific automation flow rule. This endpoint is useful for displaying when an automation will next run, allowing users to see upcoming execution times.\n\n## Use Cases\n- Display the next execution time for an automation flow\n- Show users when their scheduled automation will next run\n- Calculate and display countdown timers for upcoming executions\n- Validate that a flow has future executions scheduled\n\n## Response\nReturns the next execution time slot in the flow's configured timezone. The time is returned in a format that can be parsed and displayed to users.\n\nAvailable for **Staff and Directory tokens**.",
+        "parameters": [
+          {
+            "description": "The unique identifier of the automation flow rule for which to retrieve the next execution time.",
+            "in": "query",
+            "name": "rule_uid",
+            "required": true,
+            "type": "string",
+            "example": "ab35fa9d-a39e-4074-aae7-c3d2d3d84413"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Next execution time retrieved successfully.",
+            "examples": {
+              "application/json": {
+                "data": {
+                  "time_slot": "2026-02-10 08:00:00",
+                  "rule_uid": "ab35fa9d-a39e-4074-aae7-c3d2d3d84413"
+                },
+                "status": "OK"
+              }
+            },
+            "schema": {
+              "properties": {
+                "data": {
+                  "properties": {
+                    "time_slot": {
+                      "description": "The next scheduled execution time in the format 'YYYY-MM-DD HH:MM:SS'. The time is in the timezone specified by the flow's time_zone_name.",
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "rule_uid": {
+                      "description": "The unique identifier of the automation flow rule",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "status": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid request parameters.",
+            "examples": {
+              "application/json": {
+                "errors": [
+                  {
+                    "field": "rule_uid",
+                    "code": "missing",
+                    "message": "rule_uid is required"
+                  }
+                ],
+                "status": "ERROR"
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - The specified rule_uid does not exist or has no future executions scheduled.",
+            "examples": {
+              "application/json": {
+                "errors": [
+                  {
+                    "field": "rule_uid",
+                    "code": "not_found",
+                    "message": "Rule not found or no future executions scheduled"
+                  }
+                ],
+                "status": "ERROR"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "default": [
+              "platform"
+            ]
+          }
+        ],
+        "summary": "Get Next Execution Time",
+        "tags": [
+          "Automation"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "GET",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///business/jobber/executions"
+        },
+        "x-auth-type": "Application & Application User"
       }
     }
   },

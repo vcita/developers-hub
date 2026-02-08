@@ -1,22 +1,40 @@
 ---
 endpoint: "POST /business/payments/v1/product_orders"
 domain: sales
-tags: []
+tags: [product_orders]
 swagger: "swagger/sales/legacy/payments.json"
-status: verified
+status: success
 savedAt: "2026-01-26T21:30:04.269Z"
-verifiedAt: "2026-01-26T21:30:04.269Z"
+verifiedAt: "2026-02-06T20:51:00.000Z"
 timesReused: 0
+useFallbackApi: true
 ---
 
-# Create Product orders
+# Create Product Order
 
 ## Summary
-Test passes after replacing placeholder tax_id with valid tax ID from GET /business/payments/v1/taxes. The original request used "test_string" for tax_ids which caused a 422 error, but with valid tax ID "qa5va78pi0jk6gts" the request succeeds with HTTP 201.
+
+Creates a product order. Requires a valid product_id (from GET /business/payments/v1/products). The endpoint works via the fallback API; APIGW returns 401 for staff tokens.
+
+**Token Type**: This endpoint requires a **Staff token**.
+
+> **⚠️ Fallback API Required**
+> This endpoint must use the fallback API URL. The main API gateway returns 401 for staff tokens.
 
 ## Prerequisites
 
-No prerequisites required for this endpoint.
+```yaml
+steps:
+  - id: get_products
+    description: "Fetch products to get a valid product ID"
+    method: GET
+    path: "/business/payments/v1/products"
+    extract:
+      product_id: "$.data.products[0].id"
+    expect:
+      status: 200
+    onFail: abort
+```
 
 ## Test Request
 
@@ -31,8 +49,6 @@ steps:
         matter_uid: "{{matter_uid}}"
         price: 1
         product_id: "{{product_id}}"
-        tax_ids:
-          "0": "{{uid}}"
     expect:
       status: [200, 201]
 ```

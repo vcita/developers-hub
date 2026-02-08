@@ -370,10 +370,11 @@ async function buildRequestConfigAsync(endpoint, config, context = {}) {
     console.log(`  [API Client Async] Adding X-On-Behalf-Of header (required by endpoint): ${staticParams.business_uid}`);
   }
   
-  // AI config
+  // AI config — param generator uses OpenAI (gpt-4o-mini)
   const aiConfig = {
     enabled: config.ai?.enabled || false,
-    apiKey: config.ai?.anthropicApiKey
+    apiKey: config.ai?.openaiApiKey,
+    model: config.ai?.models?.paramGenerator || 'gpt-4o-mini'
   };
   
   const dynamicParams = context.params || {};

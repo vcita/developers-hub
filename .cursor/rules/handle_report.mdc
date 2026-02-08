@@ -11,6 +11,16 @@ api-validation/workflows/TEMPLATE.md
 
 This is the single source of truth for workflow format. Read it before creating any workflow.
 
+## Knowledge Base Reference (MANDATORY)
+
+Before investigating any failed endpoint, check the healing knowledge base:
+```
+api-validation/docs/healing-knowledge-base.md
+```
+
+If the symptoms or path pattern match, apply the documented resolution first.
+If you identify a new recurring pattern, add a new entry to the knowledge base.
+
 ## MANDATORY: CREATE A PLAN BEFORE EXECUTION
 
 Before making ANY changes, you MUST create a detailed plan using the CreatePlan tool.
@@ -78,6 +88,15 @@ Before making ANY changes, you MUST create a detailed plan using the CreatePlan 
 ## GOAL: GET 2XX RESULTS FIRST
 
 The primary goal is to make tests PASS (return 2xx), NOT to document errors.
+
+## Workflow Status Rules (Verified vs Non-2xx)
+
+- **Verified means reliable 2xx**: Only mark `status: verified` when the workflow consistently returns a 2xx response using valid test data.
+- **Non-2xx expected is NOT verified**: If the workflow expects a non-2xx status (via `expectedOutcome` or the Test Request `expect.status`), keep `status: pending` (or `failed`/`skipped` when appropriate).
+- **Avoid legacy `success`**: Do not set `status: success` in new or updated workflows. Use `verified` only for reliable 2xx.
+- **Expected outcome alignment**: If `expectedOutcome` is present and it is not in the 2xx range, treat the workflow as **not verified**, even if it is stable.
+
+This keeps the UI "Verified" label meaningful: **Verified = 2xx** only.
 
 ### Root Cause: Missing/Incomplete Workflows
 
@@ -167,6 +186,49 @@ Before analyzing any issue:
 2. All required params are sent
 3. Endpoint STILL fails with proper request
 4. Error is verified as actual code bug
+
+## Fix Prompt (Use when applying workflow/swagger fixes)
+
+```
+You are fixing API validation failures based on ai-fixes.md.
+Rules:
+- Always read TEMPLATE.md first and follow its workflow format.
+- Always check api-validation/docs/healing-knowledge-base.md for a matching resolution before investigating.
+- If a new recurring pattern is confirmed, update api-validation/docs/healing-knowledge-base.md with a new entry (symptoms, sample endpoints, common path patterns, resolution).
+- Fix workflows before swagger. Goal is 2xx responses.
+- If a workflow expects non-2xx (expectedOutcome), keep status pending (not verified).
+- Mark verified ONLY after a reliable 2xx response is observed.
+- Never change endpoint paths. Never edit mcp_swagger files.
+- Validate findings via frontend usage (frontage) before controller code.
+
+Task:
+1) For each failed endpoint, inspect the workflow (or create it).
+2) Ensure required query params/body fields are present and real UIDs are resolved via prerequisites.
+3) Run the workflow against the API until a 2xx is returned or the failure is documented.
+4) Update workflow status appropriately (verified only for 2xx).
+5) Only after workflows succeed, update swagger required fields/x-reference-to annotations.
+```
+
+## JIRA Prompt (Use only after a real 2xx attempt fails)
+
+```
+Create a JIRA ticket in epic VCITA2-11611 for a backend bug found by API validation.
+Include:
+- Endpoint (method + path)
+- Exact request body/params used (from workflow)
+- Token type and headers
+- Expected behavior (2xx) and actual response
+- Evidence that workflow data is valid and prerequisites were satisfied
+- Error response payload and timestamps
+- Impact and suggested owner if known
+- Confirmation that api-validation/docs/healing-knowledge-base.md has no matching resolution
+- If a new recurring pattern is confirmed, note that the knowledge base was updated
+
+Only file JIRA after:
+- Workflow exists and is valid
+- All required params/body fields are sent
+- The API still fails with correct data
+```
 
 ## FIX PRIORITY ORDER (STRICT)
 

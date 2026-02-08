@@ -44,11 +44,22 @@ function isAIConfigured(config) {
  * @param {Object} config - Application config
  * @returns {string|null} - The API key for the configured provider
  */
-function getAIApiKey(config) {
-  const provider = config.ai?.provider || 'anthropic';
-  return provider === 'openai' 
-    ? config.ai?.openaiApiKey 
-    : config.ai?.anthropicApiKey;
+/**
+ * Get the API key for a specific AI component.
+ * Provider is auto-detected from the model name.
+ * @param {Object} config - Application config
+ * @param {string} [component='healer'] - Component name: 'healer', 'paramGenerator', or 'resolver'
+ * @returns {string|null} - The API key for the component's provider
+ */
+function getAIApiKey(config, component = 'healer') {
+  const modelMap = {
+    healer: config.ai?.models?.healer || 'claude-sonnet-4-20250514',
+    paramGenerator: config.ai?.models?.paramGenerator || 'gpt-4o-mini',
+    resolver: config.ai?.models?.resolver || 'gpt-4.1-nano'
+  };
+  const model = modelMap[component] || modelMap.healer;
+  const isAnthropic = /^(claude|anthropic)/i.test(model);
+  return isAnthropic ? config.ai?.anthropicApiKey : config.ai?.openaiApiKey;
 }
 
 /**
@@ -1338,15 +1349,12 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
           }
         });
         
-        // Process doc fix suggestions
+        // Process healing result
         console.log(`\n=== AI HEALER COMPLETED ===`);
         console.log(`  Success: ${healingResult.success}`);
         console.log(`  Summary: ${healingResult.summary}`);
-        console.log(`  Doc Issues Count: ${healingResult.docFixSuggestions?.length || 0}`);
-        if (healingResult.docFixSuggestions?.length > 0) {
-          console.log(`  Doc Issues:`, JSON.stringify(healingResult.docFixSuggestions, null, 2));
-        }
         
+        // Type mismatch results may still carry docFixSuggestions for backward compat
         if (healingResult.docFixSuggestions?.length > 0) {
           result.details = result.details || {};
           result.details.documentationIssues = healingResult.docFixSuggestions;
@@ -1363,7 +1371,6 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
         }
         
         if (healingResult.success) {
-          // Check for documentation issues - use for status determination
           const hasDocIssues = healingResult.docFixSuggestions?.length > 0;
           
           // Agent fixed it! Get the last successful retry from the log
@@ -1372,18 +1379,14 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
             ?.pop();
           
           if (lastSuccess) {
-            // Set status to WARN if there are documentation issues, otherwise PASS
             result.status = hasDocIssues ? 'WARN' : 'PASS';
             result.httpStatus = lastSuccess.result.status;
-            // Clear the old failure reason since we succeeded
             result.reason = hasDocIssues ? 'DOCUMENTATION_ISSUES' : null;
-            // Update errors to show doc issues instead of original validation errors
             result.errors = hasDocIssues 
               ? healingResult.docFixSuggestions.map(d => ({ path: '/', message: d.issue }))
               : [];
             result.details = result.details || {};
             result.details.response = { data: lastSuccess.result.data };
-            // Store the retry request info for UI display (cURL generation, view request/response)
             if (lastSuccess.result.requestConfig) {
               result.details.request = lastSuccess.result.requestConfig;
             }
@@ -1396,21 +1399,18 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
               docFixSuggestions: healingResult.docFixSuggestions || [],
               savedWorkflows: healingResult.savedWorkflows || [],
               workflowStatus: healingResult.savedWorkflows?.length > 0 ? 'New' : 'N/A',
-              hasDocumentationIssues: hasDocIssues
+              hasDocumentationIssues: hasDocIssues,
+              analysisForFixer: healingResult.analysisForFixer || null
             };
           } else if (healingResult.finalResponse) {
-            // Workflow test request succeeded directly (without going through AI healing log)
             result.status = hasDocIssues ? 'WARN' : 'PASS';
             result.httpStatus = healingResult.finalResponse.status;
-            // Clear the old failure reason since we succeeded
             result.reason = hasDocIssues ? 'DOCUMENTATION_ISSUES' : null;
-            // Update errors to show doc issues instead of original validation errors
             result.errors = hasDocIssues 
               ? healingResult.docFixSuggestions.map(d => ({ path: '/', message: d.issue }))
               : [];
             result.details = result.details || {};
             result.details.response = { data: healingResult.finalResponse.data };
-            // Store the workflow request info for UI display
             if (healingResult.finalRequest) {
               result.details.request = {
                 method: healingResult.finalRequest.method,
@@ -1428,11 +1428,11 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
               docFixSuggestions: healingResult.docFixSuggestions || [],
               savedWorkflows: healingResult.savedWorkflows || [],
               workflowStatus: healingResult.followedWorkflow ? 'Followed' : 'N/A',
-              hasDocumentationIssues: hasDocIssues
+              hasDocumentationIssues: hasDocIssues,
+              analysisForFixer: healingResult.analysisForFixer || null
             };
           }
           
-          // Update resolved params with what the agent learned
           if (healingResult.resolvedParams) {
             testContext.setParams({ ...testContext.getParams(), ...healingResult.resolvedParams });
           }
@@ -1445,30 +1445,24 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
             retryCount: healingResult.retryCount,
             summary: healingResult.summary,
             workflowSaved: healingResult.savedWorkflows?.length > 0,
-            docFixCount: healingResult.docFixSuggestions?.length || 0,
-            swaggerFileChanges: healingResult.swaggerFileChanges || [],
-            // Include updated result so UI can update in place
             updatedResult: result
           });
         } else if (healingResult.skip || healingResult.skipSuggestion) {
-          // Agent suggests this should be skipped (requires user approval)
-          // Mark as FAIL with skipSuggestion flag - user can approve skip in UI
-          result.status = 'FAIL';  // Mark as FAIL, not SKIP - user must approve
+          result.status = 'FAIL';
           result.details = result.details || {};
           result.details.healingInfo = {
             mode: 'deterministic_uid_resolution',
-            skipSuggestion: true,  // Flag for UI to show "Approve Skip" button
+            skipSuggestion: true,
             skipReason: healingResult.skipReason,
             iterations: healingResult.iterations,
             retryCount: healingResult.retryCount,
             summary: healingResult.summary,
             agentLog: healingResult.healingLog,
-            docFixSuggestions: healingResult.docFixSuggestions || [],
-            savedWorkflows: [],  // Don't save skip workflows automatically
-            workflowStatus: 'Pending Skip Approval'
+            savedWorkflows: [],
+            workflowStatus: 'Pending Skip Approval',
+            analysisForFixer: healingResult.analysisForFixer || null
           };
           
-          // Update resolved params with what the agent learned
           if (healingResult.resolvedParams) {
             testContext.setParams({ ...testContext.getParams(), ...healingResult.resolvedParams });
           }
@@ -1476,19 +1470,16 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
           broadcastEvent(session, 'healing_complete', {
             endpoint: endpointKey,
             success: false,
-            skipSuggestion: true,  // UI will show "Approve Skip" button
+            skipSuggestion: true,
             skipReason: healingResult.skipReason,
             iterations: healingResult.iterations,
             retryCount: healingResult.retryCount,
             summary: healingResult.summary,
             workflowSaved: false,
-            docFixCount: healingResult.docFixSuggestions?.length || 0,
-            swaggerFileChanges: healingResult.swaggerFileChanges || [],
-            // Include updated result so UI can update in place
             updatedResult: result
           });
         } else {
-          // Agent couldn't fix it
+          // Agent couldn't fix it - pass analysis to fixer
           result.details = result.details || {};
           result.details.healingInfo = {
             mode: 'deterministic_uid_resolution',
@@ -1499,8 +1490,8 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
             reason: healingResult.reason,
             unresolvedUids: healingResult.unresolvedUids || [],
             agentLog: healingResult.healingLog,
-            docFixSuggestions: healingResult.docFixSuggestions || [],
-            workflowStatus: 'Failed'
+            workflowStatus: 'Failed',
+            analysisForFixer: healingResult.analysisForFixer || null
           };
           
           broadcastEvent(session, 'healing_complete', {
@@ -1510,9 +1501,6 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
             retryCount: healingResult.retryCount,
             reason: healingResult.reason,
             unresolvedUids: healingResult.unresolvedUids || [],
-            docFixCount: healingResult.docFixSuggestions?.length || 0,
-            swaggerFileChanges: healingResult.swaggerFileChanges || [],
-            // Include updated result so UI can update in place (shows healing info even if failed)
             updatedResult: result
           });
         }
@@ -1550,116 +1538,6 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
       skipped: report.summary.skipped,
       passRate: report.summary.passRate,
       duration: report.summary.duration
-    });
-  }
-}
-
-/**
- * Retry an endpoint test with new parameters
- * Used by self-healing to re-test after creating prerequisites
- * @param {Object} endpoint - Endpoint to test
- * @param {Object} newParams - New resolved parameters
- * @param {Object} config - App config
- * @param {Object} apiClient - Axios instance
- * @param {Object} testContext - Test context
- * @returns {Promise<Object>} Test result
- */
-async function retryEndpointTest(endpoint, newParams, config, apiClient, testContext, bodyOverride = null) {
-  const startTime = Date.now();
-  
-  try {
-    // Build request with new params
-    const context = {
-      params: { ...testContext.getParams(), ...newParams }
-    };
-    
-    let { config: requestConfig, tokenType, hasToken, skip, skipReason } = 
-      await buildRequestConfigAsync(endpoint, config, context);
-    
-    // Apply body override if provided (for parameter variations)
-    if (bodyOverride && requestConfig.data) {
-      requestConfig.data = bodyOverride;
-    }
-    
-    if (skip) {
-      return buildValidationResult({
-        endpoint,
-        status: 'SKIP',
-        httpStatus: null,
-        duration: Date.now() - startTime,
-        tokenUsed: tokenType,
-        reason: 'SKIPPED',
-        errors: [{ message: skipReason }]
-      });
-    }
-    
-    // Execute request
-    const response = await executeRequest(apiClient, requestConfig);
-    const duration = Date.now() - startTime;
-    
-    // Validate response
-    const isSuccessStatus = response.status >= 200 && response.status < 300;
-    const statusValidation = validateStatusCode(response.status, endpoint.responses, response.data);
-    
-    if (isSuccessStatus) {
-      // Get response schema and validate
-      const responseSpec = endpoint.responses?.[response.status] || endpoint.responses?.[String(response.status)];
-      const responseSchema = responseSpec?.content?.['application/json']?.schema;
-      
-      let schemaValidation = { valid: true, errors: [], warnings: [] };
-      if (responseSchema && response.data) {
-        schemaValidation = validateAgainstSchema(response.data, responseSchema);
-      }
-      
-      if (!schemaValidation.valid) {
-        return buildValidationResult({
-          endpoint,
-          status: 'WARN',
-          httpStatus: response.status,
-          duration,
-          tokenUsed: tokenType,
-          reason: FAILURE_REASONS.SCHEMA_MISMATCH,
-          errors: schemaValidation.errors,
-          request: requestConfig,
-          response: { status: response.status, headers: response.headers, data: response.data },
-          suggestion: getSuggestion(FAILURE_REASONS.SCHEMA_MISMATCH)
-        });
-      }
-      
-      return buildValidationResult({
-        endpoint,
-        status: 'PASS',
-        httpStatus: response.status,
-        duration,
-        tokenUsed: tokenType,
-        request: requestConfig,
-        response: { status: response.status, headers: response.headers, data: response.data }
-      });
-    } else {
-      // Non-success status
-      return buildValidationResult({
-        endpoint,
-        status: statusValidation.error?.isExpectedError ? 'ERROR' : 'FAIL',
-        httpStatus: response.status,
-        duration,
-        tokenUsed: tokenType,
-        reason: statusValidation.error?.reason || FAILURE_REASONS.UNEXPECTED_STATUS_CODE,
-        request: requestConfig,
-        response: { status: response.status, headers: response.headers, data: response.data },
-        suggestion: getSuggestion(statusValidation.error?.reason || FAILURE_REASONS.UNEXPECTED_STATUS_CODE)
-      });
-    }
-  } catch (error) {
-    const duration = Date.now() - startTime;
-    
-    return buildValidationResult({
-      endpoint,
-      status: 'FAIL',
-      httpStatus: error.response?.status || null,
-      duration,
-      tokenUsed: null,
-      reason: error.code === 'ECONNABORTED' ? FAILURE_REASONS.TIMEOUT : FAILURE_REASONS.NETWORK_ERROR,
-      errors: [{ message: error.message }]
     });
   }
 }
@@ -2269,7 +2147,8 @@ async function fetchMissingParams(endpoints, paramResolver, apiClient, rateLimit
               endpoint.path,
               paramName,
               allEndpoints,
-              getAIApiKey(config)
+              getAIApiKey(config, 'resolver'),
+              config.ai?.models?.resolver
             );
           } else {
             console.log(`[Phase 3] Using learned mapping: ${endpoint.path} → ${learnedPath}`);
