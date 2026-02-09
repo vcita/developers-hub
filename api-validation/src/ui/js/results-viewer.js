@@ -26,6 +26,7 @@ const ResultsViewer = {
     let html = '';
     
     for (const result of sorted) {
+      const resultId = `result-${result.endpoint.replace(/[^a-zA-Z0-9]/g, '-')}`;
       const statusClass = result.status === 'PASS' ? 'pass' : 
                           result.status === 'FAIL' ? 'fail' :
                           result.status === 'WARN' ? 'warn' : 
@@ -37,7 +38,7 @@ const ResultsViewer = {
       const hasDetails = result.details && (result.details.request || result.details.reason);
       
       html += `
-        <div class="result-item result-${statusClass} ${hasDetails ? 'expandable' : ''}">
+        <div id="${resultId}" class="result-item result-${statusClass} ${hasDetails ? 'expandable' : ''}" data-status="${result.status}">
           <div class="result-header" ${hasDetails ? `onclick="ResultsViewer.toggleDetails(this.parentElement)"` : ''}>
             <span class="result-icon">${icon}</span>
             <span class="result-endpoint">${result.endpoint}</span>
@@ -56,6 +57,196 @@ const ResultsViewer = {
     }
     
     listEl.innerHTML = html || '<div class="empty">No results yet</div>';
+  },
+  
+  /**
+   * Add a single result to the list (for incremental rendering during test run)
+   * @param {Object} result - Single result object
+   */
+  addResult(result) {
+    const listEl = document.getElementById('results-list');
+    if (!listEl) return;
+    
+    // Create unique ID for this result item
+    const resultId = `result-${result.endpoint.replace(/[^a-zA-Z0-9]/g, '-')}`;
+    
+    // Check if this result already exists - if so, update instead of adding
+    if (document.getElementById(resultId)) {
+      this.updateResult(result);
+      return;
+    }
+    
+    this._results.push(result);
+    
+    // Remove loading message if present
+    const loadingMsg = listEl.querySelector('.results-loading');
+    if (loadingMsg) {
+      loadingMsg.remove();
+    }
+    
+    const statusClass = result.status === 'PASS' ? 'pass' : 
+                        result.status === 'FAIL' ? 'fail' :
+                        result.status === 'WARN' ? 'warn' : 
+                        result.status === 'ERROR' ? 'error' : 'skip';
+    const icon = result.status === 'PASS' ? '✓' : 
+                 result.status === 'FAIL' ? '✗' :
+                 result.status === 'WARN' ? '⚠' : 
+                 result.status === 'ERROR' ? '❌' : '○';
+    const hasDetails = result.details && (result.details.request || result.details.reason);
+    
+    const html = `
+      <div id="${resultId}" class="result-item result-${statusClass} ${hasDetails ? 'expandable' : ''}" data-status="${result.status}">
+        <div class="result-header" ${hasDetails ? `onclick="ResultsViewer.toggleDetails(this.parentElement)"` : ''}>
+          <span class="result-icon">${icon}</span>
+          <span class="result-endpoint">${result.endpoint}</span>
+          <span class="result-meta">
+            <span class="http-status">${result.httpStatus || '-'}</span>
+            <span class="token-used">${result.tokenUsed || '-'}</span>
+            <span class="duration">${result.duration}</span>
+          </span>
+          <span class="result-status status-${statusClass}">${result.status}</span>
+        </div>
+        ${result.summary ? `<div class="result-summary">${result.summary}</div>` : ''}
+        ${result.description ? `<div class="result-description">${this.truncateText(result.description, 200)}</div>` : ''}
+        ${hasDetails ? this.renderDetails(result.details, result.status === 'PASS', result.summary, result.description) : ''}
+      </div>
+    `;
+    
+    // Insert at appropriate position based on status (failures first)
+    const statusOrder = { FAIL: 0, ERROR: 1, WARN: 2, PASS: 3, SKIP: 4 };
+    const currentOrder = statusOrder[result.status] ?? 5;
+    
+    const existingItems = listEl.querySelectorAll('.result-item');
+    let insertBefore = null;
+    
+    for (const item of existingItems) {
+      const itemStatus = item.getAttribute('data-status');
+      const itemOrder = statusOrder[itemStatus] ?? 5;
+      if (itemOrder > currentOrder) {
+        insertBefore = item;
+        break;
+      }
+    }
+    
+    if (insertBefore) {
+      insertBefore.insertAdjacentHTML('beforebegin', html);
+    } else {
+      listEl.insertAdjacentHTML('beforeend', html);
+    }
+  },
+  
+  /**
+   * Update a result in place (used when healing completes)
+   * @param {Object} result - Updated result object
+   */
+  updateResult(result) {
+    const resultId = `result-${result.endpoint.replace(/[^a-zA-Z0-9]/g, '-')}`;
+    const existingEl = document.getElementById(resultId);
+    
+    if (existingEl) {
+      // Update internal storage
+      const idx = this._results.findIndex(r => r.endpoint === result.endpoint);
+      if (idx >= 0) {
+        this._results[idx] = result;
+      }
+      
+      const statusClass = result.status === 'PASS' ? 'pass' : 
+                          result.status === 'FAIL' ? 'fail' :
+                          result.status === 'WARN' ? 'warn' : 
+                          result.status === 'ERROR' ? 'error' : 'skip';
+      const icon = result.status === 'PASS' ? '✓' : 
+                   result.status === 'FAIL' ? '✗' :
+                   result.status === 'WARN' ? '⚠' : 
+                   result.status === 'ERROR' ? '❌' : '○';
+      const hasDetails = result.details && (result.details.request || result.details.reason);
+      
+      existingEl.className = `result-item result-${statusClass} ${hasDetails ? 'expandable' : ''}`;
+      existingEl.setAttribute('data-status', result.status);
+      
+      existingEl.innerHTML = `
+        <div class="result-header" ${hasDetails ? `onclick="ResultsViewer.toggleDetails(this.parentElement)"` : ''}>
+          <span class="result-icon">${icon}</span>
+          <span class="result-endpoint">${result.endpoint}</span>
+          <span class="result-meta">
+            <span class="http-status">${result.httpStatus || '-'}</span>
+            <span class="token-used">${result.tokenUsed || '-'}</span>
+            <span class="duration">${result.duration}</span>
+          </span>
+          <span class="result-status status-${statusClass}">${result.status}</span>
+        </div>
+        ${result.summary ? `<div class="result-summary">${result.summary}</div>` : ''}
+        ${result.description ? `<div class="result-description">${this.truncateText(result.description, 200)}</div>` : ''}
+        ${hasDetails ? this.renderDetails(result.details, result.status === 'PASS', result.summary, result.description) : ''}
+      `;
+      
+      // Re-sort if needed (status changed from FAIL to PASS due to healing)
+      this.sortResults();
+    } else {
+      // If not found, add it
+      this.addResult(result);
+    }
+  },
+  
+  /**
+   * Sort results list in DOM (failures first, then errors, warnings, passes, skips)
+   */
+  sortResults() {
+    const listEl = document.getElementById('results-list');
+    if (!listEl) return;
+    
+    const statusOrder = { FAIL: 0, ERROR: 1, WARN: 2, PASS: 3, SKIP: 4 };
+    const items = Array.from(listEl.querySelectorAll('.result-item'));
+    
+    items.sort((a, b) => {
+      const aStatus = a.getAttribute('data-status');
+      const bStatus = b.getAttribute('data-status');
+      return (statusOrder[aStatus] ?? 5) - (statusOrder[bStatus] ?? 5);
+    });
+    
+    // Re-append in sorted order
+    items.forEach(item => listEl.appendChild(item));
+  },
+  
+  /**
+   * Clear all results (for new test run)
+   */
+  clearResults() {
+    this._results = [];
+    const listEl = document.getElementById('results-list');
+    if (listEl) {
+      listEl.innerHTML = '';
+    }
+  },
+  
+  /**
+   * Set/remove healing indicator on a result item
+   * @param {string} endpoint - The endpoint string
+   * @param {boolean} isHealing - Whether healing is in progress
+   */
+  setResultHealing(endpoint, isHealing) {
+    const resultId = `result-${endpoint.replace(/[^a-zA-Z0-9]/g, '-')}`;
+    const resultEl = document.getElementById(resultId);
+    
+    if (resultEl) {
+      if (isHealing) {
+        resultEl.classList.add('result-healing');
+        // Add a healing badge to the header
+        const header = resultEl.querySelector('.result-header');
+        if (header && !header.querySelector('.healing-badge')) {
+          const badge = document.createElement('span');
+          badge.className = 'healing-badge';
+          badge.innerHTML = '🔄 Healing...';
+          header.appendChild(badge);
+        }
+      } else {
+        resultEl.classList.remove('result-healing');
+        // Remove the healing badge
+        const badge = resultEl.querySelector('.healing-badge');
+        if (badge) {
+          badge.remove();
+        }
+      }
+    }
   },
   
   /**
@@ -103,8 +294,17 @@ const ResultsViewer = {
             <button class="btn btn-small" onclick="event.stopPropagation(); ResultsViewer.copyAsCurl(this)">
               Copy as cURL
             </button>
+            <button class="btn btn-small" onclick="event.stopPropagation(); ResultsViewer.copyJiraPrompt(this)">
+              📋 JIRA Prompt
+            </button>
+            <button class="btn btn-small btn-fix" onclick="event.stopPropagation(); ResultsViewer.copyFixPrompt(this)">
+              🔧 Fix It
+            </button>
             <button class="btn btn-small btn-retry" onclick="event.stopPropagation(); ResultsViewer.retryEndpoint(this)">
               🔄 Retry
+            </button>
+            <button class="btn btn-small btn-skip" onclick="event.stopPropagation(); ResultsViewer.skipEndpoint(this)">
+              ⏭️ Skip
             </button>
           </div>
         </div>
@@ -146,13 +346,12 @@ const ResultsViewer = {
               <div class="detail-label">Schema Errors:</div>
               <div class="detail-value errors">
                 <ul>
-                  ${details.errors.filter(e => e.reason !== 'PARAM_NAME_MISMATCH').slice(0, 5).map(e => `
+                  ${details.errors.filter(e => e.reason !== 'PARAM_NAME_MISMATCH').map(e => `
                     <li>
                       <code>${e.path || '/'}</code>: ${e.friendlyMessage || e.message}
                       ${e.keyword ? `<span class="error-keyword">(${e.keyword})</span>` : ''}
                     </li>
                   `).join('')}
-                  ${details.errors.filter(e => e.reason !== 'PARAM_NAME_MISMATCH').length > 5 ? `<li class="more-errors">... and ${details.errors.filter(e => e.reason !== 'PARAM_NAME_MISMATCH').length - 5} more errors</li>` : ''}
                 </ul>
               </div>
             </div>
@@ -184,8 +383,14 @@ const ResultsViewer = {
           <button class="btn btn-small" onclick="event.stopPropagation(); ResultsViewer.copyAsCurl(this)">
             Copy as cURL
           </button>
+          <button class="btn btn-small" onclick="event.stopPropagation(); ResultsViewer.copyJiraPrompt(this)">
+            📋 JIRA Prompt
+          </button>
           <button class="btn btn-small btn-retry" onclick="event.stopPropagation(); ResultsViewer.retryEndpoint(this)">
             🔄 Retry
+          </button>
+          <button class="btn btn-small btn-skip" onclick="event.stopPropagation(); ResultsViewer.skipEndpoint(this)">
+            ⏭️ Skip
           </button>
         </div>
       </div>
@@ -250,18 +455,35 @@ const ResultsViewer = {
   renderHealingInfo(healingInfo) {
     if (!healingInfo) return '';
     
-    const isSuccess = !healingInfo.failed;
-    const statusIcon = isSuccess ? '✓' : '✗';
-    const statusClass = isSuccess ? 'success' : 'failed';
+    const isSuccess = !healingInfo.failed && !healingInfo.skipSuggestion;
+    const isSkipSuggestion = healingInfo.skipSuggestion;
+    const statusIcon = isSuccess ? '✓' : (isSkipSuggestion ? '⏭️' : '✗');
+    const statusClass = isSuccess ? 'success' : (isSkipSuggestion ? 'skip-suggestion' : 'failed');
+    const statusText = isSuccess ? 'Succeeded' : (isSkipSuggestion ? 'Suggests Skip' : 'Failed');
     
     // Build healing history timeline - support both old and new formats
     const historyHtml = healingInfo.agentLog 
       ? this.renderAgentLog(healingInfo.agentLog)
       : this.renderHealingHistory(healingInfo.healingHistory);
     
+    // Skip suggestion button
+    const skipSuggestionHtml = isSkipSuggestion ? `
+      <div class="skip-suggestion-box">
+        <div class="skip-reason">
+          <strong>⚠️ AI suggests this test should be skipped:</strong>
+          <p>${this.escapeHtml(healingInfo.skipReason || 'No reason provided')}</p>
+        </div>
+        <button class="btn btn-warning btn-approve-skip" onclick="event.stopPropagation(); ResultsViewer.approveSkip(this)">
+          ✓ Approve Skip
+        </button>
+        <small class="skip-note">Approving will save this as a skip workflow for future runs</small>
+      </div>
+    ` : '';
+    
     return `
       <div class="healing-summary ${statusClass}">
-        <h4>${statusIcon} Self-Healing ${isSuccess ? 'Succeeded' : 'Failed'}</h4>
+        <h4>${statusIcon} Self-Healing ${statusText}</h4>
+        ${skipSuggestionHtml}
         <div class="healing-stats">
           <div class="stat">
             <span class="label">Attempts</span>
@@ -648,6 +870,312 @@ const ResultsViewer = {
   },
   
   /**
+   * Copy JIRA ticket creation prompt to clipboard
+   * @param {HTMLElement} button - Button element clicked
+   */
+  async copyJiraPrompt(button) {
+    const resultItem = button.closest('.result-item');
+    const endpointText = resultItem?.querySelector('.result-endpoint')?.textContent || '';
+    
+    // Find the result data
+    const result = this._results.find(r => r.endpoint === endpointText);
+    if (!result) {
+      alert('Could not find endpoint data');
+      return;
+    }
+    
+    const details = result.details || {};
+    const healingInfo = details.healingInfo || {};
+    const request = details.request || {};
+    const response = details.response || {};
+    
+    // Build error list (include all errors, not just first 5)
+    const errors = (details.errors || [])
+      .map(e => `- ${e.path || '/'}: ${e.friendlyMessage || e.message}`)
+      .join('\n');
+    
+    // Build documentation issues list from AI agent
+    const docIssues = (healingInfo.docFixSuggestions || details.documentationIssues || [])
+      .map(d => `- **${d.field || '/'}**: ${d.issue || d.message}\n  - Suggested fix: ${d.suggested_fix || d.suggestedFix || d.suggestion || 'N/A'}${d.source_code_reference || d.sourceCodeReference ? `\n  - Source: \`${d.source_code_reference || d.sourceCodeReference}\`` : ''}`)
+      .join('\n');
+    
+    // Format request body (truncate if too large)
+    let requestBody = '';
+    if (request.body || request.data) {
+      const bodyStr = JSON.stringify(request.body || request.data, null, 2);
+      requestBody = bodyStr.length > 2000 ? bodyStr.substring(0, 2000) + '\n... [truncated]' : bodyStr;
+    }
+    
+    // Format response data (truncate if too large)
+    let responseData = '';
+    if (response.data) {
+      const dataStr = typeof response.data === 'object' ? JSON.stringify(response.data, null, 2) : response.data;
+      responseData = dataStr.length > 2000 ? dataStr.substring(0, 2000) + '\n... [truncated]' : dataStr;
+    }
+    
+    // Build agent log summary
+    const agentLogSummary = this.formatAgentLogForPrompt(healingInfo.agentLog || []);
+    
+    // Build the comprehensive prompt
+    const prompt = `Create a JIRA ticket for the following API validation failure.
+
+## Epic
+Associate this ticket with epic: https://myvcita.atlassian.net/browse/VCITA2-11611
+
+## Failure Details
+
+**Endpoint**: ${result.endpoint}
+**HTTP Status**: ${result.httpStatus || 'N/A'}
+**Status**: ${result.status}
+**Failure Reason**: ${details.reason || 'Unknown'}
+
+## Error Description
+${details.friendlyMessage || 'No details available'}
+
+${errors ? `## Validation Errors\n${errors}\n` : ''}
+${docIssues ? `## Documentation Issues (AI-Detected)\n${docIssues}\n` : ''}
+${details.suggestion ? `## Suggested Fix\n${details.suggestion}\n` : ''}
+${healingInfo.attempted || healingInfo.iterations > 0 ? `## Self-Healing Attempt
+- Attempted: ${healingInfo.attempted || healingInfo.iterations > 0}
+- Iterations: ${healingInfo.iterations || 0}
+- Retries: ${healingInfo.retryCount || 0}
+- Result: ${healingInfo.summary || healingInfo.reason || 'No summary'}
+` : ''}
+${request.method ? `## Request Details
+- Method: ${request.method}
+- Path: ${request.path || request.url || 'N/A'}
+${requestBody ? `- Body:\n\`\`\`json\n${requestBody}\n\`\`\`` : ''}
+` : ''}
+${response.status ? `## Response Details
+- Status: ${response.status}
+- Data:
+\`\`\`json
+${responseData || 'N/A'}
+\`\`\`
+` : ''}
+${agentLogSummary ? `## 🤖 AI Agent Log
+${agentLogSummary}
+` : ''}
+## Instructions
+1. Investigate the root cause of this failure
+2. Assume this is a documentation bug
+3. Fix either the documentation or the workflow. do not change source code.
+4. Make sure to validate your fixes with the source code
+
+## Token Used
+${result.tokenUsed || 'Unknown'}
+
+## Swagger File
+${result.swaggerFile || result.domain || 'Unknown'}`;
+
+    try {
+      await navigator.clipboard.writeText(prompt);
+      
+      // Visual feedback
+      const originalText = button.textContent;
+      button.textContent = '✓ Copied!';
+      button.style.backgroundColor = '#4caf50';
+      button.style.color = 'white';
+      
+      setTimeout(() => {
+        button.textContent = originalText;
+        button.style.backgroundColor = '';
+        button.style.color = '';
+      }, 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+      // Fallback: show in a textarea modal
+      const textarea = document.createElement('textarea');
+      textarea.value = prompt;
+      textarea.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:80%;height:60%;z-index:10000;padding:20px;font-family:monospace;font-size:12px;';
+      document.body.appendChild(textarea);
+      textarea.select();
+      alert('Press Ctrl+C to copy, then click OK to close');
+      document.body.removeChild(textarea);
+    }
+  },
+  
+  /**
+   * Format agent log for JIRA prompt (readable summary)
+   * @param {Array} agentLog - Array of agent log entries
+   * @returns {string} Formatted log summary
+   */
+  formatAgentLogForPrompt(agentLog) {
+    if (!agentLog || agentLog.length === 0) return '';
+    
+    const lines = [];
+    
+    for (const entry of agentLog) {
+      const iteration = entry.iteration || '?';
+      
+      switch (entry.type) {
+        case 'thought':
+          // Include first 200 chars of thought
+          const thoughtText = (entry.content || '').substring(0, 200);
+          lines.push(`🔧 **Tool: \`${entry.tool}\`**`);
+          if (entry.input && Object.keys(entry.input).length > 0) {
+            const inputStr = JSON.stringify(entry.input, null, 2);
+            lines.push('```json');
+            lines.push(inputStr.length > 500 ? inputStr.substring(0, 500) + '\n...' : inputStr);
+            lines.push('```');
+          }
+          break;
+          
+        case 'tool_call':
+          lines.push(`🔧 **Tool: \`${entry.tool}\`**`);
+          if (entry.input && Object.keys(entry.input).length > 0) {
+            const inputStr = JSON.stringify(entry.input, null, 2);
+            lines.push('```json');
+            lines.push(inputStr.length > 500 ? inputStr.substring(0, 500) + '\n...' : inputStr);
+            lines.push('```');
+          }
+          break;
+          
+        case 'tool_result':
+          const resultIcon = entry.result?.success ? '✅' : '❌';
+          const httpStatus = entry.result?.status ? ` (HTTP ${entry.result.status})` : '';
+          lines.push(`${resultIcon} **Result: \`${entry.tool}\`${httpStatus}**`);
+          
+          if (entry.result) {
+            const resultStr = JSON.stringify(entry.result, null, 2);
+            lines.push('```json');
+            lines.push(resultStr.length > 800 ? resultStr.substring(0, 800) + '\n... [truncated]' : resultStr);
+            lines.push('```');
+          }
+          break;
+          
+        case 'no_action':
+          lines.push(`⚠️ **Agent Stopped:** ${entry.content || 'No action taken'}`);
+          break;
+          
+        case 'max_retries':
+          lines.push(`⛔ **Max Retries Reached** (${entry.retryCount} retries)`);
+          break;
+      }
+    }
+    
+    return lines.join('\n');
+  },
+  
+  /**
+   * Copy fix documentation prompt to clipboard
+   * @param {HTMLElement} button - Button element clicked
+   */
+  async copyFixPrompt(button) {
+    const resultItem = button.closest('.result-item');
+    const endpointText = resultItem?.querySelector('.result-endpoint')?.textContent || '';
+    
+    // Find the result data
+    const result = this._results.find(r => r.endpoint === endpointText);
+    if (!result) {
+      alert('Could not find endpoint data');
+      return;
+    }
+    
+    const details = result.details || {};
+    const healingInfo = details.healingInfo || {};
+    const request = details.request || {};
+    const response = details.response || {};
+    
+    // Build error list (include all)
+    const errors = (details.errors || [])
+      .map(e => `- ${e.path || '/'}: ${e.friendlyMessage || e.message}`)
+      .join('\n');
+    
+    // Build documentation issues list from AI agent
+    const docIssues = (healingInfo.docFixSuggestions || details.documentationIssues || [])
+      .map(d => `- **${d.field || '/'}**: ${d.issue || d.message}\n  - Suggested fix: ${d.suggested_fix || d.suggestedFix || d.suggestion || 'N/A'}${d.source_code_reference || d.sourceCodeReference ? `\n  - Source: \`${d.source_code_reference || d.sourceCodeReference}\`` : ''}`)
+      .join('\n');
+    
+    // Format request body
+    let requestBody = '';
+    if (request.body || request.data) {
+      const bodyStr = JSON.stringify(request.body || request.data, null, 2);
+      requestBody = bodyStr.length > 2000 ? bodyStr.substring(0, 2000) + '\n... [truncated]' : bodyStr;
+    }
+    
+    // Truncate response data if too long
+    let responseData = '';
+    if (response.data) {
+      const jsonStr = typeof response.data === 'object' ? JSON.stringify(response.data, null, 2) : response.data;
+      responseData = jsonStr.length > 2000 ? jsonStr.substring(0, 2000) + '... [truncated]' : jsonStr;
+    }
+    
+    // Build agent log summary (condensed for fix prompt)
+    const agentLogSummary = this.formatAgentLogForPrompt(healingInfo.agentLog || []);
+    
+    // Build the prompt
+    const prompt = `Fix this documentation error. Make sure to dig deep into the code.
+
+## Failure Details
+
+**Endpoint**: ${result.endpoint}
+**HTTP Status**: ${result.httpStatus || 'N/A'}
+**Status**: ${result.status}
+**Failure Reason**: ${details.reason || 'Unknown'}
+
+## Error Description
+${details.friendlyMessage || 'No details available'}
+
+${errors ? `## Validation Errors\n${errors}\n` : ''}
+${docIssues ? `## Documentation Issues (AI-Detected)\n${docIssues}\n` : ''}
+${details.suggestion ? `## Suggested Fix\n${details.suggestion}\n` : ''}
+${healingInfo.summary ? `## AI Agent Summary\n${healingInfo.summary}\n` : ''}
+${request.method ? `## Request Details
+- Method: ${request.method}
+- Path: ${request.path || request.url || 'N/A'}
+${requestBody ? `- Body:\n\`\`\`json\n${requestBody}\n\`\`\`` : ''}
+` : ''}
+${response.status ? `## Response Details
+- Status: ${response.status}
+- Data:
+\`\`\`json
+${responseData || 'N/A'}
+\`\`\`
+` : ''}
+${agentLogSummary ? `## 🤖 AI Agent Log
+${agentLogSummary}
+` : ''}
+## Instructions
+1. Investigate the root cause of this failure
+2. Assume this is a documentation bug
+3. Fix either the documentation or the workflow. do not change source code.
+4. Make sure to validate your fixes with the source code
+
+## Token Used
+${result.tokenUsed || 'Unknown'}
+
+## Swagger File
+${result.swaggerFile || result.domain || 'Unknown'}`;
+
+    try {
+      await navigator.clipboard.writeText(prompt);
+      
+      // Visual feedback
+      const originalText = button.textContent;
+      button.textContent = '✓ Copied!';
+      button.style.backgroundColor = '#4caf50';
+      button.style.color = 'white';
+      
+      setTimeout(() => {
+        button.textContent = originalText;
+        button.style.backgroundColor = '';
+        button.style.color = '';
+      }, 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+      // Fallback: show in a textarea modal
+      const textarea = document.createElement('textarea');
+      textarea.value = prompt;
+      textarea.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:80%;height:60%;z-index:10000;padding:20px;font-family:monospace;font-size:12px;';
+      document.body.appendChild(textarea);
+      textarea.select();
+      alert('Press Ctrl+C to copy, then click OK to close');
+      document.body.removeChild(textarea);
+    }
+  },
+  
+  /**
    * Retry a single endpoint with full self-healing
    * @param {HTMLElement} button - The retry button element
    */
@@ -674,9 +1202,24 @@ const ResultsViewer = {
     // Disable button and show loading state
     button.disabled = true;
     const originalText = button.innerHTML;
-    button.innerHTML = '⏳ Retrying...';
+    button.innerHTML = '📄 Reloading Swagger...';
     
     try {
+      // First, reload swagger files to pick up any documentation changes
+      const reloadResponse = await fetch('/api/reload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (reloadResponse.ok) {
+        const reloadData = await reloadResponse.json();
+        console.log(`Swagger reloaded: ${reloadData.endpointsLoaded} endpoints from ${reloadData.domains?.length || 0} domains`);
+      } else {
+        console.warn('Failed to reload swagger files, proceeding with cached version');
+      }
+      
+      button.innerHTML = '⏳ Retrying...';
+      
       // Start validation for just this endpoint
       const response = await fetch('/api/validate', {
         method: 'POST',
@@ -728,28 +1271,40 @@ const ResultsViewer = {
         const index = this._results.findIndex(r => r.endpoint === endpointText);
         if (index !== -1) {
           this._results[index] = newResult;
+        } else {
+          // If not found, add it
+          this._results.push(newResult);
         }
         
-        // Re-render all results
-        this.render(this._results);
+        // Update just this result (not entire list) to preserve DOM references
+        this.updateResult(newResult);
         
-        // Show status
+        // Update summary counts immediately
+        this.updateSummaryCounts();
+        
+        // Find the new button after DOM update
+        const newResultId = `result-${newResult.endpoint.replace(/[^a-zA-Z0-9]/g, '-')}`;
+        const newResultEl = document.getElementById(newResultId);
+        const newButton = newResultEl?.querySelector('.btn-retry');
+        
+        // Show status on the new button
         const statusIcon = newResult.status === 'PASS' ? '✅' : 
                           newResult.status === 'WARN' ? '⚠️' :
                           newResult.status === 'ERROR' ? '🔶' : '❌';
-        button.innerHTML = `${statusIcon} ${newResult.status}`;
         
-        setTimeout(() => {
-          button.innerHTML = originalText;
-          button.disabled = false;
-        }, 2000);
+        if (newButton) {
+          newButton.innerHTML = `${statusIcon} ${newResult.status}`;
+          newButton.disabled = true;
+          
+          setTimeout(() => {
+            newButton.innerHTML = originalText;
+            newButton.disabled = false;
+          }, 2000);
+        }
       });
       
       eventSource.addEventListener('complete', () => {
         eventSource.close();
-        
-        // Update summary counts
-        this.updateSummaryCounts();
       });
       
       eventSource.addEventListener('error', () => {
@@ -764,6 +1319,205 @@ const ResultsViewer = {
     } catch (error) {
       console.error('Retry failed:', error);
       button.innerHTML = '❌ Failed';
+      setTimeout(() => {
+        button.innerHTML = originalText;
+        button.disabled = false;
+      }, 2000);
+    }
+  },
+  
+  /**
+   * Approve a skip suggestion and save it as a workflow
+   * @param {HTMLElement} button - The approve skip button element
+   */
+  async approveSkip(button) {
+    const resultItem = button.closest('.result-item');
+    const endpointText = resultItem?.querySelector('.result-endpoint')?.textContent || '';
+    
+    // Find the result data
+    const result = this._results.find(r => r.endpoint === endpointText);
+    if (!result) {
+      alert('Could not find endpoint data');
+      return;
+    }
+    
+    const healingInfo = result.details?.healingInfo;
+    const skipReason = healingInfo?.skipReason || 'User approved skip';
+    
+    // Extract method and path from endpoint text
+    const [method, ...pathParts] = endpointText.split(' ');
+    const path = pathParts.join(' ');
+    
+    // Confirm with user
+    if (!confirm(`Approve skip for ${endpointText}?\n\nReason: ${skipReason}\n\nThis will save a skip workflow for future runs.`)) {
+      return;
+    }
+    
+    // Disable button and show loading state
+    button.disabled = true;
+    const originalText = button.innerHTML;
+    button.innerHTML = '⏳ Saving...';
+    
+    try {
+      const response = await fetch('/api/validate/approve-skip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          endpoint: endpointText,
+          method,
+          path,
+          domain: result.domain || 'general',
+          skipReason
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Update result status to SKIP
+        result.status = 'SKIP';
+        result.reason = 'EXPECTED_ERROR';
+        result.details.healingInfo.skipped = true;
+        result.details.healingInfo.skipSuggestion = false;
+        
+        // Update the result in the DOM
+        const statusBadge = resultItem.querySelector('.status-badge');
+        if (statusBadge) {
+          statusBadge.className = 'status-badge status-skip';
+          statusBadge.textContent = '⏭️ SKIP';
+        }
+        resultItem.className = resultItem.className.replace(/result-\w+/, 'result-skip');
+        
+        // Hide the approve button and show confirmation
+        const skipBox = button.closest('.skip-suggestion-box');
+        if (skipBox) {
+          skipBox.innerHTML = `
+            <div class="skip-approved">
+              ✅ Skip approved and saved to workflow
+              <small>Workflow: ${data.workflowFile}</small>
+            </div>
+          `;
+        }
+        
+        // Update summary counts
+        this.updateSummaryCounts();
+        
+        button.innerHTML = '✅ Approved';
+      } else {
+        throw new Error(data.message || 'Failed to approve skip');
+      }
+      
+    } catch (error) {
+      console.error('Approve skip failed:', error);
+      button.innerHTML = '❌ Failed';
+      alert(`Failed to approve skip: ${error.message}`);
+      setTimeout(() => {
+        button.innerHTML = originalText;
+        button.disabled = false;
+      }, 2000);
+    }
+  },
+  
+  /**
+   * Skip an endpoint manually (available for all endpoints)
+   * @param {HTMLElement} button - The skip button element
+   */
+  async skipEndpoint(button) {
+    const resultItem = button.closest('.result-item');
+    const endpointText = resultItem?.querySelector('.result-endpoint')?.textContent || '';
+    
+    // Find the result data
+    const result = this._results.find(r => r.endpoint === endpointText);
+    if (!result) {
+      alert('Could not find endpoint data');
+      return;
+    }
+    
+    // Extract method and path from endpoint text
+    const [method, ...pathParts] = endpointText.split(' ');
+    const path = pathParts.join(' ');
+    
+    // Prompt user for skip reason
+    const skipReason = prompt(
+      `Enter reason for skipping ${endpointText}:\n\n(This will save a skip workflow for future runs)`,
+      'Manual skip - endpoint not ready for testing'
+    );
+    
+    if (!skipReason) {
+      return; // User cancelled
+    }
+    
+    // Disable button and show loading state
+    button.disabled = true;
+    const originalText = button.innerHTML;
+    button.innerHTML = '⏳ Saving...';
+    
+    try {
+      const response = await fetch('/api/validate/approve-skip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          endpoint: endpointText,
+          method,
+          path,
+          domain: result.domain || 'general',
+          skipReason
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Update result status to SKIP
+        result.status = 'SKIP';
+        result.reason = 'USER_SKIPPED';
+        if (!result.details) result.details = {};
+        if (!result.details.healingInfo) result.details.healingInfo = {};
+        result.details.healingInfo.skipped = true;
+        result.details.healingInfo.skipReason = skipReason;
+        
+        // Update the result in the DOM
+        resultItem.className = resultItem.className.replace(/result-(pass|fail|warn|error)/, 'result-skip');
+        resultItem.setAttribute('data-status', 'SKIP');
+        
+        const statusBadge = resultItem.querySelector('.result-status');
+        if (statusBadge) {
+          statusBadge.className = 'result-status status-skip';
+          statusBadge.textContent = 'SKIP';
+        }
+        
+        const iconSpan = resultItem.querySelector('.result-icon');
+        if (iconSpan) {
+          iconSpan.textContent = '○';
+        }
+        
+        // Update summary counts
+        this.updateSummaryCounts();
+        
+        // Re-sort results (skips go to end)
+        this.sortResults();
+        
+        button.innerHTML = '✅ Skipped';
+        setTimeout(() => {
+          button.innerHTML = originalText;
+          button.disabled = false;
+        }, 2000);
+      } else {
+        throw new Error(data.message || 'Failed to skip endpoint');
+      }
+      
+    } catch (error) {
+      console.error('Skip endpoint failed:', error);
+      button.innerHTML = '❌ Failed';
+      alert(`Failed to skip endpoint: ${error.message}`);
       setTimeout(() => {
         button.innerHTML = originalText;
         button.disabled = false;
@@ -1130,7 +1884,7 @@ const ResultsViewer = {
       
       // Generate filename with timestamp
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      const environment = AppState?.config?.environment || 'unknown';
+      const environment = AppState?.config?.environment || 'dev';
       a.download = `api-validation-${environment}-${timestamp}.csv`;
       
       document.body.appendChild(a);
@@ -1207,7 +1961,7 @@ const ResultsViewer = {
     return {
       summary: {
         timestamp: new Date().toISOString(),
-        environment: AppState?.config?.environment || 'unknown',
+        environment: AppState?.config?.environment || 'dev',
         baseUrl: AppState?.config?.baseUrl || '',
         total: results.length,
         passed,
@@ -1237,5 +1991,565 @@ const ResultsViewer = {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
     return `${minutes}m ${remainingSeconds}s`;
+  },
+
+  /**
+   * Save a comprehensive report optimized for AI agents and JIRA tickets
+   */
+  async saveFullReport() {
+    if (!this._results || this._results.length === 0) {
+      alert('No results to save. Run a validation first.');
+      return;
+    }
+    
+    // Prompt user for a test title
+    this.showReportTitleDialog();
+  },
+  
+  /**
+   * Show a dialog to get the report title from the user
+   */
+  showReportTitleDialog() {
+    // Create modal if it doesn't exist
+    let modal = document.getElementById('report-title-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'report-title-modal';
+      modal.className = 'modal';
+      modal.innerHTML = `
+        <div class="modal-content report-title-modal-content">
+          <div class="modal-header">
+            <h2>💾 Save Test Report</h2>
+            <button class="modal-close" onclick="document.getElementById('report-title-modal').classList.add('hidden')">&times;</button>
+          </div>
+          <div class="modal-body">
+            <p>Enter a title for this test run. The date will be added automatically.</p>
+            <div class="form-group">
+              <label for="report-title-input">Report Title</label>
+              <input type="text" id="report-title-input" class="form-input" 
+                placeholder="e.g., ai-endpoints, billing-api, user-auth" 
+                autocomplete="off" />
+              <small class="form-hint">Use lowercase with hyphens (e.g., "ai-endpoints")</small>
+            </div>
+            <div class="form-preview">
+              <strong>Folder preview:</strong>
+              <code id="report-folder-preview">-</code>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="document.getElementById('report-title-modal').classList.add('hidden')">Cancel</button>
+            <button class="btn btn-primary" onclick="ResultsViewer.confirmSaveReport()">Save Report</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      
+      // Add input event listener to update preview
+      const input = document.getElementById('report-title-input');
+      input.addEventListener('input', () => {
+        this.updateReportFolderPreview();
+      });
+      
+      // Handle enter key
+      input.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          this.confirmSaveReport();
+        }
+      });
+    }
+    
+    // Reset input
+    const input = document.getElementById('report-title-input');
+    input.value = '';
+    this.updateReportFolderPreview();
+    
+    // Show modal and focus input
+    modal.classList.remove('hidden');
+    setTimeout(() => input.focus(), 100);
+  },
+  
+  /**
+   * Update the folder name preview based on user input
+   */
+  updateReportFolderPreview() {
+    const input = document.getElementById('report-title-input');
+    const preview = document.getElementById('report-folder-preview');
+    
+    // Sanitize title: lowercase, replace spaces with hyphens, remove special chars
+    let title = (input.value || 'untitled')
+      .toLowerCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-]/g, '')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+    
+    if (!title) title = 'untitled';
+    
+    // Generate timestamp preview
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
+    const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '-'); // HH-MM-SS
+    
+    preview.textContent = `${title}-${dateStr}-${timeStr}`;
+  },
+  
+  /**
+   * Confirm and actually save the report
+   */
+  async confirmSaveReport() {
+    const input = document.getElementById('report-title-input');
+    
+    // Sanitize title
+    let title = (input.value || 'untitled')
+      .toLowerCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-]/g, '')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+    
+    if (!title) title = 'untitled';
+    
+    // Hide the title dialog
+    document.getElementById('report-title-modal').classList.add('hidden');
+    
+    try {
+      // Build comprehensive report object with the user-provided title
+      const report = this.buildComprehensiveReport(title);
+      
+      // Request report generation from server
+      const response = await fetch('/api/report/full', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(report)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        // Show success modal with file locations
+        this.showReportSavedModal(result);
+      } else {
+        throw new Error(result.error || 'Failed to generate report');
+      }
+      
+    } catch (error) {
+      console.error('Failed to save report:', error);
+      alert(`Failed to save report: ${error.message}`);
+    }
+  },
+
+  /**
+   * Show modal with saved report information
+   * @param {Object} result - Server response with file paths
+   */
+  showReportSavedModal(result) {
+    // Create modal if it doesn't exist
+    let modal = document.getElementById('report-saved-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'report-saved-modal';
+      modal.className = 'modal';
+      modal.innerHTML = `
+        <div class="modal-content report-saved-modal-content">
+          <div class="modal-header">
+            <h2>📊 Report Saved Successfully</h2>
+            <button class="modal-close" onclick="document.getElementById('report-saved-modal').classList.add('hidden')">&times;</button>
+          </div>
+          <div class="modal-body" id="report-saved-body"></div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+    }
+    
+    // Build content
+    const summary = result.summary || {};
+    const bodyContent = `
+      <div class="report-saved-summary">
+        <h3>Summary</h3>
+        <div class="summary-stats">
+          <span class="stat">📋 Total: ${summary.total || 0}</span>
+          <span class="stat pass">✅ Passed: ${summary.passed || 0}</span>
+          <span class="stat fail">❌ Failed: ${summary.failed || 0}</span>
+          <span class="stat">📝 Doc Issues: ${summary.documentationIssues || 0}</span>
+        </div>
+      </div>
+      
+      <div class="report-saved-location">
+        <h3>📁 Report Location</h3>
+        <code class="report-path">${result.reportDir || 'Unknown'}</code>
+      </div>
+      
+      <div class="report-saved-files">
+        <h3>Files Generated</h3>
+        <table class="files-table">
+          <thead>
+            <tr>
+              <th>File</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>ai-fixes.md</code></td>
+              <td>Documentation issues for AI agent to fix</td>
+            </tr>
+            <tr>
+              <td><code>test-failures.md</code></td>
+              <td>Test failures grouped by failure reason with severity</td>
+            </tr>
+            <tr>
+              <td><code>data.json</code></td>
+              <td>Raw JSON data for automation</td>
+            </tr>
+            <tr>
+              <td><code>README.md</code></td>
+              <td>Report summary and usage instructions</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <div class="report-saved-actions">
+        <h3>Quick Actions</h3>
+        <div class="action-buttons">
+          <button class="btn btn-secondary" onclick="navigator.clipboard.writeText('${result.reportDir}'); this.textContent='Copied!'">
+            📋 Copy Path
+          </button>
+          <button class="btn btn-secondary" onclick="navigator.clipboard.writeText('cursor ${result.reportDir}/ai-fixes.md @handle_report'); this.textContent='Copied!'">
+            🤖 Copy AI Fix Command
+          </button>
+        </div>
+        <div class="action-hint">
+          <small>💡 The AI Fix command includes <code>@handle_report</code> directive which ensures:</small>
+          <ul>
+            <li>Only documentation changes (no code fixes)</li>
+            <li>Never removes endpoints</li>
+            <li>Creates JIRA tickets for code issues</li>
+          </ul>
+        </div>
+      </div>
+    `;
+    
+    document.getElementById('report-saved-body').innerHTML = bodyContent;
+    modal.classList.remove('hidden');
+  },
+
+  /**
+   * Build a comprehensive report object optimized for AI agents and JIRA
+   * @param {string} [title] - Optional report title provided by user
+   * @returns {Object} Comprehensive report object
+   */
+  buildComprehensiveReport(title = null) {
+    const results = this._results || [];
+    const timestamp = new Date().toISOString();
+    const environment = AppState?.config?.environment || 'dev';
+    
+    // Basic stats
+    const passed = results.filter(r => r.status === 'PASS').length;
+    const failed = results.filter(r => r.status === 'FAIL').length;
+    const warned = results.filter(r => r.status === 'WARN').length;
+    const errored = results.filter(r => r.status === 'ERROR').length;
+    const skipped = results.filter(r => r.status === 'SKIP').length;
+    const testable = results.length - skipped;
+    const passRate = testable > 0 ? ((passed / testable) * 100).toFixed(1) : 0;
+    
+    // Collect all documentation issues for AI fixing
+    const documentationIssues = [];
+    const failedTests = [];
+    const erroredTests = [];
+    const warnedTests = [];
+    
+    for (const result of results) {
+      const details = result.details || {};
+      const healingInfo = details.healingInfo || {};
+      
+      // Collect doc fix suggestions (verified by AI healing agent)
+      if (healingInfo.docFixSuggestions?.length > 0) {
+        for (const fix of healingInfo.docFixSuggestions) {
+          documentationIssues.push({
+            endpoint: result.endpoint,
+            method: result.method,
+            path: result.path,
+            domain: result.domain,
+            field: fix.field,
+            issue: fix.issue,
+            suggestedFix: fix.suggested_fix || fix.suggestedFix,
+            severity: fix.severity || 'minor',
+            sourceCodeReference: fix.source_code_reference,
+            swaggerFile: result.swaggerFile
+          });
+        }
+      }
+      
+      // Collect documentation issues from validation
+      if (details.documentationIssues?.length > 0) {
+        for (const issue of details.documentationIssues) {
+          documentationIssues.push({
+            endpoint: result.endpoint,
+            method: result.method,
+            path: result.path,
+            domain: result.domain,
+            field: issue.field,
+            issue: issue.message || issue.issue,
+            suggestedFix: issue.suggestion || issue.suggested_fix,
+            severity: issue.severity || 'minor',
+            swaggerFile: result.swaggerFile,
+            type: issue.type
+          });
+        }
+      }
+      
+      // Collect schema validation errors as documentation issues
+      // These indicate mismatches between API response and swagger schema
+      if (details.errors?.length > 0) {
+        for (const error of details.errors) {
+          // Skip if this error is already in documentationIssues
+          const alreadyIncluded = documentationIssues.some(
+            d => d.endpoint === result.endpoint && d.field === error.path && d.issue === error.message
+          );
+          if (alreadyIncluded) continue;
+          
+          // Determine severity based on error type
+          let severity = 'minor';
+          if (error.reason === 'SCHEMA_MISMATCH') {
+            severity = 'major';
+          } else if (error.reason === 'ENDPOINT_NOT_FOUND' || error.reason === 'SERVER_ERROR') {
+            severity = 'critical';
+          }
+          
+          // Build suggested fix based on error type
+          let suggestedFix = error.suggestion || '';
+          if (!suggestedFix && error.reason === 'SCHEMA_MISMATCH') {
+            suggestedFix = `Update swagger schema to match actual API response. Field ${error.path || '/'}: ${error.friendlyMessage || error.message}`;
+          } else if (!suggestedFix && error.reason === 'TOKEN_TYPE_NOT_DOCUMENTED') {
+            suggestedFix = 'Add token availability to the endpoint description (e.g., "Available for **Staff Tokens**")';
+          }
+          
+          documentationIssues.push({
+            endpoint: result.endpoint,
+            method: result.method,
+            path: result.path,
+            domain: result.domain,
+            field: error.path || '/',
+            issue: error.friendlyMessage || error.message,
+            suggestedFix: suggestedFix,
+            severity: severity,
+            swaggerFile: result.swaggerFile,
+            type: error.reason || 'VALIDATION_ERROR',
+            keyword: error.keyword
+          });
+        }
+      }
+      
+      // Categorize failed tests for JIRA
+      if (result.status === 'FAIL') {
+        failedTests.push(this.buildJiraItem(result));
+      } else if (result.status === 'ERROR') {
+        erroredTests.push(this.buildJiraItem(result));
+      } else if (result.status === 'WARN') {
+        warnedTests.push(this.buildJiraItem(result));
+      }
+    }
+    
+    // Group documentation issues by swagger file (for AI agent)
+    const docIssuesByFile = {};
+    for (const issue of documentationIssues) {
+      const file = issue.swaggerFile || issue.domain || 'unknown';
+      if (!docIssuesByFile[file]) {
+        docIssuesByFile[file] = [];
+      }
+      docIssuesByFile[file].push(issue);
+    }
+    
+    // Group failed tests by reason (for JIRA tickets)
+    const failuresByReason = {};
+    for (const item of [...failedTests, ...erroredTests]) {
+      const reason = item.reason || 'UNKNOWN';
+      if (!failuresByReason[reason]) {
+        failuresByReason[reason] = [];
+      }
+      failuresByReason[reason].push(item);
+    }
+    
+    // Group by domain
+    const byDomain = {};
+    for (const result of results) {
+      const domain = result.domain || 'unknown';
+      if (!byDomain[domain]) {
+        byDomain[domain] = { passed: 0, failed: 0, warned: 0, errored: 0, skipped: 0, total: 0, items: [] };
+      }
+      byDomain[domain].total++;
+      byDomain[domain].items.push({
+        endpoint: result.endpoint,
+        status: result.status,
+        httpStatus: result.httpStatus,
+        reason: result.details?.reason
+      });
+      if (result.status === 'PASS') byDomain[domain].passed++;
+      else if (result.status === 'FAIL') byDomain[domain].failed++;
+      else if (result.status === 'WARN') byDomain[domain].warned++;
+      else if (result.status === 'ERROR') byDomain[domain].errored++;
+      else if (result.status === 'SKIP') byDomain[domain].skipped++;
+    }
+    
+    return {
+      metadata: {
+        title: title || environment,  // User-provided title or fall back to environment
+        timestamp,
+        environment,
+        baseUrl: AppState?.config?.baseUrl || '',
+        generatedBy: 'API Validation Tool',
+        version: '1.0.0'
+      },
+      summary: {
+        total: results.length,
+        passed,
+        failed,
+        warned,
+        errored,
+        skipped,
+        passRate: `${passRate}%`,
+        documentationIssuesCount: documentationIssues.length
+      },
+      // Section for AI agent to fix documentation
+      forAiAgent: {
+        description: 'Documentation issues discovered during API validation. Each issue includes the endpoint, field, problem description, and suggested fix. Use this to update swagger/openapi specification files.',
+        issuesByFile: docIssuesByFile,
+        allIssues: documentationIssues
+      },
+      // Section for JIRA ticket creation
+      forJira: {
+        description: 'Failed and errored tests grouped by failure reason. Each group can become a JIRA ticket.',
+        failuresByReason,
+        failedTests,
+        erroredTests,
+        warnedTests,
+        byDomain
+      },
+      // Raw results for reference
+      rawResults: results.map(r => ({
+        endpoint: r.endpoint,
+        method: r.method,
+        path: r.path,
+        domain: r.domain,
+        status: r.status,
+        httpStatus: r.httpStatus,
+        duration: r.duration,
+        tokenUsed: r.tokenUsed,
+        reason: r.details?.reason,
+        errors: r.details?.errors,
+        healingInfo: r.details?.healingInfo ? {
+          attempted: r.details.healingInfo.attempted,
+          iterations: r.details.healingInfo.iterations,
+          retryCount: r.details.healingInfo.retryCount,
+          summary: r.details.healingInfo.summary,
+          docFixSuggestions: r.details.healingInfo.docFixSuggestions,
+          agentLog: r.details.healingInfo.agentLog // Full agent history
+        } : null
+      }))
+    };
+  },
+
+  /**
+   * Build a JIRA-friendly item from a result
+   * @param {Object} result - Test result
+   * @returns {Object} JIRA item
+   */
+  buildJiraItem(result) {
+    const details = result.details || {};
+    const healingInfo = details.healingInfo || {};
+    
+    // Build error summary
+    const errorSummary = (details.errors || [])
+      .slice(0, 3)
+      .map(e => e.friendlyMessage || e.message || e.reason)
+      .join('; ');
+    
+    // Build list of all errors (not just summary)
+    const allErrors = (details.errors || []).map(e => ({
+      path: e.path || '/',
+      message: e.friendlyMessage || e.message,
+      reason: e.reason,
+      keyword: e.keyword,
+      suggestion: e.suggestion
+    }));
+    
+    // Collect documentation issues from multiple sources
+    const documentationIssues = [
+      ...(healingInfo.docFixSuggestions || []),
+      ...(details.documentationIssues || [])
+    ].map(d => ({
+      field: d.field || '/',
+      issue: d.issue || d.message,
+      suggestedFix: d.suggested_fix || d.suggestedFix || d.suggestion,
+      sourceCodeReference: d.source_code_reference || d.sourceCodeReference,
+      severity: d.severity,
+      type: d.type
+    }));
+    
+    return {
+      endpoint: result.endpoint,
+      method: result.method,
+      path: result.path,
+      domain: result.domain,
+      swaggerFile: result.swaggerFile || result.domain, // Fallback to domain if swagger file not set
+      status: result.status,
+      httpStatus: result.httpStatus,
+      tokenUsed: result.tokenUsed,
+      duration: result.duration,
+      reason: details.reason,
+      reasonDescription: details.friendlyMessage,
+      errorSummary,
+      allErrors,
+      documentationIssues,
+      suggestion: details.suggestion,
+      // Healing attempt info
+      healingAttempted: healingInfo.attempted || healingInfo.iterations > 0 || false,
+      healingIterations: healingInfo.iterations,
+      healingRetryCount: healingInfo.retryCount,
+      healingFailed: healingInfo.failed,
+      healingReason: healingInfo.reason,
+      healingSummary: healingInfo.summary,
+      // Full agent log for analysis
+      agentLog: healingInfo.agentLog || [],
+      // Request/response for debugging (full objects)
+      request: details.request ? {
+        method: details.request.method,
+        url: details.request.url,
+        path: details.request.path,
+        headers: details.request.headers,
+        params: details.request.params,
+        body: details.request.body,
+        data: details.request.data
+      } : null,
+      response: details.response ? {
+        status: details.response.status,
+        headers: details.response.headers,
+        data: details.response.data
+      } : null
+    };
+  },
+
+  /**
+   * Download report files
+   * @param {Array} files - Array of file objects with name and content
+   * @param {string} reportId - Report ID for filenames
+   */
+  downloadReportFiles(files, reportId) {
+    for (const file of files) {
+      const blob = new Blob([file.content], { type: file.mimeType || 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
   }
 };

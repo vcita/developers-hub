@@ -7,6 +7,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { parseYamlSteps } = require('../prerequisite/executor');
 
 // Repository paths
 const WORKFLOWS_DIR = path.join(__dirname, '../../../workflows');
@@ -66,13 +67,57 @@ function parseWorkflowFile(filePath) {
     
     // Simple YAML parsing (key: value)
     const metadata = {};
+    let currentKey = null;
+    let currentArray = null;
+    
     frontmatter.split('\n').forEach(line => {
+      // Check for array item with key-value pair (e.g., "  - path: /data/offerings/*/type")
+      const arrayItemWithKV = line.match(/^\s+-\s+(\w+):\s*(.*)$/);
+      if (currentArray && arrayItemWithKV) {
+        // Start a new object with the first key-value pair
+        const [, key, value] = arrayItemWithKV;
+        const newItem = { [key]: value };
+        currentArray.push(newItem);
+        return;
+      }
+      
+      // Check for array item (starts with "  - " followed by simple value)
+      if (currentArray && line.match(/^\s+-\s+[^:]+$/)) {
+        // This is an array item with simple string value
+        const itemContent = line.replace(/^\s+-\s+/, '').trim();
+        currentArray.push(itemContent);
+        return;
+      }
+      
+      // Check for nested object property (starts with "    " - more indentation than array item)
+      if (currentArray && currentArray.length > 0 && line.match(/^\s{4,}\w+:/)) {
+        // This is a property of the current array item
+        const propMatch = line.match(/^\s+(\w+):\s*(.*)$/);
+        if (propMatch) {
+          const lastItem = currentArray[currentArray.length - 1];
+          if (typeof lastItem === 'string') {
+            // Convert string to object (shouldn't happen with new logic, but keeping for safety)
+            currentArray[currentArray.length - 1] = { path: lastItem };
+          }
+          currentArray[currentArray.length - 1][propMatch[1]] = propMatch[2];
+        }
+        return;
+      }
+      
+      // Regular key: value line
       const match = line.match(/^(\w+):\s*(.*)$/);
       if (match) {
         const [, key, value] = match;
+        currentKey = key;
+        currentArray = null;
+        
         // Handle arrays like [tag1, tag2]
         if (value.startsWith('[') && value.endsWith(']')) {
           metadata[key] = value.slice(1, -1).split(',').map(s => s.trim());
+        } else if (value === '' || value === undefined) {
+          // Start of a multi-line array (knownDataIssues:)
+          metadata[key] = [];
+          currentArray = metadata[key];
         } else {
           metadata[key] = value;
         }
@@ -110,10 +155,53 @@ function parseWorkflowFile(filePath) {
       }
     }
     
+    // Extract JSON from "UID Resolution" section (new format)
+    let uidResolution = null;
+    if (sections['UID Resolution']) {
+      const jsonMatch = sections['UID Resolution'].match(/```json\n([\s\S]*?)\n```/);
+      if (jsonMatch) {
+        try {
+          uidResolution = JSON.parse(jsonMatch[1]);
+        } catch (e) {
+          // Ignore JSON parse errors
+        }
+      }
+    }
+    
+    // Extract structured prerequisites (new deterministic format)
+    let prerequisites = null;
+    if (sections['Prerequisites']) {
+      const yamlMatch = sections['Prerequisites'].match(/```yaml\n([\s\S]*?)\n```/);
+      if (yamlMatch) {
+        try {
+          prerequisites = parseYamlSteps(yamlMatch[1]);
+        } catch (e) {
+          console.error(`Failed to parse prerequisites YAML: ${e.message}`);
+        }
+      }
+    }
+    
+    // Extract structured test request (new deterministic format)
+    let testRequest = null;
+    if (sections['Test Request']) {
+      const yamlMatch = sections['Test Request'].match(/```yaml\n([\s\S]*?)\n```/);
+      if (yamlMatch) {
+        try {
+          const parsed = parseYamlSteps(yamlMatch[1]);
+          testRequest = parsed.steps?.[0] || null;
+        } catch (e) {
+          console.error(`Failed to parse test request YAML: ${e.message}`);
+        }
+      }
+    }
+    
     return {
       metadata,
       sections,
       successfulRequest,
+      uidResolution,
+      prerequisites,
+      testRequest,
       content
     };
   } catch (e) {
@@ -151,9 +239,74 @@ function get(endpoint) {
     domain: entry.domain,
     tags: entry.tags,
     status: entry.status,
+    skipReason: entry.skipReason || parsed.metadata?.skipReason || null,  // Include skip reason
+    knownIssues: parsed.metadata?.knownIssues || [],  // Include known issues to suppress in validation
     timesReused: entry.timesReused || 0,
+    uidResolution: parsed.uidResolution || null,  // Include UID resolution mappings
+    prerequisites: parsed.prerequisites || null,  // Include structured prerequisites for deterministic execution
+    testRequest: parsed.testRequest || null,  // Include structured test request
+    // NOTE: docFixes intentionally not returned - workflows are success paths only
     ...parsed
   };
+}
+
+/**
+ * Check if a validation error matches a known issue pattern
+ * @param {Object} error - Validation error with path property
+ * @param {Array} knownIssues - Array of known issue objects with path patterns
+ * @returns {boolean} True if error matches a known issue
+ */
+function matchesKnownIssue(error, knownIssues) {
+  if (!error || !knownIssues || knownIssues.length === 0) {
+    return false;
+  }
+  
+  const errorPath = error.path || error.instancePath || '';
+  
+  for (const issue of knownIssues) {
+    const pattern = issue.path || issue;
+    if (typeof pattern !== 'string') continue;
+    
+    // Convert pattern like "/data/offerings/*/type" to regex
+    // * matches any array index like [0], [11], etc.
+    const regexPattern = pattern
+      .replace(/\//g, '\\/')  // Escape forward slashes
+      .replace(/\*/g, '\\d+');  // * matches array indices (digits)
+    
+    const regex = new RegExp(`^${regexPattern}$`);
+    
+    if (regex.test(errorPath)) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * Filter out validation errors that match known issues
+ * @param {Array} errors - Array of validation errors
+ * @param {Array} knownIssues - Array of known issue patterns
+ * @returns {Object} { filteredErrors: Array, suppressedCount: number }
+ */
+function filterKnownIssues(errors, knownIssues) {
+  if (!errors || errors.length === 0 || !knownIssues || knownIssues.length === 0) {
+    return { filteredErrors: errors || [], suppressedCount: 0 };
+  }
+  
+  const filteredErrors = [];
+  let suppressedCount = 0;
+  
+  for (const error of errors) {
+    if (matchesKnownIssue(error, knownIssues)) {
+      suppressedCount++;
+      console.log(`  [KnownIssue] Suppressed error at path: ${error.path || error.instancePath}`);
+    } else {
+      filteredErrors.push(error);
+    }
+  }
+  
+  return { filteredErrors, suppressedCount };
 }
 
 /**
@@ -261,23 +414,34 @@ function generateMarkdown(data) {
     howToResolve = '',
     learnings = [],
     successfulRequest = {},
-    docFixes = []
+    uidResolution = null,  // UID resolution mappings
+    status = 'verified',   // 'verified' or 'skip'
+    skipReason = null      // Reason for skipping (if status is 'skip')
+    // NOTE: docFixes intentionally NOT stored in workflows
+    // Workflows are success paths only - doc issues are transient findings
   } = data;
   
   const now = new Date().toISOString();
   
   // Build frontmatter
-  const frontmatter = [
+  const frontmatterLines = [
     '---',
     `endpoint: ${endpoint}`,
     `domain: ${domain}`,
     `tags: [${tags.join(', ')}]`,
-    `status: verified`,
+    `status: ${status}`,
     `savedAt: ${now}`,
     `verifiedAt: ${now}`,
-    `timesReused: 0`,
-    '---'
-  ].join('\n');
+    `timesReused: 0`
+  ];
+  
+  // Add skipReason if present
+  if (skipReason) {
+    frontmatterLines.push(`skipReason: ${skipReason}`);
+  }
+  
+  frontmatterLines.push('---');
+  const frontmatter = frontmatterLines.join('\n');
   
   // Build title from endpoint
   const [method, ...pathParts] = endpoint.split(' ');
@@ -294,40 +458,211 @@ function generateMarkdown(data) {
     '',
     '## Summary',
     summary || `${action} operation for ${resourceName}`,
-    '',
-    '## Prerequisites',
-    prerequisites || 'No specific prerequisites documented.',
-    '',
-    '## How to Resolve Parameters',
-    howToResolve || 'Parameters were resolved automatically.',
-    '',
-    '## Critical Learnings',
-    '',
-    ...(learnings.length > 0 
-      ? learnings.map(l => `- **${l.title || 'Note'}** - ${l.description || l}`)
-      : ['No specific learnings documented.']),
-    '',
-    '## Verified Successful Request',
-    '',
-    '```json',
-    JSON.stringify(successfulRequest, null, 2),
-    '```',
-    '',
-    '## Documentation Fix Suggestions',
     ''
   ];
   
-  if (docFixes.length > 0) {
-    body.push('| Field | Issue | Suggested Fix | Severity |');
-    body.push('|-------|-------|---------------|----------|');
-    docFixes.forEach(fix => {
-      body.push(`| ${fix.field || '-'} | ${fix.issue || '-'} | ${fix.suggested_fix || fix.suggestedFix || '-'} | ${fix.severity || 'minor'} |`);
-    });
-  } else {
-    body.push('No documentation issues found.');
+  // Add skip reason section if this is a skipped endpoint
+  if (status === 'skip' && skipReason) {
+    body.push('## ⚠️ Skip Reason');
+    body.push('');
+    body.push(`**This endpoint should be SKIPPED in automated testing.**`);
+    body.push('');
+    body.push(skipReason);
+    body.push('');
+    body.push('This is typically due to a business constraint where the endpoint works correctly but cannot be tested repeatedly (e.g., one-time operations, unique constraints).');
+    body.push('');
   }
   
+  body.push('## Prerequisites');
+  body.push(prerequisites || 'No specific prerequisites documented.');
+  body.push('');
+  
+  // Add UID Resolution section if present - PROCEDURES ONLY, NO VALUES
+  if (uidResolution && Object.keys(uidResolution).length > 0) {
+    body.push('## UID Resolution Procedure');
+    body.push('');
+    body.push('How to dynamically obtain required UIDs for this endpoint:');
+    body.push('');
+    
+    // Check if any fields require fresh data creation
+    const hasFreshDataCreation = Object.values(uidResolution).some(r => r.create_fresh || r.create_endpoint);
+    
+    if (hasFreshDataCreation) {
+      body.push('⚠️ **This test requires creating fresh test data to avoid "already exists" errors.**');
+      body.push('');
+    }
+    
+    body.push('| UID Field | GET Endpoint | Extract From | Create Fresh | Cleanup |');
+    body.push('|-----------|--------------|--------------|--------------|---------|');
+    
+    // Strip out any hardcoded values, keep only procedures
+    const procedureData = {};
+    for (const [field, resolution] of Object.entries(uidResolution)) {
+      const source = resolution.source_endpoint || '-';
+      const extractFrom = resolution.extract_from || 'data[0].uid or data[0].id';
+      const createFresh = resolution.create_fresh ? `✓ ${resolution.create_endpoint || 'Yes'}` : '-';
+      const cleanup = resolution.cleanup_endpoint || resolution.cleanup_note || '-';
+      body.push(`| ${field} | ${source} | ${extractFrom} | ${createFresh} | ${cleanup} |`);
+      
+      // Store procedure-only data (no resolved_value)
+      procedureData[field] = {
+        source_endpoint: resolution.source_endpoint || null,
+        extract_from: resolution.extract_from || 'first item uid',
+        fallback_endpoint: resolution.fallback_endpoint || null,
+        create_fresh: resolution.create_fresh || false,
+        create_endpoint: resolution.create_endpoint || null,
+        create_body: resolution.create_body || null,
+        cleanup_endpoint: resolution.cleanup_endpoint || null,
+        cleanup_note: resolution.cleanup_note || null
+      };
+    }
+    body.push('');
+    
+    body.push('### Resolution Steps');
+    body.push('');
+    for (const [field, resolution] of Object.entries(uidResolution)) {
+      body.push(`**${field}**:`);
+      
+      if (resolution.create_fresh || resolution.create_endpoint) {
+        // Fresh data creation workflow
+        body.push(`1. **Create fresh test entity**: \`${resolution.create_endpoint}\``);
+        if (resolution.create_body) {
+          body.push(`   - Body template: \`${JSON.stringify(resolution.create_body)}\``);
+        }
+        body.push(`2. Extract UID from creation response: \`${resolution.extract_from || 'data.uid'}\``);
+        body.push(`3. Run the test with this fresh UID`);
+        if (resolution.cleanup_endpoint) {
+          body.push(`4. **Cleanup**: \`${resolution.cleanup_endpoint}\``);
+        } else if (resolution.cleanup_note) {
+          body.push(`4. **Cleanup note**: ${resolution.cleanup_note}`);
+        }
+      } else {
+        // Standard resolution workflow
+        if (resolution.source_endpoint) {
+          body.push(`1. Call \`${resolution.source_endpoint}\``);
+          body.push(`2. Extract from response: \`${resolution.extract_from || 'data[0].uid'}\``);
+        }
+        if (resolution.fallback_endpoint) {
+          body.push(`3. If empty, create via \`${resolution.fallback_endpoint}\``);
+        }
+      }
+      body.push('');
+    }
+    
+    // Store procedure-only JSON (no hardcoded UIDs)
+    body.push('```json');
+    body.push(JSON.stringify(procedureData, null, 2));
+    body.push('```');
+    body.push('');
+  }
+  
+  body.push('## How to Resolve Parameters');
+  body.push(howToResolve || 'Parameters were resolved automatically.');
+  body.push('');
+  body.push('## Critical Learnings');
+  body.push('');
+  
+  if (learnings.length > 0) {
+    learnings.forEach(l => {
+      body.push(`- **${l.title || 'Note'}** - ${l.description || l}`);
+    });
+  } else {
+    body.push('No specific learnings documented.');
+  }
+  
+  body.push('');
+  body.push('## Request Template');
+  body.push('');
+  body.push('Use this template with dynamically resolved UIDs:');
+  body.push('');
+  
+  // Sanitize the successful request to replace hardcoded UIDs with placeholders
+  const sanitizedRequest = sanitizeRequestForTemplate(successfulRequest);
+  body.push('```json');
+  body.push(JSON.stringify(sanitizedRequest, null, 2));
+  body.push('```');
+  
+  // NOTE: Documentation issues are NOT stored in workflows
+  // Workflows are success paths only - doc issues are reported once and not cached
+  
   return frontmatter + body.join('\n');
+}
+
+/**
+ * Replace hardcoded UIDs with placeholders for workflow templates
+ * UIDs from config (business_uid, staff_uid, client_uid, etc.) are kept as config references
+ * Other UIDs are replaced with descriptive placeholders
+ */
+function sanitizeRequestForTemplate(request) {
+  if (!request) return request;
+  
+  // Config params that should reference config
+  const configParams = ['business_uid', 'business_id', 'staff_uid', 'staff_id', 'client_uid', 'client_id', 'directory_id', 'matter_uid'];
+  
+  // Patterns that look like UIDs (not in config)
+  const uidPatterns = [
+    /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i,  // UUID
+    /^[a-z0-9]{16,}$/i,  // Long alphanumeric strings (like vcita UIDs)
+  ];
+  
+  function sanitize(obj, keyPath = '') {
+    if (obj === null || obj === undefined) return obj;
+    
+    if (Array.isArray(obj)) {
+      return obj.map((item, i) => sanitize(item, `${keyPath}[${i}]`));
+    }
+    
+    if (typeof obj === 'object') {
+      const result = {};
+      for (const [key, value] of Object.entries(obj)) {
+        const fullKey = keyPath ? `${keyPath}.${key}` : key;
+        
+        // Check if this is a UID field
+        if (typeof value === 'string' && (key.endsWith('_uid') || key.endsWith('_id') || key === 'uid' || key === 'id')) {
+          // Is it a config param?
+          if (configParams.includes(key)) {
+            result[key] = `{{config.params.${key}}}`;
+          } else if (uidPatterns.some(p => p.test(value))) {
+            // It's a dynamically resolved UID
+            result[key] = `{{resolved.${key}}}`;
+          } else {
+            result[key] = value;
+          }
+        } else {
+          result[key] = sanitize(value, fullKey);
+        }
+      }
+      return result;
+    }
+    
+    // Check if string value looks like a UID
+    if (typeof obj === 'string' && uidPatterns.some(p => p.test(obj))) {
+      return '{{resolved.uid}}';
+    }
+    
+    return obj;
+  }
+  
+  // Sanitize the request
+  const sanitized = { ...request };
+  
+  // Sanitize path (replace UUID-like segments)
+  if (sanitized.path) {
+    sanitized.path = sanitized.path.replace(
+      /\/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/gi,
+      '/{{resolved.uid}}'
+    ).replace(
+      /\/([a-z0-9]{16,})(?=\/|$)/gi,
+      '/{{resolved.uid}}'
+    );
+  }
+  
+  // Sanitize body
+  if (sanitized.body) {
+    sanitized.body = sanitize(sanitized.body);
+  }
+  
+  return sanitized;
 }
 
 /**
@@ -364,12 +699,13 @@ function save(endpoint, data) {
     // Write the file
     fs.writeFileSync(filePath, markdown);
     
-    // Update index
+    // Update index - include skip status if present
     index.workflows[endpoint] = {
       file: relativeFile,
       domain,
       tags,
-      status: 'verified',
+      status: data.status || 'verified',  // 'verified', 'skip', etc.
+      skipReason: data.skipReason || null,
       timesReused: 0,
       savedAt: new Date().toISOString()
     };
@@ -504,6 +840,80 @@ function exists(endpoint) {
   return !!index.workflows[endpoint];
 }
 
+// NOTE: updateDocFixes removed - workflows no longer store doc issues
+// Workflows are success paths only - doc issues are transient findings
+
+/**
+ * Update workflow metadata (e.g., add useFallbackApi: true)
+ * @param {string} endpoint - Endpoint like "POST /platform/v1/scheduling/bookings"
+ * @param {Object} metadataUpdates - Object with metadata fields to add/update
+ * @returns {boolean} True if updated successfully
+ */
+function updateWorkflowMetadata(endpoint, metadataUpdates) {
+  const index = loadIndex();
+  const entry = index.workflows[endpoint];
+  
+  if (!entry || !entry.file) {
+    console.log(`[Workflow] No workflow file found for ${endpoint}`);
+    return false;
+  }
+  
+  const filePath = path.join(WORKFLOWS_DIR, entry.file);
+  
+  try {
+    if (!fs.existsSync(filePath)) {
+      console.log(`[Workflow] File not found: ${filePath}`);
+      return false;
+    }
+    
+    const content = fs.readFileSync(filePath, 'utf8');
+    
+    // Parse frontmatter
+    const frontmatterMatch = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+    if (!frontmatterMatch) {
+      console.log(`[Workflow] No frontmatter found in ${filePath}`);
+      return false;
+    }
+    
+    const frontmatter = frontmatterMatch[1];
+    const body = frontmatterMatch[2];
+    
+    // Check if metadata already has the values we want to add
+    let updatedFrontmatter = frontmatter;
+    let hasChanges = false;
+    
+    for (const [key, value] of Object.entries(metadataUpdates)) {
+      // Check if key already exists
+      const keyRegex = new RegExp(`^${key}:.*$`, 'm');
+      if (keyRegex.test(updatedFrontmatter)) {
+        // Update existing key
+        updatedFrontmatter = updatedFrontmatter.replace(keyRegex, `${key}: ${value}`);
+        hasChanges = true;
+      } else {
+        // Add new key at the end of frontmatter
+        updatedFrontmatter = updatedFrontmatter.trimEnd() + `\n${key}: ${value}`;
+        hasChanges = true;
+      }
+    }
+    
+    if (!hasChanges) {
+      console.log(`[Workflow] No changes needed for ${endpoint}`);
+      return false;
+    }
+    
+    // Write updated file
+    const updatedContent = `---\n${updatedFrontmatter}\n---\n${body}`;
+    fs.writeFileSync(filePath, updatedContent, 'utf8');
+    
+    console.log(`[Workflow] Updated metadata for ${endpoint}: ${JSON.stringify(metadataUpdates)}`);
+    return true;
+    
+  } catch (error) {
+    console.error(`[Workflow] Failed to update ${endpoint}: ${error.message}`);
+    return false;
+  }
+}
+
 module.exports = {
   get,
   list,
@@ -515,5 +925,8 @@ module.exports = {
   loadIndex,
   parseWorkflowFile,
   generateMarkdown,
+  matchesKnownIssue,
+  filterKnownIssues,
+  updateWorkflowMetadata,
   WORKFLOWS_DIR
 };

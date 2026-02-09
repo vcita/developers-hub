@@ -43,10 +43,11 @@ function createApiClient(config) {
 function buildRequestConfig(endpoint, config, context = {}) {
   // Select appropriate token (with fallback for undocumented endpoints or placeholder tokens)
   // Pass path for path-based token preference (e.g., /client/* endpoints prefer client token)
-  const { tokenType, token, isFallback, originalRequired, shouldSkip, skipReason } = selectToken(
+  // Pass configParams for client token validation (expiry, business_uid match)
+  const { tokenType, token, isFallback, originalRequired, shouldSkip, skipReason, needsClientToken } = selectToken(
     endpoint.tokenInfo.tokens, 
     config.tokens, 
-    { useFallback: true, path: endpoint.path }
+    { useFallback: true, path: endpoint.path, configParams: config.params }
   );
   
   // Skip if endpoint requires privileged tokens we don't have
@@ -141,10 +142,20 @@ function buildRequestConfig(endpoint, config, context = {}) {
   };
   
   // Add authorization header
+  // Admin tokens use "Admin" prefix, all others use "Bearer"
   if (token) {
-    requestConfig.headers['Authorization'] = `Bearer ${token}`;
+    const authPrefix = tokenType === 'admin' ? 'Admin' : 'Bearer';
+    requestConfig.headers['Authorization'] = `${authPrefix} ${token}`;
   }
   
+  // Add X-On-Behalf-Of header if endpoint requires it
+  // This is used for Directory tokens acting on behalf of a business
+  // See: https://developers.intandem.tech/docs/directory-owners-partners
+  if (endpoint.requiresOnBehalfOf && staticParams.business_uid) {
+    requestConfig.headers['X-On-Behalf-Of'] = staticParams.business_uid;
+    console.log(`  [API Client] Adding X-On-Behalf-Of header (required by endpoint): ${staticParams.business_uid}`);
+  }
+
   // Build query parameters from endpoint definition
   const queryParams = {};
   
@@ -238,7 +249,8 @@ function buildRequestConfig(endpoint, config, context = {}) {
     tokenType,
     hasToken: !!token,
     isFallbackToken: isFallback,
-    originalRequired // Track what token was originally required (if fallback used)
+    originalRequired, // Track what token was originally required (if fallback used)
+    needsClientToken // Signal that a client token should be acquired
   };
 }
 
@@ -251,10 +263,11 @@ function buildRequestConfig(endpoint, config, context = {}) {
  */
 async function buildRequestConfigAsync(endpoint, config, context = {}) {
   // Select appropriate token
-  const { tokenType, token, isFallback, originalRequired, shouldSkip, skipReason } = selectToken(
+  // Pass configParams for client token validation (expiry, business_uid match)
+  const { tokenType, token, isFallback, originalRequired, shouldSkip, skipReason, needsClientToken } = selectToken(
     endpoint.tokenInfo.tokens, 
     config.tokens, 
-    { useFallback: true, path: endpoint.path }
+    { useFallback: true, path: endpoint.path, configParams: config.params }
   );
   
   // Skip if endpoint requires privileged tokens we don't have
@@ -343,8 +356,18 @@ async function buildRequestConfigAsync(endpoint, config, context = {}) {
     headers: {}
   };
   
+  // Admin tokens use "Admin" prefix, all others use "Bearer"
   if (token) {
-    requestConfig.headers['Authorization'] = `Bearer ${token}`;
+    const authPrefix = tokenType === 'admin' ? 'Admin' : 'Bearer';
+    requestConfig.headers['Authorization'] = `${authPrefix} ${token}`;
+  }
+  
+  // Add X-On-Behalf-Of header if endpoint requires it
+  // This is used for Directory tokens acting on behalf of a business
+  // See: https://developers.intandem.tech/docs/directory-owners-partners
+  if (endpoint.requiresOnBehalfOf && staticParams.business_uid) {
+    requestConfig.headers['X-On-Behalf-Of'] = staticParams.business_uid;
+    console.log(`  [API Client Async] Adding X-On-Behalf-Of header (required by endpoint): ${staticParams.business_uid}`);
   }
   
   // AI config
@@ -392,7 +415,8 @@ async function buildRequestConfigAsync(endpoint, config, context = {}) {
     tokenType,
     hasToken: !!token,
     isFallbackToken: isFallback,
-    originalRequired
+    originalRequired,
+    needsClientToken
   };
 }
 
@@ -461,17 +485,84 @@ function substituteBodyParams(body, staticParams = {}, dynamicParams = {}) {
 }
 
 /**
- * Check if a property name represents a uid/id field
+ * Check if a property name represents a uid/id field (standard pattern)
  * @param {string} propName - Property name
  * @returns {boolean}
  */
-function isUidField(propName) {
+function isStandardUidField(propName) {
   const lower = propName.toLowerCase();
   return lower.endsWith('_uid') || 
          lower.endsWith('_id') || 
          lower === 'uid' || 
          lower === 'id';
 }
+
+/**
+ * Check if a property name represents a reference field (broader pattern)
+ * Includes standard uid/id fields plus common reference field names
+ * @param {string} propName - Property name
+ * @returns {boolean}
+ */
+function isReferenceField(propName) {
+  if (isStandardUidField(propName)) return true;
+  
+  const lower = propName.toLowerCase();
+  
+  // Common reference field names that typically reference other entities
+  const referenceFieldPatterns = [
+    'key',           // permission key, config key, etc.
+    'code',          // role code, status code, etc.
+    'type',          // entity type references
+    'role',          // role references
+    'permission',    // permission references
+    'category',      // category references
+    'tag',           // tag references
+  ];
+  
+  // Check if field name matches or ends with these patterns
+  for (const pattern of referenceFieldPatterns) {
+    if (lower === pattern || lower.endsWith(`_${pattern}`)) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * Check if a field description indicates it's a reference to another entity
+ * @param {string} description - Field description
+ * @returns {boolean}
+ */
+function isReferenceByDescription(description) {
+  if (!description) return false;
+  
+  const lower = description.toLowerCase();
+  
+  // Patterns that indicate a reference field
+  const referenceIndicators = [
+    'reference to',
+    'identifier of',
+    'must be a valid',
+    'must be valid',
+    'one of the available',
+    'existing',
+    'from the',
+    'belongs to',
+    'foreign key',
+    'must exist',
+    'valid identifier',
+    'references',
+    'refers to',
+    'linked to',
+    'associated with',
+  ];
+  
+  return referenceIndicators.some(indicator => lower.includes(indicator));
+}
+
+// Alias for backward compatibility
+const isUidField = isStandardUidField;
 
 /**
  * Generate a value for a required query parameter based on its schema
@@ -570,13 +661,14 @@ function generateMinimalPayload(endpoint, resolvedParams = {}) {
 
 /**
  * Generate complete object from JSON schema
- * Includes all properties, handling uid/id fields specially
+ * Includes all properties, handling uid/id and reference fields specially
  * @param {Object} schema - JSON schema
  * @param {string[]} requiredFields - Required field names
  * @param {Object} resolvedParams - Resolved uid/id parameters
+ * @param {string} parentPath - Parent path for nested fields (e.g., "permissions[]")
  * @returns {Object} Generated object
  */
-function generateFromSchema(schema, requiredFields = [], resolvedParams = {}) {
+function generateFromSchema(schema, requiredFields = [], resolvedParams = {}, parentPath = '') {
   if (!schema) return {};
   
   // Handle allOf - merge all schemas
@@ -587,7 +679,7 @@ function generateFromSchema(schema, requiredFields = [], resolvedParams = {}) {
       if (subSchema.required) {
         mergedRequired = [...mergedRequired, ...subSchema.required];
       }
-      Object.assign(merged, generateFromSchema(subSchema, mergedRequired, resolvedParams));
+      Object.assign(merged, generateFromSchema(subSchema, mergedRequired, resolvedParams, parentPath));
     }
     return merged;
   }
@@ -605,34 +697,49 @@ function generateFromSchema(schema, requiredFields = [], resolvedParams = {}) {
     // Process ALL properties (not just required)
     for (const [propName, propSchema] of Object.entries(properties)) {
       const isRequired = required.includes(propName);
-      const isUid = isUidField(propName);
+      const fullPath = parentPath ? `${parentPath}.${propName}` : propName;
       
-      // For uid/id fields, check if we have a resolved value
-      if (isUid) {
+      // Check if this is a reference field by various methods
+      const isStdUid = isStandardUidField(propName);
+      const isRefByName = isReferenceField(propName);
+      const isRefByDesc = isReferenceByDescription(propSchema.description);
+      const hasExplicitRef = propSchema['x-reference-to'];
+      
+      // Determine if this field needs a resolved value (not a generated placeholder)
+      // For nested array items (e.g., permissions[].key), use broader detection
+      const isNestedInArray = parentPath.includes('[]');
+      const needsResolvedValue = isStdUid || hasExplicitRef || 
+        (isNestedInArray && (isRefByName || isRefByDesc));
+      
+      if (needsResolvedValue) {
         // Try to find a matching resolved param
         const paramKey = propName;
+        const fullPathKey = fullPath.replace(/\[\]\./g, '_');
         const altKey = propName.replace(/_uid$/, '_id').replace(/_id$/, '_uid');
         
         if (resolvedParams[paramKey]) {
           obj[propName] = resolvedParams[paramKey];
+        } else if (resolvedParams[fullPathKey]) {
+          obj[propName] = resolvedParams[fullPathKey];
         } else if (resolvedParams[altKey]) {
           obj[propName] = resolvedParams[altKey];
         } else if (isRequired) {
-          // Required uid/id with no resolved value - use placeholder
+          // Required reference field with no resolved value - use placeholder
+          // Mark it clearly as needing resolution
           obj[propName] = generateValue(propSchema, propName, resolvedParams);
         }
-        // Skip non-required uid/id fields with no resolved value
+        // Skip non-required reference fields with no resolved value
         continue;
       }
       
-      // For non-uid fields, include all of them with generated values
-      obj[propName] = generateValue(propSchema, propName, resolvedParams);
+      // For non-reference fields, include all of them with generated values
+      obj[propName] = generateValue(propSchema, propName, resolvedParams, parentPath);
     }
     
     return obj;
   }
   
-  return generateValue(schema, '', resolvedParams);
+  return generateValue(schema, '', resolvedParams, parentPath);
 }
 
 /**
@@ -640,13 +747,14 @@ function generateFromSchema(schema, requiredFields = [], resolvedParams = {}) {
  * @param {Object} schema - Property schema
  * @param {string} propName - Property name (for uid/id handling)
  * @param {Object} resolvedParams - Resolved parameters
+ * @param {string} parentPath - Parent path for nested fields
  * @returns {*} Generated value
  */
-function generateValue(schema, propName = '', resolvedParams = {}) {
+function generateValue(schema, propName = '', resolvedParams = {}, parentPath = '') {
   if (!schema) return null;
   
   // For uid/id fields, try to find a matching resolved param
-  if (propName && isUidField(propName)) {
+  if (propName && isStandardUidField(propName)) {
     const altKey = propName.replace(/_uid$/, '_id').replace(/_id$/, '_uid');
     if (resolvedParams[propName]) return resolvedParams[propName];
     if (resolvedParams[altKey]) return resolvedParams[altKey];
@@ -656,19 +764,19 @@ function generateValue(schema, propName = '', resolvedParams = {}) {
   if (schema.allOf) {
     const merged = {};
     for (const subSchema of schema.allOf) {
-      Object.assign(merged, generateValue(subSchema, propName, resolvedParams));
+      Object.assign(merged, generateValue(subSchema, propName, resolvedParams, parentPath));
     }
     return merged;
   }
   
   // Handle oneOf - use first option
   if (schema.oneOf && schema.oneOf.length > 0) {
-    return generateValue(schema.oneOf[0], propName, resolvedParams);
+    return generateValue(schema.oneOf[0], propName, resolvedParams, parentPath);
   }
   
   // Handle anyOf - use first option
   if (schema.anyOf && schema.anyOf.length > 0) {
-    return generateValue(schema.anyOf[0], propName, resolvedParams);
+    return generateValue(schema.anyOf[0], propName, resolvedParams, parentPath);
   }
   
   // Handle $ref that wasn't dereferenced (external refs)
@@ -711,18 +819,25 @@ function generateValue(schema, propName = '', resolvedParams = {}) {
     case 'array':
       // Generate one item if items schema is provided
       if (schema.items) {
-        const item = generateValue(schema.items, '', resolvedParams);
+        // For arrays of objects, pass the array path (e.g., "permissions[]")
+        const arrayPath = parentPath ? `${parentPath}.${propName}[]` : `${propName}[]`;
+        if (schema.items.type === 'object' && schema.items.properties) {
+          // Use generateFromSchema for object items to get proper reference handling
+          const item = generateFromSchema(schema.items, schema.items.required || [], resolvedParams, arrayPath);
+          return Object.keys(item).length > 0 ? [item] : [];
+        }
+        const item = generateValue(schema.items, '', resolvedParams, arrayPath);
         return item !== null ? [item] : [];
       }
       return [];
     
     case 'object':
-      return generateFromSchema(schema, schema.required || [], resolvedParams);
+      return generateFromSchema(schema, schema.required || [], resolvedParams, parentPath);
     
     default:
       // No type specified but has properties - treat as object
       if (schema.properties) {
-        return generateFromSchema(schema, schema.required || [], resolvedParams);
+        return generateFromSchema(schema, schema.required || [], resolvedParams, parentPath);
       }
       return null;
   }

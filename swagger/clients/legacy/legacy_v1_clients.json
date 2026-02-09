@@ -12,7 +12,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Gets a list of clients or search by client attributes.",
+        "description": "## Overview\nRetrieves a paginated list of clients for the business. Supports searching by various attributes and filtering by update timestamp.\n\n## Authentication\n**Available for Staff, App, and Directory Tokens.**",
         "parameters": [
           {
             "description": "Search Term",
@@ -55,7 +55,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Success",
+            "description": "Success - Returns list of clients matching the search criteria",
             "examples": {
               "application/json": {
                 "data": {
@@ -87,6 +87,12 @@
                 "status": "OK"
               }
             }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Invalid request parameters"
+          },
+          "429": {
+            "description": "Too Many Requests - Rate limit exceeded for this business"
           }
         },
         "security": [
@@ -119,7 +125,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Creates a Client and returns the new client's data and the client's JWT token",
+        "description": "## Overview\nCreates a new client record for the business. If a client with the same email already exists, returns a 409 Conflict error.\n\n## Authentication\n**Available for Staff, App, and Directory Tokens.**",
         "parameters": [
           {
             "in": "body",
@@ -143,8 +149,9 @@
                   "type": "string"
                 },
                 "email": {
-                  "description": "Email Address",
-                  "type": "string"
+                  "description": "Email Address. Must be a valid email format (e.g., user@example.com)",
+                  "type": "string",
+                  "format": "email"
                 },
                 "first_name": {
                   "description": "First Name",
@@ -183,8 +190,14 @@
                   "type": "string"
                 },
                 "status": {
-                  "description": "Use a client status to categorize clients according to their relationship with your business",
-                  "type": "string"
+                  "description": "Use a client status to categorize clients according to their relationship with your business. Valid values: lead, customer, loyal, inactive",
+                  "type": "string",
+                  "enum": [
+                    "lead",
+                    "customer",
+                    "loyal",
+                    "inactive"
+                  ]
                 },
                 "tags": {
                   "description": "The tag system is based on customized labels that you create, so you can sort your data using personalized words, phrases or themes that are meaningful to you and your business",
@@ -266,7 +279,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Merge two or more duplicate clients into one primary client. The request body can be empty but must be sent.",
+        "description": "## Overview\nMerge two or more duplicate clients into one primary client.\n\n## Authentication\n**Available for Staff, App, and Directory tokens.**\n\n## Query Parameters\n- `to_client_uid` (required): UID of the destination primary client\n- `from_client_uids` (required): Comma-separated UIDs of clients to merge into the primary client\n\n## Business Rules\n- Clients must represent different contact persons to be merged\n- Clients related to the same contact cannot be merged (returns 422 error)\n- Use `GET /platform/v1/clients/merges/possible_merge_master` to check merge eligibility first\n\n## Request Body\nThe request body can be empty but must be sent (e.g., `{}`).",
         "parameters": [
           {
             "description": "UID of the destination primary client.",
@@ -337,7 +350,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Returns a list of client UIDs that can be used as a primary client for the merge.",
+        "description": "## Overview\nReturns a list of client UIDs that can be used as a primary client for the merge.\n\n## Authentication\n**Available for Staff, App, and Directory Tokens.**\n\n## Required Parameters\n- `client_ids` (required): Comma-separated client UIDs to check for merge eligibility.\n\n## Business Rules\n- **Clients with multiple matters cannot be merged** - If any selected client has more than one matter/project, the merge is not allowed\n- Returns 422 if multiple clients are related to the same contact (e.g., pets belonging to the same owner)\n- Clients must be independent contacts to be eligible for merge\n- The error message format is: '{Term} cannot be merged since you selected more than 1 {term} related to the same contact'",
         "parameters": [
           {
             "description": "List of client uids, comma separated",
@@ -396,8 +409,8 @@
         "consumes": [
           "application/json"
         ],
+        "description": "## Overview\nUpdate client package payment status (use a package credit).\n\n## Authentication\n**Available for Client Tokens only.**\n\n## Note\nThere is also a Staff-facing version at `/platform/v1/payment/client_packages/update_usage` that accepts **Staff, App, and Directory tokens**.\n\n## Prerequisites\nThe client must have active packages with available sessions for the service referenced in the `payment_status_id`. Returns 422 \"There is no package to use\" if no suitable packages exist.",
         "parameters": [
-
           {
             "in": "body",
             "name": "body",
@@ -472,8 +485,8 @@
         "consumes": [
           "application/json"
         ],
+        "description": "## Overview\nValidate client package payment status.\n\n## Authentication\n**Available for Client Tokens only.**",
         "parameters": [
-
           {
             "description": "Payment status ID",
             "in": "query",
@@ -539,7 +552,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Deletes a Client.",
+        "description": "## Overview\nDeletes a Client Available for **Staff, App, and Directory tokens**.",
         "parameters": [
           {
             "description": "Client UID",
@@ -617,7 +630,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Retrieves a Client.",
+        "description": "## Overview\nRetrieves a Client.\n\n## Authentication\n**Available for Staff, App, and Directory Tokens.**",
         "parameters": [
           {
             "description": "Client UID",
@@ -701,7 +714,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Update a Client.",
+        "description": "## Overview\nUpdate a Client Available for **Staff, App, and Directory tokens**.",
         "parameters": [
           {
             "description": "Client UID",
@@ -720,8 +733,9 @@
                   "type": "string"
                 },
                 "created_at": {
-                  "description": "Client creation date",
-                  "type": "string"
+                  "description": "Client creation date. Read-only - automatically managed by the system and ignored in updates.",
+                  "type": "string",
+                  "readOnly": true
                 },
                 "custom_field1": {
                   "description": "Custom Field 1",
@@ -736,16 +750,17 @@
                   "type": "string"
                 },
                 "email": {
-                  "description": "Email Address",
-                  "type": "string"
+                  "description": "Email Address. Must be a valid email format (e.g., user@example.com)",
+                  "type": "string",
+                  "format": "email"
                 },
                 "first_name": {
                   "description": "First Name",
                   "type": "string"
                 },
                 "force_nullifying": {
-                  "description": "If true, allows address and mobile_phone to be overridden with `null` or `\"\"`.",
-                  "type": "string"
+                  "description": "If true, allows nullable fields (address, mobile_phone) to be cleared by sending `null` or empty string. Must be boolean true or string \"true\".",
+                  "type": "boolean"
                 },
                 "last_name": {
                   "description": "Last Name",
@@ -768,16 +783,23 @@
                   "type": "string"
                 },
                 "status": {
-                  "description": "Use a client status to categorize clients according to their relationship with your business",
-                  "type": "string"
+                  "description": "Use a client status to categorize clients according to their relationship with your business. Valid values: lead, customer, loyal, inactive",
+                  "type": "string",
+                  "enum": [
+                    "lead",
+                    "customer",
+                    "loyal",
+                    "inactive"
+                  ]
                 },
                 "tags": {
                   "description": "The tag system is based on customized labels that you create, so you can sort your data using personalized words, phrases or themes that are meaningful to you and your business",
                   "type": "string"
                 },
                 "updated_at": {
-                  "description": "Client last update date",
-                  "type": "string"
+                  "description": "Client last update date. Read-only - automatically managed by the system and ignored in updates.",
+                  "type": "string",
+                  "readOnly": true
                 }
               },
               "type": "object"
@@ -845,7 +867,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Gets a list of conversations for a client",
+        "description": "## Overview\nGets a list of conversations for a client.\n\n## Authentication\n**Available for Staff, App, and Directory Tokens.**",
         "parameters": [
           {
             "description": "Client UID",
@@ -918,7 +940,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Gets a list of documents for a client",
+        "description": "## Overview\nGets a list of documents for a client.\n\n## Authentication\n**Available for Staff, App, and Directory Tokens.**",
         "parameters": [
           {
             "description": "Client UID",
@@ -990,6 +1012,7 @@
         "consumes": [
           "application/json"
         ],
+        "description": "## Overview\nGets a list of estimates for a client.\n\n## Authentication\n**Available for Staff, App, and Directory Tokens.**",
         "parameters": [
           {
             "description": "client's id",
@@ -1012,7 +1035,6 @@
             "required": false,
             "type": "string"
           }
-
         ],
         "produces": [
           "application/json"
@@ -1105,8 +1127,8 @@
         "consumes": [
           "application/json"
         ],
+        "description": "## Overview\nGets a list of invoices for a client.\n\n## Authentication\n**Available for Staff, App, and Directory Tokens.**",
         "parameters": [
-
           {
             "description": "client's id",
             "in": "path",
@@ -1181,7 +1203,7 @@
                         }
                       ],
                       "note": "Invoice for your service",
-                      "payment_balance": 5.0,
+                      "payment_balance": 5,
                       "payment_state": "pending",
                       "source_data": {
                         "campaign": null,
@@ -1235,6 +1257,7 @@
         "consumes": [
           "application/json"
         ],
+        "description": "## Overview\nGets a list of client packages (purchased packages) for a client.\n\n## Authentication\n**Available for Staff, App, and Directory Tokens.**",
         "parameters": [
           {
             "description": "Client ID",
@@ -1243,7 +1266,6 @@
             "required": true,
             "type": "string"
           },
-
           {
             "description": "Page offset",
             "in": "query",
@@ -1271,7 +1293,7 @@
                   "client_packages": [
                     {
                       "active": "true",
-                      "amount": 100.0,
+                      "amount": 100,
                       "booking_credits": [
                         {
                           "bookings_usage": "0",
@@ -1366,8 +1388,8 @@
         "consumes": [
           "application/json"
         ],
+        "description": "## Overview\nGets a list of payments for a client.\n\n## Authentication\n**Available for Staff, App, and Directory Tokens.**",
         "parameters": [
-
           {
             "description": "client's id",
             "in": "path",
@@ -1505,5 +1527,15 @@
     }
   },
   "swagger": "2.0",
-  "x-throttling-tier": "8ReqPerSec"
+  "x-throttling-tier": "8ReqPerSec",
+  "components": {
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+      }
+    }
+  }
 }
