@@ -2,10 +2,11 @@
 endpoint: "POST /platform/v1/apps/{id}/unassign"
 domain: apps
 tags: []
-swagger: swagger/apps/legacy/legacy_v1_apps.json
-status: success
-savedAt: 2026-01-25T06:08:23.820Z
-verifiedAt: 2026-01-25T06:08:23.820Z
+swagger: "swagger/apps/legacy/legacy_v1_apps.json"
+status: verified
+savedAt: "2026-01-25T06:08:23.820Z"
+verifiedAt: "2026-01-25T06:08:23.820Z"
+timesReused: 0
 ---
 
 # Create Unassign
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: post_unassign
     method: POST
-    path: "/platform/v1/apps/{id}/unassign"
+    path: "/platform/v1/apps/{{id}}/unassign"
     body:
       directory_uid: "{{directory_uid}}"
     expect:

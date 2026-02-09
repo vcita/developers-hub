@@ -2,9 +2,11 @@
 endpoint: "GET /platform/v1/payments/{payment_id}"
 domain: sales
 tags: []
-status: success
-savedAt: 2026-01-26T06:38:54.155Z
-verifiedAt: 2026-01-26T06:38:54.155Z
+swagger: "swagger/sales/legacy/payments.json"
+status: verified
+savedAt: "2026-01-26T06:38:54.155Z"
+verifiedAt: "2026-01-26T06:38:54.155Z"
+timesReused: 0
 ---
 
 # Get Payments
@@ -22,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: get_payments
     method: GET
-    path: "/platform/v1/payments/{payment_id}"
+    path: "/platform/v1/payments/{{payment_id}}"
     expect:
       status: [200, 201]
 ```

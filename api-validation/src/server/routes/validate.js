@@ -20,6 +20,7 @@ const { createReport, addResult, finalizeReport } = require('../../core/reporter
 const { runAgentHealer, isUnrecoverableError, extractUidFieldsFromSchema, findUidSourceEndpoints } = require('../../core/runner/ai-agent-healer');
 const workflowRepo = require('../../core/workflows/repository');
 const { filterKnownIssues } = workflowRepo;
+const { executeWorkflow, createRequestFunction } = require('../../core/prerequisite');
 
 // Store for active validation sessions
 const activeSessions = new Map();
@@ -43,11 +44,22 @@ function isAIConfigured(config) {
  * @param {Object} config - Application config
  * @returns {string|null} - The API key for the configured provider
  */
-function getAIApiKey(config) {
-  const provider = config.ai?.provider || 'anthropic';
-  return provider === 'openai' 
-    ? config.ai?.openaiApiKey 
-    : config.ai?.anthropicApiKey;
+/**
+ * Get the API key for a specific AI component.
+ * Provider is auto-detected from the model name.
+ * @param {Object} config - Application config
+ * @param {string} [component='healer'] - Component name: 'healer', 'paramGenerator', or 'resolver'
+ * @returns {string|null} - The API key for the component's provider
+ */
+function getAIApiKey(config, component = 'healer') {
+  const modelMap = {
+    healer: config.ai?.models?.healer || 'claude-sonnet-4-20250514',
+    paramGenerator: config.ai?.models?.paramGenerator || 'gpt-4o-mini',
+    resolver: config.ai?.models?.resolver || 'gpt-4.1-nano'
+  };
+  const model = modelMap[component] || modelMap.healer;
+  const isAnthropic = /^(claude|anthropic)/i.test(model);
+  return isAnthropic ? config.ai?.anthropicApiKey : config.ai?.openaiApiKey;
 }
 
 /**
@@ -454,6 +466,15 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
   const config = loadConfig();
   console.log('Config loaded, baseUrl:', config.baseUrl);
   
+  // Apply UI-provided AI options to config
+  if (options.aiOptions) {
+    config.ai = config.ai || {};
+    if (options.aiOptions.autoFixSwagger !== undefined) {
+      config.ai.autoFixSwagger = options.aiOptions.autoFixSwagger;
+      console.log('AI autoFixSwagger override from UI:', config.ai.autoFixSwagger);
+    }
+  }
+  
   const { sequence } = buildTestSequence(endpoints, {
     runDelete: options.runDelete || false
   });
@@ -528,6 +549,9 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
     
     let result;
     
+    // Track execution log for UI display (calls made before healer)
+    const executionLog = [];
+    
     // Handle skipped tests
     if (skip) {
       result = {
@@ -542,12 +566,180 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
         details: { reason: 'SKIPPED', friendlyMessage: skipReason }
       };
     } else {
-      // Build context with resolved params and UID
+      // ============== WORKFLOW-FIRST EXECUTION ==============
+      // Check if a workflow exists and execute it first
+      // Execute workflow if:
+      // 1. Status is 'verified' AND has test request/prerequisites, OR
+      // 2. Workflow has useFallbackApi: true (regardless of status) - ensures fallback is handled consistently
+      const endpointKey = `${endpoint.method} ${endpoint.path}`;
+      const existingWorkflow = workflowRepo.get(endpointKey);
+      
+      const shouldExecuteWorkflow = existingWorkflow && 
+        (existingWorkflow.testRequest || existingWorkflow.prerequisites) &&
+        (existingWorkflow.status === 'verified' || existingWorkflow.useFallbackApi === true);
+      
+      if (shouldExecuteWorkflow) {
+        const useFallback = existingWorkflow.useFallbackApi === true;
+        console.log(`\n📋 Found verified workflow for ${endpointKey}, executing it...`);
+        console.log(`  [DEBUG] useFallbackApi value: ${existingWorkflow.useFallbackApi} (type: ${typeof existingWorkflow.useFallbackApi})`);
+        console.log(`  [DEBUG] useFallback resolved to: ${useFallback}`);
+        console.log(`  [DEBUG] config.fallbackUrl: ${config.fallbackUrl}`);
+        if (useFallback) {
+          console.log(`  📍 Workflow requires fallback API - will use ${config.fallbackUrl}`);
+        }
+        broadcastEvent(session, 'workflow_start', {
+          endpoint: endpointKey,
+          hasPrerequisites: !!existingWorkflow.prerequisites,
+          hasTestRequest: !!existingWorkflow.testRequest,
+          useFallbackApi: useFallback
+        });
+        
+        // Log workflow execution start
+        executionLog.push({
+          type: 'workflow_start',
+          timestamp: new Date().toISOString(),
+          message: `Executing verified workflow for ${endpointKey}`,
+          hasPrerequisites: !!existingWorkflow.prerequisites,
+          prerequisiteCount: existingWorkflow.prerequisites?.steps?.length || 0,
+          useFallbackApi: useFallback
+        });
+        
+        const startTime = Date.now();
+        try {
+          // Create request function for workflow execution, respecting useFallbackApi from workflow
+          const makeRequest = createRequestFunction(config.baseUrl, {
+            fallbackUrl: config.fallbackUrl,
+            useFallback: useFallback
+          });
+          
+          // Execute the workflow (Prerequisites + Test Request) with recursive workflow lookup
+          const workflowResult = await executeWorkflow(existingWorkflow, config, makeRequest, { workflowRepo });
+          const duration = Date.now() - startTime;
+          
+          // Log all workflow steps for UI display
+          if (workflowResult.steps && workflowResult.steps.length > 0) {
+            for (const step of workflowResult.steps) {
+              executionLog.push({
+                type: step.success ? 'workflow_step_success' : 'workflow_step_failed',
+                timestamp: new Date().toISOString(),
+                stepId: step.stepId,
+                method: step.method || 'REQUEST',
+                path: step.path || 'N/A',
+                status: step.status,
+                success: step.success,
+                error: step.error,
+                extracted: step.extracted
+              });
+            }
+          }
+          
+          if (workflowResult.success) {
+            // Workflow executed successfully!
+            console.log(`  ✓ Workflow passed with status ${workflowResult.status}`);
+            
+            // Log workflow success
+            executionLog.push({
+              type: 'workflow_complete',
+              timestamp: new Date().toISOString(),
+              success: true,
+              status: workflowResult.status,
+              duration: `${duration}ms`,
+              variablesExtracted: Object.keys(workflowResult.variables || {})
+            });
+            
+            // Update test context with extracted variables
+            if (workflowResult.variables) {
+              testContext.setParams({ ...testContext.getParams(), ...workflowResult.variables });
+            }
+            
+            // Capture UID if needed
+            if (captureUid && workflowResult.response?.data) {
+              const uid = extractUidFromResponse(workflowResult.response.data);
+              if (uid) {
+                testContext.setUid(resourceKey, uid);
+              }
+            }
+            
+            result = buildValidationResult({
+              endpoint,
+              status: 'PASS',
+              httpStatus: workflowResult.status,
+              duration,
+              tokenUsed: 'staff',
+              request: workflowResult.steps?.[workflowResult.steps.length - 1] || null,
+              response: { status: workflowResult.status, data: workflowResult.response?.data }
+            });
+            
+            // Add workflow info to result
+            result.details = result.details || {};
+            result.details.workflowInfo = {
+              followedWorkflow: true,
+              prerequisiteSteps: existingWorkflow.prerequisites?.steps?.length || 0,
+              summary: existingWorkflow.sections?.Summary || null
+            };
+            // Add execution log to result
+            result.details.executionLog = executionLog;
+            
+            broadcastEvent(session, 'workflow_complete', {
+              endpoint: endpointKey,
+              success: true,
+              status: workflowResult.status
+            });
+          } else {
+            // Workflow failed - log and fall through to swagger-based testing or healing
+            console.log(`  ⚠ Workflow failed at ${workflowResult.phase}: ${workflowResult.failedReason}`);
+            
+            // Log workflow failure
+            executionLog.push({
+              type: 'workflow_failed',
+              timestamp: new Date().toISOString(),
+              success: false,
+              phase: workflowResult.phase,
+              failedStep: workflowResult.failedStep,
+              reason: workflowResult.failedReason,
+              duration: `${duration}ms`
+            });
+            
+            broadcastEvent(session, 'workflow_complete', {
+              endpoint: endpointKey,
+              success: false,
+              phase: workflowResult.phase,
+              reason: workflowResult.failedReason
+            });
+            // Don't set result - let it fall through to swagger-based testing
+          }
+        } catch (workflowError) {
+          console.log(`  ⚠ Workflow execution error: ${workflowError.message}`);
+          
+          // Log workflow error
+          executionLog.push({
+            type: 'workflow_error',
+            timestamp: new Date().toISOString(),
+            success: false,
+            error: workflowError.message
+          });
+          
+          broadcastEvent(session, 'workflow_complete', {
+            endpoint: endpointKey,
+            success: false,
+            error: workflowError.message
+          });
+          // Don't set result - let it fall through to swagger-based testing
+        }
+      }
+      // ============== END WORKFLOW-FIRST EXECUTION ==============
+      
+      // Skip swagger-based testing if workflow already produced a result
+      if (result) {
+        console.log(`  Workflow produced result, skipping swagger-based testing`);
+      }
+      
+      // Build context with resolved params and UID (for swagger-based testing if workflow didn't succeed)
       const context = {
         params: testContext.getParams() // Include all pre-fetched dynamic params
       };
       
-      if (requiresUid) {
+      if (!result && requiresUid) {
         const uid = testContext.getUid(resourceKey);
         if (!uid) {
           // Don't skip immediately - let the AI healer try to resolve the UID
@@ -726,10 +918,39 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
             console.log(`  Using token: ${tokenType || 'none'}`);
           }
           
-          let { success, response, duration, error, usedFallback, fallbackInfo } = await rateLimiter.execute(
-            () => executeRequest(apiClient, requestConfig)
+          // Log the initial API request attempt
+          executionLog.push({
+            type: 'api_request',
+            timestamp: new Date().toISOString(),
+            method: requestConfig.method?.toUpperCase() || endpoint.method,
+            url: `${config.baseUrl}${requestConfig.url}`,
+            tokenType: tokenType,
+            hasBody: !!requestConfig.data,
+            bodyPreview: requestConfig.data ? JSON.stringify(requestConfig.data).substring(0, 200) : null
+          });
+          
+          // Check if workflow specifies useFallbackApi for direct fallback routing
+          const workflowUseFallback = existingWorkflow?.useFallbackApi === true;
+          if (workflowUseFallback) {
+            console.log(`  [Workflow] useFallbackApi=true, will use fallback URL directly`);
+          }
+          
+          let { success, response, duration, error, usedFallback, usedFallbackDirect, fallbackInfo } = await rateLimiter.execute(
+            () => executeRequest(apiClient, requestConfig, { useFallback: workflowUseFallback })
           );
-          console.log(`  Response: status=${response?.status}, duration=${duration}ms, error=${error?.message || 'none'}${usedFallback ? ', usedFallback=true' : ''}`);
+          console.log(`  Response: status=${response?.status}, duration=${duration}ms, error=${error?.message || 'none'}${usedFallback ? (usedFallbackDirect ? ', usedFallbackDirect=true' : ', usedFallback=true') : ''}`);
+          
+          // Log the response
+          executionLog.push({
+            type: response ? 'api_response' : 'api_error',
+            timestamp: new Date().toISOString(),
+            status: response?.status || null,
+            duration: `${duration}ms`,
+            success: response && response.status >= 200 && response.status < 300,
+            error: error?.message || null,
+            usedFallback: usedFallback || false,
+            responsePreview: response?.data ? JSON.stringify(response.data).substring(0, 300) : null
+          });
           
           // Build full request info for debugging (including actual URL and token)
           const fullRequestInfo = {
@@ -743,19 +964,26 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
           // Track documentation issues found during validation
           let docIssues = [];
           
-          // Track if fallback URL was used due to bad gateway error (502 or 404 with "bad gateway" message)
+          // Track if fallback URL was used
           if (usedFallback && fallbackInfo) {
-            console.log(`  [Fallback] Primary URL returned bad gateway error (status ${fallbackInfo.primaryStatus}), succeeded on fallback URL`);
-            docIssues.push({
-              type: FAILURE_REASONS.BAD_GATEWAY_FALLBACK,
-              message: `Primary URL (${fallbackInfo.primaryUrl}) returned bad gateway error (status ${fallbackInfo.primaryStatus}). Request succeeded using fallback URL (${fallbackInfo.fallbackUrl}).`,
-              suggestion: `Investigate gateway/load balancer issues on the primary URL. The fallback URL is working correctly.`,
-              primaryUrl: fallbackInfo.primaryUrl,
-              fallbackUrl: fallbackInfo.fallbackUrl,
-              primaryStatus: fallbackInfo.primaryStatus,
-              fallbackStatus: fallbackInfo.fallbackStatus,
-              fallbackDuration: fallbackInfo.fallbackDuration
-            });
+            if (usedFallbackDirect) {
+              // Direct fallback - workflow specified useFallbackApi: true
+              console.log(`  [Fallback] Used fallback URL directly per workflow setting (status ${fallbackInfo.fallbackStatus})`);
+              // No doc issue - this is expected behavior based on the workflow
+            } else {
+              // Reactive fallback - bad gateway error triggered fallback
+              console.log(`  [Fallback] Primary URL returned bad gateway error (status ${fallbackInfo.primaryStatus}), succeeded on fallback URL`);
+              docIssues.push({
+                type: FAILURE_REASONS.BAD_GATEWAY_FALLBACK,
+                message: `Primary URL (${fallbackInfo.primaryUrl}) returned bad gateway error (status ${fallbackInfo.primaryStatus}). Request succeeded using fallback URL (${fallbackInfo.fallbackUrl}).`,
+                suggestion: `Investigate gateway/load balancer issues on the primary URL. The fallback URL is working correctly. Consider setting useFallbackApi: true in the workflow.`,
+                primaryUrl: fallbackInfo.primaryUrl,
+                fallbackUrl: fallbackInfo.fallbackUrl,
+                primaryStatus: fallbackInfo.primaryStatus,
+                fallbackStatus: fallbackInfo.fallbackStatus,
+                fallbackDuration: fallbackInfo.fallbackDuration
+              });
+            }
           }
           
           // Flag if fallback token was used
@@ -1053,6 +1281,12 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
       }
     }
     
+    // Add execution log to result (calls made before healer)
+    if (result && executionLog.length > 0) {
+      result.details = result.details || {};
+      result.details.executionLog = executionLog;
+    }
+    
     // ============== SELF-HEALING LOGIC ==============
     // Deterministic UID resolution approach:
     // 1. Agent extracts required UIDs from swagger schema
@@ -1087,32 +1321,40 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
           apiClient,
           maxRetries: 30,  // Increased to allow source code exploration
           onProgress: (progress) => {
-            // Map agent events to SSE
+            // Map agent events to SSE event types
             const eventMap = {
               'agent_start': 'healing_analyzing',
               'agent_thinking': 'healing_analyzing',
               'agent_thought': 'healing_analyzing',
               'agent_tool_call': 'healing_creating',
               'agent_tool_result': 'healing_created',
-              'agent_complete': 'healing_complete'
+              'agent_complete': 'healing_complete',
+              'swagger_file_updated': 'swagger_file_updated'
             };
             
-            broadcastEvent(session, eventMap[progress.type] || 'healing_analyzing', {
-              endpoint: endpointKey,
-              ...progress
-            });
+            // For agent_action events, map to a dedicated SSE event that preserves action details
+            if (progress.type === 'agent_action') {
+              broadcastEvent(session, 'healing_action', {
+                endpoint: endpointKey,
+                action: progress.action,
+                details: progress.details,
+                ...progress
+              });
+            } else {
+              broadcastEvent(session, eventMap[progress.type] || 'healing_analyzing', {
+                endpoint: endpointKey,
+                ...progress
+              });
+            }
           }
         });
         
-        // Process doc fix suggestions
+        // Process healing result
         console.log(`\n=== AI HEALER COMPLETED ===`);
         console.log(`  Success: ${healingResult.success}`);
         console.log(`  Summary: ${healingResult.summary}`);
-        console.log(`  Doc Issues Count: ${healingResult.docFixSuggestions?.length || 0}`);
-        if (healingResult.docFixSuggestions?.length > 0) {
-          console.log(`  Doc Issues:`, JSON.stringify(healingResult.docFixSuggestions, null, 2));
-        }
         
+        // Type mismatch results may still carry docFixSuggestions for backward compat
         if (healingResult.docFixSuggestions?.length > 0) {
           result.details = result.details || {};
           result.details.documentationIssues = healingResult.docFixSuggestions;
@@ -1129,7 +1371,6 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
         }
         
         if (healingResult.success) {
-          // Check for documentation issues - use for status determination
           const hasDocIssues = healingResult.docFixSuggestions?.length > 0;
           
           // Agent fixed it! Get the last successful retry from the log
@@ -1138,18 +1379,14 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
             ?.pop();
           
           if (lastSuccess) {
-            // Set status to WARN if there are documentation issues, otherwise PASS
             result.status = hasDocIssues ? 'WARN' : 'PASS';
             result.httpStatus = lastSuccess.result.status;
-            // Clear the old failure reason since we succeeded
             result.reason = hasDocIssues ? 'DOCUMENTATION_ISSUES' : null;
-            // Update errors to show doc issues instead of original validation errors
             result.errors = hasDocIssues 
               ? healingResult.docFixSuggestions.map(d => ({ path: '/', message: d.issue }))
               : [];
             result.details = result.details || {};
             result.details.response = { data: lastSuccess.result.data };
-            // Store the retry request info for UI display (cURL generation, view request/response)
             if (lastSuccess.result.requestConfig) {
               result.details.request = lastSuccess.result.requestConfig;
             }
@@ -1162,21 +1399,18 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
               docFixSuggestions: healingResult.docFixSuggestions || [],
               savedWorkflows: healingResult.savedWorkflows || [],
               workflowStatus: healingResult.savedWorkflows?.length > 0 ? 'New' : 'N/A',
-              hasDocumentationIssues: hasDocIssues
+              hasDocumentationIssues: hasDocIssues,
+              analysisForFixer: healingResult.analysisForFixer || null
             };
           } else if (healingResult.finalResponse) {
-            // Workflow test request succeeded directly (without going through AI healing log)
             result.status = hasDocIssues ? 'WARN' : 'PASS';
             result.httpStatus = healingResult.finalResponse.status;
-            // Clear the old failure reason since we succeeded
             result.reason = hasDocIssues ? 'DOCUMENTATION_ISSUES' : null;
-            // Update errors to show doc issues instead of original validation errors
             result.errors = hasDocIssues 
               ? healingResult.docFixSuggestions.map(d => ({ path: '/', message: d.issue }))
               : [];
             result.details = result.details || {};
             result.details.response = { data: healingResult.finalResponse.data };
-            // Store the workflow request info for UI display
             if (healingResult.finalRequest) {
               result.details.request = {
                 method: healingResult.finalRequest.method,
@@ -1194,11 +1428,11 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
               docFixSuggestions: healingResult.docFixSuggestions || [],
               savedWorkflows: healingResult.savedWorkflows || [],
               workflowStatus: healingResult.followedWorkflow ? 'Followed' : 'N/A',
-              hasDocumentationIssues: hasDocIssues
+              hasDocumentationIssues: hasDocIssues,
+              analysisForFixer: healingResult.analysisForFixer || null
             };
           }
           
-          // Update resolved params with what the agent learned
           if (healingResult.resolvedParams) {
             testContext.setParams({ ...testContext.getParams(), ...healingResult.resolvedParams });
           }
@@ -1211,29 +1445,24 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
             retryCount: healingResult.retryCount,
             summary: healingResult.summary,
             workflowSaved: healingResult.savedWorkflows?.length > 0,
-            docFixCount: healingResult.docFixSuggestions?.length || 0,
-            // Include updated result so UI can update in place
             updatedResult: result
           });
         } else if (healingResult.skip || healingResult.skipSuggestion) {
-          // Agent suggests this should be skipped (requires user approval)
-          // Mark as FAIL with skipSuggestion flag - user can approve skip in UI
-          result.status = 'FAIL';  // Mark as FAIL, not SKIP - user must approve
+          result.status = 'FAIL';
           result.details = result.details || {};
           result.details.healingInfo = {
             mode: 'deterministic_uid_resolution',
-            skipSuggestion: true,  // Flag for UI to show "Approve Skip" button
+            skipSuggestion: true,
             skipReason: healingResult.skipReason,
             iterations: healingResult.iterations,
             retryCount: healingResult.retryCount,
             summary: healingResult.summary,
             agentLog: healingResult.healingLog,
-            docFixSuggestions: healingResult.docFixSuggestions || [],
-            savedWorkflows: [],  // Don't save skip workflows automatically
-            workflowStatus: 'Pending Skip Approval'
+            savedWorkflows: [],
+            workflowStatus: 'Pending Skip Approval',
+            analysisForFixer: healingResult.analysisForFixer || null
           };
           
-          // Update resolved params with what the agent learned
           if (healingResult.resolvedParams) {
             testContext.setParams({ ...testContext.getParams(), ...healingResult.resolvedParams });
           }
@@ -1241,18 +1470,16 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
           broadcastEvent(session, 'healing_complete', {
             endpoint: endpointKey,
             success: false,
-            skipSuggestion: true,  // UI will show "Approve Skip" button
+            skipSuggestion: true,
             skipReason: healingResult.skipReason,
             iterations: healingResult.iterations,
             retryCount: healingResult.retryCount,
             summary: healingResult.summary,
             workflowSaved: false,
-            docFixCount: healingResult.docFixSuggestions?.length || 0,
-            // Include updated result so UI can update in place
             updatedResult: result
           });
         } else {
-          // Agent couldn't fix it
+          // Agent couldn't fix it - pass analysis to fixer
           result.details = result.details || {};
           result.details.healingInfo = {
             mode: 'deterministic_uid_resolution',
@@ -1263,8 +1490,8 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
             reason: healingResult.reason,
             unresolvedUids: healingResult.unresolvedUids || [],
             agentLog: healingResult.healingLog,
-            docFixSuggestions: healingResult.docFixSuggestions || [],
-            workflowStatus: 'Failed'
+            workflowStatus: 'Failed',
+            analysisForFixer: healingResult.analysisForFixer || null
           };
           
           broadcastEvent(session, 'healing_complete', {
@@ -1274,8 +1501,6 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
             retryCount: healingResult.retryCount,
             reason: healingResult.reason,
             unresolvedUids: healingResult.unresolvedUids || [],
-            docFixCount: healingResult.docFixSuggestions?.length || 0,
-            // Include updated result so UI can update in place (shows healing info even if failed)
             updatedResult: result
           });
         }
@@ -1313,116 +1538,6 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
       skipped: report.summary.skipped,
       passRate: report.summary.passRate,
       duration: report.summary.duration
-    });
-  }
-}
-
-/**
- * Retry an endpoint test with new parameters
- * Used by self-healing to re-test after creating prerequisites
- * @param {Object} endpoint - Endpoint to test
- * @param {Object} newParams - New resolved parameters
- * @param {Object} config - App config
- * @param {Object} apiClient - Axios instance
- * @param {Object} testContext - Test context
- * @returns {Promise<Object>} Test result
- */
-async function retryEndpointTest(endpoint, newParams, config, apiClient, testContext, bodyOverride = null) {
-  const startTime = Date.now();
-  
-  try {
-    // Build request with new params
-    const context = {
-      params: { ...testContext.getParams(), ...newParams }
-    };
-    
-    let { config: requestConfig, tokenType, hasToken, skip, skipReason } = 
-      await buildRequestConfigAsync(endpoint, config, context);
-    
-    // Apply body override if provided (for parameter variations)
-    if (bodyOverride && requestConfig.data) {
-      requestConfig.data = bodyOverride;
-    }
-    
-    if (skip) {
-      return buildValidationResult({
-        endpoint,
-        status: 'SKIP',
-        httpStatus: null,
-        duration: Date.now() - startTime,
-        tokenUsed: tokenType,
-        reason: 'SKIPPED',
-        errors: [{ message: skipReason }]
-      });
-    }
-    
-    // Execute request
-    const response = await executeRequest(apiClient, requestConfig);
-    const duration = Date.now() - startTime;
-    
-    // Validate response
-    const isSuccessStatus = response.status >= 200 && response.status < 300;
-    const statusValidation = validateStatusCode(response.status, endpoint.responses, response.data);
-    
-    if (isSuccessStatus) {
-      // Get response schema and validate
-      const responseSpec = endpoint.responses?.[response.status] || endpoint.responses?.[String(response.status)];
-      const responseSchema = responseSpec?.content?.['application/json']?.schema;
-      
-      let schemaValidation = { valid: true, errors: [], warnings: [] };
-      if (responseSchema && response.data) {
-        schemaValidation = validateAgainstSchema(response.data, responseSchema);
-      }
-      
-      if (!schemaValidation.valid) {
-        return buildValidationResult({
-          endpoint,
-          status: 'WARN',
-          httpStatus: response.status,
-          duration,
-          tokenUsed: tokenType,
-          reason: FAILURE_REASONS.SCHEMA_MISMATCH,
-          errors: schemaValidation.errors,
-          request: requestConfig,
-          response: { status: response.status, headers: response.headers, data: response.data },
-          suggestion: getSuggestion(FAILURE_REASONS.SCHEMA_MISMATCH)
-        });
-      }
-      
-      return buildValidationResult({
-        endpoint,
-        status: 'PASS',
-        httpStatus: response.status,
-        duration,
-        tokenUsed: tokenType,
-        request: requestConfig,
-        response: { status: response.status, headers: response.headers, data: response.data }
-      });
-    } else {
-      // Non-success status
-      return buildValidationResult({
-        endpoint,
-        status: statusValidation.error?.isExpectedError ? 'ERROR' : 'FAIL',
-        httpStatus: response.status,
-        duration,
-        tokenUsed: tokenType,
-        reason: statusValidation.error?.reason || FAILURE_REASONS.UNEXPECTED_STATUS_CODE,
-        request: requestConfig,
-        response: { status: response.status, headers: response.headers, data: response.data },
-        suggestion: getSuggestion(statusValidation.error?.reason || FAILURE_REASONS.UNEXPECTED_STATUS_CODE)
-      });
-    }
-  } catch (error) {
-    const duration = Date.now() - startTime;
-    
-    return buildValidationResult({
-      endpoint,
-      status: 'FAIL',
-      httpStatus: error.response?.status || null,
-      duration,
-      tokenUsed: null,
-      reason: error.code === 'ECONNABORTED' ? FAILURE_REASONS.TIMEOUT : FAILURE_REASONS.NETWORK_ERROR,
-      errors: [{ message: error.message }]
     });
   }
 }
@@ -2032,7 +2147,8 @@ async function fetchMissingParams(endpoints, paramResolver, apiClient, rateLimit
               endpoint.path,
               paramName,
               allEndpoints,
-              getAIApiKey(config)
+              getAIApiKey(config, 'resolver'),
+              config.ai?.models?.resolver
             );
           } else {
             console.log(`[Phase 3] Using learned mapping: ${endpoint.path} → ${learnedPath}`);

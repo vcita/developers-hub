@@ -8,6 +8,7 @@ const router = express.Router();
 
 const { filterEndpoints } = require('../../core/parser/swagger-parser');
 const { groupByDomainAndResource } = require('../../core/orchestrator/resource-grouper');
+const { loadIndex } = require('../../core/workflows/repository');
 
 /**
  * GET /api/endpoints
@@ -18,6 +19,13 @@ router.get('/', (req, res) => {
   const { domain, method, tokenType, search, grouped } = req.query;
   const { endpoints, byDomain, domains } = req.appState;
   
+  // Build workflow status lookup from workflow index
+  const workflowIndex = loadIndex();
+  const workflowStatusMap = {};
+  for (const [endpoint, entry] of Object.entries(workflowIndex.workflows || {})) {
+    workflowStatusMap[endpoint] = entry.displayStatus || entry.status || 'pending';
+  }
+  
   // Apply filters
   const filters = {};
   if (domain) filters.domain = domain;
@@ -26,6 +34,9 @@ router.get('/', (req, res) => {
   if (search) filters.search = search;
   
   let filtered = filterEndpoints(endpoints, filters);
+  
+  // Formatter with workflow status context
+  const format = (ep) => formatEndpoint(ep, workflowStatusMap);
   
   // Return grouped or flat
   if (grouped === 'true' || grouped === '1') {
@@ -38,7 +49,7 @@ router.get('/', (req, res) => {
       resources: Object.entries(domainData.resources).map(([resourceName, resourceData]) => ({
         resource: resourceName,
         basePath: resourceData.basePath,
-        endpoints: resourceData.endpoints.map(formatEndpoint)
+        endpoints: resourceData.endpoints.map(format)
       }))
     }));
     
@@ -51,7 +62,7 @@ router.get('/', (req, res) => {
   // Flat list
   res.json({
     total: filtered.length,
-    endpoints: filtered.map(formatEndpoint)
+    endpoints: filtered.map(format)
   });
 });
 
@@ -89,22 +100,34 @@ router.get('/:domain', (req, res) => {
     });
   }
   
+  // Build workflow status lookup
+  const workflowIndex = loadIndex();
+  const workflowStatusMap = {};
+  for (const [endpoint, entry] of Object.entries(workflowIndex.workflows || {})) {
+    workflowStatusMap[endpoint] = entry.displayStatus || entry.status || 'pending';
+  }
+  
   const domainEndpoints = byDomain[domain];
   
   res.json({
     domain,
     info: domains[domain],
     total: domainEndpoints.length,
-    endpoints: domainEndpoints.map(formatEndpoint)
+    endpoints: domainEndpoints.map(ep => formatEndpoint(ep, workflowStatusMap))
   });
 });
 
 /**
  * Format endpoint for API response
  * @param {Object} endpoint - Raw endpoint object
+ * @param {Object} workflowStatusMap - Map of "METHOD /path" -> workflow status
  * @returns {Object} Formatted endpoint
  */
-function formatEndpoint(endpoint) {
+function formatEndpoint(endpoint, workflowStatusMap = {}) {
+  // Look up workflow status using the endpoint key format "METHOD /path"
+  const endpointKey = `${endpoint.method} ${endpoint.path}`;
+  const workflowStatus = workflowStatusMap[endpointKey] || 'none';
+  
   return {
     id: `${endpoint.method}-${endpoint.path}`.replace(/[^a-zA-Z0-9]/g, '-'),
     domain: endpoint.domain,
@@ -121,7 +144,8 @@ function formatEndpoint(endpoint) {
       tokens: endpoint.tokenInfo.tokens,
       source: endpoint.tokenInfo.source
     },
-    deprecated: endpoint.deprecated
+    deprecated: endpoint.deprecated,
+    workflowStatus
   };
 }
 

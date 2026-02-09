@@ -2,10 +2,11 @@
 endpoint: "PUT /v3/apps/staff_widgets_boards_templates/{uid}"
 domain: apps
 tags: []
-swagger: swagger/apps/widgets_and_boards.json
-status: success
-savedAt: 2026-01-25T05:35:33.882Z
-verifiedAt: 2026-01-25T05:35:33.882Z
+swagger: "swagger/apps/widgets_and_boards.json"
+status: verified
+savedAt: "2026-01-25T05:35:33.882Z"
+verifiedAt: "2026-01-25T05:35:33.882Z"
+timesReused: 0
 ---
 
 # Update Staff widgets boards templates
@@ -26,7 +27,7 @@ steps:
     extract:
       staff_id: "$.data.staffs[0].uid"
     expect:
-      status: 200
+      status: [200]
     onFail: abort
 ```
 
@@ -36,7 +37,7 @@ steps:
 steps:
   - id: put_staff_widgets_boards_templates
     method: PUT
-    path: "/v3/apps/staff_widgets_boards_templates/{uid}"
+    path: "/v3/apps/staff_widgets_boards_templates/{{uid}}"
     body:
       staff_uid: "{{staff_uid}}"
     expect:

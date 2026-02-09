@@ -2,9 +2,11 @@
 endpoint: "PUT /business/scheduling/v1/time_slots/{time_slot_uid}"
 domain: scheduling
 tags: [scheduling, availability, time_slots]
-swagger: swagger/scheduling/legacy/scheduling.json
-status: working
-savedAt: 2026-02-01T23:30:00.000Z
+swagger: "swagger/scheduling/legacy/scheduling.json"
+status: verified
+savedAt: "2026-02-01T23:30:00.000Z"
+verifiedAt: "2026-02-01T23:30:00.000Z"
+timesReused: 0
 ---
 
 # Update Time Slot
@@ -31,7 +33,7 @@ steps:
     extract:
       weekly_availability_uid: "$.data.weekly_availabilities[0].uid"
     expect:
-      status: 200
+      status: [200]
     onFail: abort
 
   - id: get_time_slots
@@ -44,7 +46,7 @@ steps:
     extract:
       time_slot_uid: "$.data.general_availability.time_slots_by_day[0].time_slots[0].uid"
     expect:
-      status: 200
+      status: [200]
     onFail: abort
 ```
 
@@ -61,7 +63,7 @@ steps:
       start_time: "09:00"
       end_time: "17:00"
     expect:
-      status: 200
+      status: [200]
 ```
 
 ## Path Parameters

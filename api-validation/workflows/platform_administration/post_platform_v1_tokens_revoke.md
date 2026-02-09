@@ -2,10 +2,11 @@
 endpoint: "POST /platform/v1/tokens/revoke"
 domain: platform_administration
 tags: []
-swagger: swagger/platform_administration/legacy/legacy_v1_platform.json
-status: success
-savedAt: 2026-01-28T11:17:36.085Z
-verifiedAt: 2026-01-28T11:17:36.085Z
+swagger: "swagger/platform_administration/legacy/legacy_v1_platform.json"
+status: verified
+savedAt: "2026-01-28T11:17:36.085Z"
+verifiedAt: "2026-01-28T11:17:36.085Z"
+timesReused: 0
 ---
 
 # Create Revoke

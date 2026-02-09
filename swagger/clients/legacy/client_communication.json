@@ -143,7 +143,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nSubmits Leave Details Form to the business.\n\n## Authentication\n**Available for Client Tokens only.**",
+        "description": "## Overview\nSubmits Leave Details Form to the business.\n\n## Authentication\n**Available for Client Tokens only.**\n\n## Required Fields\nBefore submitting, call `GET /client_api/v1/portals/{business_uid}/contact/get_form` to discover required fields for the business's form configuration.\n\nFor the default `leave_details` form, `subject` and `message` are typically required fields. Any field marked with `required: true` in the form response must be provided with a non-empty value, or the API returns HTTP 422.\n\n## Request Body Structure\nThe `form_data.fields` object is a dynamic map where keys are field IDs and values are the field values. Field IDs can be obtained from the GET form response.",
         "parameters": [
           {
             "description": "business_uid",
@@ -155,15 +155,19 @@
           {
             "in": "body",
             "name": "body",
+            "required": true,
             "schema": {
+              "type": "object",
+              "required": ["form_data"],
               "properties": {
                 "form_data": {
                   "type": "object",
+                  "required": ["fields"],
                   "description": "Form data containing field values. This is an object (NOT an array) with a 'fields' property.",
                   "properties": {
                     "fields": {
                       "type": "object",
-                      "description": "Key-value pairs of form fields",
+                      "description": "Dynamic map of field IDs to values. Field IDs include fixed keys like 'subject' and 'message', plus any custom field IDs from the form configuration. Get valid field IDs from GET /client_api/v1/portals/{business_uid}/contact/get_form.",
                       "additionalProperties": {
                         "type": "string"
                       },
@@ -175,6 +179,7 @@
                   }
                 },
                 "source_data": {
+                  "type": "object",
                   "properties": {
                     "isWidget": {
                       "description": "Whether the form was submitted from a widget. **Must be a boolean value (true/false), not a string.**",
@@ -192,11 +197,9 @@
                       "description": "The top url in Base64",
                       "type": "string"
                     }
-                  },
-                  "type": "object"
+                  }
                 }
-              },
-              "type": "object"
+              }
             }
           }
         ],
@@ -216,6 +219,21 @@
                   "uid": "xlc8czadb3tyag1k"
                 },
                 "status": "OK"
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error - Empty or missing required fields. Use GET .../contact/get_form to discover required field IDs.",
+            "examples": {
+              "application/json": {
+                "errors": [
+                  {
+                    "code": "invalid",
+                    "field": "subject",
+                    "message": "This field cannot be empty"
+                  }
+                ],
+                "success": false
               }
             }
           }
@@ -374,7 +392,7 @@
         "consumes": [
           "multipart/form-data"
         ],
-        "description": "## Overview\nSubmits Share Documents Form to the business.\n\n## Authentication\n**Available for Client Tokens only.**\n\n## Request Format\nThis endpoint requires `multipart/form-data` format with actual binary file uploads (not JSON). Documents must be uploaded as form fields with proper content types.",
+        "description": "## Overview\nSubmits Share Documents Form to the business.\n\n## Authentication\n**Available for Client Tokens only.**\n\n## Critical Requirement\nThe `matter_uid` query parameter must reference a matter with an assigned staff member. Without this, the endpoint returns 500 due to a server-side bug.\n\n## Request Format\nThis endpoint requires `multipart/form-data` format with actual binary file uploads (not JSON). Documents must be uploaded as form fields with proper content types.\n\n## Important: Field Naming Convention\n**Document fields MUST use explicit numeric indices** (e.g., `[0]`, `[1]`), NOT empty brackets `[]`.\n\n- Correct: `form_data[fields][documents][0]=@file.pdf`\n- Wrong: `form_data[fields][documents][]=@file.pdf` (causes 500 error)\n\nThis is because the server expects a Hash structure, not an Array.\n\n## Captcha\nWhen the business has the `captcha_intake_form` feature enabled, a valid `captcha_token` is required.\n\n## Example cURL\n```bash\ncurl -X POST 'https://api.vcita.biz/client_api/v1/portals/{business_uid}/share_documents_form/submit?matter_uid={matter_uid}' \\\n  -H 'Authorization: Bearer {token}' \\\n  -F 'form_data[fields][title]=My Document' \\\n  -F 'form_data[fields][message]=Please review' \\\n  -F 'form_data[fields][documents][0]=@file.pdf;type=application/pdf'\n```",
         "parameters": [
           {
             "in": "path",
@@ -383,59 +401,84 @@
             "type": "string"
           },
           {
-            "in": "body",
-            "name": "body",
-            "schema": {
-              "properties": {
-                "form_data": {
-                  "items": {
-                    "properties": {
-                      "fields": {
-                        "properties": {
-                          "documents": {
-                            "description": "List of binary files",
-                            "items": {
-                              "format": "binary",
-                              "type": "string"
-                            },
-                            "type": "array"
-                          },
-                          "message": {
-                            "description": "Message of the form field",
-                            "type": "string"
-                          },
-                          "title": {
-                            "description": "Title of the form field",
-                            "type": "string"
-                          }
-                        },
-                        "type": "object"
-                      }
-                    },
-                    "required": [
-                      "title",
-                      "message",
-                      "documents"
-                    ],
-                    "type": "object"
-                  },
-                  "type": "array"
-                }
-              },
-              "type": "object"
-            }
+            "in": "query",
+            "name": "matter_uid",
+            "required": true,
+            "type": "string",
+            "description": "The matter/conversation UID to associate with the document upload. **Critical**: The matter must have an assigned staff member to avoid 500 errors."
+          },
+          {
+            "in": "formData",
+            "name": "form_data[fields][title]",
+            "type": "string",
+            "description": "Document title"
+          },
+          {
+            "in": "formData",
+            "name": "form_data[fields][message]",
+            "type": "string",
+            "description": "Message accompanying the documents"
+          },
+          {
+            "in": "formData",
+            "name": "form_data[fields][documents][0]",
+            "type": "file",
+            "required": true,
+            "description": "File to upload. **Important**: Use explicit indices `[0]`, `[1]`, etc. - NOT empty brackets `[]`. For multiple files, use `form_data[fields][documents][0]`, `form_data[fields][documents][1]`, etc."
+          },
+          {
+            "in": "formData",
+            "name": "captcha_token",
+            "type": "string",
+            "description": "reCAPTCHA token. Required when business has captcha_intake_form feature enabled."
           }
         ],
         "responses": {
           "200": {
-            "description": "Share Documents Form",
+            "description": "Success - Documents submitted successfully.",
             "examples": {
               "application/json": {
                 "data": {
-                  "conversation_uid": "jkhk87vkj98jhg8b",
-                  "token": "n98h98bakwjefbf873fb8"
+                  "id": 142055507,
+                  "uid": "gpybls1zgpmono0o",
+                  "conversation_uid": "hf3gtvitw2ycg3ix",
+                  "auto_reply_message": "Thank you for your message."
                 },
                 "status": "OK"
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error or Business Blocked.\n\n**Validation Error**: Missing required fields like documents.\n\n**Business Blocked**: When the business is flagged as spammer or user access is blocked, returns 422 with NO explicit error message - only `auto_reply_message` in the data object. This \"silent error\" makes it impossible to diagnose the failure from the response alone.\n\n**Triggers for silent 422**:\n- Business is marked as spammer (rate limiting)\n- User access is blocked\n- Message contains spam keywords",
+            "examples": {
+              "validation_error": {
+                "errors": [
+                  {
+                    "code": "invalid",
+                    "field": "documents",
+                    "message": "Documents are required"
+                  }
+                ],
+                "success": false
+              },
+              "business_blocked_silent_error": {
+                "status": "Error",
+                "data": {
+                  "auto_reply_message": "Thank you for your message."
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error.\n\n**Bug 1: Empty JSON Body**\nSending `Content-Type: application/json` with `{}` body causes nil access error.\n\n**Bug 2: Missing Staff on Matter**\nOccurs when the matter does not have an assigned staff member. The server accesses `conversation.staff.can_receive_sms?` without nil-checking.\n\n**Workaround**: Ensure the `matter_uid` parameter references a matter with an assigned staff member. Use `PUT /business/clients/v1/matters/{matter_uid}/reassign` to assign staff before calling this endpoint.",
+            "examples": {
+              "empty_body_error": {
+                "error": "undefined method `[]' for nil:NilClass",
+                "status": "Error"
+              },
+              "nil_staff_error": {
+                "error": "undefined method `can_receive_sms?' for nil:NilClass",
+                "status": "Error"
               }
             }
           }

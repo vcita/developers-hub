@@ -3,39 +3,41 @@ endpoint: "PUT /business/payments/v1/payouts/{provider_payout_id}"
 domain: sales
 tags: []
 swagger: swagger/sales/legacy/payments.json
-status: success
-savedAt: 2026-01-26T22:29:09.915Z
-verifiedAt: 2026-01-26T22:29:09.915Z
+status: pending
+savedAt: 2026-02-06T19:49:28.285Z
+verifiedAt: 2026-02-07T07:22:53.000Z
+timesReused: 0
+useFallbackApi: true
 ---
-
 # Update Payouts
 
 ## Summary
-Test passes after resolving provider_payout_id and correcting field types. Several fields documented as strings actually require numeric values.
+
+PUT /business/payments/v1/payouts/{provider_payout_id} works when a real provider_payout_id is provided in the path. Retried with provider_payout_id='payout_test_1770399738' and body {payout:{total_amount:333.55}} → 200 OK.
+
+> **⚠️ Fallback API Required**
+> This endpoint must use the fallback API URL. The main API gateway does not support this endpoint.
 
 ## Prerequisites
 
-No prerequisites required for this endpoint.
+None required for this endpoint.
 
 ## Test Request
 
 ```yaml
 steps:
-  - id: put_payouts
+  - id: main_request
+    description: "Update payouts"
     method: PUT
-    path: "/business/payments/v1/payouts/{provider_payout_id}"
+    path: "/business/payments/v1/payouts/payout_test_1770399738"
     body:
-      payout:
-        account_number: test_string
-        currency: USD
-        fee: 5.99
-        net: 94.01
-        other: 0
-        processed_time: 2024-01-01T00:00:00Z
-        provider_created_time: 2024-01-01T00:00:00Z
-        provider_updated_time: 2024-01-01T00:00:00Z
-        status: completed
-        total_amount: 100
+      payout: {"total_amount":333.55}
     expect:
       status: [200, 201]
 ```
+
+## Swagger Discrepancies
+
+| Aspect | Swagger Says | Actual Behavior | Evidence |
+|--------|--------------|-----------------|----------|
+| required_field: provider_payout_id | Path parameter exists but error handling/validation not described; test sent no path value leading to 422 missing/Not Found | Controller requires provider_payout_id from route params and passes it to API component; missing param triggers 422 missing | - |

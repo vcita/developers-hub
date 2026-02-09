@@ -2,10 +2,11 @@
 endpoint: "GET /platform/v1/businesses/{business_uid}/staffs/{staff_uid}"
 domain: platform_administration
 tags: []
-swagger: swagger/platform_administration/legacy/legacy_v1_platform.json
-status: success
-savedAt: 2026-01-27T09:24:06.431Z
-verifiedAt: 2026-01-27T09:24:06.431Z
+swagger: "swagger/platform_administration/legacy/legacy_v1_platform.json"
+status: verified
+savedAt: "2026-01-27T09:24:06.431Z"
+verifiedAt: "2026-01-27T09:24:06.431Z"
+timesReused: 0
 ---
 
 # Get Staffs
@@ -26,7 +27,7 @@ steps:
     extract:
       staff_id: "$.data.staffs[0].uid"
     expect:
-      status: 200
+      status: [200]
     onFail: abort
 ```
 
@@ -36,7 +37,7 @@ steps:
 steps:
   - id: get_staffs
     method: GET
-    path: "/platform/v1/businesses/{business_uid}/staffs/{staff_uid}"
+    path: "/platform/v1/businesses/{{business_uid}}/staffs/{{staff_uid}}"
     expect:
       status: [200, 201]
 ```

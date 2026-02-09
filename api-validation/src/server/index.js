@@ -11,10 +11,12 @@ const { loadConfig, getMaskedConfig, validateConfig } = require('../core/config'
 const { parseAllSwaggersAsync, filterEndpoints, getStatistics } = require('../core/parser/swagger-parser');
 const { groupByDomainAndResource } = require('../core/orchestrator/resource-grouper');
 const { generateMarkdownReport, generateFilename } = require('../core/reporter/markdown-generator');
+const { invalidateIndexCache } = require('../core/workflows/repository');
 
 // Import routes
 const endpointsRouter = require('./routes/endpoints');
 const validateRouter = require('./routes/validate');
+const fixReportRouter = require('./routes/fix-report');
 
 // Store last validation results for report generation
 let lastValidationResults = null;
@@ -84,6 +86,7 @@ app.use((req, res, next) => {
 // API Routes
 app.use('/api/endpoints', endpointsRouter);
 app.use('/api/validate', validateRouter);
+app.use('/api/fix-report', fixReportRouter);
 
 // Config endpoint
 app.get('/api/config', (req, res) => {
@@ -119,7 +122,7 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Reload swagger files
+// Reload swagger files and workflow index
 app.post('/api/reload', async (req, res) => {
   try {
     console.log('Reloading swagger files...');
@@ -130,6 +133,9 @@ app.post('/api/reload', async (req, res) => {
     appState.byDomain = byDomain;
     appState.domains = domains;
     appState.statistics = getStatistics(endpoints);
+    
+    // Also invalidate workflow index cache so workflows are re-read from files
+    invalidateIndexCache();
     
     console.log(`Reloaded ${endpoints.length} endpoints from ${Object.keys(domains).length} domains`);
     

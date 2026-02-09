@@ -2,10 +2,11 @@
 endpoint: "POST /platform/v1/tokens"
 domain: platform_administration
 tags: []
-swagger: swagger/platform_administration/legacy/legacy_v1_platform.json
-status: success
-savedAt: 2026-01-30T10:00:00.000Z
-verifiedAt: 2026-01-30T10:00:00.000Z
+swagger: "swagger/platform_administration/legacy/legacy_v1_platform.json"
+status: verified
+savedAt: "2026-01-30T10:00:00.000Z"
+verifiedAt: "2026-01-30T10:00:00.000Z"
+timesReused: 0
 ---
 
 # Create Tokens

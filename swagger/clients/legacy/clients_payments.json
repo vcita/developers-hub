@@ -150,10 +150,14 @@
                       "description": "card holder name",
                       "type": "string"
                     },
+                    "default": {
+                      "description": "Set as default card for this client",
+                      "type": "boolean"
+                    },
                     "options": {
                       "properties": {
                         "default": {
-                          "description": "is default card",
+                          "description": "is default card (deprecated, use card.default instead)",
                           "type": "boolean"
                         }
                       },
@@ -165,8 +169,7 @@
                     }
                   },
                   "required": [
-                    "token",
-                    "cardholder_name"
+                    "token"
                   ],
                   "type": "object"
                 }
@@ -334,7 +337,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nCreate New Save Card Session.\n\n## Authentication\n**Available for Client Tokens only.**",
+        "description": "## Overview\nCreate New Save Card Session. Creates a Stripe Checkout session for securely saving a card.\n\n## Authentication\n**Available for Client Tokens only.**\n\n## Prerequisites\n1. Business must have the `cp_add_new_cof` feature flag enabled\n2. Business must use Stripe as payment gateway (`payments_gateway_type: 'stripe'`)\n\n## Supported Payment Gateways\n- **Stripe**: Fully supported\n- **Other gateways**: Not supported (returns 422)",
         "parameters": [
           {
             "in": "body",
@@ -445,12 +448,14 @@
                       "items": {
                         "properties": {
                           "entity_type": {
-                            "description": "translation missing: en.payments-api.client.carts.parameters.item.entity_type",
-                            "type": "string"
+                            "description": "The type of entity to add to the cart. Must be a capitalized Ruby model name. Common values for client carts: Invoice, Meeting, EventAttendance, ProductOrder, ClientBookingPackage, Cart. PendingBooking is also accepted but is typically used internally.",
+                            "type": "string",
+                            "enum": ["Invoice", "Meeting", "EventAttendance", "ProductOrder", "ClientBookingPackage", "Cart", "PendingBooking"]
                           },
                           "entity_uid": {
-                            "description": "translation missing: en.payments-api.client.carts.parameters.item.entity_uid",
-                            "type": "string"
+                            "description": "The identifier of the entity to add to the cart. The format depends on entity_type: for Invoice use the invoice UID string (e.g., \"dg3g449g3gcdpmiz\"); for ProductOrder it may be a numeric ID. Typically sourced from payment_status.payable_uid or the entity's own identifier.",
+                            "type": "string",
+                            "x-reference-to": "entity"
                           }
                         },
                         "required": [
@@ -462,8 +467,9 @@
                       "type": "array"
                     },
                     "matter_uid": {
-                      "description": "Matter UID",
-                      "type": "string"
+                      "description": "Matter UID - the matter to associate with this cart",
+                      "type": "string",
+                      "x-reference-to": "matter"
                     }
                   },
                   "required": [
@@ -575,7 +581,7 @@
         "x-auth-type": "Application & Application User"
       }
     },
-    "/v1/carts/{uid}?matter_uid={matter_uid}": {
+    "/v1/carts/{cart_uid}?matter_uid={matter_uid}": {
       "get": {
         "consumes": [
           "application/json"
@@ -583,15 +589,15 @@
         "description": "## Overview\nShow specific cart data.\n\n## Authentication\n**Available for Client Tokens only.**",
         "parameters": [
           {
-            "description": "Cart UID",
+            "description": "The unique identifier of the cart (e.g., \"sg1oz2nuy0in41ly\").",
             "in": "path",
-            "name": "uid",
+            "name": "cart_uid",
             "required": true,
             "type": "string"
           },
           {
-            "description": "Matter UID",
-            "in": "path",
+            "description": "The unique identifier of the matter/conversation associated with the cart.",
+            "in": "query",
             "name": "matter_uid",
             "required": true,
             "type": "string"
@@ -686,7 +692,7 @@
             }
           },
           "type": "http_proxy",
-          "uri": "https:///client/payments/v1/carts/{uid}?matter_uid={matter_uid}"
+          "uri": "https:///client/payments/v1/carts/{cart_uid}?matter_uid={matter_uid}"
         },
         "x-auth-type": "Application & Application User"
       }
@@ -915,25 +921,25 @@
         "x-auth-type": "Application & Application User"
       }
     },
-    "/v1/deposits/{uid}?matter_uid={matter_uid}": {
+    "/v1/deposits/{deposit_uid}?matter_uid={matter_uid}": {
       "get": {
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nShow specific deposit details.\n\n## Authentication\n**Available for Client Tokens only.**\n\n## Parameters\n- `uid`: The deposit UID\n- `matter_uid`: Must correspond to the matter associated with the deposit\n\n## Error Responses\n- 422: Returns when the provided matter_uid doesn't match the matter associated with the deposit",
+        "description": "## Overview\nShow specific deposit details.\n\n## Authentication\n**Available for Client Tokens only.**\n\n## Parameters\n- `deposit_uid`: The unique identifier of the deposit\n- `matter_uid`: (Optional) When provided, validated and used to filter by engagement; an incorrect value may result in not_found or missing deposit_uid rather than 422.\n\n## Error Responses\n- 404/not_found: When deposit does not exist or matter_uid (if provided) does not match.",
         "parameters": [
           {
-            "description": "Deposit UID",
+            "description": "The unique identifier of the deposit (e.g., \"6y5ssai032sfpv54\").",
             "in": "path",
-            "name": "uid",
+            "name": "deposit_uid",
             "required": true,
             "type": "string"
           },
           {
-            "description": "Matter UID",
-            "in": "path",
+            "description": "Matter UID (optional). When provided, validated and used to filter; incorrect value may return not_found.",
+            "in": "query",
             "name": "matter_uid",
-            "required": true,
+            "required": false,
             "type": "string"
           }
         ],
@@ -1009,7 +1015,7 @@
             }
           },
           "type": "http_proxy",
-          "uri": "https:///client/payments/v1/deposits/{uid}?matter_uid={matter_uid}"
+          "uri": "https:///client/payments/v1/deposits/{deposit_uid}?matter_uid={matter_uid}"
         },
         "x-auth-type": "Application & Application User"
       }
@@ -1380,7 +1386,7 @@
           "uri": "https:///client/payments/v1/packages/{package_id}"
         },
         "x-auth-type": "None",
-        "description": "## Overview\nShow Package Info [Alpha].\n\n## Authentication\n**Available for Client Tokens only.**"
+        "description": "## Overview\nShow Package Info [Alpha].\n\n## Authentication\n**Available for Client Tokens only.**\n\n## Note on Path Parameter\nThe swagger documents this as `{package_id}` but the Rails route defines `param: :uid`. Both work due to Rails routing, but internally the controller accesses `params[:uid]`."
       }
     },
     "/v1/payment_requests": {
@@ -1515,7 +1521,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nGet the checkout session of a given payment request.\n\n## Authentication\n**No authentication token required.** This endpoint is designed for client checkout flows and skips token verification.\n\n## Coupon Functionality\nThe optional `coupon_code` parameter applies a discount to the payment request. **Note:** Business must have `rollout.payments.coupons_checkout_v2` feature enabled and active coupons available. Returns 422 error if business is not eligible for coupon functionality.",
+        "description": "## Overview\nGet the checkout session of a given payment request. Available for **Client tokens**.\n\n## Authentication\nThis endpoint is designed for client checkout flows and may also work without authentication for public checkout scenarios.\n\n## Coupon Functionality\nThe optional `coupon_code` parameter applies a discount to the payment request. **Note:** Business must have `rollout.payments.coupons_checkout_v2` feature enabled and active coupons available. Returns 422 error if business is not eligible for coupon functionality.",
         "parameters": [
           {
             "description": "Payment Request UID",

@@ -2,10 +2,11 @@
 endpoint: "PUT /business/clients/v1/matters/{matter_uid}/reassign"
 domain: clients
 tags: []
-swagger: swagger/clients/legacy/manage_clients.json
-status: success
-savedAt: 2026-01-25T10:25:32.048Z
-verifiedAt: 2026-01-25T10:25:32.048Z
+swagger: "swagger/clients/legacy/manage_clients.json"
+status: verified
+savedAt: "2026-01-25T10:25:32.048Z"
+verifiedAt: "2026-01-25T10:25:32.048Z"
+timesReused: 0
 ---
 
 # Update Reassign
@@ -27,7 +28,7 @@ steps:
     extract:
       matter_uid: "$.data.matters[0].uid"
     expect:
-      status: 200
+      status: [200]
     onFail: abort
   - id: get_staffs
     description: "Fetch available staff members"
@@ -38,7 +39,7 @@ steps:
     extract:
       staff_id: "$.data.staffs[0].uid"
     expect:
-      status: 200
+      status: [200]
     onFail: abort
 ```
 
@@ -48,7 +49,7 @@ steps:
 steps:
   - id: put_reassign
     method: PUT
-    path: "/business/clients/v1/matters/{matter_uid}/reassign"
+    path: "/business/clients/v1/matters/{{matter_uid}}/reassign"
     body:
       notes: Staff reassignment test
       reassign_future_meetings: false

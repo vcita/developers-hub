@@ -2,10 +2,11 @@
 endpoint: "PUT /platform/v1/businesses/{business_uid}/purchased_items"
 domain: platform_administration
 tags: []
-swagger: swagger/platform_administration/legacy/legacy_v1_platform.json
-status: success
-savedAt: 2026-01-28T12:03:46.165Z
-verifiedAt: 2026-01-28T12:03:46.165Z
+swagger: "swagger/platform_administration/legacy/legacy_v1_platform.json"
+status: verified
+savedAt: "2026-01-28T12:03:46.165Z"
+verifiedAt: "2026-01-28T12:03:46.165Z"
+timesReused: 0
 ---
 
 # Update Purchased items
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: put_purchased_items
     method: PUT
-    path: "/platform/v1/businesses/{business_uid}/purchased_items"
+    path: "/platform/v1/businesses/{{business_uid}}/purchased_items"
     body:
       data:
         "0":

@@ -2,10 +2,11 @@
 endpoint: "GET /business/accounts/v1/identities"
 domain: platform_administration
 tags: []
-swagger: swagger/platform_administration/legacy/accounts.json
-status: success
-savedAt: 2026-01-29T07:57:42.792Z
-verifiedAt: 2026-01-29T07:57:42.792Z
+swagger: "swagger/platform_administration/legacy/accounts.json"
+status: verified
+savedAt: "2026-01-29T07:57:42.792Z"
+verifiedAt: "2026-01-29T07:57:42.792Z"
+timesReused: 0
 ---
 
 # Get Identities

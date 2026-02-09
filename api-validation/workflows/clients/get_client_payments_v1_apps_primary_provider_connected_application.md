@@ -2,26 +2,36 @@
 endpoint: "GET /client/payments/v1/apps/primary_provider_connected_application"
 domain: clients
 tags: [apps]
-swagger: swagger/clients/legacy/clients_payments.json
 status: skip
-savedAt: 2026-01-25T21:12:26.168Z
-verifiedAt: 2026-01-25T21:12:26.168Z
+savedAt: 2026-02-04T16:32:00.981Z
+verifiedAt: 2026-02-04T16:32:00.981Z
+timesReused: 0
+skipReason: "Requires an installed + fully connected payments app for the business (configured payments_gateway_type + external_<provider>_connected flag + additional connection checks). This prerequisite cannot be satisfied in the test environment via available APIs, so the endpoint will always 422 for most fresh businesses."
 ---
-
 # Get Primary provider connected application
 
 ## Summary
-User-approved skip: This endpoint requires complex payment app configuration including business settings (external_[app_name]_connected=true, payments_gateway_type matching, not in pending mode, and for vcitaPayments: accepted terms). These are business configuration requirements that cannot be easily automated in a test environment without administrative access to business payment settings.
+
+User-approved skip: Requires an installed + fully connected payments app for the business (configured payments_gateway_type + external_<provider>_connected flag + additional connection checks). This prerequisite cannot be satisfied in the test environment via available APIs, so the endpoint will always 422 for most fresh businesses.
+
+## Skip Reason
+
+**This endpoint should be SKIPPED in automated testing.**
+
+Requires an installed + fully connected payments app for the business (configured payments_gateway_type + external_<provider>_connected flag + additional connection checks). This prerequisite cannot be satisfied in the test environment via available APIs, so the endpoint will always 422 for most fresh businesses.
+
+This is typically due to a business constraint where the endpoint works correctly but cannot be tested repeatedly (e.g., one-time operations, unique constraints).
 
 ## Prerequisites
 
-No prerequisites required for this endpoint.
+None required for this endpoint.
 
 ## Test Request
 
 ```yaml
 steps:
-  - id: get_primary_provider_connected_application
+  - id: main_request
+    description: "Get primary_provider_connected_application"
     method: GET
     path: "/client/payments/v1/apps/primary_provider_connected_application"
     expect:

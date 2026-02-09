@@ -2,9 +2,11 @@
 endpoint: "POST /business/scheduling/v1/bookings/complete"
 domain: scheduling
 tags: [scheduling, bookings]
-swagger: swagger/scheduling/legacy/scheduling.json
-status: working
-savedAt: 2026-02-01T23:30:00.000Z
+swagger: "swagger/scheduling/legacy/scheduling.json"
+status: verified
+savedAt: "2026-02-01T23:30:00.000Z"
+verifiedAt: "2026-02-01T23:30:00.000Z"
+timesReused: 0
 ---
 
 # Complete Booking
@@ -49,7 +51,7 @@ steps:
       booking_id: "{{booking_id}}"
       business_id: "{{business_id}}"
     expect:
-      status: 200
+      status: [200]
 ```
 
 ## Body Parameters

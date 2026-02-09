@@ -2,10 +2,11 @@
 endpoint: "PUT /v3/access_control/staff_business_roles/{staff_uid}"
 domain: platform_administration
 tags: []
-swagger: swagger/platform_administration/access_control.json
-status: success
-savedAt: 2026-01-28T11:50:24.410Z
-verifiedAt: 2026-01-28T11:50:24.410Z
+swagger: "swagger/platform_administration/access_control.json"
+status: verified
+savedAt: "2026-01-28T11:50:24.410Z"
+verifiedAt: "2026-01-28T11:50:24.410Z"
+timesReused: 0
 ---
 
 # Update Staff business roles
@@ -26,7 +27,7 @@ steps:
     extract:
       staff_id: "$.data.staffs[0].uid"
     expect:
-      status: 200
+      status: [200]
     onFail: abort
 ```
 
@@ -36,7 +37,7 @@ steps:
 steps:
   - id: put_staff_business_roles
     method: PUT
-    path: "/v3/access_control/staff_business_roles/{staff_uid}"
+    path: "/v3/access_control/staff_business_roles/{{staff_uid}}"
     body:
       business_role_uid: "{{business_role_uid}}"
     expect:

@@ -2,9 +2,11 @@
 endpoint: "POST /platform/v1/scheduling/bookings/cancel"
 domain: scheduling
 tags: [booking, appointment, scheduling, platform, cancel]
+swagger: "swagger/scheduling/legacy/scheduling.json"
 status: pending
-savedAt: 2026-02-01T16:00:00.000Z
-verifiedAt: 2026-02-01T16:00:00.000Z
+savedAt: "2026-02-01T16:00:00.000Z"
+verifiedAt: "2026-02-01T16:00:00.000Z"
+timesReused: 0
 useFallbackApi: true
 ---
 
@@ -37,7 +39,7 @@ steps:
     extract:
       booking_id: "$.data.appointments[0].id"
     expect:
-      status: 200
+      status: [200]
 ```
 
 ### Option 2: From Bookings List (Client token only)
@@ -57,7 +59,7 @@ steps:
     extract:
       booking_id: "$.data.bookings[0].uid"
     expect:
-      status: 200
+      status: [200]
 ```
 
 ### Option 3: From Create Booking Response
@@ -79,7 +81,7 @@ steps:
     extract:
       booking_id: "$.data.appointments[0].id"
     expect:
-      status: 200
+      status: [200]
     onFail: skip
     skipReason: "No scheduled appointments available to cancel"
 ```
@@ -96,7 +98,7 @@ steps:
       business_id: "{{business_id}}"
       booking_id: "{{booking_id}}"
     expect:
-      status: 200
+      status: [200]
 ```
 
 ## Request Body Parameters
@@ -170,7 +172,7 @@ steps:
     extract:
       booking_id: "$.data.appointments[0].id"
     expect:
-      status: 200
+      status: [200]
 
   - id: cancel_booking
     method: POST
@@ -180,5 +182,5 @@ steps:
       business_id: "{{business_id}}"
       booking_id: "{{booking_id}}"
     expect:
-      status: 200
+      status: [200]
 ```

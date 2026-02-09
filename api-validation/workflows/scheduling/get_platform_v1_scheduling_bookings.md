@@ -2,15 +2,22 @@
 endpoint: "GET /platform/v1/scheduling/bookings"
 domain: scheduling
 tags: [scheduling, bookings, client]
-swagger: swagger/scheduling/legacy/legacy_v1_scheduling.json
-status: working
-savedAt: 2026-02-01T23:30:00.000Z
+swagger: "swagger/scheduling/legacy/legacy_v1_scheduling.json"
+status: verified
+savedAt: "2026-02-01T23:30:00.000Z"
+verifiedAt: "2026-02-01T23:30:00.000Z"
+timesReused: 0
 ---
 
 # Get Client Bookings
 
 ## Summary
 Returns a paginated list of the client's appointments and event registrations.
+
+## Prerequisites
+
+None required for this endpoint.
+
 
 ## Authentication
 Available for **Client tokens** only. Staff tokens will receive 401 Unauthorized.
@@ -28,7 +35,7 @@ steps:
       offset: "0"
       business_id: "{{business_id}}"
     expect:
-      status: 200
+      status: [200]
 ```
 
 ## Query Parameters

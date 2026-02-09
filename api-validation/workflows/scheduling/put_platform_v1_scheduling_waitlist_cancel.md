@@ -2,9 +2,10 @@
 endpoint: "PUT /platform/v1/scheduling/waitlist/cancel"
 domain: scheduling
 tags: [waitlist, event, scheduling, cancel]
-swagger: swagger/scheduling/legacy/legacy_v1_scheduling.json
+swagger: "swagger/scheduling/legacy/legacy_v1_scheduling.json"
 status: pending
-savedAt: 2026-02-01T22:00:00.000Z
+savedAt: "2026-02-01T22:00:00.000Z"
+timesReused: 0
 ---
 
 # Cancel Waitlist Registration
@@ -33,7 +34,7 @@ steps:
     extract:
       event_instance_uid: "$[0].uid"
     expect:
-      status: 200
+      status: [200]
     onFail: skip
     skipReason: "No scheduled event instances available"
 ```
@@ -51,7 +52,7 @@ steps:
       event_instance_uid: "{{event_instance_uid}}"
       client_uid: "{{client_id}}"
     expect:
-      status: 200
+      status: [200]
 ```
 
 ## Request Body Parameters

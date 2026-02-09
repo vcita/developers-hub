@@ -1,34 +1,39 @@
 ---
 endpoint: "POST /platform/v1/numbers/twilio"
 domain: communication
-tags: []
-swagger: swagger/communication/legacy/legacy_v1_communication.json
-status: success
-savedAt: 2026-01-27T06:29:35.320Z
-verifiedAt: 2026-01-27T06:29:35.320Z
+tags: [numbers]
+status: skip
+savedAt: 2026-02-09T06:50:26.235Z
+verifiedAt: 2026-02-09T06:50:26.235Z
+timesReused: 0
+skipReason: "Manual skip - endpoint not ready for testing"
 ---
-
 # Create Twilio
 
 ## Summary
-Test passes after creating fresh business and using directory token. Endpoint successfully creates Twilio integration with HTTP 201.
+
+User-approved skip: Manual skip - endpoint not ready for testing
+
+## Skip Reason
+
+**This endpoint should be SKIPPED in automated testing.**
+
+Manual skip - endpoint not ready for testing
+
+This is typically due to a business constraint where the endpoint works correctly but cannot be tested repeatedly (e.g., one-time operations, unique constraints).
 
 ## Prerequisites
 
-No prerequisites required for this endpoint.
+None required for this endpoint.
 
 ## Test Request
 
 ```yaml
 steps:
-  - id: post_twilio
+  - id: main_request
+    description: "Create twilio"
     method: POST
     path: "/platform/v1/numbers/twilio"
-    body:
-      business_uid: "{{business_uid}}"
-      messaging_id: MSG1703123456
-      number: "+15551234567"
-      sub_account_id: "{{sub_account_id}}"
     expect:
       status: [200, 201]
 ```

@@ -1,0 +1,1169 @@
+{
+  "basePath": "/",
+  "host": "api.vcita.biz",
+  "info": {
+    "title": "Coupons API",
+    "version": "v2.0"
+  },
+  "paths": {
+    "/v2/coupons": {
+      "get": {
+        "consumes": [
+          "application/json"
+        ],
+        "deprecated": true,
+        "description": "## Overview\n**DEPRECATED** - Use the v3 alternative `GET /v3/sales/coupons` instead.\n\nRetrieves a list of coupons for the business. Available for **Staff tokens**.\n\n## Filtering\nYou can filter coupons by their status using the `by_status` query parameter. Multiple statuses can be provided as a comma-separated string.",
+        "parameters": [
+          {
+            "description": "Filter coupons by status. Accepts a comma-separated list of statuses. Possible values: `active`, `scheduled`, `expired`, `still_available`. Example: `active,scheduled,expired`.",
+            "in": "query",
+            "name": "by_status",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "description": "Page number for pagination (default: 1).",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "description": "Number of results per page (default: 25).",
+            "in": "query",
+            "name": "per_page",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "examples": {
+              "application/json": {
+                "data": {
+                  "coupons": [
+                    {
+                      "uid": "cpn_abc123def456",
+                      "name": "Summer Sale",
+                      "coupon_type": "percent",
+                      "amount": 20,
+                      "discount_h": "20%",
+                      "code": "SUMMER20",
+                      "state": "active",
+                      "valid_services": null,
+                      "valid_staff": null,
+                      "starts_at": "2026-01-01T00:00:00Z",
+                      "expires_at": "2026-12-31T23:59:59Z",
+                      "starts_at_h": "Jan 1, 2026",
+                      "expires_at_h": "Dec 31, 2026",
+                      "max_redemptions": null,
+                      "max_redemptions_per_client": 1,
+                      "total_redemptions": 5,
+                      "can_expire": true
+                    }
+                  ]
+                },
+                "success": true
+              }
+            }
+          },
+          "422": {
+            "description": "Failure",
+            "examples": {
+              "application/json": {
+                "errors": [
+                  {
+                    "code": "Error Code",
+                    "field": "Error Field (optional)",
+                    "message": "Error Message"
+                  }
+                ],
+                "success": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "default": [
+              "coupons"
+            ]
+          }
+        ],
+        "summary": "List Coupons",
+        "tags": [
+          "Coupons"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "GET",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///v2/coupons"
+        },
+        "x-auth-type": "Application & Application User"
+      },
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "## Overview\nCreates a new coupon for the business. Available for **Staff tokens**.\n\n## Coupon Code\nIf the `code` field is left blank, a random alphanumeric code will be auto-generated. Coupon codes must be between 5 and 15 characters long and may only contain letters, numbers, and underscores.\n\n## Validation Rules\n- `name` is required and must be unique among active coupons.\n- `coupon_type` is required and must be either `fixed` or `percent`.\n- `amount` is required and must be a non-negative number.\n- `starts_at` is required. The date and time when the coupon becomes active.\n- `expires_at` is required. Must be a future date and must be at least 6 hours later than `starts_at`.\n- `code` must be unique among active coupons (if provided).\n- For `percent` type coupons, `amount` represents the percentage discount (e.g., 50 means 50% off).\n- For `fixed` type coupons, `amount` represents the fixed monetary discount in the business currency.",
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "schema": {
+              "properties": {
+                "name": {
+                  "description": "The display name of the coupon (e.g., \"Summer Sale\"). Must be unique among active coupons.",
+                  "type": "string"
+                },
+                "coupon_type": {
+                  "description": "The type of discount. Possible values: `fixed` (a fixed monetary amount off) or `percent` (a percentage off).",
+                  "type": "string",
+                  "enum": [
+                    "fixed",
+                    "percent"
+                  ]
+                },
+                "code": {
+                  "description": "The coupon code that clients enter to redeem the discount (e.g., \"SUMMER20\"). Must be 5-15 characters, alphanumeric and underscores only. If omitted, a random code is auto-generated.",
+                  "type": "string"
+                },
+                "amount": {
+                  "description": "The discount value. For `percent` type, this is the percentage (e.g., 50 means 50% off). For `fixed` type, this is the monetary amount in the business currency.",
+                  "type": "number"
+                },
+                "starts_at": {
+                  "description": "The date and time when the coupon becomes active, in ISO 8601 format (e.g., \"2026-02-07T22:00:00.000Z\").",
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "expires_at": {
+                  "description": "The date and time when the coupon expires, in ISO 8601 format (e.g., \"2027-02-08T21:59:59.000Z\"). Must be a future date and later than `starts_at`.",
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "max_redemptions": {
+                  "description": "The maximum total number of times this coupon can be redeemed across all clients. Set to `null` for unlimited redemptions.",
+                  "type": "integer"
+                },
+                "max_redemptions_per_client": {
+                  "description": "The maximum number of times a single client can redeem this coupon. Set to `null` for unlimited per-client redemptions.",
+                  "type": "integer"
+                },
+                "valid_services": {
+                  "description": "An array of service UIDs that this coupon is valid for. Set to `null` to make the coupon valid for all services.",
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "valid_staff": {
+                  "description": "An array of staff UIDs whose services this coupon is valid for. Set to `null` to make the coupon valid for all staff members.",
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "name",
+                "coupon_type",
+                "amount",
+                "starts_at",
+                "expires_at"
+              ],
+              "type": "object"
+            }
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "examples": {
+              "application/json": {
+                "data": {
+                  "coupon": {
+                    "uid": "cpn_abc123def456",
+                    "name": "ram_test",
+                    "coupon_type": "percent",
+                    "amount": 50,
+                    "discount_h": "50%",
+                    "code": "XZYL5N8762",
+                    "state": "active",
+                    "valid_services": null,
+                    "valid_staff": null,
+                    "starts_at": "2026-02-07T22:00:00.000Z",
+                    "expires_at": "2027-02-08T21:59:59.000Z",
+                    "starts_at_h": "Feb 7, 2026",
+                    "expires_at_h": "Feb 8, 2027",
+                    "max_redemptions": null,
+                    "max_redemptions_per_client": 1,
+                    "total_redemptions": 0,
+                    "can_expire": true
+                  }
+                },
+                "success": true
+              }
+            }
+          },
+          "422": {
+            "description": "Failure",
+            "examples": {
+              "application/json": {
+                "errors": [
+                  {
+                    "code": "invalid",
+                    "field": "name",
+                    "message": "Name has already been taken"
+                  }
+                ],
+                "success": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "default": [
+              "coupons"
+            ]
+          }
+        ],
+        "summary": "Create Coupon",
+        "tags": [
+          "Coupons"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///v2/coupons"
+        },
+        "x-auth-type": "Application & Application User"
+      }
+    },
+    "/v2/coupons/valid_coupons": {
+      "get": {
+        "consumes": [
+          "application/json"
+        ],
+        "deprecated": true,
+        "description": "## Overview\n**DEPRECATED** - Use the v3 alternative `GET /v3/sales/coupons` instead.\n\nRetrieves a list of valid (redeemable) coupons for a specific entity. Available for **Staff tokens**.\n\nThis endpoint returns only coupons that are currently active, not expired, and eligible for the specified entity based on service and staff restrictions.",
+        "parameters": [
+          {
+            "description": "The UID of the entity to check coupon validity against (e.g., a payment UID, appointment UID, or event attendance UID).",
+            "in": "query",
+            "name": "entity_id",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "The type of entity. Possible values: `payment`, `appointment`, `event_attendance`.",
+            "in": "query",
+            "name": "entity_type",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "examples": {
+              "application/json": {
+                "data": {
+                  "coupons": [
+                    {
+                      "uid": "cpn_abc123def456",
+                      "name": "Summer Sale",
+                      "coupon_type": "percent",
+                      "amount": 20,
+                      "discount_h": "20%",
+                      "code": "SUMMER20",
+                      "state": "active",
+                      "valid_services": null,
+                      "valid_staff": null,
+                      "starts_at": "2026-01-01T00:00:00Z",
+                      "expires_at": "2026-12-31T23:59:59Z",
+                      "starts_at_h": "Jan 1, 2026",
+                      "expires_at_h": "Dec 31, 2026",
+                      "max_redemptions": null,
+                      "max_redemptions_per_client": 1,
+                      "total_redemptions": 5,
+                      "can_expire": true
+                    }
+                  ]
+                },
+                "success": true
+              }
+            }
+          },
+          "422": {
+            "description": "Failure",
+            "examples": {
+              "application/json": {
+                "errors": [
+                  {
+                    "code": "Error Code",
+                    "field": "Error Field (optional)",
+                    "message": "Error Message"
+                  }
+                ],
+                "success": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "default": [
+              "coupons"
+            ]
+          }
+        ],
+        "summary": "Get Valid Coupons for Entity",
+        "tags": [
+          "Coupons"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "GET",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///v2/coupons/valid_coupons"
+        },
+        "x-auth-type": "Application & Application User"
+      }
+    },
+    "/v2/coupons/remove": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "## Overview\nRemoves a previously applied coupon from an entity (payment, appointment, or event attendance). Available for **Staff tokens**.\n\nThis reverses the discount that was applied via the Apply Coupon endpoint.",
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "schema": {
+              "properties": {
+                "entity_type": {
+                  "description": "The type of entity to remove the coupon from. Possible values: `payment`, `appointment`, `event_attendance`.",
+                  "type": "string"
+                },
+                "entity_id": {
+                  "description": "The UID of the entity to remove the coupon from.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "entity_type",
+                "entity_id"
+              ],
+              "type": "object"
+            }
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "examples": {
+              "application/json": {
+                "data": {},
+                "success": true
+              }
+            }
+          },
+          "422": {
+            "description": "Failure",
+            "examples": {
+              "application/json": {
+                "errors": [
+                  {
+                    "code": "Error Code",
+                    "field": "Error Field (optional)",
+                    "message": "Error Message"
+                  }
+                ],
+                "success": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "default": [
+              "coupons"
+            ]
+          }
+        ],
+        "summary": "Remove Coupon from Entity",
+        "tags": [
+          "Coupons"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///v2/coupons/remove"
+        },
+        "x-auth-type": "Application & Application User"
+      }
+    },
+    "/v2/coupons/{uid}": {
+      "get": {
+        "consumes": [
+          "application/json"
+        ],
+        "deprecated": true,
+        "description": "## Overview\n**DEPRECATED** - Use the v3 alternative `GET /v3/sales/coupons` instead.\n\nRetrieves a single coupon by its UID. Available for **Staff tokens**.",
+        "parameters": [
+          {
+            "description": "The unique identifier of the coupon.",
+            "in": "path",
+            "name": "uid",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "examples": {
+              "application/json": {
+                "data": {
+                  "coupon": {
+                    "uid": "cpn_abc123def456",
+                    "name": "Summer Sale",
+                    "coupon_type": "percent",
+                    "amount": 20,
+                    "discount_h": "20%",
+                    "code": "SUMMER20",
+                    "state": "active",
+                    "valid_services": null,
+                    "valid_staff": null,
+                    "starts_at": "2026-01-01T00:00:00Z",
+                    "expires_at": "2026-12-31T23:59:59Z",
+                    "starts_at_h": "Jan 1, 2026",
+                    "expires_at_h": "Dec 31, 2026",
+                    "max_redemptions": null,
+                    "max_redemptions_per_client": 1,
+                    "total_redemptions": 5,
+                    "can_expire": true
+                  }
+                },
+                "success": true
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "examples": {
+              "application/json": {
+                "errors": [
+                  {
+                    "code": "not_found",
+                    "message": "Coupon not found"
+                  }
+                ],
+                "success": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "default": [
+              "coupons"
+            ]
+          }
+        ],
+        "summary": "Get Coupon",
+        "tags": [
+          "Coupons"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "GET",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///v2/coupons/{uid}"
+        },
+        "x-auth-type": "Application & Application User"
+      },
+      "put": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "## Overview\nUpdates an existing coupon. Available for **Staff tokens**.\n\n## Validation Rules\nThe same validation rules as coupon creation apply. Additionally:\n- You cannot change the `code` to a code that is already in use by another active coupon.\n- You cannot change the `name` to a name that is already in use by another active coupon.",
+        "parameters": [
+          {
+            "description": "The unique identifier of the coupon to update.",
+            "in": "path",
+            "name": "uid",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "in": "body",
+            "name": "body",
+            "schema": {
+              "properties": {
+                "name": {
+                  "description": "The display name of the coupon (e.g., \"Summer Sale\"). Must be unique among active coupons.",
+                  "type": "string"
+                },
+                "coupon_type": {
+                  "description": "The type of discount. Possible values: `fixed` (a fixed monetary amount off) or `percent` (a percentage off).",
+                  "type": "string",
+                  "enum": [
+                    "fixed",
+                    "percent"
+                  ]
+                },
+                "code": {
+                  "description": "The coupon code that clients enter to redeem the discount. Must be 5-15 characters, alphanumeric and underscores only.",
+                  "type": "string"
+                },
+                "amount": {
+                  "description": "The discount value. For `percent` type, this is the percentage (e.g., 50 means 50% off). For `fixed` type, this is the monetary amount in the business currency.",
+                  "type": "number"
+                },
+                "starts_at": {
+                  "description": "The date and time when the coupon becomes active, in ISO 8601 format.",
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "expires_at": {
+                  "description": "The date and time when the coupon expires, in ISO 8601 format. Must be later than `starts_at`.",
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "max_redemptions": {
+                  "description": "The maximum total number of times this coupon can be redeemed. Set to `null` for unlimited.",
+                  "type": "integer"
+                },
+                "max_redemptions_per_client": {
+                  "description": "The maximum number of times a single client can redeem this coupon. Set to `null` for unlimited.",
+                  "type": "integer"
+                },
+                "valid_services": {
+                  "description": "An array of service UIDs this coupon is valid for. Set to `null` for all services.",
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "valid_staff": {
+                  "description": "An array of staff UIDs whose services this coupon is valid for. Set to `null` for all staff.",
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "type": "object"
+            }
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "examples": {
+              "application/json": {
+                "data": {
+                  "coupon": {
+                    "uid": "cpn_abc123def456",
+                    "name": "Updated Summer Sale",
+                    "coupon_type": "percent",
+                    "amount": 25,
+                    "discount_h": "25%",
+                    "code": "SUMMER25",
+                    "state": "active",
+                    "valid_services": null,
+                    "valid_staff": null,
+                    "starts_at": "2026-01-01T00:00:00Z",
+                    "expires_at": "2026-12-31T23:59:59Z",
+                    "starts_at_h": "Jan 1, 2026",
+                    "expires_at_h": "Dec 31, 2026",
+                    "max_redemptions": null,
+                    "max_redemptions_per_client": 1,
+                    "total_redemptions": 5,
+                    "can_expire": true
+                  }
+                },
+                "success": true
+              }
+            }
+          },
+          "422": {
+            "description": "Failure",
+            "examples": {
+              "application/json": {
+                "errors": [
+                  {
+                    "code": "invalid",
+                    "field": "code",
+                    "message": "Code has already been taken"
+                  }
+                ],
+                "success": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "default": [
+              "coupons"
+            ]
+          }
+        ],
+        "summary": "Update Coupon",
+        "tags": [
+          "Coupons"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "PUT",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///v2/coupons/{uid}"
+        },
+        "x-auth-type": "Application & Application User"
+      },
+      "delete": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "## Overview\nDeletes a coupon. Available for **Staff tokens**.\n\nThis permanently removes the coupon. Existing redemptions are not affected.",
+        "parameters": [
+          {
+            "description": "The unique identifier of the coupon to delete.",
+            "in": "path",
+            "name": "uid",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "examples": {
+              "application/json": {
+                "success": true
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "examples": {
+              "application/json": {
+                "errors": [
+                  {
+                    "code": "not_found",
+                    "message": "Coupon not found"
+                  }
+                ],
+                "success": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "default": [
+              "coupons"
+            ]
+          }
+        ],
+        "summary": "Delete Coupon",
+        "tags": [
+          "Coupons"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "DELETE",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///v2/coupons/{uid}"
+        },
+        "x-auth-type": "Application & Application User"
+      }
+    },
+    "/v2/coupons/{uid}/expire": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "## Overview\nManually expires an active coupon, making it no longer redeemable. Available for **Staff tokens**.\n\nThis sets the coupon's `expires_at` to the current time, effectively deactivating it immediately.",
+        "parameters": [
+          {
+            "description": "The unique identifier of the coupon to expire.",
+            "in": "path",
+            "name": "uid",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "examples": {
+              "application/json": {
+                "data": {
+                  "coupon": {
+                    "uid": "cpn_abc123def456",
+                    "name": "Summer Sale",
+                    "coupon_type": "percent",
+                    "amount": 20,
+                    "discount_h": "20%",
+                    "code": "SUMMER20",
+                    "state": "expired",
+                    "valid_services": null,
+                    "valid_staff": null,
+                    "starts_at": "2026-01-01T00:00:00Z",
+                    "expires_at": "2026-02-08T12:00:00Z",
+                    "starts_at_h": "Jan 1, 2026",
+                    "expires_at_h": "Feb 8, 2026",
+                    "max_redemptions": null,
+                    "max_redemptions_per_client": 1,
+                    "total_redemptions": 5,
+                    "can_expire": false
+                  }
+                },
+                "success": true
+              }
+            }
+          },
+          "422": {
+            "description": "Failure",
+            "examples": {
+              "application/json": {
+                "errors": [
+                  {
+                    "code": "Error Code",
+                    "field": "Error Field (optional)",
+                    "message": "Error Message"
+                  }
+                ],
+                "success": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "default": [
+              "coupons"
+            ]
+          }
+        ],
+        "summary": "Expire Coupon",
+        "tags": [
+          "Coupons"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///v2/coupons/{uid}/expire"
+        },
+        "x-auth-type": "Application & Application User"
+      }
+    },
+    "/v2/coupons/{uid}/enable": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "## Overview\nEnables a previously disabled coupon, making it redeemable again. Available for **Staff tokens**.\n\nThis removes the `disabled` flag from the coupon's configuration. The coupon must still be within its `starts_at` and `expires_at` date range to be actively redeemable.",
+        "parameters": [
+          {
+            "description": "The unique identifier of the coupon to enable.",
+            "in": "path",
+            "name": "uid",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "examples": {
+              "application/json": {
+                "data": {
+                  "coupon": {
+                    "uid": "cpn_abc123def456",
+                    "name": "Summer Sale",
+                    "coupon_type": "percent",
+                    "amount": 20,
+                    "discount_h": "20%",
+                    "code": "SUMMER20",
+                    "state": "active",
+                    "valid_services": null,
+                    "valid_staff": null,
+                    "starts_at": "2026-01-01T00:00:00Z",
+                    "expires_at": "2026-12-31T23:59:59Z",
+                    "starts_at_h": "Jan 1, 2026",
+                    "expires_at_h": "Dec 31, 2026",
+                    "max_redemptions": null,
+                    "max_redemptions_per_client": 1,
+                    "total_redemptions": 5,
+                    "can_expire": true
+                  }
+                },
+                "success": true
+              }
+            }
+          },
+          "422": {
+            "description": "Failure",
+            "examples": {
+              "application/json": {
+                "errors": [
+                  {
+                    "code": "Error Code",
+                    "field": "Error Field (optional)",
+                    "message": "Error Message"
+                  }
+                ],
+                "success": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "default": [
+              "coupons"
+            ]
+          }
+        ],
+        "summary": "Enable Coupon",
+        "tags": [
+          "Coupons"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///v2/coupons/{uid}/enable"
+        },
+        "x-auth-type": "Application & Application User"
+      }
+    },
+    "/v2/coupons/{uid}/disable": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "## Overview\nDisables an active coupon, temporarily preventing it from being redeemed. Available for **Staff tokens**.\n\nUnlike expiring a coupon, disabling is reversible - the coupon can be re-enabled using the Enable endpoint.",
+        "parameters": [
+          {
+            "description": "The unique identifier of the coupon to disable.",
+            "in": "path",
+            "name": "uid",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "examples": {
+              "application/json": {
+                "data": {
+                  "coupon": {
+                    "uid": "cpn_abc123def456",
+                    "name": "Summer Sale",
+                    "coupon_type": "percent",
+                    "amount": 20,
+                    "discount_h": "20%",
+                    "code": "SUMMER20",
+                    "state": "active",
+                    "valid_services": null,
+                    "valid_staff": null,
+                    "starts_at": "2026-01-01T00:00:00Z",
+                    "expires_at": "2026-12-31T23:59:59Z",
+                    "starts_at_h": "Jan 1, 2026",
+                    "expires_at_h": "Dec 31, 2026",
+                    "max_redemptions": null,
+                    "max_redemptions_per_client": 1,
+                    "total_redemptions": 5,
+                    "can_expire": true
+                  }
+                },
+                "success": true
+              }
+            }
+          },
+          "422": {
+            "description": "Failure",
+            "examples": {
+              "application/json": {
+                "errors": [
+                  {
+                    "code": "Error Code",
+                    "field": "Error Field (optional)",
+                    "message": "Error Message"
+                  }
+                ],
+                "success": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "default": [
+              "coupons"
+            ]
+          }
+        ],
+        "summary": "Disable Coupon",
+        "tags": [
+          "Coupons"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///v2/coupons/{uid}/disable"
+        },
+        "x-auth-type": "Application & Application User"
+      }
+    },
+    "/v2/coupons/{uid}/apply": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "## Overview\nApplies a coupon to a specific entity (payment, appointment, or event attendance), granting the associated discount. Available for **Staff tokens**.\n\n## Validation\n- The coupon must be active (not expired or disabled).\n- The coupon must not have exceeded its `max_redemptions` or `max_redemptions_per_client` limits.\n- If the coupon has `valid_services` or `valid_staff` restrictions, the entity must match those restrictions.",
+        "parameters": [
+          {
+            "description": "The unique identifier of the coupon to apply.",
+            "in": "path",
+            "name": "uid",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "in": "body",
+            "name": "body",
+            "schema": {
+              "properties": {
+                "entity_type": {
+                  "description": "The type of entity to apply the coupon to. Possible values: `payment`, `appointment`, `event_attendance`.",
+                  "type": "string"
+                },
+                "entity_id": {
+                  "description": "The UID of the entity to apply the coupon to.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "entity_type",
+                "entity_id"
+              ],
+              "type": "object"
+            }
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "examples": {
+              "application/json": {
+                "data": {
+                  "coupon_redemption": {
+                    "id": "crd_xyz789",
+                    "code": "SUMMER20",
+                    "coupon_type": "percent",
+                    "discount_h": "20%",
+                    "amount": 20,
+                    "name": "Summer Sale",
+                    "redeemed_at": "2026-02-08T12:00:00Z"
+                  }
+                },
+                "success": true
+              }
+            }
+          },
+          "422": {
+            "description": "Failure",
+            "examples": {
+              "application/json": {
+                "errors": [
+                  {
+                    "code": "invalid",
+                    "message": "Coupon has reached its maximum number of redemptions"
+                  }
+                ],
+                "success": false
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "default": [
+              "coupons"
+            ]
+          }
+        ],
+        "summary": "Apply Coupon to Entity",
+        "tags": [
+          "Coupons"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///v2/coupons/{uid}/apply"
+        },
+        "x-auth-type": "Application & Application User"
+      }
+    }
+  },
+  "securityDefinitions": {
+    "default": {
+      "authorizationUrl": "https://ignore.myclients.io",
+      "flow": "implicit",
+      "scopes": {
+        "coupons": "All coupon related operations",
+        "coupons_create": "coupons create scope",
+        "coupons_delete": "coupons delete scope",
+        "coupons_read": "coupons read scope",
+        "coupons_update": "coupons update scope"
+      },
+      "type": "oauth2",
+      "x-scopes-bindings": {
+        "coupons": "",
+        "coupons_create": "",
+        "coupons_delete": "",
+        "coupons_read": "",
+        "coupons_update": ""
+      }
+    }
+  },
+  "swagger": "2.0",
+  "x-throttling-tier": "8ReqPerSec",
+  "components": {
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+      }
+    }
+  }
+}

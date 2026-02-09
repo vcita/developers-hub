@@ -2,51 +2,39 @@
 endpoint: "POST /business/clients/v1/contacts/{client_uid}/matters"
 domain: clients
 tags: []
-swagger: swagger/clients/legacy/manage_clients.json
+swagger: /Users/ram.almog/Documents/GitHub/developers-hub/mcp_swagger/clients.json
 status: success
-savedAt: 2026-01-26T05:14:49.775Z
-verifiedAt: 2026-01-26T05:14:49.775Z
+savedAt: 2026-02-06T16:59:17.174Z
+verifiedAt: 2026-02-06T16:59:17.174Z
+timesReused: 0
 ---
-
 # Create Matters
 
 ## Summary
-Matter creation succeeded after using correct field UID and valid name value. The original request failed because: 1) It used an incorrect field UID (02tnghfvvfgqv1ib instead of wrytui9q48as6ovw for the name field), 2) The value "test_string" may not meet validation requirements.
+
+POST /business/clients/v1/contacts/{client_uid}/matters succeeded (201) after using a unique value for the required matter name field. Original 422 already_exists was due to duplicate name value for the matter name field UID.
 
 ## Prerequisites
 
-```yaml
-steps:
-  - id: get_clients
-    description: "Fetch available clients"
-    method: GET
-    path: "/platform/v1/clients"
-    params:
-      business_id: "{{business_id}}"
-      per_page: "1"
-    extract:
-      client_id: "$.data.clients[0].id"
-    expect:
-      status: 200
-    onFail: abort
-```
+None required for this endpoint.
 
 ## Test Request
 
 ```yaml
 steps:
-  - id: post_matters
+  - id: main_request
+    description: "Create matters"
     method: POST
-    path: "/business/clients/v1/contacts/{client_uid}/matters"
+    path: "/business/clients/v1/contacts/{{resolved.uid}}/matters"
     body:
-      matter:
-        fields:
-          "0":
-            uid: "{{uid}}"
-            value: New Matter Name
-        note: test_string
-        tags:
-          "0": test_string
+      matter: {"fields":[{"uid":"{{resolved.uid}}","value":"Personal Injury Case - 2026-02-06T16:51:51.834Z"}]}
     expect:
       status: [200, 201]
 ```
+
+## Swagger Discrepancies
+
+| Aspect | Swagger Says | Actual Behavior | Evidence |
+|--------|--------------|-----------------|----------|
+| validation_rule: matter.fields (name field) | Name field requirement described, but uniqueness/duplicate error not documented | validate_matter runs before create and can reject duplicates with already_exists | - |
+| missing_field: matter.tags | Not clear if tags array is expected | tags passed directly to MatterTagsApi.add_tags; treated as array | - |

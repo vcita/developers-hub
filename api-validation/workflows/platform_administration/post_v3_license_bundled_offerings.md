@@ -2,10 +2,11 @@
 endpoint: "POST /v3/license/bundled_offerings"
 domain: platform_administration
 tags: [license, bundled-offerings]
-swagger: swagger/platform_administration/license.json
-status: success
-savedAt: 2026-01-31T10:00:00.000Z
-verifiedAt: 2026-01-31T10:00:00.000Z
+swagger: "swagger/platform_administration/license.json"
+status: verified
+savedAt: "2026-01-31T10:00:00.000Z"
+verifiedAt: "2026-01-31T10:00:00.000Z"
+timesReused: 0
 ---
 
 # Create Bundled offerings

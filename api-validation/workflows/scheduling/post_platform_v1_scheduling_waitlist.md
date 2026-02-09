@@ -2,9 +2,10 @@
 endpoint: "POST /platform/v1/scheduling/waitlist"
 domain: scheduling
 tags: [waitlist, event, scheduling]
-swagger: swagger/scheduling/legacy/legacy_v1_scheduling.json
+swagger: "swagger/scheduling/legacy/legacy_v1_scheduling.json"
 status: pending
-savedAt: 2026-02-01T22:00:00.000Z
+savedAt: "2026-02-01T22:00:00.000Z"
+timesReused: 0
 ---
 
 # Join Event Waitlist
@@ -31,7 +32,7 @@ steps:
     extract:
       event_instance_id: "$[0].uid"
     expect:
-      status: 200
+      status: [200]
     onFail: skip
     skipReason: "No scheduled event instances available. Business may not have group events configured."
 ```
@@ -49,7 +50,7 @@ steps:
       event_instance_id: "{{event_instance_id}}"
       client_id: "{{client_id}}"
     expect:
-      status: 201
+      status: [201]
 ```
 
 ## Request Body Parameters

@@ -2,10 +2,11 @@
 endpoint: "PUT /business/clients/v1/matters/{matter_uid}/notes/{note_uid}"
 domain: clients
 tags: [matters, notes, update]
-swagger: swagger/clients/legacy/manage_clients.json
-status: success
-savedAt: 2026-01-25T22:30:00.000Z
-verifiedAt: 2026-01-25T22:30:00.000Z
+swagger: "swagger/clients/legacy/manage_clients.json"
+status: verified
+savedAt: "2026-01-25T22:30:00.000Z"
+verifiedAt: "2026-02-04T16:00:00.000Z"
+timesReused: 0
 ---
 
 # Update Notes
@@ -17,17 +18,17 @@ Update an existing note on a matter. This endpoint requires valid `matter_uid` a
 
 ```yaml
 steps:
-  - id: get_matters
-    description: "Fetch available matters"
-    method: GET
-    path: "/platform/v1/matters"
-    params:
-      business_id: "{{business_id}}"
-      per_page: "1"
+  - id: create_note
+    description: "Create a note to update"
+    method: POST
+    path: "/business/clients/v1/matters/{{matter_uid}}/notes"
+    body:
+      note:
+        content: "Note created for update test"
     extract:
-      matter_uid: "$.data.matters[0].uid"
+      note_uid: "$.data.note.uid"
     expect:
-      status: 200
+      status: [200, 201]
     onFail: abort
 ```
 
@@ -37,7 +38,7 @@ steps:
 steps:
   - id: put_notes
     method: PUT
-    path: "/business/clients/v1/matters/{matter_uid}/notes/{note_uid}"
+    path: "/business/clients/v1/matters/{{matter_uid}}/notes/{{note_uid}}"
     body:
       note:
         content: Updated note content

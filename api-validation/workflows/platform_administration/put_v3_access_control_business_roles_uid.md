@@ -2,10 +2,11 @@
 endpoint: "PUT /v3/access_control/business_roles/{uid}"
 domain: platform_administration
 tags: []
-swagger: swagger/platform_administration/access_control.json
-status: success
-savedAt: 2026-01-28T11:48:22.190Z
-verifiedAt: 2026-01-28T11:48:22.190Z
+swagger: "swagger/platform_administration/access_control.json"
+status: verified
+savedAt: "2026-01-28T11:48:22.190Z"
+verifiedAt: "2026-01-28T11:48:22.190Z"
+timesReused: 0
 ---
 
 # Update Business roles
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: put_business_roles
     method: PUT
-    path: "/v3/access_control/business_roles/{uid}"
+    path: "/v3/access_control/business_roles/{{uid}}"
     body:
       name: Senior Manager
       description: Senior management role with elevated permissions for business

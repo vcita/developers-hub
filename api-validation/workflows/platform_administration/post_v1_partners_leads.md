@@ -2,10 +2,11 @@
 endpoint: "POST /v1/partners/leads"
 domain: platform_administration
 tags: [partners]
-swagger: swagger/platform_administration/legacy/partners-api.json
-status: skip
-savedAt: 2026-01-28T15:36:23.878Z
-verifiedAt: 2026-01-28T15:36:23.878Z
+swagger: "swagger/platform_administration/legacy/partners-api.json"
+status: skipped
+savedAt: "2026-01-28T15:36:23.878Z"
+verifiedAt: "2026-01-28T15:36:23.878Z"
+timesReused: 0
 ---
 
 # Create Leads

@@ -2,10 +2,11 @@
 endpoint: "PUT /platform/v1/clients/{client_id}"
 domain: clients
 tags: []
-swagger: swagger/clients/legacy/legacy_v1_clients.json
-status: success
-savedAt: 2026-01-26T05:35:08.437Z
-verifiedAt: 2026-01-26T05:35:08.437Z
+swagger: "swagger/clients/legacy/legacy_v1_clients.json"
+status: verified
+savedAt: "2026-01-26T05:35:08.437Z"
+verifiedAt: "2026-01-26T05:35:08.437Z"
+timesReused: 0
 ---
 
 # Update Clients
@@ -27,7 +28,7 @@ steps:
     extract:
       client_id: "$.data.clients[0].id"
     expect:
-      status: 200
+      status: [200]
     onFail: abort
   - id: get_staffs
     description: "Fetch available staff members"
@@ -38,7 +39,7 @@ steps:
     extract:
       staff_id: "$.data.staffs[0].uid"
     expect:
-      status: 200
+      status: [200]
     onFail: abort
 ```
 
@@ -48,7 +49,7 @@ steps:
 steps:
   - id: put_clients
     method: PUT
-    path: "/platform/v1/clients/{client_id}"
+    path: "/platform/v1/clients/{{client_id}}"
     body:
       address: 123 Test Street, Test City, TC 12345
       custom_field1: Test Custom Field 1

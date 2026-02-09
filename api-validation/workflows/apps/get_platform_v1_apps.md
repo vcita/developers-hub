@@ -2,10 +2,11 @@
 endpoint: "GET /platform/v1/apps"
 domain: apps
 tags: []
-swagger: swagger/apps/legacy/legacy_v1_apps.json
-status: success
-savedAt: 2026-01-24T22:42:47.459Z
-verifiedAt: 2026-01-24T22:42:47.459Z
+swagger: "swagger/apps/legacy/legacy_v1_apps.json"
+status: verified
+savedAt: "2026-01-24T22:42:47.459Z"
+verifiedAt: "2026-01-24T22:42:47.459Z"
+timesReused: 0
 ---
 
 # Get Apps

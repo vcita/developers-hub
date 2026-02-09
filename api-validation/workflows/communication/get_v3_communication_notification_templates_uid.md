@@ -2,28 +2,41 @@
 endpoint: "GET /v3/communication/notification_templates/{uid}"
 domain: communication
 tags: []
-swagger: swagger/communication/notification_template.json
-status: success
-savedAt: 2026-01-27T06:42:19.749Z
-verifiedAt: 2026-01-27T06:42:19.749Z
+swagger: "swagger/communication/notification_template.json"
+status: verified
+savedAt: "2026-01-27T06:42:19.749Z"
+verifiedAt: "2026-01-27T06:42:19.749Z"
+timesReused: 0
+tokens: [directory]
 ---
 
-# Get Notification templates
+# Get Notification Template
 
 ## Summary
-Test passes. Endpoint successfully retrieves NotificationTemplate with directory token. Original test failed due to invalid UID - resolved by fetching existing template UID from GET /v3/communication/notification_templates.
+Retrieves a specific notification template by UID. **Token Type**: Requires a **directory token** with X-On-Behalf-Of header.
 
 ## Prerequisites
-
-No prerequisites required for this endpoint.
-
-## Test Request
-
 ```yaml
 steps:
-  - id: get_notification_templates
+  - id: get_notification_templates_list
+    description: "Fetch notification templates to get a valid UID"
     method: GET
-    path: "/v3/communication/notification_templates/{uid}"
+    path: "/v3/communication/notification_templates"
+    token: directory
     expect:
-      status: [200, 201]
+      status: 200
+    extract:
+      uid: "$.data.notification_templates[0].uid"
+    onFail: abort
+```
+
+## Test Request
+```yaml
+steps:
+  - id: get_notification_template
+    method: GET
+    path: "/v3/communication/notification_templates/{{uid}}"
+    token: directory
+    expect:
+      status: 200
 ```
