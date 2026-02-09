@@ -27,6 +27,8 @@ npm install
 
 ### 2. Configure Tokens
 
+**Option A: Manual Configuration**
+
 Copy the token template and add your tokens:
 
 ```bash
@@ -44,6 +46,30 @@ Edit `api-validation/config/tokens.json`:
   }
 }
 ```
+
+**Option B: Automatic Setup (Recommended)**
+
+If you have a directory token, you can automatically create a new business with all required test data:
+
+```bash
+# Step 1: Create business, staff token, and test client
+npm run setup:business
+
+# Step 2 (Optional): Create offering and subscription (requires admin token)
+npm run setup:offering -- --sku "platinum20"
+```
+
+**setup:business** creates:
+- A new business with admin user
+- Staff and client tokens
+- A test client with a matter
+
+**setup:offering** creates:
+- An offering with the specified SKU
+- A directory offering linking it to your directory
+- A subscription for the business
+
+See [Setup Business CLI](#setup-business-cli) and [Setup Offering CLI](#setup-offering-cli) sections for more details.
 
 ### 3. Configure Base URL
 
@@ -250,9 +276,13 @@ api-validation/
 │   └── ui/                 # Web dashboard
 │       ├── css/
 │       └── js/
+├── scripts/
+│   ├── setup-business.js   # Business setup CLI
+│   └── setup-offering.js   # Offering/subscription setup CLI
 ├── config/
 │   ├── default.json        # Default configuration
 │   └── tokens.example.json # Token template
+├── workflows/              # Learned API workflows
 ├── reports/                # Generated reports (gitignored)
 └── README.md
 ```
@@ -293,6 +323,224 @@ The endpoint description needs to include token availability. Update the swagger
 The tool auto-retries 429 responses. If you're hitting rate limits frequently, use:
 ```bash
 npm run validate -- --rate-limit=conservative
+```
+
+## Setup Business CLI
+
+The setup-business script automates the creation of a test business with all required data for API validation.
+
+### Prerequisites
+
+You need a **directory token** in your `tokens.json` file. This token is used to create new businesses in the platform.
+
+### Usage
+
+```bash
+# Create a new business with default settings
+npm run setup:business
+
+# Preview what would be done (no changes)
+npm run setup:business:dry-run
+
+# Custom business name
+npm run setup:business -- --name "My Test Business"
+
+# Custom admin email
+npm run setup:business -- --email "custom@example.com"
+
+# Show help
+node api-validation/scripts/setup-business.js --help
+```
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `--name <name>` | Custom business name (default: "API Test Business <timestamp>") |
+| `--email <email>` | Custom admin email (default: "apitest+<timestamp>@vcita.com") |
+| `--dry-run` | Show what would be done without making changes |
+| `-h, --help` | Show help message |
+
+### What It Does
+
+1. **Creates a New Business** - Fresh business account with admin user
+2. **Generates Staff Token** - API token for the business owner
+3. **Creates Test Client** - Client contact for testing
+4. **Retrieves Matter UID** - Gets the automatically created client matter
+
+### What It Updates
+
+The script updates `tokens.json` with:
+
+```json
+{
+  "tokens": {
+    "staff": "<new staff token>",
+    "business": "<same as staff token>",
+    "client": "<JWT client token>"
+  },
+  "params": {
+    "business_uid": "<new business uid>",
+    "business_id": "<new business uid>",
+    "staff_uid": "<staff member uid>",
+    "staff_id": "<staff member uid>",
+    "client_uid": "<test client uid>",
+    "client_id": "<test client uid>",
+    "matter_uid": "<client's matter uid>",
+    "directory_id": "<directory uid>"
+  }
+}
+```
+
+### Important Notes
+
+- **Feature Flags**: Newly created businesses may not have all features enabled. If you encounter 403 errors with "feature is disabled" messages, contact your administrator to enable the required features.
+- **Cleanup**: The script does not delete old businesses. If you need to clean up test data, do so manually.
+
+### Example Output
+
+```
+╔════════════════════════════════════════╗
+║       Setup Business CLI               ║
+╚════════════════════════════════════════╝
+
+Using directory token: 1eb05f4ba6682061e84e...
+
+[1/4] Creating new business...
+  Name: API Test Business 1769781482
+  Admin Email: apitest+1769781482@vcita.com
+  ✓ Business created
+    Business UID: 00wutb5f1a08a8kn
+    Staff UID: 4m52ud4x9q7eyw0n
+
+[2/4] Creating staff token...
+  ✓ Staff token created
+
+[3/4] Creating test client...
+  ✓ Client created
+    Client UID: 88lmybw31ceh10hd
+
+[4/4] Getting matter UID...
+  ✓ Matter found
+    Matter UID: qsaaxaf1cxlrb25b
+
+════════════════════════════════════════
+Setup completed successfully!
+════════════════════════════════════════
+```
+
+## Setup Offering CLI
+
+The setup-offering script automates the creation of offerings, directory offerings, and business subscriptions for license/subscription testing.
+
+### Prerequisites
+
+You need the following in your `tokens.json` file:
+- **Admin token** (`tokens.admin`) - For creating offerings and directory offerings
+- **Staff token** (`tokens.staff`) - For subscribing the business
+- **Directory ID** (`params.directory_id`) - Run `setup-business` first
+
+### Usage
+
+```bash
+# Create an offering with default settings
+npm run setup:offering
+
+# Preview what would be done (no changes)
+npm run setup:offering:dry-run
+
+# Custom SKU
+npm run setup:offering -- --sku "platinum20"
+
+# Custom display name
+npm run setup:offering -- --sku "platinum20" --name "Platinum 20 Plan"
+
+# Show help
+node api-validation/scripts/setup-offering.js --help
+```
+
+### Options
+
+| Option | Description |
+|--------|-------------|
+| `--sku <sku>` | SKU for the offering (default: "test_offering_<timestamp>") |
+| `--name <name>` | Display name (default: derived from SKU) |
+| `--payment-type <type>` | Payment type: "external" or "vcita" (default: "external") |
+| `--dry-run` | Show what would be done without making changes |
+| `-h, --help` | Show help message |
+
+### What It Does
+
+1. **Creates an Offering** - New offering with specified SKU and payment type
+2. **Creates Directory Offering** - Links the offering to your directory
+3. **Subscribes Business** - Creates a subscription for the business to the offering
+
+### What It Updates
+
+The script updates `tokens.json` with:
+
+```json
+{
+  "offerings": {
+    "platinum20": {
+      "offering_uid": "<offering uid>",
+      "directory_offering_uid": "<directory offering uid>",
+      "subscription_uid": "<subscription uid>",
+      "display_name": "Platinum 20",
+      "created_at": "2026-01-30T14:36:25.392Z"
+    },
+    "_latest": "platinum20"
+  }
+}
+```
+
+### Important Notes
+
+- **Admin Token Format**: The admin token uses `Authorization: Admin <token>` format, not Bearer
+- **External Payment Type**: When using `payment_type: external`, the prices array must be empty (`[]`) - the system will auto-populate default `-1.00` prices
+- **Staff Token Required**: Subscription creation requires a **Staff token** (not Directory token). For `external` payment type offerings, the Staff token must be created by a Directory token (via `POST /platform/v1/tokens`), which gives it an "on-behalf-of" relationship. The `setup-business` script creates this type of token automatically.
+
+### Example Output
+
+```
+╔════════════════════════════════════════╗
+║       Setup Offering CLI               ║
+╚════════════════════════════════════════╝
+
+Using admin token: kjh7tdewt...
+Using staff token: 99673434a8b26c61...
+Using directory: qcpvme5au9c3vf0h
+
+[1/3] Creating offering...
+  SKU: platinum20
+  Name: Platinum 20
+  Payment Type: external
+  ✓ Offering created
+    Offering UID: 618f2ff2-a17a-46f6-b5d9-368591fe7087
+
+[2/3] Creating directory offering...
+  Directory: qcpvme5au9c3vf0h
+  Offering: 618f2ff2-a17a-46f6-b5d9-368591fe7087
+  ✓ Directory offering created
+    Directory Offering UID: 9f49c4f3-f075-4dfb-8bb0-7dbc5bf5cd9b
+
+[3/3] Subscribing business to offering...
+  Offering: 618f2ff2-a17a-46f6-b5d9-368591fe7087
+  ✓ Subscription created
+    Subscription UID: ac4ce20d-d6fa-4b38-b06b-d3c7fb109fdb
+    Buyer UID: 4m52ud4x9q7eyw0n
+    Business UID: 00wutb5f1a08a8kn
+
+════════════════════════════════════════
+Setup completed successfully!
+════════════════════════════════════════
+
+Summary:
+  SKU:                    platinum20
+  Offering UID:           618f2ff2-a17a-46f6-b5d9-368591fe7087
+  Directory Offering UID: 9f49c4f3-f075-4dfb-8bb0-7dbc5bf5cd9b
+  Subscription UID:       ac4ce20d-d6fa-4b38-b06b-d3c7fb109fdb
+  Business UID:           00wutb5f1a08a8kn
 ```
 
 ## Contributing

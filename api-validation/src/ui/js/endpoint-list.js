@@ -31,7 +31,7 @@ function renderEndpoints() {
   
   for (const [domain, endpoints] of Object.entries(grouped)) {
     const domainSelected = endpoints.filter(e => AppState.selectedEndpoints.has(e.id)).length;
-    const isExpanded = true; // Could track expanded state
+    const isExpanded = AppState.expandedDomains.has(domain); // Check tracked state (default collapsed)
     
     html += `
       <div class="domain-group ${isExpanded ? 'expanded' : ''}">
@@ -39,7 +39,7 @@ function renderEndpoints() {
           <span class="expand-icon">${isExpanded ? '▼' : '▶'}</span>
           <span class="domain-name">${domain.toUpperCase()}</span>
           <span class="domain-count">(${endpoints.length} endpoints, ${domainSelected} selected)</span>
-          <button class="btn btn-small" onclick="event.stopPropagation(); selectDomain('${domain}')">Select All</button>
+          <button class="btn btn-small" onclick="event.stopPropagation(); event.preventDefault(); selectDomain('${domain}')">Select All</button>
         </div>
         <div class="domain-endpoints">
     `;
@@ -77,13 +77,22 @@ function renderEndpoints() {
  * Toggle domain group expansion
  */
 function toggleDomainGroup(domain) {
+  // Update the state (persisted across re-renders)
+  if (AppState.expandedDomains.has(domain)) {
+    AppState.expandedDomains.delete(domain);
+  } else {
+    AppState.expandedDomains.add(domain);
+  }
+  
+  // Update DOM directly for immediate feedback
   const groups = document.querySelectorAll('.domain-group');
   for (const group of groups) {
     if (group.querySelector('.domain-name')?.textContent === domain.toUpperCase()) {
-      group.classList.toggle('expanded');
+      const isExpanded = AppState.expandedDomains.has(domain);
+      group.classList.toggle('expanded', isExpanded);
       const icon = group.querySelector('.expand-icon');
       if (icon) {
-        icon.textContent = group.classList.contains('expanded') ? '▼' : '▶';
+        icon.textContent = isExpanded ? '▼' : '▶';
       }
     }
   }

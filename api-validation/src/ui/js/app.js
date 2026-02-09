@@ -8,6 +8,7 @@ const AppState = {
   endpoints: [],
   domains: [],
   selectedEndpoints: new Set(),
+  expandedDomains: new Set(), // Track which domain groups are expanded
   filters: {
     domain: '',
     method: '',
@@ -228,9 +229,82 @@ function toggleEndpoint(endpointId) {
 }
 
 /**
+ * Run setup to create fresh test business and validate tokens
+ */
+async function runSetup() {
+  const btn = document.getElementById('run-setup-btn');
+  
+  try {
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '⏳ Running Setup...';
+    }
+    
+    console.log('Running setup...');
+    
+    const response = await fetch('/api/validate/setup', { method: 'POST' });
+    const data = await response.json();
+    
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || 'Setup failed');
+    }
+    
+    // Reload config to pick up new tokens
+    await loadConfig();
+    
+    if (btn) {
+      btn.innerHTML = '✅ Setup Complete!';
+      setTimeout(() => {
+        btn.innerHTML = '⚙️ Run Setup';
+        btn.disabled = false;
+      }, 3000);
+    }
+    
+    console.log('Setup complete. New business:', data.businessId);
+    console.log('Setup output:', data.output);
+    
+    // Update token status display
+    const tokenStatus = document.getElementById('token-status');
+    if (tokenStatus) {
+      tokenStatus.textContent = `Tokens: ✓ New business ready`;
+      tokenStatus.className = 'badge badge-success';
+    }
+    
+    return data;
+    
+  } catch (error) {
+    console.error('Setup failed:', error);
+    
+    if (btn) {
+      btn.innerHTML = '❌ Setup Failed';
+      setTimeout(() => {
+        btn.innerHTML = '⚙️ Run Setup';
+        btn.disabled = false;
+      }, 3000);
+    }
+    
+    alert('Setup failed: ' + error.message);
+    throw error;
+  }
+}
+
+/**
  * Run tests for selected endpoints
  */
 async function runTests() {
+  // Check if setup should run first
+  const runSetupFirst = document.getElementById('run-setup-before')?.checked;
+  
+  if (runSetupFirst) {
+    console.log('Running setup before tests...');
+    try {
+      await runSetup();
+    } catch (error) {
+      alert('Setup failed. Aborting tests.');
+      return;
+    }
+  }
+  
   console.log('runTests called, selected:', AppState.selectedEndpoints.size);
   console.log('All endpoints:', AppState.endpoints.length);
   
@@ -439,10 +513,142 @@ async function checkTokens() {
   }
 }
 
+/**
+ * Open the paste endpoints modal
+ */
+function openPasteModal() {
+  const modal = document.getElementById('paste-endpoints-modal');
+  const input = document.getElementById('paste-endpoints-input');
+  const preview = document.getElementById('paste-preview');
+  
+  if (modal) {
+    modal.classList.remove('hidden');
+  }
+  if (input) {
+    input.value = '';
+    input.focus();
+    // Add live preview on input
+    input.oninput = updatePastePreview;
+  }
+  if (preview) {
+    preview.classList.add('hidden');
+  }
+}
+
+/**
+ * Close the paste endpoints modal
+ */
+function closePasteModal() {
+  const modal = document.getElementById('paste-endpoints-modal');
+  if (modal) {
+    modal.classList.add('hidden');
+  }
+}
+
+/**
+ * Update paste preview with match count
+ */
+function updatePastePreview() {
+  const input = document.getElementById('paste-endpoints-input');
+  const preview = document.getElementById('paste-preview');
+  const countEl = document.getElementById('paste-match-count');
+  
+  if (!input || !preview || !countEl) return;
+  
+  const text = input.value.trim();
+  if (!text) {
+    preview.classList.add('hidden');
+    return;
+  }
+  
+  const matchedEndpoints = parseAndMatchEndpoints(text);
+  
+  preview.classList.remove('hidden');
+  countEl.textContent = `${matchedEndpoints.length} endpoint${matchedEndpoints.length !== 1 ? 's' : ''}`;
+  countEl.className = matchedEndpoints.length > 0 ? 'preview-count match' : 'preview-count no-match';
+}
+
+/**
+ * Parse comma-separated endpoints and match them to available endpoints
+ */
+function parseAndMatchEndpoints(text) {
+  // Split by comma, handling various formats
+  const parts = text.split(',').map(p => p.trim()).filter(p => p);
+  
+  const matched = [];
+  
+  for (const part of parts) {
+    // Parse "METHOD /path" format
+    const match = part.match(/^(GET|POST|PUT|PATCH|DELETE)\s+(.+)$/i);
+    if (match) {
+      const method = match[1].toUpperCase();
+      const path = match[2].trim();
+      
+      // Find matching endpoint
+      const endpoint = AppState.endpoints.find(e => 
+        e.method.toUpperCase() === method && 
+        (e.path === path || e.path === path.replace(/\/$/, '')) // Handle trailing slash
+      );
+      
+      if (endpoint) {
+        matched.push(endpoint);
+      }
+    } else {
+      // Try to match just by path (any method)
+      const pathOnly = part.trim();
+      const endpoints = AppState.endpoints.filter(e => 
+        e.path === pathOnly || e.path === pathOnly.replace(/\/$/, '')
+      );
+      matched.push(...endpoints);
+    }
+  }
+  
+  return matched;
+}
+
+/**
+ * Apply pasted endpoints - select them in the UI
+ */
+function applyPastedEndpoints() {
+  const input = document.getElementById('paste-endpoints-input');
+  if (!input) return;
+  
+  const text = input.value.trim();
+  if (!text) {
+    alert('Please paste a list of endpoints');
+    return;
+  }
+  
+  const matchedEndpoints = parseAndMatchEndpoints(text);
+  
+  if (matchedEndpoints.length === 0) {
+    alert('No matching endpoints found. Make sure the format is correct:\nGET /v1/path, POST /v1/other-path');
+    return;
+  }
+  
+  // Clear current selection and add matched endpoints
+  AppState.selectedEndpoints.clear();
+  for (const endpoint of matchedEndpoints) {
+    AppState.selectedEndpoints.add(endpoint.id);
+  }
+  
+  // Re-render and close modal
+  renderEndpoints();
+  updateSelectedCount();
+  closePasteModal();
+  
+  // Show success message
+  console.log(`Selected ${matchedEndpoints.length} endpoints from pasted list`);
+}
+
 // Expose functions to window.App for onclick handlers
 window.App = {
   reloadSwaggers,
-  checkTokens
+  checkTokens,
+  runSetup,
+  openPasteModal,
+  closePasteModal,
+  applyPastedEndpoints
 };
 
 // Initialize on DOM ready
