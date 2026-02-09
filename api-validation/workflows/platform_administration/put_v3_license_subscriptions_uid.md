@@ -2,10 +2,11 @@
 endpoint: "PUT /v3/license/subscriptions/{uid}"
 domain: platform_administration
 tags: []
-swagger: swagger/platform_administration/license.json
-status: success
-savedAt: 2026-01-31T00:00:00.000Z
-verifiedAt: 2026-01-31T00:00:00.000Z
+swagger: "swagger/platform_administration/license.json"
+status: verified
+savedAt: "2026-01-31T00:00:00.000Z"
+verifiedAt: "2026-01-31T00:00:00.000Z"
+timesReused: 0
 ---
 
 # Update Subscriptions
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: put_subscriptions
     method: PUT
-    path: "/v3/license/subscriptions/{uid}"
+    path: "/v3/license/subscriptions/{{uid}}"
     body:
       purchase_state: canceled
     expect:

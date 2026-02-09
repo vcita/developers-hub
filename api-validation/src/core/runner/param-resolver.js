@@ -142,6 +142,11 @@ const PARAM_SOURCES = {
     field: 'uid',
     arrayPath: 'data.payment_requests'
   },
+  payment_status_id: { 
+    endpoint: '/business/payments/v1/payment_requests', 
+    field: 'uid',
+    arrayPath: 'data.payment_requests'
+  },
   scheduled_payments_rule_uid: { 
     endpoint: '/business/payments/v1/scheduled_payments_rules', 
     field: 'uid',
@@ -235,9 +240,8 @@ const PATH_CONTEXT_PARAMS = {
   '/contacts/': 'client_uid',
   '/clients/': 'client_uid',
   
-  // Add more context mappings as needed:
-  // '/invoices/': 'invoice_uid',
-  // '/bookings/': 'booking_uid',
+  // payment_statuses uses payment_request UID as its {id}
+  '/payment_statuses/': 'payment_request_id',
 };
 
 /**

@@ -2,10 +2,11 @@
 endpoint: "POST /v3/apps/app_assignments"
 domain: apps
 tags: []
-swagger: swagger/apps/apps.json
-status: success
-savedAt: 2026-01-25T05:27:52.104Z
-verifiedAt: 2026-01-25T05:27:52.104Z
+swagger: "swagger/apps/apps.json"
+status: verified
+savedAt: "2026-01-25T05:27:52.104Z"
+verifiedAt: "2026-01-25T05:27:52.104Z"
+timesReused: 0
 ---
 
 # Create App assignments

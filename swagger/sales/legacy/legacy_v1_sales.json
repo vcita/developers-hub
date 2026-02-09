@@ -30,7 +30,8 @@
                 },
                 "business_id": {
                   "description": "A unique identifier of the business. Can be the Business UID or nickname\\external ID.",
-                  "type": "string"
+                  "type": "string",
+                  "x-reference-to": "businesses.business"
                 },
                 "email": {
                   "description": "Lead email address. Unique per business.",
@@ -166,6 +167,12 @@
         ],
         "parameters": [
           {
+            "description": "A unique identifer of the business. Can be the Business UID or nickname\\external ID",
+            "in": "header",
+            "name": "X-On-Behalf-Of",
+            "type": "string"
+          },
+          {
             "description": "Page offset",
             "in": "query",
             "name": "page",
@@ -275,6 +282,12 @@
         ],
         "parameters": [
           {
+            "description": "A unique identifer of the business. Can be the Business UID or nickname\\external ID",
+            "in": "header",
+            "name": "X-On-Behalf-Of",
+            "type": "string"
+          },
+          {
             "in": "body",
             "name": "body",
             "schema": {
@@ -285,7 +298,8 @@
                 },
                 "client_id": {
                   "description": "client ID",
-                  "type": "string"
+                  "type": "string",
+                  "x-reference-to": "clients.contact"
                 },
                 "currency": {
                   "description": "USD, ILS etc.",
@@ -350,7 +364,8 @@
                 },
                 "staff_id": {
                   "description": "Default is set to the staff that performed the API call. Business owner is allowed to send staff_id",
-                  "type": "string"
+                  "type": "string",
+                  "x-reference-to": "access_control.staff"
                 },
                 "state": {
                   "description": "The current payment state. This field can be used only for creating a pending payment. Value can be only 'pending'",
@@ -459,7 +474,7 @@
           "uri": "https:///platform/v1/payments"
         },
         "x-auth-type": "Application & Application User",
-        "description": "## Overview\nCreate New Payment. Available for **Staff, App, and Directory tokens**.\n\n## Prerequisites\nThe business must have the `payments_module` feature enabled to use this endpoint."
+        "description": "## Overview\nCreate New Payment. Available for **Staff, App, and Directory tokens**. Directory tokens require the `X-On-Behalf-Of` header.\n\n## Prerequisites\nThe business must have the `payments_module` feature enabled to use this endpoint."
       }
     },
     "/payments/{payment_uid}": {
@@ -575,11 +590,13 @@
               "properties": {
                 "matter_uid": {
                   "description": "The matter uid of the relevant payment. **Important**: The matter_uid must match the conversation_id of the specified payment. The payment must have been created within the context of this matter. If mismatched, the API will return 'Payment does not belong to matter' error.",
-                  "type": "string"
+                  "type": "string",
+                  "x-reference-to": "clients.matter"
                 },
                 "payment_status_uid": {
                   "description": "The uid of the relevant payment request to match",
-                  "type": "string"
+                  "type": "string",
+                  "x-reference-to": "sales.payment_status"
                 }
               },
               "required": [
@@ -773,7 +790,7 @@
           "uri": "https:///platform/v1/invoices"
         },
         "x-auth-type": "Application & Application User",
-        "description": "## Overview\nGet Invoices List. Available for **Staff Tokens**."
+        "description": "## Overview\nGet Invoices List. Available for **Application Tokens**."
       },
       "post": {
         "consumes": [
@@ -795,11 +812,13 @@
                 },
                 "client_id": {
                   "description": "client_uid",
-                  "type": "string"
+                  "type": "string",
+                  "x-reference-to": "clients.contact"
                 },
                 "conversation_id": {
                   "description": "conversation_uid",
-                  "type": "string"
+                  "type": "string",
+                  "x-reference-to": "clients.matter"
                 },
                 "currency": {
                   "description": "USD, ILS etc.",
@@ -896,7 +915,8 @@
                 },
                 "staff_id": {
                   "description": "owner is the default",
-                  "type": "string"
+                  "type": "string",
+                  "x-reference-to": "access_control.staff"
                 },
                 "status": {
                   "description": "draft, issued, default issued",
@@ -999,7 +1019,7 @@
           "uri": "https:///platform/v1/invoices"
         },
         "x-auth-type": "Application & Application User",
-        "description": "## Overview\nCreate New Invoice Available for **Staff, App, and Directory tokens**."
+        "description": "## Overview\nCreate New Invoice. Available for **Application Tokens**."
       }
     },
     "/invoices/{invoice_id}": {
@@ -1115,46 +1135,45 @@
               "properties": {
                 "client_id": {
                   "description": "The client UID (unique identifier) for the client who owns this card.",
-                  "type": "string"
+                  "type": "string",
+                  "x-reference-to": "clients.contact"
                 },
                 "customer_id": {
                   "description": "Required. The customer ID from the payment gateway (e.g., Stripe customer ID starting with 'cus_'). This is the external identifier used by the payment provider.",
                   "type": "string"
                 },
-                "datails": {
-                  "items": {
-                    "properties": {
-                      "card_brand": {
-                        "description": "card_brand",
-                        "type": "string"
-                      },
-                      "cardholder_name": {
-                        "description": "cardholder_name",
-                        "type": "string"
-                      },
-                      "exp_month": {
-                        "description": "exp_month",
-                        "type": "number"
-                      },
-                      "exp_year": {
-                        "description": "exp_year",
-                        "type": "number"
-                      },
-                      "last_4": {
-                        "description": "last_4",
-                        "type": "string"
-                      }
+                "details": {
+                  "type": "object",
+                  "description": "Card details object containing payment card information",
+                  "properties": {
+                    "card_brand": {
+                      "description": "Card brand (e.g., visa, mastercard)",
+                      "type": "string"
                     },
-                    "required": [
-                      "client_id",
-                      "external_card_id",
-                      "default",
-                      "details",
-                      "items"
-                    ],
-                    "type": "object"
+                    "cardholder_name": {
+                      "description": "Name on the card",
+                      "type": "string"
+                    },
+                    "exp_month": {
+                      "description": "Expiration month (1-12)",
+                      "type": "number"
+                    },
+                    "exp_year": {
+                      "description": "Expiration year (YYYY)",
+                      "type": "number"
+                    },
+                    "last_4": {
+                      "description": "Last 4 digits of the card",
+                      "type": "string"
+                    }
                   },
-                  "type": "object"
+                  "required": [
+                    "exp_month",
+                    "exp_year",
+                    "last_4",
+                    "cardholder_name",
+                    "card_brand"
+                  ]
                 },
                 "default": {
                   "description": "true/false. default: false (will be set to true if it is the client's first card)",
@@ -1422,7 +1441,8 @@
                 },
                 "transaction_id": {
                   "description": "The external payment gateway transaction id",
-                  "type": "string"
+                  "type": "string",
+                  "x-reference-to": "sales.transaction"
                 },
                 "type": {
                   "description": "checkout.session.completed",
@@ -1562,15 +1582,18 @@
               "properties": {
                 "client_id": {
                   "description": "Client ID",
-                  "type": "string"
+                  "type": "string",
+                  "x-reference-to": "clients.contact"
                 },
                 "conversation_id": {
                   "description": "Conversation ID",
-                  "type": "string"
+                  "type": "string",
+                  "x-reference-to": "clients.matter"
                 },
                 "package_id": {
                   "description": "Package ID",
-                  "type": "string"
+                  "type": "string",
+                  "x-reference-to": "sales.package"
                 },
                 "price": {
                   "description": "Price. Default: package price.",
@@ -1705,7 +1728,8 @@
               "properties": {
                 "payment_status_id": {
                   "description": "Payment status ID",
-                  "type": "string"
+                  "type": "string",
+                  "x-reference-to": "sales.payment_status"
                 }
               },
               "required": [
@@ -1779,11 +1803,13 @@
               "properties": {
                 "matter_uid": {
                   "description": "Matter/Conversation UID. If not provided, the system will attempt to find the default matter for the client.",
-                  "type": "string"
+                  "type": "string",
+                  "x-reference-to": "clients.matter"
                 },
                 "payment_status_uid": {
                   "description": "Payment status UID",
-                  "type": "string"
+                  "type": "string",
+                  "x-reference-to": "sales.payment_status"
                 }
               },
               "required": [
@@ -2466,7 +2492,14 @@
         "consumes": [
           "application/json"
         ],
-        "parameters": [],
+        "parameters": [
+          {
+            "description": "A unique identifer of the business. Can be the Business UID or nickname\\external ID",
+            "in": "header",
+            "name": "X-On-Behalf-Of",
+            "type": "string"
+          }
+        ],
         "produces": [
           "application/json"
         ],
@@ -2980,7 +3013,7 @@
           "type": "http_proxy",
           "uri": "https:///platform/v1/payment_statuses/{id}/validate_coupon"
         },
-        "description": "## Overview\nApply Coupon Available for **Staff, App, and Directory tokens**."
+        "description": "## Overview\nApplies a coupon code to a payment status, reducing the amount due. The payment status must reference a coupon-eligible entity type: `Meeting`, `EventAttendance`, `PendingBooking`, or `Cart`. Payment statuses for other entity types (e.g., `Invoice`, `ClientBookingPackage`, `ProductOrder`) will return 422 \"Invalid Coupon\" even if the coupon code itself is valid.\n\nAvailable for **Staff, App, and Directory tokens**."
       }
     },
     "/payment_statuses/{id}/validate_coupon": {
@@ -3066,7 +3099,7 @@
           "uri": "https:///platform/v1/payment_statuses/{id}/validate_coupon"
         },
         "x-auth-type": "Application & Application User",
-        "description": "## Overview\nValidate Coupon. Available for **Staff, App, and Directory tokens**.\n\n## Required Parameters\n- `coupon_code` (query parameter): The coupon code to validate.\n\n## Validation Rules\nThe coupon must meet all of the following criteria to be valid:\n- Active status (not disabled)\n- Not expired (within valid date range)\n- Not already redeemed by this payment status\n- Valid for the entity types in the payment"
+        "description": "## Overview\nValidates whether a coupon code can be applied to a payment status without actually applying it. Available for **Staff, App, and Directory tokens**.\n\n## Required Parameters\n- `coupon_code` (query parameter): The coupon code to validate.\n\n## Validation Rules\nThe coupon must meet all of the following criteria to be valid:\n- Active status (not disabled)\n- Not expired (within valid date range)\n- Not already redeemed by this payment status\n- The payment status must reference a coupon-eligible entity type: `Meeting`, `EventAttendance`, `PendingBooking`, or `Cart`. Payment statuses for other entity types (e.g., `Invoice`, `ClientBookingPackage`, `ProductOrder`) will return 422 \"Invalid Coupon\" regardless of whether the coupon code itself is valid."
       }
     },
     "/services": {

@@ -2,9 +2,10 @@
 endpoint: "PUT /business/scheduling/v1/bookings/cancel"
 domain: scheduling
 tags: [booking, cancel, scheduling]
-swagger: swagger/scheduling/legacy/scheduling.json
+swagger: "swagger/scheduling/legacy/scheduling.json"
 status: pending
-savedAt: 2026-02-01T21:00:00.000Z
+savedAt: "2026-02-01T21:00:00.000Z"
+timesReused: 0
 ---
 
 # Cancel Booking (Business API)
@@ -33,7 +34,7 @@ steps:
     extract:
       booking_id: "$.data.appointments[0].id"
     expect:
-      status: 200
+      status: [200]
     onFail: skip
     skipReason: "No scheduled appointments available to cancel"
 ```

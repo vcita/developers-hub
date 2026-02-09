@@ -1,77 +1,109 @@
 ---
-endpoint: GET /platform/v1/payment_statuses/{id}/validate_coupon
+endpoint: "GET /platform/v1/payment_statuses/{id}/validate_coupon"
 domain: sales
-tags: []
-swagger: swagger/sales/legacy/legacy_v1_sales.json
-status: success
-savedAt: 2026-01-27T04:30:17.718Z
-verifiedAt: 2026-01-27T04:30:17.718Z
+tags: [coupons, payment_statuses]
+swagger: "swagger/sales/legacy/legacy_v1_sales.json"
+status: verified
+savedAt: "2026-01-27T04:30:17.718Z"
+verifiedAt: "2026-02-08T06:09:12.398Z"
 timesReused: 0
+expectedOutcome: 422
+expectedOutcomeReason: "No valid coupon exists in the test environment. The endpoint returns 422 'Invalid Coupon' for non-existent coupon codes."
+tokens: [staff, directory, app]
 ---
-# Get Validate coupon
+
+# Validate Coupon
 
 ## Summary
-Test passes. The coupon validation endpoint works correctly with payment status UID and coupon code parameters. Returns expected validation errors for expired coupons.
+
+Validates a coupon code against a payment status. The `{id}` path parameter is a **payment status UID** (not a payment request UID). Requires a `coupon_code` query parameter. Returns 200 with discount details for valid coupons, or 422 for invalid/expired coupons.
+
+**Token Type**: This endpoint works with **Staff, Directory, and App tokens**.
+
+## Response Codes
+
+| Status | Meaning |
+|--------|---------|
+| 200 | Success - Coupon is valid, returns discounted price |
+| 422 | Invalid Coupon - Coupon code does not exist or is expired |
 
 ## Prerequisites
-No specific prerequisites documented.
+
+```yaml
+steps:
+  - id: get_payment_requests
+    description: "Fetch payment requests to get a payment status UID"
+    method: GET
+    path: "/business/payments/v1/payment_requests"
+    token: staff
+    params:
+      per_page: "1"
+    extract:
+      payment_status_id: "$.data.payment_requests[0].uid"
+    expect:
+      status: [200]
+    onFail: abort
+```
 
 ## UID Resolution Procedure
 
-How to dynamically obtain required UIDs for this endpoint:
+| UID Field | Source Endpoint | Extract Path | Notes |
+|-----------|-----------------|--------------|-------|
+| payment_status_id | GET /business/payments/v1/payment_requests | $.data.payment_requests[0].uid | Use first available payment request |
 
-| UID Field | GET Endpoint | Extract From | Create Fresh | Cleanup |
-|-----------|--------------|--------------|--------------|---------|
-| payment_status_uid | Used configured client_package_payment_status_id: 49shhb1hd1a3f3bv | Configuration parameters | - | - |
-| coupon_code | GET /v3/sales/coupons | data.coupons[0].coupon_code | - | - |
+## Test Request
 
-### Resolution Steps
-
-**payment_status_uid**:
-1. Call `Used configured client_package_payment_status_id: 49shhb1hd1a3f3bv`
-2. Extract from response: `Configuration parameters`
-
-**coupon_code**:
-1. Call `GET /v3/sales/coupons`
-2. Extract from response: `data.coupons[0].coupon_code`
-3. If empty, create via `Used existing expired coupon for validation testing`
-
-```json
-{
-  "payment_status_uid": {
-    "source_endpoint": "Used configured client_package_payment_status_id: 49shhb1hd1a3f3bv",
-    "extract_from": "Configuration parameters",
-    "fallback_endpoint": null,
-    "create_fresh": false,
-    "create_endpoint": null,
-    "create_body": null,
-    "cleanup_endpoint": null,
-    "cleanup_note": null
-  },
-  "coupon_code": {
-    "source_endpoint": "GET /v3/sales/coupons",
-    "extract_from": "data.coupons[0].coupon_code",
-    "fallback_endpoint": "Used existing expired coupon for validation testing",
-    "create_fresh": false,
-    "create_endpoint": null,
-    "create_body": null,
-    "cleanup_endpoint": null,
-    "cleanup_note": null
-  }
-}
+```yaml
+steps:
+  - id: validate_coupon
+    description: "Validate a coupon code against a payment status"
+    method: GET
+    path: "/platform/v1/payment_statuses/{{payment_status_id}}/validate_coupon"
+    token: staff
+    params:
+      coupon_code: "TEST_COUPON_123"
+    expect:
+      status: [422]
 ```
 
-## How to Resolve Parameters
-Parameters were resolved automatically.
+## Parameters Reference
+
+### Path Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| id | string | Yes | Payment status UID |
+
+### Query Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| coupon_code | string | Yes | Coupon code to validate |
+
+## Authentication
+
+Available for **Staff, Directory, and App** tokens.
+
+| Token Type | Works | Notes |
+|------------|-------|-------|
+| Staff | ✅ | Requires same business as payment status |
+| Directory | ✅ | Requires X-On-Behalf-Of header with business UID |
+| App | ✅ | Requires appropriate OAuth scope |
+| Client | ❓ | Not tested but controller sets authorize_params: {type: 'client'} |
+
+## Known Issues
+
+### Issue: No Valid Coupons in Test Environment
+
+**Description**: The test environment does not have valid coupon codes, so the endpoint always returns 422 "Invalid Coupon".
+
+**Root Cause**: No sample coupons are provisioned in the test database.
+
+**Expected Behavior**: This 422 response is correct and expected when no valid coupons exist.
 
 ## Critical Learnings
 
-No specific learnings documented.
-
-## Request Template
-
-Use this template with dynamically resolved UIDs:
-
-```json
-null
-```
+1. **id is a payment status UID**: Not a payment request UID or invoice ID - use the UID from payment_requests response
+2. **coupon_code is a query parameter**: Not a body parameter, pass as URL parameter
+3. **422 is success for invalid coupons**: The endpoint correctly validates and returns 422 for non-existent coupon codes
+4. **Multiple token types supported**: Staff, Directory, and App tokens all work

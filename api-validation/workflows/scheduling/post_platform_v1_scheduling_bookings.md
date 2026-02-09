@@ -2,10 +2,11 @@
 endpoint: "POST /platform/v1/scheduling/bookings"
 domain: scheduling
 tags: [booking, appointment, scheduling, platform]
-swagger: swagger/scheduling/legacy/legacy_v1_scheduling.json
+swagger: "swagger/scheduling/legacy/legacy_v1_scheduling.json"
 status: pending
-savedAt: 2026-02-01T14:30:00.000Z
-verifiedAt: 2026-02-01T14:30:00.000Z
+savedAt: "2026-02-01T14:30:00.000Z"
+verifiedAt: "2026-02-01T14:30:00.000Z"
+timesReused: 0
 useFallbackApi: true
 ---
 
@@ -27,7 +28,7 @@ steps:
     extract:
       service_id: "$.data.services[0].id"
     expect:
-      status: 200
+      status: [200]
     onFail: abort
 
   - id: get_staffs
@@ -37,7 +38,7 @@ steps:
     extract:
       staff_id: "$.data.staff[0].id"
     expect:
-      status: 200
+      status: [200]
     onFail: abort
 
   - id: get_availability
@@ -51,7 +52,7 @@ steps:
       start_date: "{{tomorrow_date}}"
       end_date: "{{next_week_date}}"
     expect:
-      status: 200
+      status: [200]
     onFail: abort
 ```
 

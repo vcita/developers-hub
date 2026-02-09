@@ -2,10 +2,11 @@
 endpoint: "GET /platform/v1/scheduling/staff"
 domain: platform_administration
 tags: []
-swagger: swagger/platform_administration/legacy/legacy_v1_platform.json
-status: success
-savedAt: 2026-01-27T09:25:36.268Z
-verifiedAt: 2026-01-27T09:25:36.268Z
+swagger: "swagger/platform_administration/legacy/legacy_v1_platform.json"
+status: verified
+savedAt: "2026-01-27T09:25:36.268Z"
+verifiedAt: "2026-01-27T09:25:36.268Z"
+timesReused: 0
 ---
 
 # Get Staff

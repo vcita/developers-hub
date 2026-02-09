@@ -2,9 +2,10 @@
 endpoint: "POST /business/scheduling/v1/time_slots"
 domain: scheduling
 tags: [availability, time-slots, scheduling]
-swagger: swagger/scheduling/legacy/scheduling.json
+swagger: "swagger/scheduling/legacy/scheduling.json"
 status: pending
-savedAt: 2026-02-01T22:00:00.000Z
+savedAt: "2026-02-01T22:00:00.000Z"
+timesReused: 0
 ---
 
 # Create Time Slot
@@ -32,7 +33,7 @@ steps:
     extract:
       weekly_availability_uid: "$.data.staff.weekly_availability_uid"
     expect:
-      status: 200
+      status: [200]
     onFail: abort
 ```
 
@@ -50,7 +51,7 @@ steps:
       start_time: "09:00"
       end_time: "17:00"
     expect:
-      status: 201
+      status: [201]
 ```
 
 ## Request Body Parameters

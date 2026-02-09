@@ -1,15 +1,19 @@
 ---
 endpoint: "POST /business/scheduling/v1/bookings"
-status: working
-tokens: [staff]
+domain: scheduling
 tags: [scheduling, bookings]
-swagger: swagger/scheduling/legacy/scheduling.json
-notes: Requires Staff token with pre-configured client_id. Directory tokens require business to be in the directory.
+swagger: "swagger/scheduling/legacy/scheduling.json"
+status: verified
+savedAt: "2026-02-03T18:27:27.807Z"
+verifiedAt: "2026-02-03T18:27:27.807Z"
+timesReused: 0
+tokens: [staff]
+notes: "Requires Staff token with pre-configured client_id. Directory tokens require business to be in the directory."
 ---
 
 # Create Booking
 
-## Overview
+## Summary
 
 Creates a new booking (appointment or event registration) for a business.
 This endpoint uses an existing client ID to create bookings.
@@ -29,7 +33,7 @@ steps:
     extract:
       service_id: "$.data.services[0].id"
     expect:
-      status: 200
+      status: [200]
     onFail: abort
 
   - id: get_staffs
@@ -39,7 +43,7 @@ steps:
     extract:
       staff_id: "$.data.staffs[0].id"
     expect:
-      status: 200
+      status: [200]
     onFail: abort
 ```
 
@@ -62,7 +66,7 @@ steps:
       status: [200, 201]
 ```
 
-## Token Requirements
+## Authentication
 
 - **Staff tokens**: Recommended. Requires the staff member to belong to the same business as the client. Works when `client_id` is provided for a client in the staff's business.
 - **Directory tokens**: Requires the business to be a member of the directory (via `directory_member`). Will return 422 Unauthorized if business is not in the directory.
@@ -90,7 +94,7 @@ authorized = business.directory_member.present? &&
 ```
 **Requirement**: Business must have a `directory_member` belonging to the directory token's directory.
 
-## Parameter Reference
+## Parameters Reference
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -164,13 +168,13 @@ This error occurs when `client_id` is not provided and the API attempts to creat
 
 ## Known Issues
 
-```yaml
-knownIssues:
-  - path: "/form_data"
-    reason: "form_data.fields has internal FieldsAPI authorization issues - use client_id instead"
-  - issue: "Directory tokens without directory_member"
-    reason: "Directory tokens require the business to have a directory_member record linking it to the directory. Returns 422 Unauthorized otherwise."
-```
+### Issue: /form_data
+
+**Description**: form_data.fields has internal FieldsAPI authorization issues - use client_id instead
+
+### Issue: Directory tokens without directory_member
+
+**Description**: Directory tokens require the business to have a directory_member record linking it to the directory. Returns 422 Unauthorized otherwise.
 
 ## Notes
 
@@ -180,8 +184,6 @@ knownIssues:
 - `start_time` must be in the future and the timeslot must be available
 - The `client_id` must be an existing client for this business
 
-## Setup Requirements
-
-1. Ensure you have a valid Staff token configured in `api-validation/config/tokens.json`
+## Setup Requirements1. Ensure you have a valid Staff token configured in `api-validation/config/tokens.json`
 2. Ensure `client_id` in tokens.json is for a client belonging to the same business as the staff
 3. The `business_id`, `staff_id`, and `client_id` must all be for the same business

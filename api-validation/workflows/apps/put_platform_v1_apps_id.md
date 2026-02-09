@@ -2,10 +2,11 @@
 endpoint: "PUT /platform/v1/apps/{id}"
 domain: apps
 tags: []
-swagger: swagger/apps/legacy/legacy_v1_apps.json
-status: success
-savedAt: 2026-01-25T05:53:29.337Z
-verifiedAt: 2026-01-25T05:53:29.337Z
+swagger: "swagger/apps/legacy/legacy_v1_apps.json"
+status: verified
+savedAt: "2026-01-25T05:53:29.337Z"
+verifiedAt: "2026-01-25T05:53:29.337Z"
+timesReused: 0
 ---
 
 # Update Apps
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: put_apps
     method: PUT
-    path: "/platform/v1/apps/{id}"
+    path: "/platform/v1/apps/{{id}}"
     body:
       name: Updated Test App
       description:

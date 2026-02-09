@@ -2,10 +2,11 @@
 endpoint: "POST /oauth/service/token"
 domain: apps
 tags: []
-swagger: swagger/apps/legacy/legacy_token.json
-status: success
-savedAt: 2026-01-25T05:30:54.250Z
-verifiedAt: 2026-01-25T05:30:54.250Z
+swagger: "swagger/apps/legacy/legacy_token.json"
+status: verified
+savedAt: "2026-01-25T05:30:54.250Z"
+verifiedAt: "2026-01-25T05:30:54.250Z"
+timesReused: 0
 ---
 
 # Create Token
@@ -27,7 +28,7 @@ steps:
     extract:
       service_id: "$.data.services[0].id"
     expect:
-      status: 200
+      status: [200]
     onFail: abort
 ```
 

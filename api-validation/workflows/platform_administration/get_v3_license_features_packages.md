@@ -2,10 +2,11 @@
 endpoint: "GET /v3/license/features_packages"
 domain: platform_administration
 tags: []
-swagger: swagger/platform_administration/license.json
-status: success
-savedAt: 2026-01-27T09:02:46.499Z
-verifiedAt: 2026-01-27T09:02:46.499Z
+swagger: "swagger/platform_administration/license.json"
+status: verified
+savedAt: "2026-01-27T09:02:46.499Z"
+verifiedAt: "2026-01-27T09:02:46.499Z"
+timesReused: 0
 ---
 
 # Get Features packages

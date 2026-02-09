@@ -186,8 +186,9 @@
                   "type": "string"
                 },
                 "staff_id": {
-                  "description": "Staff ID",
-                  "type": "string"
+                  "description": "Staff ID. Reference to the staff member (see staff entity).",
+                  "type": "string",
+                  "x-reference-to": "staff"
                 },
                 "status": {
                   "description": "Use a client status to categorize clients according to their relationship with your business. Valid values: lead, customer, loyal, inactive",
@@ -204,6 +205,7 @@
                   "type": "string"
                 }
               },
+              "required": ["first_name"],
               "type": "object"
             }
           }
@@ -289,7 +291,7 @@
             "type": "string"
           },
           {
-            "description": "UIDs of all the clients to be merged into the to_client_uid, comma separated",
+            "description": "UIDs of all the clients to be merged into the to_client_uid, as a non-empty comma-separated string (e.g., 'uid1,uid2').",
             "in": "query",
             "name": "from_client_uids",
             "required": true,
@@ -310,9 +312,11 @@
         ],
         "responses": {
           "200": {
-            "description": "Success",
+            "description": "Success. Response includes master_ids (array of primary client UIDs) and clients (array of decorated client objects).",
             "examples": {
               "application/json": {
+                "master_ids": ["80g6241rk3zldz2h"],
+                "clients": [],
                 "status": "OK"
               }
             }
@@ -353,7 +357,7 @@
         "description": "## Overview\nReturns a list of client UIDs that can be used as a primary client for the merge.\n\n## Authentication\n**Available for Staff, App, and Directory Tokens.**\n\n## Required Parameters\n- `client_ids` (required): Comma-separated client UIDs to check for merge eligibility.\n\n## Business Rules\n- **Clients with multiple matters cannot be merged** - If any selected client has more than one matter/project, the merge is not allowed\n- Returns 422 if multiple clients are related to the same contact (e.g., pets belonging to the same owner)\n- Clients must be independent contacts to be eligible for merge\n- The error message format is: '{Term} cannot be merged since you selected more than 1 {term} related to the same contact'",
         "parameters": [
           {
-            "description": "List of client uids, comma separated",
+            "description": "List of client UIDs to check for merge eligibility, as a non-empty comma-separated string (e.g., 'uid1,uid2').",
             "in": "query",
             "name": "client_ids",
             "required": true,
@@ -417,8 +421,9 @@
             "schema": {
               "properties": {
                 "payment_status_id": {
-                  "description": "Payment status ID",
-                  "type": "string"
+                  "description": "Payment status ID - Must reference a pending/unpaid payment status. Already paid statuses will return 422 error 'Payment status is already paid'.",
+                  "type": "string",
+                  "x-reference-to": "payment_status"
                 }
               },
               "required": [
@@ -433,7 +438,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Package updated by client",
+            "description": "Package credit successfully applied to the payment status. The payment status is marked as paid with price 0, and a booking credit redemption record is created.",
             "examples": {
               "application/json": {
                 "data": {
@@ -444,10 +449,19 @@
             }
           },
           "422": {
-            "description": "Failure",
+            "description": "Validation error - The request was valid but could not be processed. Common reasons include: no suitable package exists for the service, the payment status is already paid, or the client has no active packages with available credits for this service.",
             "examples": {
               "application/json": {
-                "error": "Error Message",
+                "error": "There is no package to use",
+                "status": "Error"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error - May occur due to a known bug when the payment_status_id references a virtual booking that fails to be retrieved. The error message will contain 'undefined local variable or method `exception''. To avoid this, ensure the payment_status_id references a regular payment status that exists in the client's payment history.",
+            "examples": {
+              "application/json": {
+                "error": "undefined local variable or method `exception' for Components::Payments::ClientPackagesAPI:Module",
                 "status": "Error"
               }
             }
@@ -485,14 +499,15 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nValidate client package payment status.\n\n## Authentication\n**Available for Client Tokens only.**",
+        "description": "## Overview\nValidate client package payment status. Checks if a client has an active package with available credits for the service associated with the given payment status.\n\n## Authentication\n**Available for Client Tokens only.**\n\n## Constraints\n- The `payment_status_id` must reference a pending/unpaid payment status\n- Already paid statuses return 422 error 'Payment status is already paid'",
         "parameters": [
           {
-            "description": "Payment status ID",
+            "description": "Payment status ID - must be a pending/unpaid payment status",
             "in": "query",
             "name": "payment_status_id",
             "required": true,
-            "type": "string"
+            "type": "string",
+            "x-reference-to": "payment_status"
           }
         ],
         "produces": [
@@ -500,7 +515,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Validation Occurred",
+            "description": "Validation Occurred - Returns has_package=true if a suitable package exists",
             "examples": {
               "application/json": {
                 "data": {
@@ -511,10 +526,19 @@
             }
           },
           "422": {
-            "description": "Failure",
+            "description": "Validation Error - Common reasons: payment_status_id is already paid, or references an invalid payment status",
             "examples": {
               "application/json": {
-                "error": "Error Message",
+                "error": "Payment status is already paid",
+                "status": "Error"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error - Known bug: May occur when the payment_status_id parameter is missing, empty, or references a virtual booking that cannot be retrieved. The error message contains 'undefined local variable or method `exception''. To avoid this, ensure the payment_status_id is provided and references a valid payment status from the client's payment history.",
+            "examples": {
+              "application/json": {
+                "error": "undefined local variable or method `exception' for Components::Payments::ClientPackagesAPI:Module",
                 "status": "Error"
               }
             }
@@ -875,6 +899,20 @@
             "name": "client_id",
             "required": true,
             "type": "string"
+          },
+          {
+            "description": "Page number (default: 1)",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "description": "Results per page (default: 25, max: 50)",
+            "in": "query",
+            "name": "per_page",
+            "required": false,
+            "type": "integer"
           }
         ],
         "produces": [
@@ -1012,8 +1050,14 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nGets a list of estimates for a client.\n\n## Authentication\n**Available for Staff, App, and Directory Tokens.**",
+        "description": "## Overview\nGets a list of estimates for a client.\n\n## Authentication\n**Available for Directory tokens only.** Requires `X-On-Behalf-Of` header with the business UID.\n\n**Note**: Staff OAuth tokens fail with 422 'Unauthorized' even with `payments.manage` permission due to authorization type mismatch in the backend. Use Directory tokens with `X-On-Behalf-Of` header instead.\n\n**Note on Authorization Header**: Both `Authorization: Bearer <token>` and legacy `Authorization: Token <token>` formats are supported.\n\n## Error Responses\nAuthorization failures return HTTP 422 with `{status:'Error', error:'Unauthorized'}` rather than 401/403.",
         "parameters": [
+          {
+            "description": "A unique identifer of the business. Can be the Business UID or nickname\\external ID",
+            "in": "header",
+            "name": "X-On-Behalf-Of",
+            "type": "string"
+          },
           {
             "description": "client's id",
             "in": "path",
@@ -1090,6 +1134,15 @@
                 "status": "OK"
               }
             }
+          },
+          "422": {
+            "description": "Unauthorized - User does not have permission to access this client's estimates",
+            "examples": {
+              "application/json": {
+                "status": "Error",
+                "error": "Unauthorized"
+              }
+            }
           }
         },
         "security": [
@@ -1119,7 +1172,7 @@
           "type": "http_proxy",
           "uri": "https:///platform/v1/clients/{client_id}/estimates"
         },
-        "x-auth-type": "Application & Application User"
+        "x-auth-type": "Application"
       }
     },
     "/clients/{client_id}/invoices": {
@@ -1127,7 +1180,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nGets a list of invoices for a client.\n\n## Authentication\n**Available for Staff, App, and Directory Tokens.**",
+        "description": "## Overview\nGets a list of invoices for a client.\n\n## Authentication\n**Available for Staff, App, and Directory Tokens.**\n\n## Prerequisites\n**Requires business feature `invoicing_features`** (payments module) to be enabled. Returns 403 Forbidden or 422 Unauthorized if the feature is not enabled.\n\n## Error Responses\n- **403 Forbidden**: Business does not have invoicing_features enabled\n- **422 Unauthorized**: `{status:'Error', error:'Unauthorized'}` - Legacy error format for feature gate failures",
         "parameters": [
           {
             "description": "client's id",
@@ -1252,137 +1305,6 @@
         "x-auth-type": "Application & Application User"
       }
     },
-    "/clients/{client_id}/payment/client_packages": {
-      "get": {
-        "consumes": [
-          "application/json"
-        ],
-        "description": "## Overview\nGets a list of client packages (purchased packages) for a client.\n\n## Authentication\n**Available for Staff, App, and Directory Tokens.**",
-        "parameters": [
-          {
-            "description": "Client ID",
-            "in": "path",
-            "name": "client_id",
-            "required": true,
-            "type": "string"
-          },
-          {
-            "description": "Page offset",
-            "in": "query",
-            "name": "page",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "description": "Page size (default: 25)",
-            "in": "query",
-            "name": "per_page",
-            "required": false,
-            "type": "string"
-          }
-        ],
-        "produces": [
-          "application/json"
-        ],
-        "responses": {
-          "200": {
-            "description": "Client Packages Returned",
-            "examples": {
-              "application/json": {
-                "data": {
-                  "client_packages": [
-                    {
-                      "active": "true",
-                      "amount": 100,
-                      "booking_credits": [
-                        {
-                          "bookings_usage": "0",
-                          "credit_items": [
-                            {
-                              "bookings_usage": 0,
-                              "item_id": "mzuk2kkt7vjnxdwo",
-                              "item_type": "SERVICE"
-                            }
-                          ],
-                          "id": "vu1rovse0166a9d9",
-                          "total_bookings": "10"
-                        }
-                      ],
-                      "bookings_usage": "0",
-                      "business_id": "vqzqruk6nyclxpp6",
-                      "client_id": "9yxsdkr1hdjtocpv",
-                      "conversation_id": "war7ow99zh14qlty",
-                      "created_at": "2020-06-01T21:05:00.562Z",
-                      "currency": "USD",
-                      "id": "m73jkvg4bf2z71b2",
-                      "image_path": "",
-                      "name": "Music Lessons",
-                      "package_id": "v2fvy50p8gjuvnvb",
-                      "payment_status_id": "6v5ybwkavv0z9hff",
-                      "payment_status_state": "pending",
-                      "products": [
-                        {
-                          "id": "03nmq2uih783ro0g",
-                          "name": "product1_name",
-                          "quantity": 2
-                        },
-                        {
-                          "id": "57ndq2uih503rca8",
-                          "name": "product2_name",
-                          "quantity": 4
-                        }
-                      ],
-                      "staff_id": "mg9d91uh92bclwzg",
-                      "total_bookings": "10",
-                      "valid_from": "2020-06-01",
-                      "valid_until": "2020-07-01"
-                    }
-                  ]
-                },
-                "status": "OK"
-              }
-            }
-          },
-          "422": {
-            "description": "Failure",
-            "examples": {
-              "application/json": {
-                "error": "Error Message",
-                "status": "Error"
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "default": [
-              "platform"
-            ]
-          }
-        ],
-        "summary": "Get Client Packages List Of Client [Alpha]",
-        "tags": [
-          "Client Packages"
-        ],
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-amazon-apigateway-integration": {
-          "httpMethod": "GET",
-          "requestParameters": {
-            "integration.request.path.client_id": "method.request.path.client_id"
-          },
-          "responses": {
-            "default": {
-              "statusCode": "200"
-            }
-          },
-          "type": "http_proxy",
-          "uri": "https:///platform/v1/clients/{client_id}/payment/client_packages"
-        },
-        "x-auth-type": "Application & Application User"
-      }
-    },
     "/clients/{client_id}/payments": {
       "get": {
         "consumes": [
@@ -1470,6 +1392,15 @@
                   ]
                 },
                 "status": "OK"
+              }
+            }
+          },
+          "422": {
+            "description": "Unauthorized - User does not have permission to access this client's payments",
+            "examples": {
+              "application/json": {
+                "status": "Error",
+                "error": "Unauthorized"
               }
             }
           }

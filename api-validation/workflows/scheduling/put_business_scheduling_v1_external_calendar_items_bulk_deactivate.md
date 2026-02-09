@@ -2,10 +2,11 @@
 endpoint: "PUT /business/scheduling/v1/external_calendar_items/bulk_deactivate"
 domain: scheduling
 tags: [calendar, sync, external, scheduling]
-swagger: swagger/scheduling/legacy/scheduling.json
-status: skip
+swagger: "swagger/scheduling/legacy/scheduling.json"
+status: skipped
+savedAt: "2026-02-01T23:30:00.000Z"
+timesReused: 0
 skip_reason: "Requires CalendarSync record which can only be created via internal API or UI. See VCITA2-11743 for details."
-savedAt: 2026-02-01T23:30:00.000Z
 ---
 
 # Bulk Deactivate External Calendar Items
@@ -37,7 +38,7 @@ steps:
         provider: "google_v3"
         account: "testuser@gmail.com"
     expect:
-      status: 200
+      status: [200]
     onFail: abort
 
   - id: bulk_create_items
@@ -56,7 +57,7 @@ steps:
           start_time: "{{future_datetime}}"
           end_time: "{{future_datetime_plus_1h}}"
     expect:
-      status: 200
+      status: [200]
     onFail: abort
 ```
 
@@ -76,7 +77,7 @@ steps:
       external_items_to_deactivate:
         - external_id: "ext_item_to_deactivate"
     expect:
-      status: 200
+      status: [200]
 ```
 
 ## Request Body Parameters

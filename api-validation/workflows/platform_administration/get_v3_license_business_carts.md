@@ -2,10 +2,11 @@
 endpoint: "GET /v3/license/business_carts"
 domain: platform_administration
 tags: [license]
-swagger: swagger/platform_administration/license.json
-status: skip
-savedAt: 2026-01-28T12:00:28.693Z
-verifiedAt: 2026-01-28T12:00:28.693Z
+swagger: "swagger/platform_administration/license.json"
+status: skipped
+savedAt: "2026-01-28T12:00:28.693Z"
+verifiedAt: "2026-01-28T12:00:28.693Z"
+timesReused: 0
 ---
 
 # Get Business carts

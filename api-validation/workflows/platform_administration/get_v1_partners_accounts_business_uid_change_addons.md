@@ -2,10 +2,11 @@
 endpoint: "GET /v1/partners/accounts/{business_uid}/change_addons"
 domain: platform_administration
 tags: [partners, change-addons]
-swagger: swagger/platform_administration/legacy/partners-api.json
-status: skip
-savedAt: 2026-01-31T12:41:58.412Z
-verifiedAt: 2026-01-31T12:41:58.412Z
+swagger: "swagger/platform_administration/legacy/partners-api.json"
+status: skipped
+savedAt: "2026-01-31T12:41:58.412Z"
+verifiedAt: "2026-01-31T12:41:58.412Z"
+timesReused: 0
 ---
 
 # Get Change addons
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: get_change_addons
     method: GET
-    path: "/v1/partners/accounts/{business_uid}/change_addons"
+    path: "/v1/partners/accounts/{{business_uid}}/change_addons"
     expect:
       status: [200, 201]
 ```

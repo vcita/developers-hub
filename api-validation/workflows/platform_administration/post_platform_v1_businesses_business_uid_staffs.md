@@ -2,10 +2,11 @@
 endpoint: "POST /platform/v1/businesses/{business_uid}/staffs"
 domain: platform_administration
 tags: []
-swagger: swagger/platform_administration/legacy/legacy_v1_platform.json
-status: success
-savedAt: 2026-01-29T08:58:08.693Z
-verifiedAt: 2026-01-29T08:58:08.693Z
+swagger: "swagger/platform_administration/legacy/legacy_v1_platform.json"
+status: verified
+savedAt: "2026-01-29T08:58:08.693Z"
+verifiedAt: "2026-01-29T08:58:08.693Z"
+timesReused: 0
 ---
 
 # Create Staffs
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: post_staffs
     method: POST
-    path: "/platform/v1/businesses/{business_uid}/staffs"
+    path: "/platform/v1/businesses/{{business_uid}}/staffs"
     body:
       meta:
         invite: false

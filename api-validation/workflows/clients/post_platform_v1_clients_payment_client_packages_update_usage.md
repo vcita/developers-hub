@@ -1,61 +1,39 @@
 ---
-endpoint: POST /platform/v1/clients/payment/client_packages/update_usage
+endpoint: "POST /platform/v1/clients/payment/client_packages/update_usage"
 domain: clients
-tags: []
-swagger: swagger/clients/legacy/legacy_v1_clients.json
-status: success
-savedAt: 2026-01-25T23:12:26.084Z
-verifiedAt: 2026-01-25T23:12:26.084Z
+tags: [clients, client-packages]
+status: skip
+savedAt: 2026-02-04T16:32:17.671Z
+verifiedAt: 2026-02-04T16:32:17.671Z
 timesReused: 0
+skipReason: "Blocked by server-side 500 error and missing prerequisite test data (no client payment_requests available to obtain a valid pending payment_status_id)."
 ---
 # Create Update usage
 
 ## Summary
-Endpoint works correctly. Using a valid payment_status_id and client token, the endpoint returns 422 with expected business logic error 'There is no package to use' when client has no suitable packages.
+
+User-approved skip: Blocked by server-side 500 error and missing prerequisite test data (no client payment_requests available to obtain a valid pending payment_status_id).
+
+## Skip Reason
+
+**This endpoint should be SKIPPED in automated testing.**
+
+Blocked by server-side 500 error and missing prerequisite test data (no client payment_requests available to obtain a valid pending payment_status_id).
+
+This is typically due to a business constraint where the endpoint works correctly but cannot be tested repeatedly (e.g., one-time operations, unique constraints).
 
 ## Prerequisites
-No specific prerequisites documented.
 
-## UID Resolution Procedure
+None required for this endpoint.
 
-How to dynamically obtain required UIDs for this endpoint:
+## Test Request
 
-| UID Field | GET Endpoint | Extract From | Create Fresh | Cleanup |
-|-----------|--------------|--------------|--------------|---------|
-| payment_status_id | GET /business/payments/v1/payment_requests | data.payment_requests[0].uid | - | PaymentStatus entities are managed by the payment system and shouldn't be deleted during testing |
-
-### Resolution Steps
-
-**payment_status_id**:
-1. Call `GET /business/payments/v1/payment_requests`
-2. Extract from response: `data.payment_requests[0].uid`
-
-```json
-{
-  "payment_status_id": {
-    "source_endpoint": "GET /business/payments/v1/payment_requests",
-    "extract_from": "data.payment_requests[0].uid",
-    "fallback_endpoint": null,
-    "create_fresh": false,
-    "create_endpoint": null,
-    "create_body": null,
-    "cleanup_endpoint": null,
-    "cleanup_note": "PaymentStatus entities are managed by the payment system and shouldn't be deleted during testing"
-  }
-}
-```
-
-## How to Resolve Parameters
-Parameters were resolved automatically.
-
-## Critical Learnings
-
-No specific learnings documented.
-
-## Request Template
-
-Use this template with dynamically resolved UIDs:
-
-```json
-null
+```yaml
+steps:
+  - id: main_request
+    description: "Create update_usage"
+    method: POST
+    path: "/platform/v1/clients/payment/client_packages/update_usage"
+    expect:
+      status: [200, 201]
 ```

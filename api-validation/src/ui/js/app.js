@@ -13,12 +13,16 @@ const AppState = {
     domain: '',
     method: '',
     tokenType: '',
+    workflowStatus: [],
     search: ''
   },
   rateLimit: {
     preset: 'normal',
     concurrent: 3,
     retryOn429: true
+  },
+  aiOptions: {
+    autoFixSwagger: false
   },
   config: null
 };
@@ -115,11 +119,32 @@ function setupEventListeners() {
   document.getElementById('method-filter')?.addEventListener('change', onFilterChange);
   document.getElementById('token-filter')?.addEventListener('change', onFilterChange);
   document.getElementById('search-filter')?.addEventListener('input', debounce(onFilterChange, 300));
+
+  const statusToggle = document.getElementById('status-filter-toggle');
+  const statusMenu = document.getElementById('status-filter-menu');
+  if (statusToggle && statusMenu) {
+    statusToggle.addEventListener('click', (event) => {
+      event.stopPropagation();
+      toggleStatusMenu();
+    });
+    statusMenu.addEventListener('click', (event) => event.stopPropagation());
+    statusMenu.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
+      checkbox.addEventListener('change', onFilterChange);
+    });
+    document.addEventListener('click', closeStatusMenu);
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') closeStatusMenu();
+    });
+    updateStatusFilterLabel();
+  }
   
   // Rate limit changes
   document.getElementById('rate-preset')?.addEventListener('change', onRateLimitChange);
   document.getElementById('concurrent')?.addEventListener('change', onRateLimitChange);
   document.getElementById('retry-429')?.addEventListener('change', onRateLimitChange);
+  
+  // AI options changes
+  document.getElementById('auto-fix-swagger')?.addEventListener('change', onAiOptionsChange);
   
   // Action buttons
   document.getElementById('select-all-btn')?.addEventListener('click', selectAll);
@@ -138,9 +163,55 @@ function onFilterChange() {
   AppState.filters.domain = document.getElementById('domain-filter')?.value || '';
   AppState.filters.method = document.getElementById('method-filter')?.value || '';
   AppState.filters.tokenType = document.getElementById('token-filter')?.value || '';
+  AppState.filters.workflowStatus = getSelectedStatusValues();
   AppState.filters.search = document.getElementById('search-filter')?.value || '';
   
+  updateStatusFilterLabel();
   renderEndpoints();
+}
+
+function getSelectedStatusValues() {
+  const checkboxes = document.querySelectorAll('#status-filter-menu input[type="checkbox"]:checked');
+  return Array.from(checkboxes).map((checkbox) => checkbox.value).filter(Boolean);
+}
+
+function toggleStatusMenu() {
+  const menu = document.getElementById('status-filter-menu');
+  const toggle = document.getElementById('status-filter-toggle');
+  if (!menu || !toggle) return;
+  const isHidden = menu.classList.contains('hidden');
+  if (isHidden) {
+    menu.classList.remove('hidden');
+    toggle.setAttribute('aria-expanded', 'true');
+  } else {
+    closeStatusMenu();
+  }
+}
+
+function closeStatusMenu() {
+  const menu = document.getElementById('status-filter-menu');
+  const toggle = document.getElementById('status-filter-toggle');
+  if (!menu || !toggle) return;
+  if (!menu.classList.contains('hidden')) {
+    menu.classList.add('hidden');
+    toggle.setAttribute('aria-expanded', 'false');
+  }
+}
+
+function updateStatusFilterLabel() {
+  const toggle = document.getElementById('status-filter-toggle');
+  const checked = document.querySelectorAll('#status-filter-menu input[type="checkbox"]:checked');
+  if (!toggle) return;
+  if (checked.length === 0) {
+    toggle.textContent = 'All';
+    return;
+  }
+  if (checked.length === 1) {
+    const label = checked[0].parentElement?.textContent?.trim();
+    toggle.textContent = label || '1 selected';
+    return;
+  }
+  toggle.textContent = `${checked.length} selected`;
 }
 
 /**
@@ -150,6 +221,13 @@ function onRateLimitChange() {
   AppState.rateLimit.preset = document.getElementById('rate-preset')?.value || 'normal';
   AppState.rateLimit.concurrent = parseInt(document.getElementById('concurrent')?.value || '3', 10);
   AppState.rateLimit.retryOn429 = document.getElementById('retry-429')?.checked ?? true;
+}
+
+/**
+ * Handle AI options changes
+ */
+function onAiOptionsChange() {
+  AppState.aiOptions.autoFixSwagger = document.getElementById('auto-fix-swagger')?.checked ?? false;
 }
 
 /**
@@ -203,6 +281,11 @@ function getFilteredEndpoints() {
     }
     if (AppState.filters.tokenType && !endpoint.tokenInfo.tokens.includes(AppState.filters.tokenType)) {
       return false;
+    }
+    const selectedStatuses = AppState.filters.workflowStatus || [];
+    if (selectedStatuses.length > 0) {
+      const endpointStatus = normalizeStatus(endpoint.workflowStatus || 'none');
+      if (!selectedStatuses.includes(endpointStatus)) return false;
     }
     if (AppState.filters.search) {
       const search = AppState.filters.search.toLowerCase();
@@ -340,6 +423,9 @@ async function runTests() {
       rateLimit: {
         maxConcurrent: AppState.rateLimit.concurrent,
         retryOn429: AppState.rateLimit.retryOn429
+      },
+      aiOptions: {
+        autoFixSwagger: AppState.aiOptions.autoFixSwagger
       }
     });
   } catch (error) {

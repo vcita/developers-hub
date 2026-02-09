@@ -2,10 +2,11 @@
 endpoint: "GET /v3/license/directory_offerings"
 domain: platform_administration
 tags: []
-swagger: swagger/platform_administration/license.json
-status: success
-savedAt: 2026-01-28T07:30:58.566Z
-verifiedAt: 2026-01-28T07:30:58.566Z
+swagger: "swagger/platform_administration/license.json"
+status: verified
+savedAt: "2026-01-28T07:30:58.566Z"
+verifiedAt: "2026-01-28T07:30:58.566Z"
+timesReused: 0
 ---
 
 # Get Directory offerings

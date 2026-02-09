@@ -2,10 +2,11 @@
 endpoint: "PUT /platform/v1/businesses/{business_uid}/wizards/{wizard_name}"
 domain: platform_administration
 tags: []
-swagger: swagger/platform_administration/legacy/legacy_v1_platform.json
-status: success
-savedAt: 2026-01-28T19:11:37.635Z
-verifiedAt: 2026-01-28T19:11:37.635Z
+swagger: "swagger/platform_administration/legacy/legacy_v1_platform.json"
+status: verified
+savedAt: "2026-01-28T19:11:37.635Z"
+verifiedAt: "2026-01-28T19:11:37.635Z"
+timesReused: 0
 ---
 
 # Update Wizards
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: put_wizards
     method: PUT
-    path: "/platform/v1/businesses/{business_uid}/wizards/{wizard_name}"
+    path: "/platform/v1/businesses/{{business_uid}}/wizards/{{wizard_name}}"
     body:
       completed: true
     expect:

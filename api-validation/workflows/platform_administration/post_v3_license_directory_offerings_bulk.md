@@ -2,10 +2,11 @@
 endpoint: "POST /v3/license/directory_offerings/bulk"
 domain: platform_administration
 tags: [license, bulk]
-swagger: swagger/platform_administration/license.json
-status: skip
-savedAt: 2026-01-28T09:49:24.876Z
-verifiedAt: 2026-01-28T09:49:24.876Z
+swagger: "swagger/platform_administration/license.json"
+status: skipped
+savedAt: "2026-01-28T09:49:24.876Z"
+verifiedAt: "2026-01-28T09:49:24.876Z"
+timesReused: 0
 ---
 
 # Create Bulk

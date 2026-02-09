@@ -2,9 +2,10 @@
 endpoint: "POST /business/scheduling/v1/bookings/accept"
 domain: scheduling
 tags: [booking, accept, scheduling]
-swagger: swagger/scheduling/legacy/scheduling.json
+swagger: "swagger/scheduling/legacy/scheduling.json"
 status: pending
-savedAt: 2026-02-01T21:00:00.000Z
+savedAt: "2026-02-01T21:00:00.000Z"
+timesReused: 0
 ---
 
 # Accept Booking
@@ -45,7 +46,7 @@ steps:
     extract:
       service_id: "$.data.services[0].id"
     expect:
-      status: 200
+      status: [200]
     onFail: stop
 
   - id: get_staffs
@@ -56,7 +57,7 @@ steps:
     extract:
       staff_id: "$.data.staff[0].id"
     expect:
-      status: 200
+      status: [200]
     onFail: stop
 ```
 

@@ -2,10 +2,11 @@
 endpoint: "GET /v3/business_administration/staff_members/{uid}"
 domain: platform_administration
 tags: []
-swagger: swagger/platform_administration/staff_member.json
-status: success
-savedAt: 2026-01-28T11:39:26.180Z
-verifiedAt: 2026-01-28T11:39:26.180Z
+swagger: "swagger/platform_administration/staff_member.json"
+status: verified
+savedAt: "2026-01-28T11:39:26.180Z"
+verifiedAt: "2026-01-28T11:39:26.180Z"
+timesReused: 0
 ---
 
 # Get Staff members
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: get_staff_members
     method: GET
-    path: "/v3/business_administration/staff_members/{uid}"
+    path: "/v3/business_administration/staff_members/{{uid}}"
     expect:
       status: [200, 201]
 ```

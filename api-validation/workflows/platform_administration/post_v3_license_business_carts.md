@@ -2,10 +2,11 @@
 endpoint: "POST /v3/license/business_carts"
 domain: platform_administration
 tags: [license, business-cart]
-swagger: swagger/platform_administration/license.json
+swagger: "swagger/platform_administration/license.json"
 status: verified
-savedAt: 2026-01-29T12:00:00.000Z
-verifiedAt: 2026-01-29T12:00:00.000Z
+savedAt: "2026-01-29T12:00:00.000Z"
+verifiedAt: "2026-01-29T12:00:00.000Z"
+timesReused: 0
 ---
 
 # Create Business carts

@@ -2,10 +2,11 @@
 endpoint: "POST /v3/access_control/business_roles"
 domain: platform_administration
 tags: []
-swagger: swagger/platform_administration/access_control.json
-status: success
-savedAt: 2026-01-28T10:51:45.143Z
-verifiedAt: 2026-01-28T10:51:45.143Z
+swagger: "swagger/platform_administration/access_control.json"
+status: verified
+savedAt: "2026-01-28T10:51:45.143Z"
+verifiedAt: "2026-01-28T10:51:45.143Z"
+timesReused: 0
 ---
 
 # Create Business roles

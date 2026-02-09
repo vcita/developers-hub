@@ -34,7 +34,8 @@
                     },
                     "client_uid": {
                       "description": "Client UID",
-                      "type": "string"
+                      "type": "string",
+                      "x-reference-to": "clients.contact"
                     }
                   },
                   "required": [
@@ -337,7 +338,7 @@
                       "items": {
                         "properties": {
                           "amount": {
-                            "description": "Amount of the item. For free items, the amount should be 0",
+                            "description": "Price amount of the item in the specified currency. Required for catalog types (Service, Product, Package, Custom). For activity types, defaults to the activity's price if not provided. For free items, the amount should be 0.",
                             "type": "number"
                           },
                           "description": {
@@ -359,7 +360,7 @@
                             "type": "object"
                           },
                           "entity_name": {
-                            "description": "Name of the entity (will be used in the reports)",
+                            "description": "Name of the item as it will appear in reports and invoices. Required for catalog types (Service, Product, Package, Custom). For activity types (Meeting, EventAttendance, ProductOrder, ClientBookingPackage), the name is automatically derived from the linked activity.",
                             "type": "string"
                           },
                           "entity_type": {
@@ -368,7 +369,8 @@
                           },
                           "entity_uid": {
                             "description": "The UID of the entity. Must be a valid UID of an existing entity matching entity_type. For entity_type=Custom, entity_uid can be empty.",
-                            "type": "string"
+                            "type": "string",
+                            "x-reference-to": "generic.entity"
                           },
                           "taxes": {
                             "items": {
@@ -389,7 +391,9 @@
                         },
                         "required": [
                           "entity_uid",
-                          "entity_type"
+                          "entity_type",
+                          "entity_name",
+                          "amount"
                         ],
                         "type": "object"
                       },
@@ -397,7 +401,8 @@
                     },
                     "matter_uid": {
                       "description": "Matter UID",
-                      "type": "string"
+                      "type": "string",
+                      "x-reference-to": "clients.matter"
                     }
                   },
                   "required": [
@@ -1231,33 +1236,30 @@
                   "properties": {
                     "amount": {
                       "description": "Deposit's amount",
-                      "items": {
-                        "properties": {
-                          "is_rounded": {
-                            "description": "indicatation whether amount is rounded to the closest dollar",
-                            "type": "boolean"
-                          },
-                          "total": {
-                            "description": "amount total (fixed - after precentage calculation)",
-                            "type": "number"
-                          },
-                          "type": {
-                            "description": "amount type (fixed/precentage)",
-                            "type": "string"
-                          },
-                          "value": {
-                            "description": "amount value",
-                            "type": "number"
-                          }
+                      "type": "object",
+                      "properties": {
+                        "is_rounded": {
+                          "description": "Indication whether amount is rounded to the closest dollar.",
+                          "type": "boolean"
                         },
-                        "required": [
-                          "type",
-                          "value",
-                          "total"
-                        ],
-                        "type": "object"
+                        "total": {
+                          "description": "Amount total (fixed - after percentage calculation).",
+                          "type": "number"
+                        },
+                        "type": {
+                          "description": "Amount type (e.g., \"fixed\" or \"percentage\").",
+                          "type": "string"
+                        },
+                        "value": {
+                          "description": "Amount value.",
+                          "type": "number"
+                        }
                       },
-                      "type": "object"
+                      "required": [
+                        "type",
+                        "value",
+                        "total"
+                      ]
                     },
                     "can_client_pay": {
                       "description": "Indicates whether the payment will be made in Client Portal. Default is true",
@@ -1268,20 +1270,27 @@
                       "type": "string"
                     },
                     "entity_type": {
-                      "description": "Related entity_type",
-                      "type": "string"
+                      "description": "The type of entity this deposit is associated with. Must be one of: `Invoice` or `Estimate` (case-sensitive).",
+                      "type": "string",
+                      "enum": [
+                        "Invoice",
+                        "Estimate"
+                      ]
                     },
                     "entity_uid": {
                       "description": "Related entity_uid",
-                      "type": "string"
+                      "type": "string",
+                      "x-reference-to": "generic.entity"
                     },
                     "matter_uid": {
                       "description": "Matter UID",
-                      "type": "string"
+                      "type": "string",
+                      "x-reference-to": "clients.matter"
                     },
                     "payment_uid": {
                       "description": "Related payment_uid",
-                      "type": "string"
+                      "type": "string",
+                      "x-reference-to": "sales.payment"
                     }
                   },
                   "required": [
@@ -1560,28 +1569,25 @@
                   "properties": {
                     "amount": {
                       "description": "Deposit's amount",
-                      "items": {
-                        "properties": {
-                          "is_rounded": {
-                            "description": "indicatation whether amount is rounded to the closest dollar",
-                            "type": "boolean"
-                          },
-                          "total": {
-                            "description": "amount total (fixed - after precentage calculation)",
-                            "type": "number"
-                          },
-                          "type": {
-                            "description": "amount type (fixed/precentage)",
-                            "type": "string"
-                          },
-                          "value": {
-                            "description": "amount value",
-                            "type": "number"
-                          }
+                      "type": "object",
+                      "properties": {
+                        "is_rounded": {
+                          "description": "Indication whether amount is rounded to the closest dollar.",
+                          "type": "boolean"
                         },
-                        "type": "object"
-                      },
-                      "type": "object"
+                        "total": {
+                          "description": "Amount total (fixed - after percentage calculation).",
+                          "type": "number"
+                        },
+                        "type": {
+                          "description": "Amount type (e.g., \"fixed\" or \"percentage\").",
+                          "type": "string"
+                        },
+                        "value": {
+                          "description": "Amount value.",
+                          "type": "number"
+                        }
+                      }
                     },
                     "can_client_pay": {
                       "description": "Indicates whether the payment will be made in Client Portal. Default is true",
@@ -1592,12 +1598,17 @@
                       "type": "string"
                     },
                     "entity_type": {
-                      "description": "Related entity_type",
-                      "type": "string"
+                      "description": "The type of entity this deposit is associated with. Must be one of: `Invoice` or `Estimate` (case-sensitive).",
+                      "type": "string",
+                      "enum": [
+                        "Invoice",
+                        "Estimate"
+                      ]
                     },
                     "entity_uid": {
                       "description": "Related entity_uid",
-                      "type": "string"
+                      "type": "string",
+                      "x-reference-to": "generic.entity"
                     }
                   },
                   "type": "object"
@@ -1769,7 +1780,8 @@
                           },
                           "entity_uid": {
                             "description": "The UID of the entity. Must be a valid UID of an existing entity matching entity_type. For entity_type=Custom, entity_uid can be empty.",
-                            "type": "string"
+                            "type": "string",
+                            "x-reference-to": "generic.entity"
                           },
                           "item_index": {
                             "description": "the order of the item in the section / estimate (if not inside a section)",
@@ -1806,7 +1818,8 @@
                     },
                     "matter_uid": {
                       "description": "Matter UID",
-                      "type": "string"
+                      "type": "string",
+                      "x-reference-to": "clients.matter"
                     },
                     "note": {
                       "description": "A note for the invoice recipient",
@@ -1852,7 +1865,8 @@
                                 },
                                 "entity_uid": {
                                   "description": "The UID of the entity",
-                                  "type": "string"
+                                  "type": "string",
+                                  "x-reference-to": "generic.entity"
                                 },
                                 "item_index": {
                                   "description": "the order of the item in the section / estimate (if not inside a section)",
@@ -2303,7 +2317,8 @@
                           },
                           "entity_uid": {
                             "description": "The UID of the entity. Must be a valid UID of an existing entity matching entity_type. For entity_type=Custom, entity_uid can be empty.",
-                            "type": "string"
+                            "type": "string",
+                            "x-reference-to": "generic.entity"
                           },
                           "item_index": {
                             "description": "the order of the item in the section / estimate (if not inside a section)",
@@ -2382,7 +2397,8 @@
                                 },
                                 "entity_uid": {
                                   "description": "The UID of the entity",
-                                  "type": "string"
+                                  "type": "string",
+                                  "x-reference-to": "generic.entity"
                                 },
                                 "item_index": {
                                   "description": "the order of the item in the section / estimate (if not inside a section)",
@@ -2662,7 +2678,8 @@
                           },
                           "entity_uid": {
                             "description": "The UID of the entity. Must be a valid UID of an existing entity matching entity_type. For entity_type=Custom, entity_uid can be empty.",
-                            "type": "string"
+                            "type": "string",
+                            "x-reference-to": "generic.entity"
                           },
                           "item_index": {
                             "description": "the order of the item in the section / invoice (if not inside a section)",
@@ -2699,7 +2716,8 @@
                     },
                     "matter_uid": {
                       "description": "Matter UID",
-                      "type": "string"
+                      "type": "string",
+                      "x-reference-to": "clients.matter"
                     },
                     "note": {
                       "description": "A note for the invoice recipient",
@@ -2745,7 +2763,8 @@
                                 },
                                 "entity_uid": {
                                   "description": "The UID of the entity",
-                                  "type": "string"
+                                  "type": "string",
+                                  "x-reference-to": "generic.entity"
                                 },
                                 "item_index": {
                                   "description": "the order of the item in the section / invoice (if not inside a section)",
@@ -3226,7 +3245,8 @@
                           },
                           "entity_uid": {
                             "description": "The UID of the entity. Must be a valid UID of an existing entity matching entity_type. For entity_type=Custom, entity_uid can be empty.",
-                            "type": "string"
+                            "type": "string",
+                            "x-reference-to": "generic.entity"
                           },
                           "item_index": {
                             "description": "The order of the item in the invoice. Required for all items when updating an invoice.",
@@ -3310,7 +3330,8 @@
                                 },
                                 "entity_uid": {
                                   "description": "The UID of the entity",
-                                  "type": "string"
+                                  "type": "string",
+                                  "x-reference-to": "generic.entity"
                                 },
                                 "item_index": {
                                   "description": "the order of the item in the section / invoice (if not inside a section)",
@@ -3864,7 +3885,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nSend payment request link Available for **Staff, App, and Directory tokens**.",
+        "description": "## Overview\nSend payment request link Available for **Staff tokens**.",
         "parameters": [
           {
             "description": "Payment Request UID",
@@ -3879,8 +3900,20 @@
             "schema": {
               "properties": {
                 "channel": {
-                  "description": "Email or sms.",
+                  "description": "Delivery channel. Use `email` or `sms`.",
                   "type": "string"
+                },
+                "channel_value": {
+                  "description": "Email address or phone number to send the link to (e.g., \"test@example.com\" or \"+12125551234\").",
+                  "type": "string"
+                },
+                "alpha2": {
+                  "description": "ISO 3166-1 alpha-2 country code for SMS delivery (e.g., \"US\").",
+                  "type": "string"
+                },
+                "amount": {
+                  "description": "Optional partial amount to request (e.g., 25.5).",
+                  "type": "number"
                 }
               },
               "required": [
@@ -4579,7 +4612,8 @@
                     },
                     "provider_payout_id": {
                       "description": "Provider Payout ID. Must be unique per business.",
-                      "type": "string"
+                      "type": "string",
+                      "x-reference-to": "sales.payout"
                     },
                     "provider_updated_time": {
                       "description": "Provider Update Time in ISO 8601 format (e.g., \"2023-12-01T11:00:00Z\")",
@@ -4931,11 +4965,13 @@
                   "properties": {
                     "client_id": {
                       "description": "Client UID",
-                      "type": "string"
+                      "type": "string",
+                      "x-reference-to": "clients.contact"
                     },
                     "matter_uid": {
                       "description": "Matter UID",
-                      "type": "string"
+                      "type": "string",
+                      "x-reference-to": "clients.matter"
                     },
                     "price": {
                       "description": "Price. Default: product price.",
@@ -4943,7 +4979,8 @@
                     },
                     "product_id": {
                       "description": "Product UID",
-                      "type": "string"
+                      "type": "string",
+                      "x-reference-to": "sales.product"
                     },
                     "tax_ids": {
                       "description": "Tax UIDs. Default: product taxes. [] will remove the product's taxes. Up to 3 taxes per product are allowed.",
@@ -5851,15 +5888,18 @@
                     },
                     "payment_uid": {
                       "description": "The UID of the payment to refund. Either payment_uid or provider_transaction_id is required.",
-                      "type": "string"
+                      "type": "string",
+                      "x-reference-to": "sales.payment"
                     },
                     "provider_refund_id": {
                       "description": "Provider refund ID. Can be provided when record_refund is set to true.",
-                      "type": "string"
+                      "type": "string",
+                      "x-reference-to": "sales.refund"
                     },
                     "provider_transaction_id": {
                       "description": "The provider transaction ID of the payment to refund. Either payment_uid or provider_transaction_id is required.",
-                      "type": "string"
+                      "type": "string",
+                      "x-reference-to": "sales.transaction"
                     },
                     "record_refund": {
                       "description": "Record refund. Set to true to record a previously processed refund. Default value: false",
@@ -5870,10 +5910,6 @@
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "payment_uid",
-                    "provider_transaction_id"
-                  ],
                   "type": "object"
                 }
               },
@@ -6088,17 +6124,19 @@
                       "type": "string"
                     },
                     "frequency_type": {
-                      "description": "Scheduled Payment Rule frequency type",
+                      "description": "Scheduled Payment Rule frequency type. Determines how often the scheduled payment recurs. Use \"one_time\" for a single payment, or \"weekly\", \"bi_weekly\", \"monthly\" for recurring payments.",
                       "type": "string",
                       "enum": [
-                        "OneTime",
-                        "Weekly",
-                        "Monthly"
+                        "one_time",
+                        "weekly",
+                        "bi_weekly",
+                        "monthly"
                       ]
                     },
                     "matter_uid": {
                       "description": "Related Matter UID",
-                      "type": "string"
+                      "type": "string",
+                      "x-reference-to": "clients.matter"
                     },
                     "name": {
                       "description": "Scheduled Payment Rule name",
@@ -7459,7 +7497,8 @@
                     },
                     "provider_transaction_id": {
                       "description": "Provider Transaction ID",
-                      "type": "string"
+                      "type": "string",
+                      "x-reference-to": "sales.transaction"
                     },
                     "related_provider_payout_id": {
                       "description": "The id of the provider payout that the transaction is a part of",
@@ -7858,6 +7897,62 @@
           "uri": "https:///business/payments/v1/transactions/{provider_transaction_id}"
         },
         "x-auth-type": "Application & Application User"
+      }
+    },
+    "/platform/v1/payment/client_packages": {
+      "post": {
+        "parameters": [
+          {
+            "description": "Business UID for on-behalf-of access",
+            "in": "header",
+            "name": "X-On-Behalf-Of",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "in": "body",
+            "name": "body",
+            "schema": {
+              "properties": {
+                "client_package": {
+                  "properties": {
+                    "client_id": {
+                      "description": "Client UID",
+                      "type": "string",
+                      "x-reference-to": "clients.contact"
+                    },
+                    "package_id": {
+                      "description": "Package UID",
+                      "type": "string",
+                      "x-reference-to": "sales.package"
+                    },
+                    "valid_from": {
+                      "description": "Valid from date (YYYY-MM-DD)",
+                      "type": "string",
+                      "format": "date"
+                    },
+                    "valid_until": {
+                      "description": "Valid until date (YYYY-MM-DD)",
+                      "type": "string",
+                      "format": "date"
+                    }
+                  },
+                  "required": [
+                    "client_id",
+                    "package_id",
+                    "valid_from",
+                    "valid_until"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "client_package"
+              ],
+              "type": "object"
+            }
+          }
+        ]
       }
     }
   },

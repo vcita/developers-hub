@@ -2,10 +2,11 @@
 endpoint: "POST /platform/v1/businesses/{business_uid}"
 domain: platform_administration
 tags: []
-swagger: swagger/platform_administration/legacy/legacy_v1_platform.json
-status: success
-savedAt: 2026-01-29T08:54:45.682Z
-verifiedAt: 2026-01-29T08:54:45.682Z
+swagger: "swagger/platform_administration/legacy/legacy_v1_platform.json"
+status: verified
+savedAt: "2026-01-29T08:54:45.682Z"
+verifiedAt: "2026-01-29T08:54:45.682Z"
+timesReused: 0
 ---
 
 # Create Businesses
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: post_businesses
     method: POST
-    path: "/platform/v1/businesses/{business_uid}"
+    path: "/platform/v1/businesses/{{business_uid}}"
     body:
       business:
         business:

@@ -2,26 +2,36 @@
 endpoint: "POST /client/payments/v1/cards"
 domain: clients
 tags: [cards]
-swagger: swagger/clients/legacy/clients_payments.json
 status: skip
-savedAt: 2026-01-25T22:22:38.333Z
-verifiedAt: 2026-01-25T22:22:38.333Z
+savedAt: 2026-02-04T08:30:32.383Z
+verifiedAt: 2026-02-04T08:30:32.383Z
+timesReused: 0
+skipReason: "Requires external prerequisite: connect a credit card processor / enable vaulting for the business (business.vaulting_enabled? must be true). Not possible to satisfy via API-only test in this environment."
 ---
-
 # Create Cards
 
 ## Summary
-User-approved skip: This endpoint requires a payment processor to be connected to the business account before cards can be stored. This involves external integrations (Stripe, vcitaPayments, etc.) that cannot be set up through the API alone. The business needs proper payment gateway credentials and configuration.
+
+User-approved skip: Requires external prerequisite: connect a credit card processor / enable vaulting for the business (business.vaulting_enabled? must be true). Not possible to satisfy via API-only test in this environment.
+
+## Skip Reason
+
+**This endpoint should be SKIPPED in automated testing.**
+
+Requires external prerequisite: connect a credit card processor / enable vaulting for the business (business.vaulting_enabled? must be true). Not possible to satisfy via API-only test in this environment.
+
+This is typically due to a business constraint where the endpoint works correctly but cannot be tested repeatedly (e.g., one-time operations, unique constraints).
 
 ## Prerequisites
 
-No prerequisites required for this endpoint.
+None required for this endpoint.
 
 ## Test Request
 
 ```yaml
 steps:
-  - id: post_cards
+  - id: main_request
+    description: "Create cards"
     method: POST
     path: "/client/payments/v1/cards"
     expect:

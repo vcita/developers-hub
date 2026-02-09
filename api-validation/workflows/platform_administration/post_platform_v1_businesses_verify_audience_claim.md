@@ -2,10 +2,11 @@
 endpoint: "POST /platform/v1/businesses/verify_audience_claim"
 domain: platform_administration
 tags: [businesses]
-swagger: swagger/platform_administration/legacy/legacy_v1_platform.json
-status: skip
-savedAt: 2026-01-29T08:16:57.062Z
-verifiedAt: 2026-01-29T08:16:57.062Z
+swagger: "swagger/platform_administration/legacy/legacy_v1_platform.json"
+status: skipped
+savedAt: "2026-01-29T08:16:57.062Z"
+verifiedAt: "2026-01-29T08:16:57.062Z"
+timesReused: 0
 ---
 
 # Create Businesses

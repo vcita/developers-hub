@@ -2,10 +2,11 @@
 endpoint: "GET /v3/license/bundled_offerings"
 domain: platform_administration
 tags: []
-swagger: swagger/platform_administration/license.json
-status: success
-savedAt: 2026-01-28T07:29:39.800Z
-verifiedAt: 2026-01-28T07:29:39.800Z
+swagger: "swagger/platform_administration/license.json"
+status: verified
+savedAt: "2026-01-28T07:29:39.800Z"
+verifiedAt: "2026-01-28T07:29:39.800Z"
+timesReused: 0
 ---
 
 # Get Bundled offerings

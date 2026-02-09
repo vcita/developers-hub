@@ -2,10 +2,11 @@
 endpoint: "POST /v3/business_administration/online_profiles"
 domain: platform_administration
 tags: []
-swagger: swagger/platform_administration/online_profiles.json
-status: success
-savedAt: 2026-01-29T08:50:12.951Z
-verifiedAt: 2026-01-29T08:50:12.951Z
+swagger: "swagger/platform_administration/online_profiles.json"
+status: verified
+savedAt: "2026-01-29T08:50:12.951Z"
+verifiedAt: "2026-01-29T08:50:12.951Z"
+timesReused: 0
 ---
 
 # Create Online profiles
