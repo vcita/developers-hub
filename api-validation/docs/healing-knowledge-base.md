@@ -197,3 +197,23 @@ When a resolution is confirmed, abstract it here so future healing can reuse it.
 - Common path patterns:
   - /v2/coupons/{id}
 - Resolution: No fix needed - the workflow was already verified and working correctly. The endpoint successfully returns 200 when retrieving a coupon by UID using a staff token with proper prerequisites.
+
+
+## Entry - 0 MISSING_PARAMS_NEED_HEALING on /v3/communication/notification_templates/{id} (fixed)
+- Symptoms: 0 MISSING_PARAMS_NEED_HEALING on /v3/communication/notification_templates/{id} (2 endpoints)
+- Sample endpoints:
+  - GET /v3/communication/notification_templates/{uid}
+  - PUT /v3/communication/notification_templates/{uid}
+- Common path patterns:
+  - /v3/communication/notification_templates/{id}
+- Resolution: Fixed missing UID parameter by adding prerequisite step to fetch notification template UID from the list endpoint. Updated token type to directory with proper X-On-Behalf-Of header.
+
+
+## Entry - 0 MISSING_PARAMS_NEED_HEALING on /v3/communication/voice_calls/{id} (created)
+- Symptoms: 0 MISSING_PARAMS_NEED_HEALING on /v3/communication/voice_calls/{id} (2 endpoints)
+- Sample endpoints:
+  - GET /v3/communication/voice_calls/{uid}
+  - PUT /v3/communication/voice_calls/{uid}
+- Common path patterns:
+  - /v3/communication/voice_calls/{id}
+- Resolution: Created workflow with prerequisite to fetch voice call UID from list endpoint, then retrieve specific voice call. Uses staff token and returns 200.

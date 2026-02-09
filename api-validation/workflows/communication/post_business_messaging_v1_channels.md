@@ -1,14 +1,14 @@
 ---
-endpoint: "POST /platform/v1/numbers/twilio"
+endpoint: "POST /business/messaging/v1/channels"
 domain: communication
-tags: [numbers]
+tags: [channels]
 status: skip
-savedAt: 2026-02-09T06:50:26.235Z
-verifiedAt: 2026-02-09T06:50:26.235Z
+savedAt: 2026-02-09T07:48:35.733Z
+verifiedAt: 2026-02-09T07:48:35.733Z
 timesReused: 0
 skipReason: "Manual skip - endpoint not ready for testing"
 ---
-# Create Twilio
+# Create Channels
 
 ## Summary
 
@@ -31,9 +31,9 @@ None required for this endpoint.
 ```yaml
 steps:
   - id: main_request
-    description: "Create twilio"
+    description: "Create channels"
     method: POST
-    path: "/platform/v1/numbers/twilio"
+    path: "/business/messaging/v1/channels"
     expect:
       status: [200, 201]
 ```

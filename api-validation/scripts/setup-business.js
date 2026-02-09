@@ -151,8 +151,8 @@ async function createBusiness(directoryToken, businessName, adminEmail) {
     },
     business: {
       address: '123 Test Street',
-      business_category: 'other',
-      business_maturity_in_years: '0',
+      business_category: 'consulting',
+      business_maturity_in_years: '3',
       country_name: 'United States',
       hide_address: false,
       name: businessName,

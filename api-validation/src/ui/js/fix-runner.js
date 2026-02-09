@@ -105,25 +105,32 @@ const FixRunner = {
       const data = JSON.parse(e.data);
       const epKey = data.endpoint;
 
-      // Collapse previous endpoint panel
-      if (this.currentEndpoint) {
+      // Collapse previous endpoint panel (only if it's a different endpoint)
+      if (this.currentEndpoint && this.currentEndpoint !== epKey) {
         this.collapseEndpointPanel(this.currentEndpoint);
       }
 
       this.currentEndpoint = epKey;
-      this.endpointLogs[epKey] = {
-        events: [],
-        status: 'running',
-        result: null,
-        groupId: data.groupId,
-        isTemplate: data.isTemplate,
-        insightAvailable: data.insightAvailable || 0,
-        thinkingBuffer: ''
-      };
-      this.endpointOrder.push(epKey);
 
-      this.setEndpointStatus(epKey, 'running', data.groupId);
-      this.createEndpointPanel(epKey, data);
+      if (data.isRetry) {
+        // Inline retry: reopen the existing panel instead of creating a new one
+        this.reopenEndpointForRetry(epKey, data);
+      } else {
+        // Normal first-run flow
+        this.endpointLogs[epKey] = {
+          events: [],
+          status: 'running',
+          result: null,
+          groupId: data.groupId,
+          isTemplate: data.isTemplate,
+          insightAvailable: data.insightAvailable || 0,
+          thinkingBuffer: ''
+        };
+        this.endpointOrder.push(epKey);
+
+        this.setEndpointStatus(epKey, 'running', data.groupId);
+        this.createEndpointPanel(epKey, data);
+      }
     });
 
     this.eventSource.addEventListener('endpoint_complete', (e) => {
@@ -178,6 +185,21 @@ const FixRunner = {
       this.addEndpointEvent('insight', data);
     });
 
+    // User guidance (from inline retry)
+    this.eventSource.addEventListener('user_guidance', (e) => {
+      const data = JSON.parse(e.data);
+      const epKey = data.endpoint;
+      const id = this.sanitizeId(epKey);
+      const body = document.getElementById(`ep-log-body-${id}`);
+      if (body) {
+        const el = document.createElement('div');
+        el.className = 'ep-log-entry ep-log-guidance';
+        el.innerHTML = `<span class="guidance-icon">💬</span> <strong>User guidance:</strong> ${this.escapeHtml(data.text)}`;
+        body.appendChild(el);
+        body.scrollTop = body.scrollHeight;
+      }
+    });
+
     // Knowledge base updated
     this.eventSource.addEventListener('knowledge_base_updated', (e) => {
       const data = JSON.parse(e.data);
@@ -199,8 +221,15 @@ const FixRunner = {
       const data = JSON.parse(e.data);
       this.renderSummary(data.summary);
       this.setStatus('completed', 'Session complete');
-      this.eventSource.close();
-      this.eventSource = null;
+      // DO NOT close the SSE — keep it alive so inline retries can push events
+      // through the same connection without creating a new session.
+    });
+
+    // Updated summary after an inline retry completes (stats only, no auto-expand/scroll)
+    this.eventSource.addEventListener('session_summary_updated', (e) => {
+      const data = JSON.parse(e.data);
+      this.renderSummary(data.summary, { autoExpandFailed: false });
+      this.setStatus('completed', 'Session complete');
     });
 
     this.eventSource.addEventListener('session_error', (e) => {
@@ -302,6 +331,72 @@ const FixRunner = {
     panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
   },
 
+  /**
+   * Reopen an existing endpoint panel for an inline retry.
+   * Resets the status indicators, adds a retry separator to the log body,
+   * and expands the panel so new events append continuously.
+   */
+  reopenEndpointForRetry(epKey, startData) {
+    const id = this.sanitizeId(epKey);
+    const panel = document.getElementById(`ep-log-${id}`);
+
+    if (!panel) {
+      // Fallback: create a new panel if the old one is missing
+      this.endpointLogs[epKey] = {
+        events: [], status: 'running', result: null,
+        groupId: startData.groupId, thinkingBuffer: ''
+      };
+      this.endpointOrder.push(epKey);
+      this.createEndpointPanel(epKey, startData);
+      return;
+    }
+
+    // Reset the endpoint log for the new attempt (DOM history is preserved)
+    this.endpointLogs[epKey] = {
+      events: [],
+      status: 'running',
+      result: null,
+      groupId: startData.groupId || this.endpointLogs[epKey]?.groupId,
+      isTemplate: false,
+      insightAvailable: 0,
+      thinkingBuffer: ''
+    };
+
+    // Update panel styling back to "running"
+    panel.className = 'ep-log-panel ep-log-running';
+
+    const icon = document.getElementById(`ep-icon-${id}`);
+    if (icon) icon.textContent = '🔄';
+
+    const summary = document.getElementById(`ep-summary-${id}`);
+    if (summary) {
+      summary.textContent = 'Retrying...';
+      summary.className = 'ep-log-summary';
+    }
+
+    // Hide the failure card (will be re-rendered on endpoint_complete if it fails again)
+    const failureCard = document.getElementById(`ep-failure-${id}`);
+    if (failureCard) {
+      failureCard.classList.add('hidden');
+      failureCard.style.display = 'none';
+    }
+
+    // Expand the log body and add a retry separator
+    const body = document.getElementById(`ep-log-body-${id}`);
+    const toggle = document.getElementById(`ep-toggle-${id}`);
+    if (body) {
+      body.classList.remove('collapsed');
+      const separator = document.createElement('div');
+      separator.className = 'ep-log-entry ep-log-retry-separator';
+      separator.innerHTML = '<hr><strong>🔄 Retrying with guidance...</strong>';
+      body.appendChild(separator);
+    }
+    if (toggle) toggle.textContent = '▼';
+
+    this.setEndpointStatus(epKey, 'running', startData.groupId);
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  },
+
   finalizeEndpointPanel(epKey, resultData) {
     const id = this.sanitizeId(epKey);
     const panel = document.getElementById(`ep-log-${id}`);
@@ -347,8 +442,14 @@ const FixRunner = {
     const header = panel.querySelector('.ep-log-header');
     if (header) header.insertBefore(iterBadge, header.querySelector('.ep-log-toggle'));
 
-    // Auto-collapse the log body once finalized to avoid empty space
-    this.collapseEndpointPanel(epKey);
+    // Auto-collapse the log body once finalized — UNLESS this is a failed retry,
+    // in which case keep the panel expanded so the user can immediately provide
+    // new guidance and see what happened.
+    if (resultData.isRetry && !resultData.success) {
+      // Keep expanded — failure card is visible with retry input
+    } else {
+      this.collapseEndpointPanel(epKey);
+    }
   },
 
   renderFailureCard(epKey, resultData) {
@@ -407,10 +508,14 @@ const FixRunner = {
       html += `</div></div>`;
     }
 
-    // Copy full log button
-    html += `<div class="failure-actions-bar">
-      <button class="btn btn-sm btn-secondary" onclick="FixRunner.copyEndpointLog('${epKey}')">📋 Copy Full Log</button>
-      <button class="btn btn-sm btn-secondary" onclick="FixRunner.expandEndpointPanel('${id}')">📖 View Full Log</button>
+    // Retry with guidance
+    html += `<div class="failure-retry-section" id="ep-retry-${id}">
+      <textarea class="failure-retry-input" id="ep-retry-input-${id}" rows="2" placeholder="Additional guidance for retrying this endpoint..."></textarea>
+      <div class="failure-actions-bar">
+        <button class="btn btn-sm btn-primary" onclick="FixRunner.retryEndpoint('${this.escapeHtml(epKey)}')">🔄 Retry with Guidance</button>
+        <button class="btn btn-sm btn-secondary" onclick="FixRunner.copyEndpointLog('${epKey}')">📋 Copy Full Log</button>
+        <button class="btn btn-sm btn-secondary" onclick="FixRunner.expandEndpointPanel('${id}')">📖 View Full Log</button>
+      </div>
     </div>`;
 
     html += `</div>`;
@@ -725,17 +830,15 @@ const FixRunner = {
 
   // ─── Summary ─────────────────────────────────────────────────────────────
 
-  renderSummary(summary) {
+  renderSummary(summary, { autoExpandFailed = true } = {}) {
     // Store last summary for continue feature
     this.lastSummary = summary;
 
-    const hasFailed = summary.failed > 0;
-    const failedResults = (summary.results || []).filter(r => !r.success);
-
-    // ── Render the summary stats into the top prompt section ──
-    // This replaces the generic "User Guidance" area so it's immediately visible
+    // Render summary stats into the top prompt section (replacing the generic input)
     const promptSection = document.getElementById('fix-user-prompt-section');
     if (!promptSection) return;
+
+    const hasFailed = summary.failed > 0;
 
     let html = `
       <div class="fix-summary-stats">
@@ -748,40 +851,30 @@ const FixRunner = {
       </div>`;
 
     if (hasFailed) {
-      html += `
-      <div class="fix-continue-section">
-        <h4>Continue with failed endpoints</h4>
-        <p class="fix-continue-hint">Provide guidance per endpoint for the AI agent to retry. Leave blank to use default behavior.</p>
-        <div class="fix-ep-prompts-list">`;
-
-      for (const r of failedResults) {
-        const epId = this.sanitizeId(r.endpoint);
-        html += `
-          <div class="fix-ep-prompt-item">
-            <div class="fix-ep-prompt-header">
-              <span class="fix-ep-prompt-icon">❌</span>
-              <span class="fix-ep-prompt-endpoint" title="${this.escapeHtml(r.endpoint)}">${this.escapeHtml(r.endpoint)}</span>
-            </div>
-            <div class="fix-ep-prompt-reason">${this.escapeHtml(r.fixSummary || 'Agent could not resolve')}</div>
-            <textarea class="fix-ep-prompt-input" data-endpoint="${this.escapeHtml(r.endpoint)}" id="fix-ep-prompt-${epId}" rows="1" placeholder="Guidance for this endpoint..."></textarea>
-          </div>`;
-      }
-
-      html += `
-        </div>
-        <div class="fix-continue-general">
-          <label class="fix-continue-general-label">General guidance <span class="fix-prompt-optional">(applies to endpoints without specific guidance)</span></label>
-          <textarea id="fix-continue-prompt" class="fix-continue-prompt" rows="2" placeholder="e.g., Try using admin token instead of staff..."></textarea>
-        </div>
-        <div class="fix-continue-actions">
-          <button class="btn btn-sm btn-primary" onclick="FixRunner.continueSession()">🔄 Continue with Failed (${summary.failed})</button>
-          <button class="btn btn-sm btn-secondary" onclick="FixRunner.continueSession(true)">🔄 Continue without prompt</button>
-        </div>
-      </div>`;
+      html += `<p class="fix-continue-hint" style="margin-top:8px;">Expand any failed endpoint below to provide guidance and retry it individually.</p>`;
     }
 
     promptSection.innerHTML = html;
-    promptSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    // Auto-expand failed endpoint panels (only on initial session complete, not after retries)
+    if (hasFailed && autoExpandFailed) {
+      const failedResults = (summary.results || []).filter(r => !r.success);
+      for (const r of failedResults) {
+        const id = this.sanitizeId(r.endpoint);
+        this.expandEndpointPanel(id);
+        // Also make the failure card visible
+        const failureCard = document.getElementById(`ep-failure-${id}`);
+        if (failureCard) {
+          failureCard.style.display = '';
+        }
+      }
+      // Scroll to the first failed endpoint
+      if (failedResults.length > 0) {
+        const firstId = this.sanitizeId(failedResults[0].endpoint);
+        const firstPanel = document.getElementById(`ep-log-${firstId}`);
+        if (firstPanel) firstPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
   },
 
   // ─── Continue Session ───────────────────────────────────────────────────
@@ -871,6 +964,62 @@ const FixRunner = {
       alert(`Network error: ${error.message}`);
       if (continueSection) {
         continueSection.querySelectorAll('button').forEach(btn => btn.disabled = false);
+      }
+    }
+  },
+
+  // ─── Retry Single Endpoint (Inline) ─────────────────────────────────────
+  //
+  // Sends the retry request to the SAME session. The server re-runs the DocFixer
+  // and broadcasts events through the existing SSE connection. The endpoint's
+  // panel is reopened and events append continuously — no new session or
+  // separate SSE connection is created.
+
+  async retryEndpoint(epKey) {
+    if (!this.sessionId) {
+      alert('No session to retry from.');
+      return;
+    }
+
+    // If the SSE connection dropped, reconnect to the same session
+    if (!this.eventSource || this.eventSource.readyState === EventSource.CLOSED) {
+      this.connectSSE(this.sessionId);
+    }
+
+    const id = this.sanitizeId(epKey);
+    const inputEl = document.getElementById(`ep-retry-input-${id}`);
+    const userPrompt = inputEl?.value?.trim() || '';
+
+    // Disable the retry button while starting
+    const retrySection = document.getElementById(`ep-retry-${id}`);
+    if (retrySection) {
+      retrySection.querySelectorAll('button').forEach(btn => btn.disabled = true);
+    }
+
+    try {
+      const response = await fetch(`/api/fix-report/retry/${this.sessionId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint: epKey, userPrompt })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        alert(`Failed to retry: ${data.error}`);
+        if (retrySection) {
+          retrySection.querySelectorAll('button').forEach(btn => btn.disabled = false);
+        }
+        return;
+      }
+
+      // The server will broadcast events through the existing SSE connection.
+      // endpoint_start (with isRetry:true) will reopen the panel automatically.
+      this.setStatus('running', `Retrying: ${epKey}`);
+
+    } catch (error) {
+      alert(`Network error: ${error.message}`);
+      if (retrySection) {
+        retrySection.querySelectorAll('button').forEach(btn => btn.disabled = false);
       }
     }
   },

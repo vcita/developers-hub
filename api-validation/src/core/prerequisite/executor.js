@@ -144,7 +144,7 @@ function getDynamicDateVariables() {
  */
 async function executeStep(step, context, config, makeRequest, options = {}) {
   const { workflowRepo, depth = 0 } = options;
-  const { id, method, path, params, body, extract: extractConfig, expect, onFail, token, content_type, form_fields, file_fields, x_on_behalf_of } = step;
+  const { id, method, path, params, body, extract: extractConfig, expect, onFail, token, content_type, form_fields, file_fields, x_on_behalf_of, sleep } = step;
   
   // Resolve variables in path, params, and body
   const resolvedPath = resolve(path, context);
@@ -390,6 +390,12 @@ async function executeStep(step, context, config, makeRequest, options = {}) {
           console.log(`    [DEBUG] Response data: ${JSON.stringify(response.data).substring(0, 300)}`);
         }
       }
+    }
+    
+    // Sleep after successful step if configured
+    if (sleep && sleep > 0) {
+      console.log(`    ⏳ Sleeping ${sleep}ms...`);
+      await new Promise(resolve => setTimeout(resolve, sleep));
     }
     
     return {
@@ -723,6 +729,9 @@ function parseYamlSteps(yamlContent) {
       inSection = null;
     } else if (trimmed.startsWith('content_type:')) {
       currentStep.content_type = trimmed.split(':')[1].trim();
+      inSection = null;
+    } else if (trimmed.startsWith('sleep:')) {
+      currentStep.sleep = parseInt(trimmed.split(':')[1].trim(), 10);
       inSection = null;
     } else if (trimmed === 'form_fields:') {
       currentStep.form_fields = {};

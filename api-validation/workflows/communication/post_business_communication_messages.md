@@ -1,19 +1,20 @@
 ---
-endpoint: "POST /business/messaging/v1/channels/typing"
+endpoint: "POST /business/communication/messages"
 domain: communication
 tags: [Communication Messages (SMS)]
-swagger: /Users/ram.almog/Documents/GitHub/developers-hub/mcp_swagger/communication.json
+swagger: swagger/communication/legacy/communication.json
 status: skip
 skipReason: "Nexmo communication-gw endpoint. Requires webhook listener for async channel/session activation -- cannot be tested in validation environment."
-savedAt: 2026-02-08T21:30:00.000Z
+savedAt: 2026-02-09T10:00:00.000Z
 timesReused: 0
-useFallbackApi: true
+tokens: [staff]
 ---
 
-# Update Typing Status
+# Create Communication Message
 
 ## Summary
-Update typing indicator status for a communication session. **Token Type**: Requires a **staff token**.
+
+Send a message through the communication gateway. **Token Type**: Requires a **staff token**.
 
 > **Skipped -- Nexmo Communication Gateway (SMS)**
 > This endpoint is part of the Nexmo-based communication-gw integration (SMS/messaging channels).
@@ -21,14 +22,25 @@ Update typing indicator status for a communication session. **Token Type**: Requ
 > communication-gw. Channels start as "pending" and are activated asynchronously via webhooks,
 > which cannot be simulated in the API validation environment.
 
-> ⚠️ Fallback API Required
-
 ## Prerequisites
-
 ```yaml
 steps:
+  - id: create_channel
+    description: "Create a communication channel"
+    method: POST
+    path: "/business/communication/channels"
+    body:
+      business_uid: "{{business_id}}"
+      type: "transactional"
+    extract:
+      channel_uid: "$.data.channel.uid"
+    expect:
+      status: [200, 201]
+    onFail: abort
+    sleep: 5000
+
   - id: get_client
-    description: "Fetch a client to get contact UID"
+    description: "Get a client for contact_uid"
     method: GET
     path: "/platform/v1/clients"
     params:
@@ -42,19 +54,17 @@ steps:
 ```
 
 ## Test Request
-
 ```yaml
 steps:
-  - id: update_typing_status
+  - id: main_request
     method: POST
-    path: "/business/messaging/v1/channels/typing"
+    path: "/business/communication/messages"
     body:
-      contact:
-        uid: "{{contact_uid}}"
-        channel_uid: "test_channel_uid"
-        external_uid: "external_test123"
-        typing: true
-        source: "business"
+      channel_uid: "{{channel_uid}}"
+      external_uid: "test-external-{{now_timestamp}}"
+      contact_uid: "{{contact_uid}}"
+      message: "Test message from API validation {{now_timestamp}}"
+      message_uid: "test-msg-{{now_timestamp}}"
     expect:
       status: [200, 201]
 ```

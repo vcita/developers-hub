@@ -78,8 +78,8 @@ router.post('/', async (req, res) => {
     const sessionId = `fix-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const session = createSession(sessionId, failedResults, config);
 
-    // Start processing in background
-    processFixSession(session, userPrompt, endpointPrompts).catch(err => {
+    // Start processing in background (store promise so continue/retry can await it)
+    session.processingPromise = processFixSession(session, userPrompt, endpointPrompts).catch(err => {
       console.error(`[FixReport] Session ${sessionId} error:`, err);
       broadcastEvent(session, 'session_error', { error: err.message });
       session.status = 'completed';
@@ -176,21 +176,37 @@ router.post('/stop/:sessionId', (req, res) => {
 router.post('/continue/:sessionId', async (req, res) => {
   try {
     const { sessionId } = req.params;
-    const { userPrompt, endpointPrompts } = req.body;
+    const { userPrompt, endpointPrompts, endpointFilter } = req.body;
     const oldSession = activeSessions.get(sessionId);
 
     if (!oldSession) {
       return res.status(404).json({ error: 'Session not found (may have expired)' });
     }
 
-    if (oldSession.status !== 'completed') {
-      return res.status(400).json({ error: 'Session is still running. Stop it first.' });
+    // Allow retrying specific endpoints while session is still running,
+    // but block full-session retries until the session finishes
+    const isSpecificRetry = Array.isArray(endpointFilter) && endpointFilter.length > 0;
+    if (oldSession.status !== 'completed' && oldSession.status !== 'stopping' && !isSpecificRetry) {
+      return res.status(400).json({ error: 'Session is still running. Stop it first, or retry specific endpoints.' });
+    }
+
+    // If session is stopping, wait for the in-flight endpoint to finish
+    if (oldSession.status === 'stopping' && oldSession.processingPromise) {
+      await oldSession.processingPromise;
     }
 
     // Extract only the failed endpoints from the completed session
-    const failedEndpointKeys = new Set(
+    let failedEndpointKeys = new Set(
       oldSession.results.filter(r => !r.success).map(r => r.endpoint)
     );
+
+    // If endpointFilter is provided, narrow down to only those specific endpoints
+    if (Array.isArray(endpointFilter) && endpointFilter.length > 0) {
+      const filterSet = new Set(endpointFilter);
+      failedEndpointKeys = new Set(
+        [...failedEndpointKeys].filter(key => filterSet.has(key))
+      );
+    }
 
     if (failedEndpointKeys.size === 0) {
       return res.status(400).json({ error: 'No failed endpoints to continue with' });
@@ -218,7 +234,7 @@ router.post('/continue/:sessionId', async (req, res) => {
     const newSession = createSession(newSessionId, failedResults, config);
 
     // Start processing with user prompt and per-endpoint prompts
-    processFixSession(newSession, userPrompt, endpointPrompts).catch(err => {
+    newSession.processingPromise = processFixSession(newSession, userPrompt, endpointPrompts).catch(err => {
       console.error(`[FixReport] Continue session ${newSessionId} error:`, err);
       broadcastEvent(newSession, 'session_error', { error: err.message });
       newSession.status = 'completed';
@@ -237,6 +253,148 @@ router.post('/continue/:sessionId', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// ─── POST /api/fix-report/retry/:sessionId ────────────────────────────────────
+//
+// Inline retry: re-run the DocFixer for a single endpoint within the SAME session.
+// Events flow through the existing SSE connection so the UI stays continuous.
+
+router.post('/retry/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const { endpoint: epKey, userPrompt } = req.body;
+    const session = activeSessions.get(sessionId);
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found (may have expired)' });
+    }
+
+    if (!epKey) {
+      return res.status(400).json({ error: 'Endpoint key is required' });
+    }
+
+    // Find the endpoint data from the session
+    const allEndpoints = [
+      ...session.groups.flatMap(g => g.endpoints),
+      ...session.ungrouped
+    ];
+    const ep = allEndpoints.find(e => (e.endpointKey || `${e.method} ${e.path}`) === epKey);
+
+    if (!ep) {
+      return res.status(404).json({ error: 'Endpoint not found in session data' });
+    }
+
+    // Respond immediately — processing happens in background via SSE
+    res.json({ success: true, endpoint: epKey });
+
+    // Run the retry in the background, broadcasting through the existing session's SSE
+    runInlineRetry(session, ep, epKey, userPrompt).catch(err => {
+      console.error(`[FixReport] Inline retry error for ${epKey}:`, err);
+      broadcastEvent(session, 'session_error', { error: err.message });
+      session.status = 'completed';
+    });
+  } catch (error) {
+    console.error('[FixReport] Retry route error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Run an inline retry for a single endpoint within the existing session.
+ * Broadcasts all events (endpoint_start, thinking, tool_call, endpoint_complete, etc.)
+ * through the session's existing SSE listeners.
+ */
+async function runInlineRetry(session, ep, epKey, userPrompt) {
+  session.status = 'running';
+
+  // Broadcast the guidance text so it appears in the endpoint's log panel
+  if (userPrompt) {
+    broadcastEvent(session, 'user_guidance', { endpoint: epKey, text: userPrompt });
+  }
+
+  // Find the group this endpoint belongs to (for directive / context)
+  const group = session.groups.find(g =>
+    g.endpoints.some(e => (e.endpointKey || `${e.method} ${e.path}`) === epKey)
+  );
+
+  broadcastEvent(session, 'endpoint_start', {
+    endpoint: epKey,
+    groupId: group?.id || null,
+    isTemplate: false,
+    isRetry: true,
+    insightAvailable: 0
+  });
+
+  const result = await runDocFixer({
+    endpoint: ep,
+    failureData: {
+      reason: ep.reason,
+      httpStatus: ep.httpStatus,
+      errors: ep.details?.errors || [],
+      friendlyMessage: ep.details?.friendlyMessage,
+      suggestion: ep.details?.suggestion,
+      docFixSuggestions: ep.healingInfo?.docFixSuggestions || ep.details?.docFixSuggestions || [],
+      agentSummary: ep.healingInfo?.summary
+    },
+    healerAnalysis: ep.healingInfo?.analysisForFixer || null,
+    config: session.config,
+    directive: group?.directive || null,
+    accumulatedInsight: [],
+    referenceWorkflow: group?.referenceWorkflow || null,
+    userPrompt: userPrompt || null,
+    maxIterations: session.config?.ai?.docFixerMaxIterations || 20,
+    onProgress: (event) => {
+      if (event.type === 'file_changed' && event.file?.startsWith('swagger/') && event.domain) {
+        session.swaggerDomainsModified.add(event.domain);
+      }
+      broadcastEvent(session, event.type, { ...event, groupId: group?.id || null });
+    }
+  });
+
+  // Update session results in-place (replace the old result for this endpoint)
+  const idx = session.results.findIndex(r => r.endpoint === result.endpoint);
+  if (idx !== -1) {
+    session.results[idx] = {
+      ...result,
+      groupId: session.results[idx].groupId,
+      isTemplate: session.results[idx].isTemplate,
+      reason: ep.reason,
+      httpStatus: ep.httpStatus,
+      pathPattern: session.results[idx].pathPattern
+    };
+  } else {
+    session.results.push({ ...result, groupId: group?.id || null, isTemplate: false });
+  }
+
+  broadcastEvent(session, 'endpoint_complete', {
+    endpoint: result.endpoint,
+    success: result.success,
+    fixSummary: result.fixSummary,
+    groupId: group?.id || null,
+    isTemplate: false,
+    iterations: result.iterations,
+    isRetry: true
+  });
+
+  // Run unifier if swagger files were modified
+  if (session.swaggerDomainsModified.size > 0) {
+    try {
+      await runUnifier();
+      const domains = [...session.swaggerDomainsModified];
+      broadcastEvent(session, 'unification_complete', {
+        domains,
+        message: `Unified swagger updated for: ${domains.join(', ')}`
+      });
+    } catch (err) {
+      console.error(`[FixReport] Unifier failed after retry:`, err.message);
+    }
+  }
+
+  // Mark session as completed again and broadcast updated summary
+  session.status = 'completed';
+  const summary = buildSessionSummary(session);
+  broadcastEvent(session, 'session_summary_updated', { summary });
+}
 
 // ─── Core Processing Loop ────────────────────────────────────────────────────
 
@@ -333,6 +491,7 @@ async function processFixSession(session, userPrompt, endpointPrompts) {
         accumulatedInsight: groupInsight.fixRecipes,
         referenceWorkflow: groupInsight.referenceWorkflow,
         userPrompt: resolvePromptForEndpoint(ep),
+        maxIterations: session.config?.ai?.docFixerMaxIterations || 20,
         onProgress: (event) => {
           // Track swagger domain modifications for the unifier
           if (event.type === 'file_changed' && event.file?.startsWith('swagger/') && event.domain) {
@@ -417,6 +576,7 @@ async function processFixSession(session, userPrompt, endpointPrompts) {
         accumulatedInsight: [],
         referenceWorkflow: null,
         userPrompt: resolvePromptForEndpoint(ep),
+        maxIterations: session.config?.ai?.docFixerMaxIterations || 20,
         onProgress: (event) => {
           if (event.type === 'file_changed' && event.file?.startsWith('swagger/') && event.domain) {
             session.swaggerDomainsModified.add(event.domain);

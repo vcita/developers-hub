@@ -2758,7 +2758,7 @@ ${result.swaggerFile || result.domain || 'Unknown'}`;
 
   /**
    * Auto-fix all failed endpoints using the AI doc fixer agent.
-   * Collects FAIL/ERROR results from TestRunner and sends them to the fix-report orchestrator.
+   * Collects FAIL/ERROR/WARN results from TestRunner and sends them to the fix-report orchestrator.
    */
   autoFixAllFailed() {
     // Results are stored on TestRunner, not ResultsViewer
@@ -2769,9 +2769,9 @@ ${result.swaggerFile || result.domain || 'Unknown'}`;
       return;
     }
 
-    // Collect failed and errored results
+    // Collect failed, errored, and warned results
     const failedResults = allResults.filter(r => 
-      r.status === 'FAIL' || r.status === 'ERROR'
+      r.status === 'FAIL' || r.status === 'ERROR' || r.status === 'WARN'
     ).map(r => ({
       endpoint: r.endpoint,
       method: r.method || (r.endpoint ? r.endpoint.split(' ')[0] : 'GET'),
@@ -2787,7 +2787,7 @@ ${result.swaggerFile || result.domain || 'Unknown'}`;
     }));
 
     if (failedResults.length === 0) {
-      alert('No failed endpoints to fix. All tests passed!');
+      alert('No failed or warned endpoints to fix. All tests passed!');
       return;
     }
 

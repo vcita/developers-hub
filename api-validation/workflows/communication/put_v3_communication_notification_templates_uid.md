@@ -7,107 +7,68 @@ status: verified
 savedAt: "2026-01-27T06:51:33.256Z"
 verifiedAt: "2026-01-27T06:51:33.256Z"
 timesReused: 0
+tokens: [directory]
 ---
 
-# Update Notification templates
+# Update Notification Template
 
 ## Summary
-Test passes after fixing deep_link validation format. The deep_link fields must start with '/' and follow specific validation rules.
+Updates a notification template by UID. **Token Type**: Requires a **directory token** with X-On-Behalf-Of header.
 
 ## Prerequisites
-
-No prerequisites required for this endpoint.
-
-## Test Request
-
 ```yaml
 steps:
-  - id: put_notification_templates
+  - id: get_notification_templates_list
+    description: "Fetch notification templates to get a valid UID"
+    method: GET
+    path: "/v3/communication/notification_templates"
+    token: directory
+    expect:
+      status: 200
+    extract:
+      uid: "$.data.notification_templates[0].uid"
+    onFail: abort
+```
+
+## Test Request
+```yaml
+steps:
+  - id: put_notification_template
     method: PUT
     path: "/v3/communication/notification_templates/{{uid}}"
+    token: directory
     body:
       title:
-        "0":
-          locale: en
-          value: test_string
+        - locale: en
+          value: "Updated Test Template {{now_timestamp}}"
       description:
-        "0":
-          locale: en
-          value: test_string
+        - locale: en
+          value: "Updated test notification template description"
       category: payments
       configurable_by_staff: true
       content:
         staff_portal:
           title:
-            "0":
-              locale: en
-              value: test_string
+            - locale: en
+              value: "Updated Notification"
           message_body:
-            "0":
-              locale: en
-              value: test_string
-          deep_link: /app/settings
+            - locale: en
+              value: "This is an updated test notification"
+          deep_link: "/notifications"
         email:
           subject:
-            "0":
-              locale: en
-              value: test_string
-          top_image:
-            url: test_string
-            width: 1
-            alt:
-              "0":
-                locale: en
-                value: test_string
+            - locale: en
+              value: "Updated Test Subject"
           main_title:
-            "0":
-              locale: en
-              value: test_string
+            - locale: en
+              value: "Updated Main Title"
           main_text:
-            "0":
-              locale: en
-              value: test_string
-          middle_image:
-            url: test_string
-            width: 1
-            alt:
-              "0":
-                locale: en
-                value: test_string
-          middle_text:
-            "0":
-              locale: en
-              value: test_string
-          footer_text:
-            "0":
-              locale: en
-              value: test_string
-          primary_cta_button:
-            text:
-              "0":
-                locale: en
-                value: test_string
-            url: test_string
-            alt:
-              "0":
-                locale: en
-                value: test_string
-          secondary_cta_button:
-            text:
-              "0":
-                locale: en
-                value: test_string
-            url: test_string
-            alt:
-              "0":
-                locale: en
-                value: test_string
+            - locale: en
+              value: "Updated main message content"
         sms:
           message_body:
-            "0":
-              locale: en
-              value: test_string
-          deep_link: /app/clients/${client_uid}
+            - locale: en
+              value: "Updated SMS message"
     expect:
       status: [200, 201]
 ```

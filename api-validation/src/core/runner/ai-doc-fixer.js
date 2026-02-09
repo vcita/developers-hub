@@ -64,15 +64,16 @@ A non-2xx response (422, 401, 500, etc.) is NEVER a successful fix, even if the 
 - Before accepting non-2xx, ask yourself: "Can I add a prerequisite step that creates the data this endpoint needs?" If yes, do it.
 - If you truly cannot get 2xx after exhausting all options, report success=false and explain what prerequisite data is missing.
 
-## RULE #4: BE EFFICIENT (max ~20 tool calls)
-Do NOT dive deep into source code. Your steps should be:
+## RULE #4: BE THOROUGH BUT STRUCTURED
+You have a generous tool-call budget — use it wisely. Do NOT dive deep into source code. Your steps should be:
 1. Read existing workflow (if any)
 2. Check similar verified workflows via list_similar_workflows
 3. Explore with execute_api to find correct token/params/body
-4. Write the workflow and run test_workflow to verify the full chain
-5. Fix and re-test if test_workflow fails
-6. Call report_fix_result
-If stuck after 3-4 attempts, call report_fix_result with success=false immediately.
+4. **If the main gateway fails with 422 "Unauthorized" / "Bad Gateway" / 502:** immediately retry with use_fallback=true. If fallback succeeds, write a minimal workflow with \`useFallbackApi: true\` right away (RULE #8).
+5. Write the workflow and run test_workflow to verify the full chain
+6. Fix and re-test if test_workflow fails — try different tokens, params, paths, fallback API
+7. Call report_fix_result when done
+If you are going in circles repeating the same approach, call report_fix_result with success=false and explain what you tried.
 
 ## RULE #5: NO SOURCE CODE RABBIT HOLES
 Do NOT search for authorize_params, base controllers, authentication modules, etc.
@@ -85,8 +86,8 @@ Do NOT trace authorization chains or study internal Ruby code.
 | Path Pattern | Token | Notes |
 |---|---|---|
 | /platform/v1/clients/{id}/* | directory | Requires X-On-Behalf-Of: {{business_id}} |
-| /platform/v1/* | staff | Use fallback API if 422 "Unauthorized" |
-| /business/payments/v1/* | staff | May need fallback API |
+| /platform/v1/* | staff | Use fallback API if 422 "Unauthorized" (RULE #8) |
+| /business/payments/v1/* | staff | May need fallback API (RULE #8) |
 | /business/clients/v1/* | staff | Staff token with business context |
 | /client/* | client | Client JWT token |
 | /v3/apps/* | app | OAuth app token |
@@ -113,16 +114,26 @@ steps:
 
 If a directory-token call returns 403/401 on an app assignment or similar cross-directory operation, **switch to admin token immediately** — do not waste iterations trying other tokens.
 
+## RULE #8: EARLY FALLBACK API DETECTION — SAVE IMMEDIATELY
+When you get a gateway error (422 "Unauthorized", "Bad Gateway", 502, or the main API returns a routing error), **immediately** try the same request with use_fallback=true.
+If the fallback succeeds (2xx) where the main gateway failed:
+1. **Immediately write the workflow** with \`useFallbackApi: true\` in the frontmatter — even if the rest of the fix is incomplete. This ensures that even if the overall fix fails, the next run will not waste time rediscovering the fallback issue.
+2. Then continue fixing the rest of the workflow (prerequisites, body fields, etc.).
+3. When you later write the final workflow, keep \`useFallbackApi: true\` in the frontmatter.
+
+This is a **save-early** pattern: persist known-good information to disk as soon as you discover it, don't wait until the end.
+
 ## Common Error → Fix Map (apply directly)
 | Error | Fix |
 |---|---|
 | 500 on POST/PUT with empty body | Create workflow with required body fields |
-| 422 "Unauthorized" | Wrong token type. Try staff with fallback API |
+| 422 "Unauthorized" | Wrong token type. Try staff with fallback API — see RULE #8 |
 | 401 Unauthorized | Token type mismatch. Check similar verified workflows |
 | 422 "param required" | Add missing query/body params to workflow |
 | 422 "Not Found" on a UID | UID doesn't exist. Add prerequisite to fetch real UID |
 | 404 | Resource doesn't exist. Add prerequisite to create it |
 | 403/401 on app assignment/cross-dir op | Use admin token instead of directory token |
+| 502 / Bad Gateway | Main gateway routing issue. Try fallback API — see RULE #8 |
 
 ## Reading Swagger Files
 The tool searches both root and legacy/ subdirectories automatically.
@@ -203,20 +214,43 @@ After writing/updating a workflow, you MUST call test_workflow to verify the FUL
 - If test_workflow fails on a prerequisite step, the error tells you exactly which step and why — fix that step.
 - Common prerequisite failures: wrong extract JSONPath, missing token type on step, unresolved {{variables}}, wrong API path.
 
+## RULE #9: NEVER SUBSTITUTE ENDPOINT PATHS
+You are fixing the EXACT endpoint path given to you. NEVER decide that the endpoint is "actually" a different one.
+- If the endpoint is POST /business/communication/channels, you MUST test POST /business/communication/channels.
+- NEVER change the endpoint path to a different endpoint (e.g., /business/messaging/v1/channels).
+- Two different paths are two different endpoints, even if they seem related.
+- If the given endpoint returns 404 from both primary AND fallback APIs, it means the endpoint is NOT IMPLEMENTED.
+  In that case: report_fix_result with success=false and include "ENDPOINT_NOT_IMPLEMENTED" in fix_summary.
+  Do NOT go searching for "the real endpoint" — that is endpoint substitution and is strictly forbidden.
+- The workflow file's endpoint field MUST match the exact endpoint you were given to fix.
+
+## RULE #10: ENDPOINT NOT IMPLEMENTED — RECOMMEND SWAGGER REMOVAL
+If you confirm an endpoint returns 404 on both primary and fallback APIs (not a UID-related 404, but a route-level 404):
+1. Report success=false with fix_summary starting with "ENDPOINT_NOT_IMPLEMENTED:"
+2. Include a recommendation to remove the endpoint from swagger documentation
+3. Do NOT create a workflow file for a non-existent endpoint
+4. Do NOT search for alternative endpoints — that violates RULE #9
+
 ## What NOT to do
 - Do NOT read TEMPLATE.md (you already have the format above)
 - Do NOT search for "authorize_params", "def authorize", "base_controller", "Api::Authentication"
 - Do NOT invent UIDs or use test/dummy/fake/placeholder values
-- Do NOT try more than 3-4 different token combinations before reporting failure
-- Do NOT explore more than 2 backend source files
+- Do NOT endlessly cycle through the same token combinations — if 3-4 different tokens all fail, move on to other approaches
+- Do NOT go deep into backend source files — 2-3 files max, and only as a last resort
 - Do NOT report success based only on execute_api — you MUST verify with test_workflow
+- Do NOT substitute one endpoint for another — see RULE #9
 `;
 
 /**
  * Build the full system prompt with directive, accumulated insight, and KB injected.
  */
-function buildSystemPrompt(directive, accumulatedInsight, referenceWorkflow, knowledgeBaseContent) {
+function buildSystemPrompt(directive, accumulatedInsight, referenceWorkflow, knowledgeBaseContent, maxIterations) {
   let prompt = BASE_SYSTEM_PROMPT;
+
+  // Tell the agent its actual iteration budget
+  if (maxIterations) {
+    prompt += `\n\n## Iteration Budget\nYou have up to **${maxIterations} iterations** available. Use them wisely — don't rush to report failure if you still have approaches to try. Only report failure when you've genuinely exhausted your options.`;
+  }
 
   // Inject the full healing knowledge base so the agent can match patterns
   if (knowledgeBaseContent) {
@@ -419,6 +453,22 @@ async function executeDocFixerTool(toolName, toolInput, context) {
 
     case 'write_workflow': {
       const { workflow_path, content } = toolInput;
+
+      // RULE #9 GUARD: Prevent endpoint substitution
+      // Extract the endpoint from the workflow content's frontmatter
+      const workflowEndpointMatch = content.match(/^endpoint:\s*["']?(.+?)["']?\s*$/m);
+      if (workflowEndpointMatch && context.targetEndpoint) {
+        const workflowEndpoint = workflowEndpointMatch[1].trim();
+        const targetNormalized = context.targetEndpoint.trim();
+        if (workflowEndpoint !== targetNormalized) {
+          console.warn(`[DocFixer] BLOCKED write_workflow: endpoint substitution detected. Workflow has "${workflowEndpoint}" but target is "${targetNormalized}".`);
+          return {
+            error: `ENDPOINT_SUBSTITUTION_BLOCKED: The workflow endpoint "${workflowEndpoint}" does not match the target endpoint "${targetNormalized}". You MUST NOT substitute one endpoint for another (RULE #9). Fix the EXACT endpoint you were given, or report failure if it cannot be fixed.`,
+            blocked: true
+          };
+        }
+      }
+
       const fullPath = path.join(WORKFLOWS_DIR, workflow_path);
       const dir = path.dirname(fullPath);
       if (!fs.existsSync(dir)) {
@@ -677,6 +727,13 @@ async function executeDocFixerTool(toolName, toolInput, context) {
     case 'report_fix_result': {
       // Store the result in context for the orchestrator to capture
       context.fixResult = toolInput;
+
+      // Flag endpoint-not-implemented for downstream swagger removal recommendations
+      if (toolInput.fix_summary && toolInput.fix_summary.includes('ENDPOINT_NOT_IMPLEMENTED')) {
+        context.fixResult.endpointNotImplemented = true;
+        context.fixResult.swaggerRemovalRecommended = true;
+      }
+
       return { acknowledged: true, message: 'Fix result recorded.' };
     }
 
@@ -777,7 +834,8 @@ async function runDocFixer(options) {
   const knowledgeBaseContent = loadKnowledgeBase();
 
   // Build system prompt with directive, accumulated insight, and KB
-  const systemPrompt = buildSystemPrompt(directive, accumulatedInsight, referenceWorkflow, knowledgeBaseContent);
+  console.log(`[DocFixer] maxIterations=${maxIterations}`);
+  const systemPrompt = buildSystemPrompt(directive, accumulatedInsight, referenceWorkflow, knowledgeBaseContent, maxIterations);
 
   // Build the initial user message with failure context + healer analysis
   const userMessage = buildUserMessage(endpoint, failureData, healerAnalysis, userPrompt);
@@ -786,7 +844,9 @@ async function runDocFixer(options) {
   const context = {
     config,
     onProgress,
-    fixResult: null
+    fixResult: null,
+    // The exact endpoint being fixed — used by write_workflow guard (RULE #9)
+    targetEndpoint: endpointLabel
   };
 
   // Agent conversation loop
@@ -924,6 +984,8 @@ async function runDocFixer(options) {
     tokenUsed: fixResult.token_used,
     sourceReference: fixResult.source_reference,
     apiResponseStatus: fixResult.api_response_status,
+    endpointNotImplemented: fixResult.endpointNotImplemented || false,
+    swaggerRemovalRecommended: fixResult.swaggerRemovalRecommended || false,
     iterations
   };
 }
@@ -1063,6 +1125,7 @@ function buildUserMessage(endpoint, failureData, healerAnalysis, userPrompt) {
   msg += `- Do NOT use fake UIDs like "test123", "test-uid", or "dummy_uid" — always resolve via prerequisite API calls\n`;
   msg += `- Do NOT search more than 2 backend source files — focus on workflow fixes, not code investigation\n`;
   msg += `- Do NOT try more than 3 different token types — use the pattern from similar verified workflows\n`;
+  msg += `- Do NOT substitute the endpoint path for a different one — if the endpoint 404s, report ENDPOINT_NOT_IMPLEMENTED, do NOT look for "the real endpoint"\n`;
 
   return msg;
 }

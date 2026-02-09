@@ -1,14 +1,14 @@
 ---
-endpoint: "POST /platform/v1/numbers/twilio"
+endpoint: "GET /v3/communication/available_phone_numbers"
 domain: communication
-tags: [numbers]
+tags: [communication]
 status: skip
-savedAt: 2026-02-09T06:50:26.235Z
-verifiedAt: 2026-02-09T06:50:26.235Z
+savedAt: 2026-02-08T21:59:12.133Z
+verifiedAt: 2026-02-08T21:59:12.133Z
 timesReused: 0
 skipReason: "Manual skip - endpoint not ready for testing"
 ---
-# Create Twilio
+# Get Available phone numbers
 
 ## Summary
 
@@ -31,9 +31,9 @@ None required for this endpoint.
 ```yaml
 steps:
   - id: main_request
-    description: "Create twilio"
-    method: POST
-    path: "/platform/v1/numbers/twilio"
+    description: "Get available_phone_numbers"
+    method: GET
+    path: "/v3/communication/available_phone_numbers"
     expect:
       status: [200, 201]
 ```

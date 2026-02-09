@@ -580,6 +580,23 @@ async function executeTool(toolName, toolInput, context) {
       const { method, path: apiPath, params, body, token_type = 'staff', on_behalf_of, purpose, use_fallback = false, content_type = 'json', form_fields, file_fields } = toolInput;
       
       const isRetry = purpose === 'retry_original';
+      
+      // GUARD: Prevent endpoint substitution on retry_original
+      if (isRetry && endpoint) {
+        const targetPath = endpoint.path;
+        // Normalize paths for comparison (remove trailing slashes, query strings)
+        const normalizedApiPath = apiPath.split('?')[0].replace(/\/+$/, '');
+        const normalizedTargetPath = targetPath.split('?')[0].replace(/\/+$/, '');
+        if (normalizedApiPath !== normalizedTargetPath) {
+          console.warn(`[AI Healer] BLOCKED retry_original: path "${apiPath}" does not match target "${targetPath}". Endpoint substitution is forbidden.`);
+          return {
+            success: false,
+            error: `ENDPOINT_SUBSTITUTION_BLOCKED: You tried to retry with path "${apiPath}" but the target endpoint is "${targetPath}". You MUST retry the EXACT endpoint path. Do NOT substitute one endpoint for another.`,
+            blocked: true
+          };
+        }
+      }
+      
       if (isRetry) {
         context.retryCount = (context.retryCount || 0) + 1;
       }
@@ -1030,6 +1047,12 @@ ${Object.entries(config.tokens || {}).map(([type, token]) => {
 ${JSON.stringify(resolvedParams, null, 2)}
 \`\`\`
 ${workflowContext}
+## CRITICAL: NEVER SUBSTITUTE ENDPOINT PATHS
+You MUST only retry the EXACT endpoint path given to you (${endpoint.method} ${endpoint.path}).
+- NEVER change the endpoint path to a different one, even if they seem related.
+- If the endpoint returns 404 on both primary and fallback, report FAIL — do NOT search for a "real" endpoint.
+- Two different paths = two different endpoints. Period.
+
 ## Strategy
 
 1. Call extract_required_uids to see what UIDs are needed
@@ -1284,7 +1307,7 @@ Get this endpoint to return a 2xx. If you can't, report fail with a detailed ana
 
   const messages = [{ role: "user", content: userMessage }];
   let iterations = 0;
-  const maxIterations = config?.ai?.maxIterations || 10;
+  const maxIterations = config?.ai?.healerMaxIterations || 10;
   
   onProgress?.({ type: 'agent_start', endpoint: `${endpoint.method} ${endpoint.path}`, maxRetries });
   
