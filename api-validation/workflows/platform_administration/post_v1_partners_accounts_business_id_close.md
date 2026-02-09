@@ -2,10 +2,11 @@
 endpoint: "POST /v1/partners/accounts/{business_uid}/close"
 domain: platform_administration
 tags: [partners, close]
-swagger: swagger/platform_administration/legacy/partners-api.json
-status: skip
-savedAt: 2026-01-28T15:36:02.150Z
-verifiedAt: 2026-01-28T15:36:02.150Z
+swagger: "swagger/platform_administration/legacy/partners-api.json"
+status: skipped
+savedAt: "2026-01-28T15:36:02.150Z"
+verifiedAt: "2026-01-28T15:36:02.150Z"
+timesReused: 0
 ---
 
 # Create Close
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: post_close
     method: POST
-    path: "/v1/partners/accounts/{business_uid}/close"
+    path: "/v1/partners/accounts/{{business_uid}}/close"
     expect:
       status: [200, 201]
 ```

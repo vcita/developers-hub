@@ -1,59 +1,53 @@
 ---
 endpoint: "POST /platform/v1/clients"
 domain: clients
-tags: []
-swagger: swagger/clients/legacy/legacy_v1_clients.json
-status: success
-savedAt: 2026-01-26T05:16:50.249Z
-verifiedAt: 2026-01-26T05:16:50.249Z
+tags: [clients, platform]
+swagger: "swagger/clients/legacy/legacy_v1_clients.json"
+status: pending
+savedAt: "2026-02-06T07:54:47.523Z"
+verifiedAt: "2026-02-06T07:54:47.523Z"
+timesReused: 0
 ---
 
-# Create Clients
+# Create Client
 
 ## Summary
-Successfully created client after resolving staff_id validation and uniqueness constraint. Used staff_uid instead of staff_id and unique email address.
+
+Creates a new client for the business. The API requires `first_name` (presence validation); omitting it returns 422 "First name can't be blank".
+
+**Token Type**: This endpoint requires a **Staff or Directory token**.
+
+## Response Codes
+
+| Status | Meaning |
+|--------|---------|
+| 200 | Success - Client retrieved/updated |
+| 201 | Success - Client created |
+| 401 | Unauthorized - Invalid or missing token |
+| 422 | Unprocessable Entity - Validation failed (e.g. first_name blank) |
 
 ## Prerequisites
 
-```yaml
-steps:
-  - id: get_staffs
-    description: "Fetch available staff members"
-    method: GET
-    path: "/platform/v1/businesses/{{business_id}}/staffs"
-    params:
-      per_page: "1"
-    extract:
-      staff_id: "$.data.staffs[0].uid"
-    expect:
-      status: 200
-    onFail: abort
-```
+None required for this endpoint. Use `{{business_id}}` from config for context when needed.
 
 ## Test Request
 
 ```yaml
 steps:
-  - id: post_clients
+  - id: create_client
+    description: "Create a client with required first_name"
     method: POST
     path: "/platform/v1/clients"
     body:
-      address: 123 Test Street
-      custom_field1: test_value_1
-      custom_field2: test_value_2
-      custom_field3: test_value_3
-      email: test{{timestamp}}@example.com
-      first_name: John
-      last_name: Doe
-      opt_in_transactional_sms: true
-      phone: "+1234567890"
-      source_campaign: test_campaign
-      source_channel: test_channel
-      source_name: test_source
-      source_url: https://test.example.com
-      staff_id: "{{staff_id}}"
-      status: lead
-      tags: test_tag
+      first_name: "API"
+      last_name: "Test"
+      email: "{{random_email}}"
+      phone: "{{random_phone}}"
     expect:
       status: [200, 201]
 ```
+
+## Notes
+
+- `first_name` is required by the API; swagger should mark it in the request schema required array.
+- API also accepts optional `utm_params` and `opt_in` (or `opt_in_transactional_sms`); see swagger for full request shape.

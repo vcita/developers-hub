@@ -2,10 +2,11 @@
 endpoint: "PUT /v3/license/offerings/{uid}"
 domain: platform_administration
 tags: []
-swagger: swagger/platform_administration/license.json
-status: success
-savedAt: 2026-01-28T14:34:52.149Z
-verifiedAt: 2026-01-28T14:34:52.149Z
+swagger: "swagger/platform_administration/license.json"
+status: verified
+savedAt: "2026-01-28T14:34:52.149Z"
+verifiedAt: "2026-01-28T14:34:52.149Z"
+timesReused: 0
 ---
 
 # Update Offerings
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: put_offerings
     method: PUT
-    path: "/v3/license/offerings/{uid}"
+    path: "/v3/license/offerings/{{uid}}"
     body:
       display_name: Professional License Package
       prices:

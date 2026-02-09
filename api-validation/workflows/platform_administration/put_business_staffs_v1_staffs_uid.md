@@ -2,10 +2,11 @@
 endpoint: "PUT /business/staffs/v1/staffs/{uid}"
 domain: platform_administration
 tags: [directory-only]
-swagger: swagger/platform_administration/legacy/staff.json
-status: success
-savedAt: 2026-01-29T12:00:00.000Z
-verifiedAt: 2026-01-29T12:00:00.000Z
+swagger: "swagger/platform_administration/legacy/staff.json"
+status: verified
+savedAt: "2026-01-29T12:00:00.000Z"
+verifiedAt: "2026-01-29T12:00:00.000Z"
+timesReused: 0
 ---
 
 # Update Staffs
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: put_staffs
     method: PUT
-    path: "/business/staffs/v1/staffs/{uid}"
+    path: "/business/staffs/v1/staffs/{{uid}}"
     body:
       staff:
         display_name: Test Staff Updated

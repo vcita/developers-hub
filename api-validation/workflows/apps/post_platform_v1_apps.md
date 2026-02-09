@@ -2,10 +2,11 @@
 endpoint: "POST /platform/v1/apps"
 domain: apps
 tags: []
-swagger: swagger/apps/legacy/legacy_v1_apps.json
-status: success
-savedAt: 2026-01-24T22:42:07.630Z
-verifiedAt: 2026-01-24T22:42:07.630Z
+swagger: "swagger/apps/legacy/legacy_v1_apps.json"
+status: verified
+savedAt: "2026-01-24T22:42:07.630Z"
+verifiedAt: "2026-01-24T22:42:07.630Z"
+timesReused: 0
 ---
 
 # Create Apps

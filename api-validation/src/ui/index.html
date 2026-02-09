@@ -59,6 +59,40 @@
             <option value="app">App</option>
           </select>
         </div>
+        <div class="filter-group">
+          <label for="status-filter-toggle">Status:</label>
+          <div id="status-filter" class="multi-select" title="Select one or more workflow statuses">
+            <button type="button" id="status-filter-toggle" class="multi-select-toggle" aria-haspopup="listbox" aria-expanded="false">
+              All
+            </button>
+            <div id="status-filter-menu" class="multi-select-menu hidden" role="listbox" aria-multiselectable="true">
+              <label class="multi-select-option">
+                <input type="checkbox" value="verified">
+                Verified
+              </label>
+              <label class="multi-select-option">
+                <input type="checkbox" value="pending">
+                Pending
+              </label>
+              <label class="multi-select-option">
+                <input type="checkbox" value="failed">
+                Failed
+              </label>
+              <label class="multi-select-option">
+                <input type="checkbox" value="skipped">
+                Skipped
+              </label>
+              <label class="multi-select-option">
+                <input type="checkbox" value="deprecated">
+                Deprecated
+              </label>
+              <label class="multi-select-option">
+                <input type="checkbox" value="none">
+                No Workflow
+              </label>
+            </div>
+          </div>
+        </div>
         <div class="filter-group search-group">
           <label for="search-filter">Search:</label>
           <input type="text" id="search-filter" placeholder="Search endpoints...">
@@ -100,14 +134,22 @@
           <a href="#" id="paste-endpoints-link" class="paste-endpoints-link" onclick="App.openPasteModal(); return false;">📋 Paste List</a>
           <button id="select-all-btn" class="btn btn-secondary">Select All</button>
           <button id="deselect-all-btn" class="btn btn-secondary">Deselect All</button>
+          <button id="run-btn" class="btn btn-primary" disabled>Run Selected</button>
+          <button id="stop-btn" class="btn btn-danger hidden">⏹ Stop</button>
+        </div>
+        <div class="endpoints-options">
           <div class="checkbox-inline">
             <label title="Run setup to create fresh test business before running tests">
               <input type="checkbox" id="run-setup-before">
               Run Setup First
             </label>
           </div>
-          <button id="run-btn" class="btn btn-primary" disabled>Run Selected</button>
-          <button id="stop-btn" class="btn btn-danger hidden">⏹ Stop</button>
+          <div class="checkbox-inline">
+            <label title="AI healer will automatically update swagger/entity JSON files based on code analysis evidence">
+              <input type="checkbox" id="auto-fix-swagger">
+              Auto-fix Swagger Files
+            </label>
+          </div>
         </div>
       </div>
       <div id="endpoints-list" class="endpoints-list">
@@ -153,6 +195,7 @@
           <span class="badge badge-warn">⚠️ Warned: <span id="results-warned">0</span></span>
           <span class="badge badge-error">🔶 Errors: <span id="results-errored">0</span></span>
           <span class="badge badge-skip">⏭️ Skipped: <span id="results-skipped">0</span></span>
+          <span class="badge badge-swagger hidden" title="Swagger files auto-fixed by AI healer">📝 Swagger Fixed: <span id="results-swagger-changes">0</span></span>
         </div>
         <div class="results-actions">
           <button id="preview-report-btn" class="btn btn-secondary" onclick="ResultsViewer.previewReport()">
@@ -164,11 +207,55 @@
           <button id="save-full-report-btn" class="btn btn-primary" onclick="ResultsViewer.saveFullReport()">
             💾 Save Full Report
           </button>
+          <button id="auto-fix-btn" class="btn btn-accent" onclick="ResultsViewer.autoFixAllFailed()" title="Run AI agent to fix all failed endpoints one by one">
+            🤖 Auto-Fix All Failed
+          </button>
         </div>
       </div>
       <div id="results-list" class="results-list"></div>
     </section>
   </div>
+
+  <!-- Auto-Fix Panel -->
+  <section id="fix-panel" class="fix-panel hidden">
+    <div class="fix-panel-header">
+      <h2>🤖 Auto-Fix Agent</h2>
+      <div class="fix-panel-controls">
+        <span id="fix-status" class="fix-status">Ready</span>
+        <button id="fix-stop-btn" class="btn btn-sm btn-danger" onclick="FixRunner.stopSession()" disabled>⏹ Stop</button>
+        <button class="btn btn-sm btn-secondary" onclick="FixRunner.hidePanel()">✕ Close</button>
+      </div>
+    </div>
+    <div id="fix-user-prompt-section" class="fix-user-prompt-section">
+      <div class="fix-user-prompt-header">
+        <label for="fix-user-prompt-input">📝 User Guidance <span class="fix-prompt-optional">(optional)</span></label>
+        <button class="btn btn-xs btn-ghost" onclick="FixRunner.togglePromptSection()" id="fix-prompt-toggle" title="Collapse/expand prompt">▼</button>
+      </div>
+      <div id="fix-user-prompt-body" class="fix-user-prompt-body">
+        <textarea id="fix-user-prompt-input" class="fix-user-prompt-input" rows="2" placeholder="e.g., Use admin token for all endpoints, the business_uid is abc123, skip deprecated endpoints..."></textarea>
+        <p class="fix-user-prompt-hint">This guidance will be passed to the AI agent for every endpoint it fixes. Leave blank to use default behavior.</p>
+      </div>
+    </div>
+    <div class="fix-progress-container">
+      <div class="fix-progress-track">
+        <div id="fix-progress-bar" class="fix-progress-fill"></div>
+      </div>
+      <span id="fix-progress-text" class="fix-progress-text"></span>
+    </div>
+    <div class="fix-panel-body">
+      <div class="fix-queue-panel">
+        <h3>Fix Queue</h3>
+        <div id="fix-queue" class="fix-queue">
+          <div class="fix-queue-empty">Click "Auto-Fix All Failed" to start</div>
+        </div>
+      </div>
+      <div class="fix-thinking-panel">
+        <h3>Agent Thinking</h3>
+        <div id="fix-thinking-stream" class="fix-thinking-stream"></div>
+      </div>
+    </div>
+    <div id="fix-summary" class="fix-summary hidden"></div>
+  </section>
 
   <!-- Paste Endpoints Modal -->
   <div id="paste-endpoints-modal" class="modal hidden">
@@ -220,5 +307,6 @@
   <script src="js/endpoint-list.js"></script>
   <script src="js/test-runner.js"></script>
   <script src="js/results-viewer.js"></script>
+  <script src="js/fix-runner.js"></script>
 </body>
 </html>

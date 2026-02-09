@@ -2,10 +2,11 @@
 endpoint: "PUT /v3/apps/staff_widgets_boards/{uid}"
 domain: apps
 tags: []
-swagger: swagger/apps/widgets_and_boards.json
-status: success
-savedAt: 2026-01-25T05:34:59.650Z
-verifiedAt: 2026-01-25T05:34:59.650Z
+swagger: "swagger/apps/widgets_and_boards.json"
+status: verified
+savedAt: "2026-01-25T05:34:59.650Z"
+verifiedAt: "2026-01-25T05:34:59.650Z"
+timesReused: 0
 ---
 
 # Update Staff widgets boards
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: put_staff_widgets_boards
     method: PUT
-    path: "/v3/apps/staff_widgets_boards/{uid}"
+    path: "/v3/apps/staff_widgets_boards/{{uid}}"
     body:
       board_layout_code_name: "{{uid}}"
       type: home

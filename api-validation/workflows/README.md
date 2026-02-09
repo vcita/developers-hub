@@ -2,6 +2,11 @@
 
 A searchable, LLM-friendly repository of verified API workflows for the validation framework.
 
+## Quick Links
+
+- **[TEMPLATE.md](./TEMPLATE.md)** - Canonical format for all workflow files
+- **[CONSISTENCY_AUDIT.md](./CONSISTENCY_AUDIT.md)** - Audit of existing inconsistencies
+
 ## Purpose
 
 This repository stores successful API test workflows that can be:
@@ -13,52 +18,93 @@ This repository stores successful API test workflows that can be:
 
 ```
 workflows/
-├── index.json           # Quick lookup index (auto-generated)
-├── README.md            # This file
-├── sales/               # Domain-specific folders
-│   ├── payment_packages.md
-│   └── invoices.md
+├── index.json              # Quick lookup index (auto-generated)
+├── README.md               # This file
+├── TEMPLATE.md             # Canonical workflow format (NEW)
+├── CONSISTENCY_AUDIT.md    # Audit report (NEW)
+├── sales/                  # Domain-specific folders
+│   ├── post_platform_v1_payments.md
+│   └── get_business_payments_v1_invoices.md
 ├── clients/
-│   └── client_packages.md
-└── payments/
-    └── transactions.md
+│   └── get_platform_v1_clients.md
+├── scheduling/
+│   └── post_platform_v1_scheduling_bookings.md
+├── communication/
+│   └── post_platform_v1_messages.md
+├── platform_administration/
+│   └── post_platform_v1_businesses.md
+├── apps/
+│   └── post_platform_v1_apps.md
+└── reviews/
+    └── post_v3_reviews_business_reviews_settings.md
 ```
 
 ## Workflow File Format
+
+> **Important**: See [TEMPLATE.md](./TEMPLATE.md) for the complete canonical format.
 
 Each workflow is stored as a Markdown file with YAML frontmatter:
 
 ```markdown
 ---
-endpoint: POST /platform/v1/payment/packages
+endpoint: "POST /platform/v1/payments"
 domain: sales
-tags: [packages, payments, services]
+tags: [payments, cash, manual]
+swagger: swagger/sales/legacy/payments.json
 status: verified
-savedAt: 2026-01-22T10:30:00Z
-verifiedAt: 2026-01-22T10:30:00Z
+savedAt: 2026-01-26T21:58:21.948Z
+verifiedAt: 2026-01-26T21:58:21.948Z
 timesReused: 0
 ---
 
-# Create Payment Package
+# Create Payment
 
 ## Summary
 Brief description of what this endpoint does.
+**Token Type**: This endpoint requires a **Staff token**.
+
+## Response Codes
+Table of possible HTTP status codes.
 
 ## Prerequisites
-What you need before calling this endpoint.
+YAML steps to fetch required data, or "None required."
 
-## How to Resolve Parameters
-Step-by-step guide to get required parameters.
+## Test Request
+YAML steps defining the actual test.
+
+## Parameters Reference
+Table of path, query, and body parameters.
+
+## Expected Response
+JSON example of successful response.
+
+## Error Responses
+Common error scenarios with examples.
 
 ## Critical Learnings
 Important gotchas discovered during testing.
-
-## Verified Successful Request
-The exact request that worked.
-
-## Documentation Fix Suggestions
-Issues found in the API documentation.
 ```
+
+### Status Values
+
+| Status | Meaning |
+|--------|---------|
+| `verified` | Test passed, workflow is reliable |
+| `pending` | Not yet verified |
+| `failed` | Consistently fails |
+| `skipped` | Environment limitations |
+
+### Domain Values
+
+| Domain | Description |
+|--------|-------------|
+| `sales` | Payments, invoices, products |
+| `clients` | Client management, CRM |
+| `scheduling` | Bookings, availability |
+| `communication` | Messages, notifications |
+| `platform_administration` | Businesses, staffs |
+| `apps` | OAuth, widgets |
+| `reviews` | Business reviews |
 
 ## Searching Workflows
 

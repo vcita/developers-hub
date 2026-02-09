@@ -2,10 +2,11 @@
 endpoint: "POST /business/payments/v1/transactions"
 domain: sales
 tags: []
-swagger: swagger/sales/legacy/payments.json
-status: success
-savedAt: 2026-01-26T21:36:19.988Z
-verifiedAt: 2026-01-26T21:36:19.988Z
+swagger: "swagger/sales/legacy/payments.json"
+status: verified
+savedAt: "2026-01-26T21:36:19.988Z"
+verifiedAt: "2026-01-26T21:36:19.988Z"
+timesReused: 0
 ---
 
 # Create Transactions

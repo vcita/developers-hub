@@ -2,10 +2,11 @@
 endpoint: "POST /v1/partners/accounts/{business_uid}/set_setup_completed"
 domain: platform_administration
 tags: [partners, set-setup-completed]
-swagger: swagger/platform_administration/legacy/partners-api.json
-status: skip
-savedAt: 2026-01-28T15:24:39.276Z
-verifiedAt: 2026-01-28T15:24:39.276Z
+swagger: "swagger/platform_administration/legacy/partners-api.json"
+status: skipped
+savedAt: "2026-01-28T15:24:39.276Z"
+verifiedAt: "2026-01-28T15:24:39.276Z"
+timesReused: 0
 ---
 
 # Create Set setup completed
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: post_set_setup_completed
     method: POST
-    path: "/v1/partners/accounts/{business_uid}/set_setup_completed"
+    path: "/v1/partners/accounts/{{business_uid}}/set_setup_completed"
     expect:
       status: [200, 201]
 ```

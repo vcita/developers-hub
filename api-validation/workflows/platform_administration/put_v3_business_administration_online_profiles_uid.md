@@ -2,10 +2,11 @@
 endpoint: "PUT /v3/business_administration/online_profiles/{uid}"
 domain: platform_administration
 tags: []
-swagger: swagger/platform_administration/online_profiles.json
-status: success
-savedAt: 2026-01-28T08:04:45.294Z
-verifiedAt: 2026-01-28T08:04:45.294Z
+swagger: "swagger/platform_administration/online_profiles.json"
+status: verified
+savedAt: "2026-01-28T08:04:45.294Z"
+verifiedAt: "2026-01-28T08:04:45.294Z"
+timesReused: 0
 ---
 
 # Update Online profiles
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: put_online_profiles
     method: PUT
-    path: "/v3/business_administration/online_profiles/{uid}"
+    path: "/v3/business_administration/online_profiles/{{uid}}"
     body:
       supported_languages:
         "0": en

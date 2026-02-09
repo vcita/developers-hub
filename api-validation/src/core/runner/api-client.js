@@ -370,10 +370,11 @@ async function buildRequestConfigAsync(endpoint, config, context = {}) {
     console.log(`  [API Client Async] Adding X-On-Behalf-Of header (required by endpoint): ${staticParams.business_uid}`);
   }
   
-  // AI config
+  // AI config — param generator uses OpenAI (gpt-4o-mini)
   const aiConfig = {
     enabled: config.ai?.enabled || false,
-    apiKey: config.ai?.anthropicApiKey
+    apiKey: config.ai?.openaiApiKey,
+    model: config.ai?.models?.paramGenerator || 'gpt-4o-mini'
   };
   
   const dynamicParams = context.params || {};
@@ -879,12 +880,67 @@ function isBadGatewayError(response) {
  * Execute an API request with optional fallback on Bad Gateway
  * @param {Object} client - Axios instance
  * @param {Object} requestConfig - Request configuration
+ * @param {Object} options - Execution options
+ * @param {boolean} options.useFallback - If true, use fallback URL directly instead of trying primary first
  * @returns {Promise<Object>} Response with timing and fallback info
  */
-async function executeRequest(client, requestConfig) {
+async function executeRequest(client, requestConfig, options = {}) {
   const startTime = Date.now();
   const primaryUrl = client._config?.baseUrl;
   const fallbackUrl = client._config?.fallbackUrl;
+  
+  // If useFallback is true and fallbackUrl is configured, go directly to fallback
+  if (options.useFallback && fallbackUrl) {
+    console.log(`  [Fallback] Using fallback URL directly (workflow setting): ${fallbackUrl}`);
+    
+    try {
+      const fallbackResponse = await axios.request({
+        ...requestConfig,
+        url: fallbackUrl + requestConfig.url,
+        timeout: client.defaults.timeout,
+        validateStatus: () => true,
+        headers: {
+          ...client.defaults.headers.common,
+          ...requestConfig.headers
+        }
+      });
+      
+      const duration = Date.now() - startTime;
+      
+      return {
+        success: true,
+        response: fallbackResponse,
+        duration,
+        error: null,
+        usedFallback: true,
+        usedFallbackDirect: true, // Flag to indicate this was a direct fallback (not reactive)
+        fallbackInfo: {
+          primaryUrl,
+          fallbackUrl,
+          primaryStatus: null, // Never tried primary
+          fallbackStatus: fallbackResponse.status,
+          fallbackDuration: duration
+        }
+      };
+    } catch (fallbackError) {
+      const duration = Date.now() - startTime;
+      console.log(`  [Fallback] Direct fallback request failed: ${fallbackError.message}`);
+      
+      return {
+        success: false,
+        response: fallbackError.response || null,
+        duration,
+        error: {
+          message: fallbackError.message,
+          code: fallbackError.code,
+          isTimeout: fallbackError.code === 'ECONNABORTED',
+          isNetworkError: fallbackError.code === 'ERR_NETWORK' || !fallbackError.response
+        },
+        usedFallback: true,
+        usedFallbackDirect: true
+      };
+    }
+  }
   
   try {
     const response = await client.request(requestConfig);
@@ -1023,6 +1079,123 @@ function generateCurlCommand(requestConfig, baseUrl) {
   return parts.join(' \\\n  ');
 }
 
+/**
+ * Check if an endpoint requires multipart/form-data based on swagger parameters
+ * @param {Object} endpoint - Endpoint object with parameters
+ * @returns {boolean} True if endpoint uses formData parameters or file uploads
+ */
+function isMultipartEndpoint(endpoint) {
+  if (!endpoint || !endpoint.parameters) return false;
+  
+  // Check if any parameter has "in: formData" or type "file"
+  const allParams = [
+    ...(endpoint.parameters.formData || []),
+    ...(endpoint.parameters.query || []),
+    ...(endpoint.parameters.body || [])
+  ];
+  
+  // Check for formData parameters
+  if (endpoint.parameters.formData && endpoint.parameters.formData.length > 0) {
+    return true;
+  }
+  
+  // Check for file type parameters
+  for (const param of allParams) {
+    if (param.type === 'file' || param.schema?.type === 'file') {
+      return true;
+    }
+  }
+  
+  // Check description for multipart hints
+  const description = endpoint.description || '';
+  if (description.toLowerCase().includes('multipart/form-data') ||
+      description.toLowerCase().includes('file upload')) {
+    return true;
+  }
+  
+  return false;
+}
+
+/**
+ * Build FormData for multipart requests
+ * @param {Object} formFields - Key-value pairs for form fields
+ * @param {Array} fileFields - Array of file attachments {field_name, file_path, filename}
+ * @param {string} testFilesDir - Directory containing test files
+ * @returns {Object} Object with { formData, headers } or null if building fails
+ */
+function buildMultipartFormData(formFields = {}, fileFields = [], testFilesDir = null) {
+  const FormData = require('form-data');
+  const fs = require('fs');
+  const path = require('path');
+  
+  const formData = new FormData();
+  const filesDir = testFilesDir || path.resolve(__dirname, '../../../test-files');
+  
+  // Add form fields (text fields)
+  for (const [key, value] of Object.entries(formFields)) {
+    formData.append(key, String(value));
+  }
+  
+  // Add file fields
+  for (const file of fileFields) {
+    const { field_name, file_path, filename } = file;
+    const absolutePath = path.resolve(filesDir, file_path);
+    
+    if (fs.existsSync(absolutePath)) {
+      const fileStream = fs.createReadStream(absolutePath);
+      const uploadFilename = filename || path.basename(file_path);
+      formData.append(field_name, fileStream, uploadFilename);
+    } else {
+      console.warn(`[Multipart] File not found: ${absolutePath}`);
+    }
+  }
+  
+  return {
+    formData,
+    headers: formData.getHeaders()
+  };
+}
+
+/**
+ * Generate cURL command for multipart request
+ * @param {Object} requestConfig - Request configuration
+ * @param {string} baseUrl - Base URL
+ * @param {Object} formFields - Form fields
+ * @param {Array} fileFields - File fields
+ * @returns {string} cURL command
+ */
+function generateMultipartCurlCommand(requestConfig, baseUrl, formFields = {}, fileFields = []) {
+  const parts = ['curl'];
+  
+  // Method
+  parts.push(`-X ${requestConfig.method.toUpperCase()}`);
+  
+  // URL
+  const url = `${baseUrl}${requestConfig.url}`;
+  parts.push(`'${url}'`);
+  
+  // Headers (excluding Content-Type which curl will set for form data)
+  for (const [key, value] of Object.entries(requestConfig.headers || {})) {
+    if (key.toLowerCase() === 'authorization') {
+      parts.push(`-H '${key}: Bearer ***'`);
+    } else if (key.toLowerCase() !== 'content-type') {
+      parts.push(`-H '${key}: ${value}'`);
+    }
+  }
+  
+  // Form fields
+  for (const [key, value] of Object.entries(formFields)) {
+    parts.push(`-F '${key}=${value}'`);
+  }
+  
+  // File fields
+  for (const file of fileFields) {
+    parts.push(`-F '${file.field_name}=@${file.file_path}'`);
+  }
+  
+  return parts.join(' \\\n  ');
+}
+
 module.exports = {
   createApiClient,
   buildRequestConfig,
@@ -1031,5 +1204,8 @@ module.exports = {
   extractUidFromResponse,
   generateMinimalPayload,
   generateFromSchema,
-  generateCurlCommand
+  generateCurlCommand,
+  isMultipartEndpoint,
+  buildMultipartFormData,
+  generateMultipartCurlCommand
 };

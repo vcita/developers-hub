@@ -2,10 +2,11 @@
 endpoint: "POST /platform/v1/apps/{id}/assign"
 domain: apps
 tags: []
-swagger: swagger/apps/legacy/legacy_v1_apps.json
-status: success
-savedAt: 2026-01-25T06:04:53.337Z
-verifiedAt: 2026-01-25T06:04:53.337Z
+swagger: "swagger/apps/legacy/legacy_v1_apps.json"
+status: verified
+savedAt: "2026-01-25T06:04:53.337Z"
+verifiedAt: "2026-01-25T06:04:53.337Z"
+timesReused: 0
 ---
 
 # Create Assign
@@ -23,7 +24,7 @@ No prerequisites required for this endpoint.
 steps:
   - id: post_assign
     method: POST
-    path: "/platform/v1/apps/{id}/assign"
+    path: "/platform/v1/apps/{{id}}/assign"
     body:
       business_uid: "{{business_uid}}"
       hide_from_market: "true"

@@ -52,11 +52,17 @@ function renderEndpoints() {
         : 'No token info';
       const tokenClass = endpoint.tokenInfo.found ? '' : 'missing-token';
       
+      // Workflow verification status
+      const status = endpoint.workflowStatus || 'none';
+      const statusLabel = getWorkflowStatusLabel(status);
+      const statusClass = `workflow-status-${normalizeStatus(status)}`;
+      
       html += `
         <div class="endpoint ${isSelected ? 'selected' : ''}" data-endpoint-id="${endpoint.id}" onclick="toggleEndpointSelection('${endpoint.id}')">
           <input type="checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleEndpointSelection('${endpoint.id}')">
           <span class="method ${methodClass}">${endpoint.method}</span>
           <span class="path">${endpoint.path}</span>
+          <span class="workflow-status ${statusClass}" title="Workflow status: ${status}">${statusLabel}</span>
           <span class="token-badge ${tokenClass}">${tokenBadge}</span>
           <span class="summary">${endpoint.summary || ''}</span>
         </div>
@@ -123,4 +129,36 @@ function toggleEndpointSelection(endpointId) {
     if (checkbox) checkbox.checked = isSelected;
     el.classList.toggle('selected', isSelected);
   }
+}
+
+/**
+ * Normalize workflow status to a CSS-friendly key
+ * Merges similar statuses (e.g., "skip" and "skipped")
+ */
+function normalizeStatus(status) {
+  if (!status) return 'none';
+  const s = status.toLowerCase().trim();
+  if (s === 'skip' || s === 'skipped') return 'skipped';
+  if (s === 'verified' || s === 'success') return 'verified';
+  if (s === 'pending') return 'pending';
+  if (s === 'failed') return 'failed';
+  if (s === 'deprecated') return 'deprecated';
+  if (s === 'none') return 'none';
+  return 'none';
+}
+
+/**
+ * Get a display label for a workflow status
+ */
+function getWorkflowStatusLabel(status) {
+  const normalized = normalizeStatus(status);
+  const labels = {
+    'verified': 'Verified',
+    'pending': 'Pending',
+    'failed': 'Failed',
+    'skipped': 'Skipped',
+    'deprecated': 'Deprecated',
+    'none': 'No Workflow'
+  };
+  return labels[normalized] || status;
 }

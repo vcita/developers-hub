@@ -2,10 +2,11 @@
 endpoint: "POST /oauth/token"
 domain: platform_administration
 tags: [oauth, requires-manual-testing]
-swagger: swagger/platform_administration/legacy/oauth.json
-status: skip
-savedAt: 2026-01-30T10:00:00.000Z
-verifiedAt: 2026-01-30T10:00:00.000Z
+swagger: "swagger/platform_administration/legacy/oauth.json"
+status: skipped
+savedAt: "2026-01-30T10:00:00.000Z"
+verifiedAt: "2026-01-30T10:00:00.000Z"
+timesReused: 0
 ---
 
 # Create Token
@@ -27,7 +28,7 @@ steps:
     extract:
       client_id: "$.data.clients[0].id"
     expect:
-      status: 200
+      status: [200]
     onFail: abort
 ```
 

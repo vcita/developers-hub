@@ -2,23 +2,29 @@
  * AI Parameter Generator
  * Uses AI to intelligently fill ALL request parameters (path, query, body) based on documentation
  * 
+ * Model: gpt-4o-mini (OpenAI) — structured JSON output from well-defined schemas
+ * Excellent alternatives: gpt-4.1-mini (OpenAI)
+ * 
  * NEW UNIFIED FLOW:
  * Step 1: Resolve UIDs/IDs/Reference Keys (done externally)
  * Step 2: AI fills ALL values (path, query, body)
  * Step 3: Quick type validation (string/array/object)
  */
 
-const Anthropic = require('@anthropic-ai/sdk');
+const OpenAI = require('openai');
 
-let anthropicClient = null;
+// Default model for this component
+const DEFAULT_MODEL = 'gpt-4o-mini';
+
+let openaiClient = null;
 
 /**
- * Initialize the Anthropic client
- * @param {string} apiKey - Anthropic API key
+ * Initialize the OpenAI client
+ * @param {string} apiKey - OpenAI API key
  */
 function initializeClient(apiKey) {
   if (!apiKey) return;
-  anthropicClient = new Anthropic({ apiKey });
+  openaiClient = new OpenAI({ apiKey });
 }
 
 /**
@@ -36,7 +42,7 @@ async function generateAllParams(endpoint, resolvedUids = {}, aiConfig = {}) {
   // Step 2: AI fills ALL values (path, query, body)
   if (aiConfig.enabled && aiConfig.apiKey) {
     // Initialize client if needed
-    if (!anthropicClient) {
+    if (!openaiClient) {
       initializeClient(aiConfig.apiKey);
     }
     
@@ -63,24 +69,33 @@ async function generateAllParams(endpoint, resolvedUids = {}, aiConfig = {}) {
  * @returns {Promise<Object|null>} Generated params or null
  */
 async function generateWithAI(endpoint, resolvedUids, aiConfig) {
-  if (!anthropicClient && aiConfig.apiKey) {
+  if (!openaiClient && aiConfig.apiKey) {
     initializeClient(aiConfig.apiKey);
   }
   
-  if (!anthropicClient) {
+  if (!openaiClient) {
     console.log('[AI Param Gen] No API key - cannot use AI generation');
     return null;
   }
+  
+  const model = aiConfig.model || DEFAULT_MODEL;
   
   try {
     // Build rich context for AI
     const context = buildUnifiedContext(endpoint, resolvedUids);
     const prompt = buildUnifiedPrompt(context);
     
-    const response = await anthropicClient.messages.create({
-      model: 'claude-sonnet-4-20250514',
+    console.log(`[AI Param Gen] Using model: ${model}`);
+    
+    const completion = await openaiClient.chat.completions.create({
+      model,
       max_tokens: 2000,
+      response_format: { type: 'json_object' },
       messages: [
+        {
+          role: 'system',
+          content: 'You are an API parameter generator. Always respond with valid JSON only.'
+        },
         {
           role: 'user',
           content: prompt
@@ -88,22 +103,13 @@ async function generateWithAI(endpoint, resolvedUids, aiConfig) {
       ]
     });
     
-    // Parse AI response
-    const content = response.content[0]?.text;
+    // Parse AI response — with json_object mode, response is guaranteed valid JSON
+    const content = completion.choices[0]?.message?.content;
     if (!content) {
       console.log('[AI Param Gen] Empty response from AI');
       return null;
     }
     
-    // Extract JSON from response
-    const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[1]);
-      console.log('[AI Param Gen] Generated params:', JSON.stringify(parsed, null, 2));
-      return parsed;
-    }
-    
-    // Try parsing the entire response as JSON
     try {
       const parsed = JSON.parse(content);
       console.log('[AI Param Gen] Generated params:', JSON.stringify(parsed, null, 2));

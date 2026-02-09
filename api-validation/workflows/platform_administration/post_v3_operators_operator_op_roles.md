@@ -2,9 +2,11 @@
 endpoint: "POST /v3/operators/operator_op_roles"
 domain: platform_administration
 tags: [operators]
-status: skip
-savedAt: 2026-01-28T09:50:27.436Z
-verifiedAt: 2026-01-28T09:50:27.436Z
+swagger: "swagger/platform_administration/legacy/legacy_v1_businesses.json"
+status: skipped
+savedAt: "2026-01-28T09:50:27.436Z"
+verifiedAt: "2026-01-28T09:50:27.436Z"
+timesReused: 0
 ---
 
 # Create Operator op roles

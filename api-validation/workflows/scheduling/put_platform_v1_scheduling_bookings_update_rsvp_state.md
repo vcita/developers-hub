@@ -2,9 +2,11 @@
 endpoint: "PUT /platform/v1/scheduling/bookings/{booking_uid}/update_rsvp_state"
 domain: scheduling
 tags: [scheduling, bookings, rsvp]
-swagger: swagger/scheduling/legacy/legacy_v1_scheduling.json
-status: working
-savedAt: 2026-02-01T23:30:00.000Z
+swagger: "swagger/scheduling/legacy/legacy_v1_scheduling.json"
+status: verified
+savedAt: "2026-02-01T23:30:00.000Z"
+verifiedAt: "2026-02-01T23:30:00.000Z"
+timesReused: 0
 ---
 
 # Update RSVP State
@@ -51,7 +53,7 @@ steps:
       business_id: "{{business_id}}"
       appointment_type: "appointment"
     expect:
-      status: 200
+      status: [200]
 ```
 
 ## Path Parameters

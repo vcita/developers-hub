@@ -2,10 +2,11 @@
 endpoint: "POST /platform/v1/webhook/subscribe"
 domain: platform_administration
 tags: []
-swagger: swagger/platform_administration/legacy/legacy_v1_platform.json
-status: success
-savedAt: 2026-01-28T10:09:42.228Z
-verifiedAt: 2026-01-28T10:09:42.228Z
+swagger: "swagger/platform_administration/legacy/legacy_v1_platform.json"
+status: verified
+savedAt: "2026-01-28T10:09:42.228Z"
+verifiedAt: "2026-01-28T10:09:42.228Z"
+timesReused: 0
 ---
 
 # Create Subscribe

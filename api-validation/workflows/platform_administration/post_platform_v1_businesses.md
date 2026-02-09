@@ -2,10 +2,11 @@
 endpoint: "POST /platform/v1/businesses"
 domain: platform_administration
 tags: []
-swagger: swagger/platform_administration/legacy/legacy_v1_platform.json
-status: success
-savedAt: 2026-01-28T10:03:04.127Z
-verifiedAt: 2026-01-28T10:03:04.127Z
+swagger: "swagger/platform_administration/legacy/legacy_v1_platform.json"
+status: verified
+savedAt: "2026-01-28T10:03:04.127Z"
+verifiedAt: "2026-01-28T10:03:04.127Z"
+timesReused: 0
 ---
 
 # Create Businesses

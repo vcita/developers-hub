@@ -2,10 +2,11 @@
 endpoint: "POST /v3/apps/staff_widgets_boards_templates"
 domain: apps
 tags: []
-swagger: swagger/apps/widgets_and_boards.json
-status: success
-savedAt: 2026-01-25T05:29:22.437Z
-verifiedAt: 2026-01-25T05:29:22.437Z
+swagger: "swagger/apps/widgets_and_boards.json"
+status: verified
+savedAt: "2026-01-25T05:29:22.437Z"
+verifiedAt: "2026-01-25T05:29:22.437Z"
+timesReused: 0
 ---
 
 # Create Staff widgets boards templates
@@ -26,7 +27,7 @@ steps:
     extract:
       staff_id: "$.data.staffs[0].uid"
     expect:
-      status: 200
+      status: [200]
     onFail: abort
 ```
 

@@ -1,47 +1,70 @@
 ---
-endpoint: "POST /platform/v1/payment/packages"
+endpoint: POST /platform/v1/payment/packages
 domain: sales
-tags: []
+tags: [packages, payments]
 swagger: swagger/sales/legacy/legacy_v1_sales.json
-status: success
-savedAt: 2026-01-27T04:23:18.093Z
-verifiedAt: 2026-01-27T04:23:18.093Z
+status: verified
+savedAt: 2026-02-08T19:35:00.000Z
+verifiedAt: 2026-02-08T19:35:00.000Z
+timesReused: 0
+useFallbackApi: true
+tokens: [staff]
 ---
 
-# Create Packages
+# Create Payment Package
 
 ## Summary
-Test passes after resolving service ID and using valid currency, discount_unit, and expiration_unit values.
+Creates a payment package with services and pricing. This endpoint requires a **staff token** and must use the fallback API.
+
+**Token Type**: This endpoint requires a **Staff token**.
+
+> **⚠️ Fallback API Required**
+> This endpoint must use the fallback API URL. The main API gateway returns 422 Unauthorized.
 
 ## Prerequisites
 
-No prerequisites required for this endpoint.
+```yaml
+steps:
+  - id: create_service
+    description: "Create a service for the package"
+    method: POST
+    path: "/v2/settings/services"
+    token: staff
+    useFallback: true
+    body:
+      name: "Test Service {{now_timestamp}}"
+      duration: 60
+      price: 100
+      currency: "USD"
+      charge_type: "paid"
+    extract:
+      service_id: "$.id"
+    expect:
+      status: [200, 201]
+    onFail: abort
+```
 
 ## Test Request
 
 ```yaml
 steps:
-  - id: post_packages
+  - id: main_request
+    description: "Create a payment package"
     method: POST
     path: "/platform/v1/payment/packages"
+    token: staff
+    useFallback: true
+    params:
+      business_id: "{{business_id}}"
     body:
-      currency: USD
-      description: test_string
-      discount_amount: 1
-      discount_unit: F
-      expiration: 1
-      expiration_unit: M
-      image_path: test_string
-      items:
-        "0":
-          services:
-            "0":
-              id: "{{id}}"
-          total_bookings: 1
-      name: test_string
-      online_payment_enabled: true
-      price: 1
-      products: {}
+      name: "TestPkg {{now_timestamp}}"
+      price: "25.0"
+      currency: "USD"
+      expiration: 12
+      expiration_unit: "m"
+      items: [{"total_bookings": 3, "services": [{"id": "{{service_id}}"}]}]
+      products: []
+      tax_uids: []
     expect:
       status: [200, 201]
 ```

@@ -1,17 +1,25 @@
 ---
 endpoint: "POST /business/payments/v1/tax_bulk"
 domain: sales
-tags: []
-swagger: swagger/sales/legacy/payments.json
-status: success
-savedAt: 2026-01-26T14:18:35.613Z
-verifiedAt: 2026-01-26T14:18:35.613Z
+tags: [taxes]
+swagger: "swagger/sales/legacy/payments.json"
+status: verified
+savedAt: "2026-01-26T14:18:35.613Z"
+verifiedAt: "2026-02-06T20:51:00.000Z"
+timesReused: 0
+useFallbackApi: true
 ---
 
-# Create Tax bulk
+# Create Tax Bulk
 
 ## Summary
-Test passes after correcting default_for_categories format. The field should be an array of valid categories, not a string.
+
+Creates taxes in bulk. The data field must be a JSON array (not a hash with numeric keys). The endpoint works via the fallback API; APIGW returns 401 for staff tokens.
+
+**Token Type**: This endpoint requires a **Staff token**.
+
+> **⚠️ Fallback API Required**
+> This endpoint must use the fallback API URL. The main API gateway returns 401 for staff tokens.
 
 ## Prerequisites
 
@@ -26,12 +34,8 @@ steps:
     path: "/business/payments/v1/tax_bulk"
     body:
       data:
-        "0":
-          default_for_categories:
-            "0": services
-            "1": products
-          name: Test Tax
-          rate: 10.5
+        - name: "Test Tax {{future_datetime}}"
+          rate: 8.75
     expect:
       status: [200, 201]
 ```
