@@ -216,6 +216,22 @@ function convertSwaggerToOpenAPI(operation, fileName) {
     delete converted.produces;
   }
   
+  // Fallback: Convert any remaining body parameters to requestBody (handles cases without consumes)
+  if (converted.parameters && !converted.requestBody) {
+    const bodyParam = converted.parameters.find(p => p.in === 'body');
+    if (bodyParam) {
+      log.debug(`Converting orphan body parameter in ${fileName}`);
+      converted.requestBody = {
+        content: {
+          'application/json': {
+            schema: bodyParam.schema || { type: 'object' }
+          }
+        }
+      };
+      converted.parameters = converted.parameters.filter(p => p.in !== 'body');
+    }
+  }
+  
   // Convert ALL parameters to ensure no direct 'type' properties remain
   if (converted.parameters) {
     converted.parameters = converted.parameters.map(param => {
