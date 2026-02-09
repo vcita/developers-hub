@@ -8,6 +8,7 @@ savedAt: "2026-02-03T18:27:27.807Z"
 verifiedAt: "2026-02-03T18:27:27.807Z"
 timesReused: 0
 tokens: [staff]
+useFallbackApi: true
 notes: "Requires Staff token with pre-configured client_id. Directory tokens require business to be in the directory."
 ---
 
@@ -19,6 +20,8 @@ Creates a new booking (appointment or event registration) for a business.
 This endpoint uses an existing client ID to create bookings.
 
 **Important**: Always provide a `client_id` parameter. Without it, the endpoint attempts to create a client from `form_data`, which returns "First name can't be blank" errors.
+
+> ⚠️ Fallback API Required
 
 ## Prerequisites
 

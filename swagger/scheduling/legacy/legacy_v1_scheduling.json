@@ -795,25 +795,17 @@
         "x-auth-type": "Application & Application User"
       }
     },
-    "/api/v2/event_instances/{event_instance_id}/event_attendances/{id}": {
+    "/scheduling/event_attendances/{event_attendance_uid}": {
       "get": {
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nGet Event attendance details for a specific attendee of an event instance.\n\nAvailable for **Staff and App tokens**.\n\n## Path Parameters\nNote: The path uses `/api/v2/` prefix, not `/platform/v1/scheduling/`.",
+        "description": "## Overview\nGet Event attendance details for a specific event attendance record.\n\nAvailable for **Staff and App tokens**.\n\n## Notes\n- The event attendance UID can be obtained from the event attendance creation response (POST to `/v2/event_instances/{event_instance_id}/event_attendances`) or from the event instance details.\n- Previously documented under `/api/v2/event_instances/{event_instance_id}/event_attendances/{id}`, but that v2 nested route does not have a working `show` action. The correct route is `/platform/v1/scheduling/event_attendances/{event_attendance_uid}`.",
         "parameters": [
           {
-            "description": "Event instance UID. Obtain from event listing or event creation response.",
+            "description": "Event attendance UID. Obtain from event attendance creation response or event instance attendees list (e.g., `$.data.event_attendance.uid`).",
             "in": "path",
-            "name": "event_instance_id",
-            "required": true,
-            "type": "string",
-            "x-reference-to": "event_instance"
-          },
-          {
-            "description": "Event attendance UID",
-            "in": "path",
-            "name": "id",
+            "name": "event_attendance_uid",
             "required": true,
             "type": "string",
             "x-reference-to": "event_attendance"
@@ -938,7 +930,7 @@
             }
           },
           "type": "http_proxy",
-          "uri": "https:///api/v2/event_instances/{event_instance_id}/event_attendances/{id}"
+          "uri": "https:///platform/v1/scheduling/event_attendances/{event_attendance_uid}"
         },
         "x-auth-type": "Application & Application User"
       }
@@ -1153,7 +1145,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nCancel a waitlist registration. Available for **Staff, App, Directory, and Client tokens**.\n\n## Required Field Combinations\n- **Always required**: `business_uid`\n- **For events**: Add `event_instance_uid`\n- **To identify client** (Staff/App/Directory tokens): Add `client_uid` or `matter_uid`\n\n## Client Identification\n- **Client tokens**: The client is identified from the token.\n- **Staff/App/Directory tokens**: Must provide `client_uid` or `matter_uid` to identify which client's waitlist entry to cancel.",
+        "description": "## Overview\nCancel a waitlist registration. Available for **Client tokens**.\n\nThe underlying controller inherits from `Api::ClientApi::V1::BaseController`, which only accepts client authentication.\n\n## Required Fields\n- **Always required**: `business_uid`, `event_instance_uid`, `client_uid`, and `matter_uid`\n- `client_uid` must be explicitly provided in the request body for the authorization check to pass. The controller extracts it from the request parameters, not from the token.\n- `matter_uid` is used to look up the specific waitlist entry to cancel.\n\n## Note\nStaff can cancel waitlist entries using the business API endpoint `PUT /business/scheduling/v1/waitlist/cancel` which supports staff tokens and the `waitlist_uid` parameter.",
         "parameters": [
           {
             "in": "body",
@@ -1166,24 +1158,26 @@
                   "x-reference-to": "business"
                 },
                 "client_uid": {
-                  "description": "Client UID. Required for Staff/App/Directory tokens.",
+                  "description": "Client UID. Required. Must be explicitly provided in the request body for the authorization check (`authorize_action(:cancel_waitlist)`) to pass. The controller reads this from `params[:client_uid]`, not from the token.",
                   "type": "string",
                   "x-reference-to": "client"
                 },
                 "event_instance_uid": {
-                  "description": "Event instance UID. Required - identifies which event's waitlist to cancel from.",
+                  "description": "Event instance UID. Required. Identifies which event's waitlist to cancel from.",
                   "type": "string",
                   "x-reference-to": "event_instance"
                 },
                 "matter_uid": {
-                  "description": "Matter/conversation UID associated with the waitlist entry.",
+                  "description": "Matter/conversation UID. Required. Used to look up the specific waitlist entry to cancel.",
                   "type": "string",
                   "x-reference-to": "matter"
                 }
               },
               "required": [
                 "business_uid",
-                "event_instance_uid"
+                "event_instance_uid",
+                "client_uid",
+                "matter_uid"
               ],
               "type": "object"
             }

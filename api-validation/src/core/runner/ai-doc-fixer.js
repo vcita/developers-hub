@@ -806,7 +806,6 @@ async function runDocFixer(options) {
     directive,
     accumulatedInsight = [],
     referenceWorkflow,
-    userPrompt,
     onProgress,
     maxIterations = 20
   } = options;
@@ -838,7 +837,7 @@ async function runDocFixer(options) {
   const systemPrompt = buildSystemPrompt(directive, accumulatedInsight, referenceWorkflow, knowledgeBaseContent, maxIterations);
 
   // Build the initial user message with failure context + healer analysis
-  const userMessage = buildUserMessage(endpoint, failureData, healerAnalysis, userPrompt);
+  const userMessage = buildUserMessage(endpoint, failureData, healerAnalysis);
 
   // Context for tool execution
   const context = {
@@ -993,7 +992,7 @@ async function runDocFixer(options) {
 /**
  * Build the user message with full failure context for the agent.
  */
-function buildUserMessage(endpoint, failureData, healerAnalysis, userPrompt) {
+function buildUserMessage(endpoint, failureData, healerAnalysis) {
   const method = endpoint.method || (endpoint.endpoint ? endpoint.endpoint.split(' ')[0] : 'GET');
   const apiPath = endpoint.path || (endpoint.endpoint ? endpoint.endpoint.split(' ').slice(1).join(' ') : '');
   const domain = endpoint.domain || 'unknown';
@@ -1088,14 +1087,6 @@ function buildUserMessage(endpoint, failureData, healerAnalysis, userPrompt) {
 
   if (endpoint.tokenUsed) {
     msg += `\n## Token Used During Test\n${endpoint.tokenUsed}\n`;
-  }
-
-  if (userPrompt) {
-    msg += `\n## IMPORTANT: Additional Instructions from the User\n`;
-    msg += `This is a CONTINUATION of a previous fix session. The previous attempt failed for this endpoint.\n`;
-    msg += `The user has provided the following additional guidance — pay close attention:\n\n`;
-    msg += `> ${userPrompt}\n\n`;
-    msg += `Use this guidance to adjust your approach. The previous attempt's information is included above.\n`;
   }
 
   msg += `\n## Step-by-Step Instructions (follow this order exactly)\n`;

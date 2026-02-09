@@ -250,8 +250,12 @@ async function executeStep(step, context, config, makeRequest, options = {}) {
   // Build the request - handle multipart vs JSON
   const isMultipart = content_type === 'multipart';
   let requestData;
+  
+  // Admin/internal tokens use "Admin" prefix; all others use "Bearer"
+  const isAdminToken = tokenType === 'admin' || tokenType === 'internal';
+  const authPrefix = isAdminToken ? 'Admin' : 'Bearer';
   let requestHeaders = {
-    'Authorization': `Bearer ${authToken}`
+    'Authorization': `${authPrefix} ${authToken}`
   };
 
   // Directory tokens acting on behalf of a business must include X-On-Behalf-Of.
@@ -526,6 +530,7 @@ function createRequestFunction(baseUrl, options = {}) {
         ? fallbackUrl 
         : (config.baseUrl || effectiveBaseUrl);
       const url = `${urlBase}${requestConfig.path}`;
+      console.log(`    [makeRequest] ${requestConfig.method} ${url} (useFallback=${useFallback}, base=${urlBase})`);
       
       const axiosConfig = {
         method: requestConfig.method,

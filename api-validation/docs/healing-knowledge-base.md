@@ -217,3 +217,34 @@ When a resolution is confirmed, abstract it here so future healing can reuse it.
 - Common path patterns:
   - /v3/communication/voice_calls/{id}
 - Resolution: Created workflow with prerequisite to fetch voice call UID from list endpoint, then retrieve specific voice call. Uses staff token and returns 200.
+
+
+## Entry - 0 MISSING_PARAMS_NEED_HEALING on /v3/scheduling/resource_types/{id} (created)
+- Symptoms: 0 MISSING_PARAMS_NEED_HEALING on /v3/scheduling/resource_types/{id} (2 endpoints)
+- Sample endpoints:
+  - GET /v3/scheduling/resource_types/{uid}
+  - PUT /v3/scheduling/resource_types/{uid}
+- Common path patterns:
+  - /v3/scheduling/resource_types/{id}
+- Resolution: Created workflow for GET /v3/scheduling/resource_types/{uid} with staff token and prerequisite to fetch resource type UID
+
+
+## Entry - 0 MISSING_PARAMS_NEED_HEALING on /v3/scheduling/resources/{id} (resource)
+- Symptoms: 0 MISSING_PARAMS_NEED_HEALING on /v3/scheduling/resources/{id} (2 endpoints)
+- Sample endpoints:
+  - GET /v3/scheduling/resources/{uid}
+  - PUT /v3/scheduling/resources/{uid}
+- Common path patterns:
+  - /v3/scheduling/resources/{id}
+- Resolution: Successfully created workflow for GET /v3/scheduling/resources/{uid} with prerequisites to create resource type and resource, achieving 200 status
+
+
+## Entry - 422 UNEXPECTED_STATUS_CODE on /business/scheduling/v1/* (fixed)
+- Symptoms: 422 UNEXPECTED_STATUS_CODE on /business/scheduling/v1/* (3 endpoints)
+- Sample endpoints:
+  - PUT /business/scheduling/v1/external_calendar_items/disable
+  - PUT /business/scheduling/v1/external_calendar_items/start_export
+  - PUT /business/scheduling/v1/time_slots/{time_slot_uid}
+- Common path patterns:
+  - /business/scheduling/v1/*
+- Resolution: Fixed PUT /business/scheduling/v1/external_calendar_items/disable by removing expectedOutcome: 422 and adding proper prerequisites. Created calendar sync record before attempting to disable it, resolved staff UID via business staffs endpoint, and configured fallback API usage.
