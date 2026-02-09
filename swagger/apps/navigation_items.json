@@ -1,0 +1,764 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Navigation Items API",
+    "description": "API for managing navigation menu items in the vcita platform. Enables partners to configure custom navigation structures for their businesses.\n\nAvailable for **Directory tokens** with `navigation:read` and `navigation:write` scopes.",
+    "version": "3.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.vcita.biz",
+      "description": "Production server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Navigation Items",
+      "description": "CRUD operations for navigation menu items"
+    }
+  ],
+  "paths": {
+    "/v3/apps/navigation_items": {
+      "get": {
+        "tags": ["Navigation Items"],
+        "summary": "List navigation items",
+        "description": "Retrieve a list of navigation items for the authenticated directory. Supports filtering by parent.\n\nAvailable for **Directory tokens** with `navigation:read` scope.",
+        "operationId": "listNavigationItems",
+        "parameters": [
+          {
+            "name": "parent_uid",
+            "in": "query",
+            "description": "Filter by parent navigation item UID. Use 'null' for root-level items (e.g., \"nav-item-parent123\").",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Navigation items retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "https://vcita.github.io/developers-hub/entities/apps/navigation_item.json"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "items": [
+                      {
+                        "uid": "nav-item-abc123",
+                        "parent_uid": null,
+                        "directory_uid": "dir-xyz789",
+                        "order": 0,
+                        "title": {
+                          "en": "Dashboard",
+                          "he": "לוח בקרה"
+                        },
+                        "icon": "icon-Dashboard_POV",
+                        "key": "dashboard",
+                        "modules": null,
+                        "permissions": null,
+                        "url": "/dashboard",
+                        "badge_id": null,
+                        "action": null,
+                        "available_in_mobile": true,
+                        "favorite_in_mobile": true,
+                        "upsell_handling": null,
+                        "is_bmp": false,
+                        "created_by": "directory",
+                        "updated_by": "directory",
+                        "created_at": "2026-01-15T10:30:00Z",
+                        "updated_at": "2026-01-15T10:30:00Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing Directory Token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired Directory Token"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Token does not have navigation:read scope"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "DirectoryToken": ["navigation:read"]
+          }
+        ]
+      },
+      "post": {
+        "tags": ["Navigation Items"],
+        "summary": "Create navigation item",
+        "description": "Create a new navigation item for the authenticated directory. The directory_uid is automatically set from the Directory Token context.\n\nAvailable for **Directory tokens** with `navigation:write` scope.",
+        "operationId": "createNavigationItem",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateNavigationItemRequest"
+              },
+              "example": {
+                "parent_uid": null,
+                "order": 1,
+                "title": {
+                  "en": "Custom Module",
+                  "he": "מודול מותאם"
+                },
+                "icon": "icon-Custom",
+                "key": "custom_module",
+                "modules": ["custom_module"],
+                "permissions": ["view_custom"],
+                "url": "/custom-module",
+                "available_in_mobile": true,
+                "favorite_in_mobile": false,
+                "upsell_handling": "show_upsell"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Navigation item created successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/navigation_item.json"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "uid": "nav-item-new123",
+                    "parent_uid": null,
+                    "directory_uid": "dir-xyz789",
+                    "order": 1,
+                    "title": {
+                      "en": "Custom Module",
+                      "he": "מודול מותאם"
+                    },
+                    "icon": "icon-Custom",
+                    "key": "custom_module",
+                    "modules": ["custom_module"],
+                    "permissions": ["view_custom"],
+                    "url": "/custom-module",
+                    "badge_id": null,
+                    "action": null,
+                    "available_in_mobile": true,
+                    "favorite_in_mobile": false,
+                    "upsell_handling": "show_upsell",
+                    "is_bmp": false,
+                    "created_by": "directory",
+                    "updated_by": "directory",
+                    "created_at": "2026-01-15T14:00:00Z",
+                    "updated_at": "2026-01-15T14:00:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid request body or validation errors.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "title.en",
+                      "code": "required",
+                      "message": "English title is required"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing Directory Token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict - Duplicate key within directory.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "key",
+                      "code": "duplicate",
+                      "message": "A navigation item with key 'custom_module' already exists in this directory"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error with valid syntax.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "parent_uid",
+                      "code": "invalid_reference",
+                      "message": "Parent navigation item not found"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "DirectoryToken": ["navigation:write"]
+          }
+        ]
+      }
+    },
+    "/v3/apps/navigation_items/{uid}": {
+      "put": {
+        "tags": ["Navigation Items"],
+        "summary": "Update navigation item",
+        "description": "Update an existing navigation item. Only provided fields will be updated.\n\nAvailable for **Directory tokens** with `navigation:write` scope.",
+        "operationId": "updateNavigationItem",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the navigation item to update (e.g., \"nav-item-abc123\").",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNavigationItemRequest"
+              },
+              "example": {
+                "title": {
+                  "en": "Updated Module Name",
+                  "he": "שם מודול מעודכן"
+                },
+                "order": 2
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Navigation item updated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/navigation_item.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid request body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing Directory Token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Navigation item belongs to a different directory.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - Navigation item does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict - Duplicate key within directory.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "DirectoryToken": ["navigation:write"]
+          }
+        ]
+      },
+      "delete": {
+        "tags": ["Navigation Items"],
+        "summary": "Delete navigation item",
+        "description": "Delete a navigation item. Items with children cannot be deleted until all children are removed first.\n\nAvailable for **Directory tokens** with `navigation:write` scope.",
+        "operationId": "deleteNavigationItem",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the navigation item to delete (e.g., \"nav-item-abc123\").",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Navigation item deleted successfully."
+          },
+          "400": {
+            "description": "Bad Request - Cannot delete item with children.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "has_children",
+                      "message": "Cannot delete navigation item that has child items. Delete children first."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing Directory Token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Navigation item belongs to a different directory.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - Navigation item does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "DirectoryToken": ["navigation:write"]
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CreateNavigationItemRequest": {
+        "type": "object",
+        "description": "Request body for creating a new navigation item.",
+        "properties": {
+          "parent_uid": {
+            "type": ["string", "null"],
+            "format": "uuid",
+            "description": "UID of the parent navigation item. Set to null for root-level items (e.g., \"nav-item-parent123\")."
+          },
+          "order": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "description": "Display order within the parent level (e.g., 0, 1, 2)."
+          },
+          "title": {
+            "$ref": "#/components/schemas/TitleI18n",
+            "description": "Localized title object. Must include at least the 'en' (English) locale. Additional locales are allowed as additional keys (e.g., \"he\", \"es\", \"fr\")."
+          },
+          "icon": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Icon identifier from the platform icon library (e.g., \"icon-Dashboard_POV\")."
+          },
+          "key": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Human-readable unique identifier within the directory (e.g., \"dashboard\", \"custom_module\")."
+          },
+          "modules": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Array of module identifiers required for visibility (e.g., [\"scheduling\", \"payments\"])."
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Array of permission identifiers required for visibility (e.g., [\"admin\", \"manage_staff\"])."
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Navigation URL, relative or absolute (e.g., \"/dashboard\", \"https://app.example.com\")."
+          },
+          "badge_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Reference to a badge configuration (e.g., \"badge-inbox-unread\")."
+          },
+          "action": {
+            "$ref": "#/components/schemas/NavigationAction"
+          },
+          "available_in_mobile": {
+            "type": "boolean",
+            "default": true,
+            "description": "Whether to show in mobile navigation (e.g., true, false)."
+          },
+          "favorite_in_mobile": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether to show in mobile favorites section (e.g., true, false)."
+          },
+          "upsell_handling": {
+            "type": "string",
+            "enum": ["hide", "show_upsell"],
+            "description": "Behavior when user lacks permissions. 'hide' removes the item, 'show_upsell' displays upgrade prompt."
+          },
+          "is_bmp": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether this is a BMP (Business Management Platform) item (e.g., true, false)."
+          }
+        },
+        "required": ["title", "key", "url"]
+      },
+      "UpdateNavigationItemRequest": {
+        "type": "object",
+        "description": "Request body for updating an existing navigation item. All fields are optional; only provided fields will be updated.",
+        "properties": {
+          "parent_uid": {
+            "type": ["string", "null"],
+            "format": "uuid",
+            "description": "UID of the parent navigation item (e.g., \"nav-item-parent123\" or null)."
+          },
+          "order": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Display order within the parent level (e.g., 0, 1, 2)."
+          },
+          "title": {
+            "$ref": "#/components/schemas/TitleI18n"
+          },
+          "icon": {
+            "type": ["string", "null"],
+            "maxLength": 255,
+            "description": "Icon identifier (e.g., \"icon-Custom\" or null to remove)."
+          },
+          "key": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Human-readable unique identifier (e.g., \"updated_key\")."
+          },
+          "modules": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "string"
+            },
+            "description": "Array of module identifiers (e.g., [\"new_module\"] or null)."
+          },
+          "permissions": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "string"
+            },
+            "description": "Array of permission identifiers (e.g., [\"new_permission\"] or null)."
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "Navigation URL (e.g., \"/new-path\")."
+          },
+          "badge_id": {
+            "type": ["string", "null"],
+            "format": "uuid",
+            "description": "Badge reference (e.g., \"badge-new\" or null to remove)."
+          },
+          "action": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/NavigationAction" },
+              { "type": "null" }
+            ],
+            "description": "Action configuration or null to remove."
+          },
+          "available_in_mobile": {
+            "type": "boolean",
+            "description": "Whether to show in mobile navigation."
+          },
+          "favorite_in_mobile": {
+            "type": "boolean",
+            "description": "Whether to show in mobile favorites."
+          },
+          "upsell_handling": {
+            "type": ["string", "null"],
+            "enum": ["hide", "show_upsell", null],
+            "description": "Upsell behavior or null for default."
+          },
+          "is_bmp": {
+            "type": "boolean",
+            "description": "Whether this is a BMP item."
+          }
+        }
+      },
+      "TitleI18n": {
+        "type": "object",
+        "description": "Localized title object. English (en) is required.",
+        "properties": {
+          "en": {
+            "type": "string",
+            "description": "English title (required)."
+          },
+          "he": {
+            "type": "string",
+            "description": "Hebrew title (optional)."
+          }
+        },
+        "required": ["en"],
+        "additionalProperties": {
+          "type": "string"
+        },
+        "example": {
+          "en": "Dashboard",
+          "he": "לוח בקרה"
+        }
+      },
+      "NavigationAction": {
+        "type": "object",
+        "description": "Action configuration for special click behaviors.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Action identifier (e.g., \"open_modal\", \"trigger_event\")."
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Action-specific parameters."
+          }
+        },
+        "required": ["name"],
+        "example": {
+          "name": "open_modal",
+          "params": {
+            "modal_id": "settings"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "description": "Standard error response format.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [false],
+            "description": "Always false for error responses."
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "Field that caused the error (for validation errors)."
+                },
+                "code": {
+                  "type": "string",
+                  "description": "Error code identifier."
+                },
+                "message": {
+                  "type": "string",
+                  "description": "Human-readable error message."
+                }
+              },
+              "required": ["code", "message"]
+            }
+          }
+        },
+        "required": ["success", "errors"]
+      }
+    },
+    "securitySchemes": {
+      "DirectoryToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Directory Token with required scopes: `navigation:read` for read operations, `navigation:write` for write operations."
+      }
+    }
+  }
+}

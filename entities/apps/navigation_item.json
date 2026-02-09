@@ -1,0 +1,188 @@
+{
+  "type": "object",
+  "description": "Represents a navigation menu item that defines how partners configure their platform navigation structure. Navigation items support hierarchical menus, localized titles, permission-based visibility, and mobile-specific settings.",
+  "properties": {
+    "uid": {
+      "type": "string",
+      "format": "uuid",
+      "readOnly": true,
+      "description": "Unique identifier for the navigation item (e.g., \"nav-item-abc123\")."
+    },
+    "parent_uid": {
+      "type": ["string", "null"],
+      "format": "uuid",
+      "description": "UID of the parent navigation item for hierarchical menus. Set to null for root-level items (e.g., \"nav-item-parent123\" or null)."
+    },
+    "directory_uid": {
+      "type": "string",
+      "format": "uuid",
+      "readOnly": true,
+      "description": "Unique identifier of the directory (partner) that owns this navigation item. Automatically set from the Directory Token context (e.g., \"dir-abc123\")."
+    },
+    "order": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0,
+      "description": "Display order within the parent level. Lower numbers appear first. Items with the same order are sorted by creation time (e.g., 0, 1, 2)."
+    },
+    "title": {
+      "$ref": "#/$defs/TitleI18n",
+      "description": "Localized titles for the navigation item. Must include at least the 'en' (English) locale."
+    },
+    "icon": {
+      "type": ["string", "null"],
+      "maxLength": 255,
+      "description": "Icon identifier from the platform icon library. Used for visual representation in the menu (e.g., \"icon-Dashboard_POV\", \"icon-Settings\")."
+    },
+    "key": {
+      "type": "string",
+      "maxLength": 255,
+      "description": "Human-readable unique identifier within the directory. Used by API consumers for programmatic access. Must be stable across title/translation changes (e.g., \"dashboard\", \"settings\", \"custom_module\")."
+    },
+    "modules": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "string"
+      },
+      "description": "Array of module identifiers required for this item to be visible. Item is shown only if the business has at least one of these modules enabled (e.g., [\"scheduling\", \"payments\"])."
+    },
+    "permissions": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "string"
+      },
+      "description": "Array of permission identifiers required to view this item. Item is shown only if the staff member has at least one of these permissions (e.g., [\"admin\", \"manage_staff\"])."
+    },
+    "url": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "Navigation URL. Can be a relative path within the platform or an absolute URL for external links (e.g., \"/dashboard\", \"/custom-module\", \"https://external-app.com/embed\")."
+    },
+    "badge_id": {
+      "type": ["string", "null"],
+      "format": "uuid",
+      "description": "Reference to a badge configuration that displays a notification indicator on this menu item (e.g., \"badge-inbox-unread\")."
+    },
+    "action": {
+      "$ref": "#/$defs/NavigationAction",
+      "description": "Optional action configuration for special behaviors when the item is clicked."
+    },
+    "available_in_mobile": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether this navigation item should appear in mobile app navigation. Set to false for desktop-only features (e.g., true, false)."
+    },
+    "favorite_in_mobile": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether this item appears in the mobile favorites/quick-access section. Only applicable when available_in_mobile is true (e.g., true, false)."
+    },
+    "upsell_handling": {
+      "type": ["string", "null"],
+      "enum": ["hide", "show_upsell", null],
+      "description": "Behavior when user lacks required modules/permissions. 'hide' removes the item completely, 'show_upsell' displays it with an upgrade prompt. Null means default behavior (hide)."
+    },
+    "is_bmp": {
+      "type": "boolean",
+      "default": false,
+      "description": "Indicates if this is a Business Management Platform (vcita) sub-menu item. Used for special styling and behavior in the BMP section (e.g., true, false)."
+    },
+    "created_by": {
+      "type": ["string", "null"],
+      "readOnly": true,
+      "enum": ["vcita", "app", "directory", null],
+      "description": "Indicates who created this navigation item. Supported values are: \"vcita\" (created by vcita system), \"app\" (created by an application or integration), \"directory\" (created by the directory owner). Null means unknown or legacy value."
+    },
+    "updated_by": {
+      "type": ["string", "null"],
+      "readOnly": true,
+      "enum": ["vcita", "app", "directory", null],
+      "description": "Indicates who last updated this navigation item. Supported values are: \"vcita\" (updated by vcita system), \"app\" (updated by an application or integration), \"directory\" (updated by the directory owner). Null means unknown or legacy value."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "description": "The date and time when the navigation item was created, in ISO 8601 format (e.g., \"2026-01-15T10:30:00Z\")."
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "description": "The date and time when the navigation item was last updated, in ISO 8601 format (e.g., \"2026-01-15T14:45:00Z\")."
+    }
+  },
+  "required": ["uid", "directory_uid", "order", "title", "key", "url"],
+  "$defs": {
+    "TitleI18n": {
+      "type": "object",
+      "description": "Localized title object supporting multiple languages. The 'en' (English) locale is required.",
+      "properties": {
+        "en": {
+          "type": "string",
+          "description": "English title (required)."
+        },
+        "he": {
+          "type": "string",
+          "description": "Hebrew title (optional)."
+        }
+      },
+      "required": ["en"],
+      "additionalProperties": {
+        "type": "string",
+        "description": "Additional locale titles (e.g., 'es', 'fr', 'de')."
+      },
+      "example": {
+        "en": "Dashboard",
+        "he": "לוח בקרה"
+      }
+    },
+    "NavigationAction": {
+      "type": ["object", "null"],
+      "description": "Action configuration for special click behaviors.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Action identifier (e.g., \"open_modal\", \"trigger_event\", \"save\")."
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Action-specific parameters as key-value pairs."
+        }
+      },
+      "required": ["name"],
+      "example": {
+        "name": "open_modal",
+        "params": {
+          "modal_id": "settings_modal"
+        }
+      }
+    }
+  },
+  "example": {
+    "uid": "nav-item-abc123",
+    "parent_uid": null,
+    "directory_uid": "dir-xyz789",
+    "order": 1,
+    "title": {
+      "en": "Dashboard",
+      "he": "לוח בקרה"
+    },
+    "icon": "icon-Dashboard_POV",
+    "key": "dashboard",
+    "modules": null,
+    "permissions": null,
+    "url": "/dashboard",
+    "badge_id": null,
+    "action": null,
+    "available_in_mobile": true,
+    "favorite_in_mobile": true,
+    "upsell_handling": null,
+    "is_bmp": false,
+    "created_by": "directory",
+    "updated_by": "directory",
+    "created_at": "2026-01-15T10:30:00Z",
+    "updated_at": "2026-01-15T10:30:00Z"
+  }
+}
