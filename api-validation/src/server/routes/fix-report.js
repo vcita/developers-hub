@@ -66,7 +66,7 @@ function broadcastEvent(session, eventType, data) {
 
 router.post('/', async (req, res) => {
   try {
-    const { failedResults, userPrompt, endpointPrompts } = req.body;
+    const { failedResults } = req.body;
 
     if (!failedResults || failedResults.length === 0) {
       return res.status(400).json({ error: 'No failed results provided' });
@@ -79,7 +79,7 @@ router.post('/', async (req, res) => {
     const session = createSession(sessionId, failedResults, config);
 
     // Start processing in background (store promise so continue/retry can await it)
-    session.processingPromise = processFixSession(session, userPrompt, endpointPrompts).catch(err => {
+    session.processingPromise = processFixSession(session).catch(err => {
       console.error(`[FixReport] Session ${sessionId} error:`, err);
       broadcastEvent(session, 'session_error', { error: err.message });
       session.status = 'completed';
@@ -176,7 +176,7 @@ router.post('/stop/:sessionId', (req, res) => {
 router.post('/continue/:sessionId', async (req, res) => {
   try {
     const { sessionId } = req.params;
-    const { userPrompt, endpointPrompts, endpointFilter } = req.body;
+    const { endpointFilter } = req.body;
     const oldSession = activeSessions.get(sessionId);
 
     if (!oldSession) {
@@ -233,8 +233,17 @@ router.post('/continue/:sessionId', async (req, res) => {
     const newSessionId = `fix-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const newSession = createSession(newSessionId, failedResults, config);
 
-    // Start processing with user prompt and per-endpoint prompts
-    newSession.processingPromise = processFixSession(newSession, userPrompt, endpointPrompts).catch(err => {
+    // Transfer conversation histories from the old session so the AI can continue where it left off
+    const previousConversations = {};
+    for (const result of oldSession.results) {
+      if (!result.success && result.conversationHistory && failedEndpointKeys.has(result.endpoint)) {
+        previousConversations[result.endpoint] = result.conversationHistory;
+      }
+    }
+    newSession.previousConversations = previousConversations;
+
+    // Start processing
+    newSession.processingPromise = processFixSession(newSession).catch(err => {
       console.error(`[FixReport] Continue session ${newSessionId} error:`, err);
       broadcastEvent(newSession, 'session_error', { error: err.message });
       newSession.status = 'completed';
@@ -244,9 +253,7 @@ router.post('/continue/:sessionId', async (req, res) => {
       sessionId: newSessionId,
       previousSessionId: sessionId,
       message: 'Continue session started',
-      totalEndpoints: failedResults.length,
-      userPrompt: userPrompt || null,
-      endpointPromptsCount: endpointPrompts ? Object.keys(endpointPrompts).length : 0
+      totalEndpoints: failedResults.length
     });
   } catch (error) {
     console.error('[FixReport] Error continuing session:', error);
@@ -262,7 +269,7 @@ router.post('/continue/:sessionId', async (req, res) => {
 router.post('/retry/:sessionId', async (req, res) => {
   try {
     const { sessionId } = req.params;
-    const { endpoint: epKey, userPrompt } = req.body;
+    const { endpoint: epKey } = req.body;
     const session = activeSessions.get(sessionId);
 
     if (!session) {
@@ -288,7 +295,7 @@ router.post('/retry/:sessionId', async (req, res) => {
     res.json({ success: true, endpoint: epKey });
 
     // Run the retry in the background, broadcasting through the existing session's SSE
-    runInlineRetry(session, ep, epKey, userPrompt).catch(err => {
+    runInlineRetry(session, ep, epKey).catch(err => {
       console.error(`[FixReport] Inline retry error for ${epKey}:`, err);
       broadcastEvent(session, 'session_error', { error: err.message });
       session.status = 'completed';
@@ -304,25 +311,25 @@ router.post('/retry/:sessionId', async (req, res) => {
  * Broadcasts all events (endpoint_start, thinking, tool_call, endpoint_complete, etc.)
  * through the session's existing SSE listeners.
  */
-async function runInlineRetry(session, ep, epKey, userPrompt) {
+async function runInlineRetry(session, ep, epKey) {
   session.status = 'running';
-
-  // Broadcast the guidance text so it appears in the endpoint's log panel
-  if (userPrompt) {
-    broadcastEvent(session, 'user_guidance', { endpoint: epKey, text: userPrompt });
-  }
 
   // Find the group this endpoint belongs to (for directive / context)
   const group = session.groups.find(g =>
     g.endpoints.some(e => (e.endpointKey || `${e.method} ${e.path}`) === epKey)
   );
 
+  // Retrieve previous conversation for this endpoint to enable continuity
+  const previousResult = session.results.find(r => r.endpoint === epKey);
+  const previousConversation = previousResult?.conversationHistory || null;
+
   broadcastEvent(session, 'endpoint_start', {
     endpoint: epKey,
     groupId: group?.id || null,
     isTemplate: false,
     isRetry: true,
-    insightAvailable: 0
+    insightAvailable: 0,
+    hasPreviousConversation: !!previousConversation
   });
 
   const result = await runDocFixer({
@@ -341,8 +348,8 @@ async function runInlineRetry(session, ep, epKey, userPrompt) {
     directive: group?.directive || null,
     accumulatedInsight: [],
     referenceWorkflow: group?.referenceWorkflow || null,
-    userPrompt: userPrompt || null,
     maxIterations: session.config?.ai?.docFixerMaxIterations || 20,
+    previousConversation,
     onProgress: (event) => {
       if (event.type === 'file_changed' && event.file?.startsWith('swagger/') && event.domain) {
         session.swaggerDomainsModified.add(event.domain);
@@ -398,20 +405,10 @@ async function runInlineRetry(session, ep, epKey, userPrompt) {
 
 // ─── Core Processing Loop ────────────────────────────────────────────────────
 
-async function processFixSession(session, userPrompt, endpointPrompts) {
+async function processFixSession(session) {
   // Phase 1: Analyze and group
   session.status = 'analyzing';
   broadcastEvent(session, 'phase_start', { phase: 'analysis' });
-
-  // Helper: resolve the prompt for a specific endpoint
-  // Per-endpoint prompt takes priority, then falls back to general userPrompt
-  const resolvePromptForEndpoint = (ep) => {
-    const epKey = ep.endpointKey || `${ep.method} ${ep.path}`;
-    if (endpointPrompts && endpointPrompts[epKey]) {
-      return endpointPrompts[epKey];
-    }
-    return userPrompt || null;
-  };
 
   const { groups, ungrouped } = analyzeReport(session.failedResults);
   session.groups = groups;
@@ -474,6 +471,10 @@ async function processFixSession(session, userPrompt, endpointPrompts) {
         total: group.endpoints.length
       });
 
+      // Look up previous conversation from a prior session (for continue/retry continuity)
+      const epEndpointKey = ep.endpointKey || `${ep.method} ${ep.path}`;
+      const previousConversation = session.previousConversations?.[epEndpointKey] || null;
+
       const result = await runDocFixer({
         endpoint: ep,
         failureData: {
@@ -490,8 +491,8 @@ async function processFixSession(session, userPrompt, endpointPrompts) {
         directive: groupInsight.directive,
         accumulatedInsight: groupInsight.fixRecipes,
         referenceWorkflow: groupInsight.referenceWorkflow,
-        userPrompt: resolvePromptForEndpoint(ep),
         maxIterations: session.config?.ai?.docFixerMaxIterations || 20,
+        previousConversation,
         onProgress: (event) => {
           // Track swagger domain modifications for the unifier
           if (event.type === 'file_changed' && event.file?.startsWith('swagger/') && event.domain) {
@@ -560,6 +561,10 @@ async function processFixSession(session, userPrompt, endpointPrompts) {
         insightAvailable: 0
       });
 
+      // Look up previous conversation from a prior session (for continue/retry continuity)
+      const epEndpointKey = ep.endpointKey || `${ep.method} ${ep.path}`;
+      const previousConversation = session.previousConversations?.[epEndpointKey] || null;
+
       const result = await runDocFixer({
         endpoint: ep,
         failureData: {
@@ -575,8 +580,8 @@ async function processFixSession(session, userPrompt, endpointPrompts) {
         directive: null,
         accumulatedInsight: [],
         referenceWorkflow: null,
-        userPrompt: resolvePromptForEndpoint(ep),
         maxIterations: session.config?.ai?.docFixerMaxIterations || 20,
+        previousConversation,
         onProgress: (event) => {
           if (event.type === 'file_changed' && event.file?.startsWith('swagger/') && event.domain) {
             session.swaggerDomainsModified.add(event.domain);

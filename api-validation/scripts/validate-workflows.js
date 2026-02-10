@@ -29,7 +29,7 @@ const options = {
 };
 
 // Valid values for enums
-const VALID_STATUS = ['verified', 'pending', 'failed', 'skipped'];
+const VALID_STATUS = ['verified', 'pending', 'failed', 'skip'];
 const VALID_DOMAINS = ['sales', 'clients', 'scheduling', 'communication', 'platform_administration', 'apps', 'reviews'];
 
 // Required frontmatter fields

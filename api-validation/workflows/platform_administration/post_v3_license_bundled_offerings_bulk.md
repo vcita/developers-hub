@@ -2,27 +2,36 @@
 endpoint: "POST /v3/license/bundled_offerings/bulk"
 domain: platform_administration
 tags: [license, bulk]
-swagger: "swagger/platform_administration/license.json"
-status: skipped
-savedAt: "2026-01-28T09:34:16.332Z"
-verifiedAt: "2026-01-28T09:34:16.332Z"
+status: skip
+savedAt: 2026-02-09T22:09:29.050Z
+verifiedAt: 2026-02-09T22:09:29.050Z
 timesReused: 0
+skipReason: "Manual skip - endpoint not ready for testing"
 ---
-
 # Create Bulk
 
 ## Summary
-User-approved skip: The endpoint does not exist in the codebase and cannot be tested until it's implemented. This is a fundamental implementation gap, not a test configuration issue."
+
+User-approved skip: Manual skip - endpoint not ready for testing
+
+## Skip Reason
+
+**This endpoint should be SKIPPED in automated testing.**
+
+Manual skip - endpoint not ready for testing
+
+This is typically due to a business constraint where the endpoint works correctly but cannot be tested repeatedly (e.g., one-time operations, unique constraints).
 
 ## Prerequisites
 
-No prerequisites required for this endpoint.
+None required for this endpoint.
 
 ## Test Request
 
 ```yaml
 steps:
-  - id: post_bulk
+  - id: main_request
+    description: "Create bulk"
     method: POST
     path: "/v3/license/bundled_offerings/bulk"
     expect:

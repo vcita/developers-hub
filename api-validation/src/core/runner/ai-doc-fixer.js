@@ -85,6 +85,7 @@ Do NOT trace authorization chains or study internal Ruby code.
 ## Token Patterns (apply directly - no need to investigate)
 | Path Pattern | Token | Notes |
 |---|---|---|
+| /v1/partners/* | directory | Partners API. Auto-routed to partnersUrl with Token auth (RULE #9) |
 | /platform/v1/clients/{id}/* | directory | Requires X-On-Behalf-Of: {{business_id}} |
 | /platform/v1/* | staff | Use fallback API if 422 "Unauthorized" (RULE #8) |
 | /business/payments/v1/* | staff | May need fallback API (RULE #8) |
@@ -123,6 +124,13 @@ If the fallback succeeds (2xx) where the main gateway failed:
 
 This is a **save-early** pattern: persist known-good information to disk as soon as you discover it, don't wait until the end.
 
+## RULE #9: PARTNERS API ROUTING
+Endpoints with "/partners/" in the URL path (e.g., /v1/partners/accounts/*, /v1/partners/reports/*) are served by a dedicated Partners API at a different base URL (configured as \`partnersUrl\` in config).
+- The framework automatically detects partners endpoints and routes them to the Partners API URL.
+- Partners API uses **HTTP Token authentication** (\`Token token="..."\`) instead of Bearer. The framework handles this conversion automatically.
+- Partners API requires a **directory** token.
+- If you see a 404 on a /v1/partners/* endpoint, ensure the partnersUrl is configured. The standard gateway and fallback API do NOT serve partners routes.
+
 ## Common Error → Fix Map (apply directly)
 | Error | Fix |
 |---|---|
@@ -132,6 +140,7 @@ This is a **save-early** pattern: persist known-good information to disk as soon
 | 422 "param required" | Add missing query/body params to workflow |
 | 422 "Not Found" on a UID | UID doesn't exist. Add prerequisite to fetch real UID |
 | 404 | Resource doesn't exist. Add prerequisite to create it |
+| 404 on /v1/partners/* | Partners API routing. Uses partnersUrl automatically — see RULE #9 |
 | 403/401 on app assignment/cross-dir op | Use admin token instead of directory token |
 | 502 / Bad Gateway | Main gateway routing issue. Try fallback API — see RULE #8 |
 
@@ -200,10 +209,20 @@ steps:
 {{business_id}}, {{staff_id}}, {{client_id}}, {{matter_uid}}, {{conversation_uid}}
 {{tomorrow_date}}, {{tomorrow_datetime}}, {{next_week_date}}, {{future_datetime}}
 
+## RULE #11: IGNORE EXISTING WORKFLOW STATUS — ALWAYS VERIFY
+The current status field in a workflow is MEANINGLESS to you. Ignore it completely.
+- Even if a workflow says "status: verified", you MUST run test_workflow to confirm it actually passes.
+- Even if the healing knowledge base says "already verified" or "verified through manual testing", you MUST still attempt to get test_workflow to pass.
+- If test_workflow FAILS, you MUST update the workflow to set \`status: pending\` (not verified).
+- Only report success=true if test_workflow returns success=true. "Previously verified" or "manually tested" is NOT success.
+- If test_workflow fails and you cannot fix it, write the workflow with \`status: pending\` and report success=false.
+- NEVER report "no fix needed" — if the workflow was sent to you, it failed validation. Your job is to make it pass.
+
 ## Workflow Status Rules
-- verified = reliable 2xx ONLY
-- pending = non-2xx expected or not yet tested
+- verified = test_workflow returned success=true in THIS session
+- pending = test_workflow failed or was not run
 - NEVER use onFail: skip. Use onFail: abort.
+- NEVER keep status: verified on a workflow that fails test_workflow — downgrade it to pending.
 
 ## RULE #6: ALWAYS TEST THE WORKFLOW FILE (not just the raw API)
 After writing/updating a workflow, you MUST call test_workflow to verify the FULL prerequisite chain works.
@@ -254,7 +273,7 @@ function buildSystemPrompt(directive, accumulatedInsight, referenceWorkflow, kno
 
   // Inject the full healing knowledge base so the agent can match patterns
   if (knowledgeBaseContent) {
-    prompt += `\n\n## Healing Knowledge Base (consult BEFORE investigating)\nIf any entry below matches your endpoint's symptoms/path, apply the documented resolution directly.\n\n${knowledgeBaseContent}`;
+    prompt += `\n\n## Healing Knowledge Base (consult BEFORE investigating)\nIf any entry below matches your endpoint's symptoms/path, apply the documented resolution as a starting point.\n**IMPORTANT**: KB entries are hints, not free passes. Even if a KB entry says "verified" or "no fix needed", you MUST still run test_workflow. If test_workflow fails, the workflow is NOT verified — set status to pending and report failure.\n\n${knowledgeBaseContent}`;
   }
 
   if (directive) {
@@ -806,9 +825,9 @@ async function runDocFixer(options) {
     directive,
     accumulatedInsight = [],
     referenceWorkflow,
-    userPrompt,
     onProgress,
-    maxIterations = 20
+    maxIterations = 20,
+    previousConversation
   } = options;
 
   const method = endpoint.method || (endpoint.endpoint ? endpoint.endpoint.split(' ')[0] : 'GET');
@@ -838,7 +857,7 @@ async function runDocFixer(options) {
   const systemPrompt = buildSystemPrompt(directive, accumulatedInsight, referenceWorkflow, knowledgeBaseContent, maxIterations);
 
   // Build the initial user message with failure context + healer analysis
-  const userMessage = buildUserMessage(endpoint, failureData, healerAnalysis, userPrompt);
+  const userMessage = buildUserMessage(endpoint, failureData, healerAnalysis);
 
   // Context for tool execution
   const context = {
@@ -850,7 +869,29 @@ async function runDocFixer(options) {
   };
 
   // Agent conversation loop
-  let messages = [{ role: 'user', content: userMessage }];
+  let messages;
+  if (previousConversation && previousConversation.length > 0) {
+    // Continue from the previous conversation — the AI retains full context of what it tried
+    messages = [...previousConversation];
+    messages.push({
+      role: 'user',
+      content: [
+        `Your previous fix attempt for this endpoint has completed, but it was not successful enough. The operator has requested another attempt.`,
+        ``,
+        `Please continue where you left off. You already know what approaches you tried — try a DIFFERENT approach this time. Do not repeat failed strategies.`,
+        ``,
+        `Remember:`,
+        `- The workflow file on disk reflects any changes from your previous attempt`,
+        `- You still MUST call report_fix_result when done`,
+        `- Focus on approaches you haven't tried yet`,
+        `- Re-read the workflow file to see its current state before making changes`
+      ].join('\n')
+    });
+    // Reset fix result for this new attempt
+    context.fixResult = null;
+  } else {
+    messages = [{ role: 'user', content: userMessage }];
+  }
   let iterations = 0;
   let lastResponse = null;
 
@@ -986,14 +1027,15 @@ async function runDocFixer(options) {
     apiResponseStatus: fixResult.api_response_status,
     endpointNotImplemented: fixResult.endpointNotImplemented || false,
     swaggerRemovalRecommended: fixResult.swaggerRemovalRecommended || false,
-    iterations
+    iterations,
+    conversationHistory: messages
   };
 }
 
 /**
  * Build the user message with full failure context for the agent.
  */
-function buildUserMessage(endpoint, failureData, healerAnalysis, userPrompt) {
+function buildUserMessage(endpoint, failureData, healerAnalysis) {
   const method = endpoint.method || (endpoint.endpoint ? endpoint.endpoint.split(' ')[0] : 'GET');
   const apiPath = endpoint.path || (endpoint.endpoint ? endpoint.endpoint.split(' ').slice(1).join(' ') : '');
   const domain = endpoint.domain || 'unknown';
@@ -1090,16 +1132,10 @@ function buildUserMessage(endpoint, failureData, healerAnalysis, userPrompt) {
     msg += `\n## Token Used During Test\n${endpoint.tokenUsed}\n`;
   }
 
-  if (userPrompt) {
-    msg += `\n## IMPORTANT: Additional Instructions from the User\n`;
-    msg += `This is a CONTINUATION of a previous fix session. The previous attempt failed for this endpoint.\n`;
-    msg += `The user has provided the following additional guidance — pay close attention:\n\n`;
-    msg += `> ${userPrompt}\n\n`;
-    msg += `Use this guidance to adjust your approach. The previous attempt's information is included above.\n`;
-  }
-
   msg += `\n## Step-by-Step Instructions (follow this order exactly)\n`;
+  msg += `⚠️ IMPORTANT: This endpoint FAILED validation. Even if the existing workflow says "status: verified", it DOES NOT PASS. Ignore the status field — your job is to make test_workflow succeed.\n`;
   msg += `1. Read the existing workflow file for this endpoint (read_workflow with the workflow filename)\n`;
+  msg += `   - IGNORE the status field. Even if it says "verified", the endpoint is failing. Do NOT report "no fix needed."\n`;
   msg += `2. Call list_similar_workflows to find verified workflows with similar path patterns — copy their token type and pattern\n`;
   msg += `3. Use execute_api to explore the API and figure out the correct token, params, body, and prerequisites\n`;
   msg += `4. Write/update the workflow file with correct prerequisites, token type, and test request\n`;
@@ -1117,6 +1153,8 @@ function buildUserMessage(endpoint, failureData, healerAnalysis, userPrompt) {
   msg += `- Testing via execute_api alone is NOT sufficient — the workflow file must pass test_workflow\n`;
   msg += `- A 422 or 401 response is NOT success, even if the error message "makes sense"\n`;
   msg += `- If the workflow had "expectedOutcome: 422", that means the PREVIOUS fixer gave up. You should try harder.\n`;
+  msg += `- If the workflow had "status: verified" but test_workflow fails, you MUST update it to "status: pending" and report success=false\n`;
+  msg += `- "Already verified" or "manually tested" is NOT a valid success reason — only test_workflow passing counts\n`;
   msg += `\n## ANTI-PATTERNS — do NOT do these:\n`;
   msg += `- Do NOT report success based only on execute_api — you MUST verify with test_workflow\n`;
   msg += `- Do NOT accept non-2xx as "expected behavior" unless the endpoint is truly untestable (e.g., webhooks)\n`;
@@ -1126,6 +1164,8 @@ function buildUserMessage(endpoint, failureData, healerAnalysis, userPrompt) {
   msg += `- Do NOT search more than 2 backend source files — focus on workflow fixes, not code investigation\n`;
   msg += `- Do NOT try more than 3 different token types — use the pattern from similar verified workflows\n`;
   msg += `- Do NOT substitute the endpoint path for a different one — if the endpoint 404s, report ENDPOINT_NOT_IMPLEMENTED, do NOT look for "the real endpoint"\n`;
+  msg += `- Do NOT report "no fix needed" or "already verified" — if the endpoint is here, it FAILED. Your job is to make it pass test_workflow.\n`;
+  msg += `- Do NOT trust the existing workflow status — even "verified" workflows can fail. Always run test_workflow to confirm.\n`;
 
   return msg;
 }

@@ -1,42 +1,65 @@
 ---
 endpoint: "PUT /business/scheduling/v1/bookings/cancel"
 domain: scheduling
-tags: [booking, cancel, scheduling]
+tags: [scheduling, bookings, cancel]
 swagger: "swagger/scheduling/legacy/scheduling.json"
-status: pending
+status: verified
 savedAt: "2026-02-01T21:00:00.000Z"
+verifiedAt: "2026-02-01T21:00:00.000Z"
 timesReused: 0
+tokens: [staff]
+useFallbackApi: true
 ---
 
-# Cancel Booking (Business API)
+# Cancel Booking
 
 ## Summary
-Cancel an existing booking. The booking should be in "scheduled" or "pending" state.
+Cancel an existing booking (appointment or event registration). **Token Type**: Requires a **staff token**.
 
-## Authentication
-Available for **Staff and App tokens**.
+> ⚠️ Fallback API Required
 
 ## Prerequisites
 
-Get a scheduled booking to cancel:
-
 ```yaml
 steps:
-  - id: get_scheduled_appointments
-    description: "Get appointments in scheduled state"
+  - id: get_services
+    description: "Get available services for the business"
     method: GET
-    path: "/platform/v1/scheduling/appointments"
-    token: staff
+    path: "/platform/v1/services"
     params:
       business_id: "{{business_id}}"
-      state: "scheduled"
-      per_page: 10
     extract:
-      booking_id: "$.data.appointments[0].id"
+      service_id: "$.data.services[0].id"
     expect:
       status: [200]
-    onFail: skip
-    skipReason: "No scheduled appointments available to cancel"
+    onFail: abort
+
+  - id: get_staffs
+    description: "Get staff members for the business"
+    method: GET
+    path: "/platform/v1/businesses/{{business_id}}/staffs"
+    extract:
+      staff_id: "$.data.staffs[0].id"
+    expect:
+      status: [200]
+    onFail: abort
+
+  - id: create_booking
+    description: "Create a booking to cancel"
+    method: POST
+    path: "/business/scheduling/v1/bookings"
+    token: staff
+    body:
+      business_id: "{{business_id}}"
+      service_id: "{{service_id}}"
+      staff_id: "{{staff_id}}"
+      start_time: "{{future_datetime}}"
+      client_id: "{{client_id}}"
+    extract:
+      booking_id: "$.data.booking.id"
+    expect:
+      status: [200, 201]
+    onFail: abort
 ```
 
 ## Test Request
@@ -53,83 +76,3 @@ steps:
     expect:
       status: [200, 201]
 ```
-
-## Request Body Parameters
-
-| Parameter | Required | Type | Description |
-|-----------|----------|------|-------------|
-| `business_id` | Yes | string | The business UID |
-| `booking_id` | Yes | string or array | The booking UID(s) to cancel. Can be a single string or array for batch operations (max 50) |
-| `event_instance_id` | Conditional | string | Required when cancelling an event registration (not appointment) |
-| `message` | No | string | Optional message to include with the cancellation notification |
-| `cancel_payment` | No | boolean | Set to true to cancel any associated payment |
-| `issue_refund` | No | boolean | Set to true to issue a refund for the cancelled booking |
-
-## Expected Response (201)
-
-```json
-{
-  "status": "OK",
-  "data": {
-    "booking": {
-      "id": "93vcpp7i9d5wowo0",
-      "business_id": "6c52c83af92a7819",
-      "client_id": "7n8ia1nmvuhqqn9g",
-      "conversation_id": "qy0eddp9i3igw3ko",
-      "staff_id": "f5fd126aa3d298be",
-      "status": "cancelled",
-      "title": "Service Name",
-      "start_time": "2025-08-07T09:55:54.048+03:00",
-      "duration": 60,
-      "time_zone": "UTC",
-      "type": "appointment"
-    }
-  }
-}
-```
-
-## Batch Response (200)
-
-```json
-{
-  "status": "OK",
-  "data": {
-    "batch_response": [
-      {
-        "id": "1a2h20dwb6iakgqk",
-        "success": true
-      }
-    ]
-  }
-}
-```
-
-## Error Responses
-
-### 400 Bad Request - Missing booking_id
-```json
-{
-  "status": "Error",
-  "error": "Mandatory parameter booking_id is missing",
-  "error_code": "PARAMETER_MISSING"
-}
-```
-
-### 404 Not Found
-```json
-{
-  "status": "Error",
-  "error": "Booking not found"
-}
-```
-
-## Known Issues
-
-- **booking_id type**: Schema allows both string (single) and array (batch). Use array format for batch cancellations.
-- **Response code**: Returns 201 for single cancel, 200 for batch.
-
-## How to Get booking_id
-
-The `booking_id` can be obtained from:
-1. **GET /platform/v1/scheduling/appointments** - The `id` field in each appointment
-2. **POST /business/scheduling/v1/bookings** response - The `data.booking.id` field

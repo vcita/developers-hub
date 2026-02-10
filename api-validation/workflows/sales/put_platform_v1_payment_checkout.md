@@ -3,7 +3,7 @@ endpoint: "PUT /platform/v1/payment/checkout/"
 domain: sales
 tags: [payment, checkout, webhook]
 swagger: swagger/sales/legacy/legacy_v1_sales.json
-status: skipped
+status: skip
 skipReason: "Payment gateway webhook — requires PaymentProcessRequest records only created during live gateway checkout flows (e.g., Stripe). The PUT pay method has no PaymentStatus fallback unlike GET. Cannot achieve 2xx in test environment."
 savedAt: 2026-02-08T00:00:00.000Z
 verifiedAt:

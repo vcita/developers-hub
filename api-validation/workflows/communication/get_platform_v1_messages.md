@@ -3,7 +3,7 @@ endpoint: "GET /platform/v1/messages"
 domain: communication
 tags: [messages, messaging]
 swagger: "swagger/communication/legacy/legacy_v1_communication.json"
-status: skipped
+status: skip
 savedAt: "2026-01-27T19:30:00.000Z"
 expectedOutcome: 404
 expectedOutcomeReason: "Backend implementation missing: Platform::V1::MessagesController only has create method, no index method implemented despite being documented in swagger and routes.rb"

@@ -30,7 +30,7 @@ const args = process.argv.slice(2);
 const options = {
   dryRun: args.includes('--dry-run'),
   name: getArgValue('--name') || `API Test Business ${Date.now()}`,
-  email: getArgValue('--email') || `apitest+${Date.now()}@vcita.com`,
+  email: getArgValue('--email') || `apitest.${Date.now()}@vcita.com`,
   help: args.includes('--help') || args.includes('-h')
 };
 
@@ -151,8 +151,7 @@ async function createBusiness(directoryToken, businessName, adminEmail) {
     },
     business: {
       address: '123 Test Street',
-      business_category: 'consulting',
-      business_maturity_in_years: '3',
+      business_maturity_in_years: '2+',
       country_name: 'United States',
       hide_address: false,
       name: businessName,

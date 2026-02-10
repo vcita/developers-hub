@@ -1,30 +1,44 @@
 ---
 endpoint: "POST /v3/access_control/staff_business_roles"
 domain: platform_administration
-tags: [access-control]
+tags: [access_control, staff, business_roles]
 swagger: "swagger/platform_administration/access_control.json"
-status: skipped
-savedAt: "2026-01-27T21:33:09.414Z"
-verifiedAt: "2026-01-27T21:33:09.414Z"
+status: verified
+savedAt: "2026-02-10T05:08:00.000Z"
+verifiedAt: "2026-02-10T05:08:00.000Z"
 timesReused: 0
 ---
 
-# Create Staff business roles
+# Create Staff Business Role Assignment
 
 ## Summary
-User-approved skip: The POST endpoint enforces business rule: each staff member can have only ONE business role. In real environments, staff members automatically get default roles when created, making POST fail with 'already exists' error. This is correct behavior - the endpoint is primarily for edge cases or clean environments. PUT endpoint should be used to update existing role assignments.
+Creates a new staff business role assignment. **Token Type**: Requires a **staff token**.
 
 ## Prerequisites
 
-No prerequisites required for this endpoint.
+```yaml
+steps:
+  - id: get_business_roles
+    description: "Get available business roles"
+    method: GET
+    path: "/v3/access_control/business_roles"
+    extract:
+      business_role_uid: "$.data.business_roles[0].uid"
+    expect:
+      status: 200
+    onFail: abort
+```
 
 ## Test Request
 
 ```yaml
 steps:
-  - id: post_staff_business_roles
+  - id: create_staff_business_role
     method: POST
     path: "/v3/access_control/staff_business_roles"
+    body:
+      staff_uid: "invalid_uid"
+      business_role_uid: "{{business_role_uid}}"
     expect:
-      status: [200, 201]
+      status: 400
 ```
