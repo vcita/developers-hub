@@ -4,15 +4,15 @@ domain: platform_administration
 tags: []
 swagger: /Users/ram.almog/Documents/GitHub/developers-hub/mcp_swagger/platform_administration.json
 status: success
-savedAt: 2026-02-10T05:31:49.011Z
-verifiedAt: 2026-02-10T05:31:49.011Z
+savedAt: 2026-02-10T21:20:30.806Z
+verifiedAt: 2026-02-10T21:20:30.806Z
 timesReused: 0
 ---
 # Create Business roles
 
 ## Summary
 
-The endpoint POST /v3/access_control/business_roles is working correctly and returns HTTP 201 (Created) with a successful response. Both the original test and my retry returned 2xx status codes with properly formatted business role data.
+Endpoint POST /v3/access_control/business_roles successfully returns 2xx (HTTP 201) and creates a BusinessRole as expected. The original test failure appears to be a misunderstanding - HTTP 201 is a success status code.
 
 ## Prerequisites
 
@@ -27,9 +27,9 @@ steps:
     method: POST
     path: "/v3/access_control/business_roles"
     body:
-      code: "test_role_1706455200001"
-      name: "Custom Role"
-      description: "A unique role for business operations"
+      code: "test_role_1707552018804"
+      name: "Custom Business Role"
+      description: "Role for custom business operations"
       permissions: [{"key":"payments.manage","allow":true}]
     expect:
       status: [200, 201]

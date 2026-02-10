@@ -3,11 +3,9 @@ endpoint: "PUT /v3/access_control/staff_permission_overrides_lists/{staff_uid}"
 domain: platform_administration
 tags: [access_control, permissions]
 swagger: "swagger/platform_administration/access_control.json"
-status: pending
-expectedOutcome: 403
-expectedOutcomeReason: "The staff role configuration feature is disabled in this environment"
-savedAt: "2026-01-29T21:00:00.000Z"
-verifiedAt: "2026-01-29T21:00:00.000Z"
+status: verified
+savedAt: 2026-02-10T16:41:15.000Z
+verifiedAt: 2026-02-10T16:41:15.000Z
 timesReused: 0
 ---
 
@@ -16,22 +14,46 @@ timesReused: 0
 ## Summary
 Update permission overrides for a staff member. **Token Type**: Requires a **staff token**.
 
-> ⚠️ Expected Outcome: 403 - The staff role configuration feature is disabled in this environment
+## Prerequisites
+
+```yaml
+steps:
+  - id: get_staff_business_roles
+    description: "Get a staff member with business role assignment"
+    method: GET
+    path: "/v3/access_control/staff_business_roles"
+    params:
+      per_page: "1"
+    extract:
+      staff_uid: "$.data.staff_business_roles[0].staff_uid"
+    expect:
+      status: 200
+    onFail: abort
+
+  - id: get_business_role
+    description: "Get business role to find valid permission keys"
+    method: GET
+    path: "/v3/access_control/business_roles"
+    params:
+      per_page: "1"
+    extract:
+      permission_key: "$.data.business_roles[0].permissions[0].key"
+    expect:
+      status: 200
+    onFail: abort
+```
 
 ## Test Request
 
 ```yaml
 steps:
-  - id: put_staff_permission_overrides_lists
+  - id: main_request
     method: PUT
-    path: "/v3/access_control/staff_permission_overrides_lists/{{staff_id}}"
-    token: staff
+    path: "/v3/access_control/staff_permission_overrides_lists/{{staff_uid}}"
     body:
       permissions:
-        - key: "payments.invoices.export"
+        - key: "{{permission_key}}"
           state: "allow"
-        - key: "payments.invoices.view"
-          state: "deny"
     expect:
-      status: 403
+      status: 200
 ```

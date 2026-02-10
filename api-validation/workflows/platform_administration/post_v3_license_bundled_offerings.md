@@ -4,8 +4,8 @@ domain: platform_administration
 tags: [license, bundled-offerings]
 swagger: "swagger/platform_administration/platform_administration.json"
 status: verified
-savedAt: 2026-02-10T05:17:00.000Z
-verifiedAt: 2026-02-10T05:17:00.000Z
+savedAt: 2026-02-10T19:39:30.000Z
+verifiedAt: 2026-02-10T19:39:30.000Z
 timesReused: 0
 ---
 
@@ -19,14 +19,14 @@ Creates a bundled offering relationship linking a parent offering with a child o
 ```yaml
 steps:
   - id: get_all_offerings
-    description: "Fetch all offerings to find suitable parent and child offerings"
+    description: "Fetch all offerings to find suitable parent and child offerings. parent is package, addon is addon"
     method: GET
     path: "/v3/license/offerings"
     token: admin
     extract:
-      # Try different combination - use last app offering and last addon offering
-      app_offering_uid: "$.data.offerings[19].uid"   # different app offering as parent
-      addon_offering_uid: "$.data.offerings[24].uid"  # last addon offering as child  
+      # Use different indices to minimize conflicts
+      package_offering_uid: "$.data.offerings[10].uid"
+      addon_offering_uid: "$.data.offerings[5].uid"
     expect:
       status: 200
     onFail: abort
@@ -41,7 +41,7 @@ steps:
     path: "/v3/license/bundled_offerings"
     token: admin
     body:
-      offering_uid: "{{app_offering_uid}}"
+      offering_uid: "{{package_offering_uid}}"
       bundled_offering_uid: "{{addon_offering_uid}}"
     expect:
       status: [200, 201]

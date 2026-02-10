@@ -6,14 +6,36 @@
     "version": "3.0",
     "x-generated": {
       "sourceFiles": [
-        "legacy_v1_apps.json",
-        "widgets_and_boards.json",
+        "apps.json",
+        "jwks.json",
         "legacy_app_translation.json",
         "legacy_token.json",
-        "apps.json",
-        "jwks.json"
+        "legacy_v1_apps.json",
+        "widgets_and_boards.json"
       ],
       "pathNormalizations": [
+        {
+          "file": "legacy_app_translation.json",
+          "basePath": "/platform/v1",
+          "transformations": [
+            {
+              "original": "/apps/translations/{app_code_name}",
+              "normalized": "/platform/v1/apps/translations/{app_code_name}",
+              "basePath": "/platform/v1"
+            }
+          ]
+        },
+        {
+          "file": "legacy_token.json",
+          "basePath": "/oauth/service",
+          "transformations": [
+            {
+              "original": "/token",
+              "normalized": "/oauth/service/token",
+              "basePath": "/oauth/service"
+            }
+          ]
+        },
         {
           "file": "legacy_v1_apps.json",
           "basePath": "/platform/v1",
@@ -49,28 +71,6 @@
               "basePath": "/platform/v1"
             }
           ]
-        },
-        {
-          "file": "legacy_app_translation.json",
-          "basePath": "/platform/v1",
-          "transformations": [
-            {
-              "original": "/apps/translations/{app_code_name}",
-              "normalized": "/platform/v1/apps/translations/{app_code_name}",
-              "basePath": "/platform/v1"
-            }
-          ]
-        },
-        {
-          "file": "legacy_token.json",
-          "basePath": "/oauth/service",
-          "transformations": [
-            {
-              "original": "/token",
-              "normalized": "/oauth/service/token",
-              "basePath": "/oauth/service"
-            }
-          ]
         }
       ],
       "pathConflicts": [],
@@ -78,10 +78,10 @@
         {
           "type": "schema",
           "name": "Response",
-          "resolution": "Renamed to Response_apps",
+          "resolution": "Renamed to Response_widgets_and_boards",
           "files": [
             "merged",
-            "apps.json"
+            "widgets_and_boards.json"
           ]
         }
       ],
@@ -96,6 +96,681 @@
     }
   ],
   "paths": {
+    "/v3/apps/app_assignments": {
+      "get": {
+        "operationId": "AppAssignments_list",
+        "summary": "List App Assignments",
+        "description": "Returns app assignments across multiple businesses within a directory, with optional filtering. Note: assignee_uid can only be used when assignee_type is also provided.\n\n**Available for Directory and Internal Tokens.**",
+        "parameters": [
+          {
+            "name": "app_code_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by app code name"
+          },
+          {
+            "name": "assignee_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "business",
+                "package",
+                "directory"
+              ]
+            },
+            "description": "Filter by assignee type"
+          },
+          {
+            "name": "assignee_uid",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by assignee uid. Only allowed when assignee_type is also provided."
+          },
+          {
+            "name": "directory_uid",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by directory uid. Only available for internal Tokens."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "App assignments retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "app_assignments": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "https://vcita.github.io/developers-hub/entities/apps/appAssignment.json"
+                              }
+                            }
+                          },
+                          "required": [
+                            "app_assignments"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request. Invalid input data."
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing or invalid."
+          },
+          "403": {
+            "description": "Forbidden. You do not have access to this resource."
+          },
+          "500": {
+            "description": "Internal server error."
+          }
+        },
+        "tags": [
+          "App Assignments"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "AppAssignments_create",
+        "summary": "Create an App Assignment",
+        "description": "## Overview\nCreate a new app assignment to a business, package or directory.\n\n**Available for Directory Tokens and Internal Tokens only.** Staff and Business tokens are not supported and will return 401 Unauthorized.\n\n## Prerequisites\n- The app specified by `app_code_name` must already exist and belong to the authenticated directory\n- The `directory_uid` parameter is **optional when using Directory Token** (auto-determined from token). If provided, must match the directory associated with your authentication token.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAppAssignmentRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "App assignment created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/appAssignment.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request. Invalid input data."
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing or invalid."
+          },
+          "403": {
+            "description": "Forbidden. You do not have access to this resource."
+          },
+          "500": {
+            "description": "Internal server error."
+          }
+        },
+        "tags": [
+          "App Assignments"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/apps/app_assignments/{uid}": {
+      "delete": {
+        "operationId": "AppAssignments_delete",
+        "summary": "Delete an App Assignment",
+        "description": "## Overview\nDelete an app assignment.\n\n**Available for Directory and internal Tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unique identifier of the app assignment to delete"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "App assignment deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/appAssignment.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request. Invalid input data."
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing or invalid."
+          },
+          "403": {
+            "description": "Forbidden. You do not have access to this resource."
+          },
+          "404": {
+            "description": "Not found. App assignment not found."
+          },
+          "500": {
+            "description": "Internal server error."
+          }
+        },
+        "tags": [
+          "App Assignments"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/apps/compact_jws_tokens": {
+      "post": {
+        "summary": "Create a compact JWS token",
+        "description": "## Overview\nCreate a new compact JWS token that can be used to authenticate a staff member to an app in inTandem using a JWKS process. The token is signed by the app's private key and can be verified by inTandem's public key. Public JWKS token can be obtained at: https://api.vcita.biz/v3/apps/.well-known/jwks.json. Available for **Staff Tokens** and **AppStaffToken**.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "app_code_name": {
+                    "type": "string",
+                    "description": "The code name of the app that owns this token"
+                  }
+                },
+                "required": [
+                  "app_code_name"
+                ],
+                "example": {
+                  "app_code_name": "tips"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A compact JWS token is successfully created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/compactJWSToken.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing, invalid or not allowed to access the requested resource."
+          },
+          "429": {
+            "description": "Rate limit has been reached due to the number of requests made for the same staff member in a short period of time."
+          }
+        },
+        "tags": [
+          "JWKS"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/apps/compact_jws_tokens/bulk": {
+      "post": {
+        "summary": "Bulk create compact JWS tokens",
+        "description": "## Overview\nCreate multiple compact JWS tokens for a list of app code names. The response will include the success, generated token (if successful), or error details for each app code name.\n\n**Available for Staff Tokens and AppStaffToken**",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "app_code_names": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "description": "The code name of the app that owns the token"
+                    },
+                    "description": "List of app code names for which JWS tokens need to be generated"
+                  }
+                },
+                "required": [
+                  "app_code_names"
+                ],
+                "example": {
+                  "app_code_names": [
+                    "tips",
+                    "helpdesk",
+                    "sales"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bulk creation of compact JWS tokens.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "compact_jws_tokens": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "success": {
+                                "type": "boolean",
+                                "description": "Status of the creation for the entity. Possible values: true (success), false (error)."
+                              },
+                              "data": {
+                                "description": "The generated JWS token or null if failed",
+                                "$ref": "https://vcita.github.io/developers-hub/entities/apps/compactJWSToken.json"
+                              },
+                              "error": {
+                                "type": "string",
+                                "description": "Error message if token creation failed"
+                              }
+                            },
+                            "required": [
+                              "success"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing, invalid or not allowed to access the requested resource."
+          },
+          "429": {
+            "description": "Rate limit has been reached due to the number of requests made for the same staff member in a short period of time."
+          }
+        },
+        "tags": [
+          "JWKS"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/platform/v1/apps/translations/{app_code_name}": {
+      "put": {
+        "summary": "Update app translations",
+        "description": "## Overview\nUpdates the translations for an app. The translations must be provided as a CSV file with a specific format. The CSV should have columns for: Key, Context, Character Limit, en, es, fr, it, pt, de, pl, nl, en-GB, he, sl. The rows should contain: Name, Short description, App features, Long description. All English fields are required.\n\n**Authorization**: This endpoint is for app developers/publishers only. The requesting directory must own the app specified by `app_code_name`. Attempting to update translations for an app owned by another directory will result in a 422 AuthorizationException error.\n\n**Available for Directory Tokens**",
+        "tags": [
+          "Applications"
+        ],
+        "parameters": [
+          {
+            "name": "app_code_name",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "The app's code name identifier",
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "translations_csv": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "CSV file with translations. Format: First row contains headers (Key, Context, Character Limit, en, es, fr, it, pt, de, pl, nl, en-GB, he, sl). Following rows: Name, Short description, App features (semicolon-separated), Long description. All English (en) fields are mandatory. Download a sample CSV file here: https://vcita.github.io/developers-hub/downloads/app_translations_sample.csv"
+                  }
+                },
+                "required": [
+                  "translations_csv"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "examples": {
+                  "success_example": {
+                    "value": {
+                      "status": "OK",
+                      "success": true,
+                      "translations": {
+                        "en": {
+                          "name": "My App",
+                          "short_description": "This is a short description",
+                          "long_description": "This is a long and detailed description of the app",
+                          "app_features": [
+                            "Feature 1",
+                            "Feature 2",
+                            "Feature 3"
+                          ]
+                        },
+                        "es": {
+                          "name": "Mi Aplicación",
+                          "short_description": "Esta es una descripción corta",
+                          "long_description": "Esta es una descripción larga y detallada de la aplicación",
+                          "app_features": [
+                            "Característica 1",
+                            "Característica 2",
+                            "Característica 3"
+                          ]
+                        },
+                        "fr": {
+                          "name": "Mon App",
+                          "short_description": "Ceci est une brève description",
+                          "long_description": "Ceci est une description longue et détaillée de l'application",
+                          "app_features": [
+                            "Fonctionnalité 1",
+                            "Fonctionnalité 2",
+                            "Fonctionnalité 3"
+                          ]
+                        },
+                        "it": {
+                          "name": "La Mia App",
+                          "short_description": "Questa è una breve descrizione",
+                          "long_description": "Questa è una descrizione lunga e dettagliata dell'app",
+                          "app_features": [
+                            "Funzione 1",
+                            "Funzione 2",
+                            "Funzione 3"
+                          ]
+                        },
+                        "pt": {
+                          "name": "Meu App",
+                          "short_description": "Esta é uma descrição curta",
+                          "long_description": "Esta é uma descrição longa e detalhada do aplicativo",
+                          "app_features": [
+                            "Recurso 1",
+                            "Recurso 2",
+                            "Recurso 3"
+                          ]
+                        },
+                        "de": {
+                          "name": "Meine App",
+                          "short_description": "Dies ist eine kurze Beschreibung",
+                          "long_description": "Dies ist eine lange und detaillierte Beschreibung der App",
+                          "app_features": [
+                            "Funktion 1",
+                            "Funktion 2",
+                            "Funktion 3"
+                          ]
+                        },
+                        "pl": {
+                          "name": "Moja Aplikacja",
+                          "short_description": "To jest krótki opis",
+                          "long_description": "To jest długi i szczegółowy opis aplikacji",
+                          "app_features": [
+                            "Funkcja 1",
+                            "Funkcja 2",
+                            "Funkcja 3"
+                          ]
+                        },
+                        "nl": {
+                          "name": "Mijn App",
+                          "short_description": "Dit is een korte beschrijving",
+                          "long_description": "Dit is een lange en gedetailleerde beschrijving van de app",
+                          "app_features": [
+                            "Functie 1",
+                            "Functie 2",
+                            "Functie 3"
+                          ]
+                        },
+                        "en-GB": {
+                          "name": "My App",
+                          "short_description": "This is a short description",
+                          "long_description": "This is a long and detailed description of the app",
+                          "app_features": [
+                            "Feature 1",
+                            "Feature 2",
+                            "Feature 3"
+                          ]
+                        },
+                        "he": {
+                          "name": "האפליקציה שלי",
+                          "short_description": "זהו תיאור קצר",
+                          "long_description": "זהו תיאור ארוך ומפורט של האפליקציה",
+                          "app_features": [
+                            "תכונה 1",
+                            "תכונה 2",
+                            "תכונה 3"
+                          ]
+                        },
+                        "sl": {
+                          "name": "Moja Aplikacija",
+                          "short_description": "To je kratek opis",
+                          "long_description": "To je dolg in podroben opis aplikacije",
+                          "app_features": [
+                            "Funkcija 1",
+                            "Funkcija 2",
+                            "Funkcija 3"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "examples": {
+                  "error_example": {
+                    "value": {
+                      "status": "Error",
+                      "success": false,
+                      "errors": [
+                        {
+                          "message": "App with given app code name not found",
+                          "code": "not_found",
+                          "field": "app_code_name"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-auth-type": "Application & Application User",
+        "x-amazon-apigateway-integration": {
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "uri": "https://api.vcita.biz/platform/v1/apps/translations/{app_code_name}",
+          "httpMethod": "PUT",
+          "type": "http_proxy"
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/oauth/service/token": {
+      "post": {
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Service token generated",
+            "content": {
+              "application/json": {
+                "example": {
+                  "access_token": "eade05e0ee958ed139b7431b1a630bff95260178699ddf88cbd86a32d2ac708c",
+                  "created_at": "2021-11-16T13:29:47.000Z",
+                  "expires_in": 3600,
+                  "token_type": "Bearer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid credentials"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "summary": "Generate an app access token",
+        "description": "## Overview\nGenerate an app access token using OAuth client credentials flow. **No bearer token required** - authentication is via service_id and service_secret in the request body.\n\n## Prerequisites\nRequires an existing OAuth application. Create one using `POST /platform/v1/apps` to obtain `client_id` (service_id) and `client_secret` (service_secret).\n\n## Parameters\n- `service_id`: The OAuth application `client_id` - a 64-character hexadecimal string (e.g., `20cecc9cc620b717187922baa7706ceaf27b254afdb435ff955a913b3393a8f9`)\n- `service_secret`: The OAuth application `client_secret` - a 64-character hexadecimal string\n\n## How to Get Credentials\n1. Create an app: `POST /platform/v1/apps` with directory token\n2. Save the `client_id` and `client_secret` from the response\n3. Use those values as `service_id` and `service_secret` in this endpoint\n\n## Usage\nThis token can be used to create widgets (for apps with `app_type=['widgets']`) or notifications for the app.",
+        "tags": [
+          "Service OAuth"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///oauth/service/token"
+        },
+        "x-auth-type": "None",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "service_id": {
+                    "description": "The OAuth application client_id (UID). This is returned when creating an app via `POST /platform/v1/apps`. Must be a valid OAuth application credential.",
+                    "type": "string"
+                  },
+                  "service_secret": {
+                    "description": "The OAuth application client_secret. This is returned when creating an app via `POST /platform/v1/apps`. Must match the OAuth application credentials.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "service_id",
+                  "service_secret"
+                ],
+                "type": "object",
+                "example": {
+                  "service_id": "20cecc9cc620b717187922baa7706ceaf27b254afdb435ff955a913b3393a8f9",
+                  "service_secret": "3f12b18a6d015cb99ca56e1abeeb885cf87cee824e7d021064ad446ed9aa3bb2"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
     "/platform/v1/apps": {
       "get": {
         "description": "Retrieve a list of available apps. Response format varies by token type - Staff tokens receive detailed app data including full configuration, while Directory tokens receive simplified app data for apps associated with the directory.\n\n**Available for Staff and Directory Tokens.**",
@@ -158,11 +833,6 @@
             }
           }
         },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
         "summary": "List of apps",
         "tags": [
           "Applications"
@@ -180,7 +850,12 @@
           "type": "http_proxy",
           "uri": "https:///platform/v1/apps"
         },
-        "x-auth-type": "Application & Application User"
+        "x-auth-type": "Application & Application User",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       },
       "post": {
         "description": "## Overview\nCreate a new app.\n\n**Available for Directory and internal Tokens.**",
@@ -206,11 +881,6 @@
             }
           }
         },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
         "summary": "Creates an app",
         "tags": [
           "Applications"
@@ -537,7 +1207,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       }
     },
     "/platform/v1/apps/{id}": {
@@ -615,11 +1290,6 @@
             }
           }
         },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
         "summary": "Read an app",
         "tags": [
           "Applications"
@@ -637,7 +1307,12 @@
           "type": "http_proxy",
           "uri": "https:///platform/v1/apps/{id}"
         },
-        "x-auth-type": "Application & Application User"
+        "x-auth-type": "Application & Application User",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       },
       "put": {
         "description": "## Overview\nUpdate an app by code name.\n\n## Authentication\n**Available for Internal Tokens and Directory Tokens.**\n\n### Token Type Behavior\n- **Internal Tokens**: Can update any app, including the `trusted` field\n- **Directory Tokens**: Can only update apps created by/owned by that directory. Cannot modify the `trusted` field.\n\n## Path Parameter\nThe `{id}` in the path must be the **app_code_name** (string identifier), not the numeric app_id. Use `GET /platform/v1/apps` to find app_code_name values.\n\n## Field Restrictions\n- `trusted`: This parameter can **only be set by Internal Tokens**. Directory tokens cannot modify this field.",
@@ -730,11 +1405,6 @@
             }
           }
         },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
         "summary": "Updates an app",
         "tags": [
           "Applications"
@@ -989,7 +1659,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       }
     },
     "/platform/v1/apps/{id}/assign": {
@@ -1033,11 +1708,6 @@
             }
           }
         },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
         "summary": "[DEPRECATED] Assign an app to directory or business - Use POST /v3/apps/app_assignments",
         "tags": [
           "Applications"
@@ -1086,7 +1756,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       }
     },
     "/platform/v1/apps/{id}/install_app": {
@@ -1162,11 +1837,6 @@
             }
           }
         },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
         "summary": "Install an app [Internal]",
         "tags": [
           "Applications"
@@ -1191,7 +1861,12 @@
               "schema": {}
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       }
     },
     "/platform/v1/apps/{id}/unassign": {
@@ -1233,11 +1908,6 @@
             }
           }
         },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
         "summary": "Unassign an app on directory or a business [Internal]",
         "tags": [
           "Applications"
@@ -1274,7 +1944,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       }
     },
     "/platform/v1/apps/{id}/uninstall_app": {
@@ -1350,11 +2025,6 @@
             }
           }
         },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
         "summary": "Uninstall an app [Internal]",
         "tags": [
           "Applications"
@@ -1379,7 +2049,12 @@
               "schema": {}
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       }
     },
     "/v3/apps/widgets": {
@@ -1516,12 +2191,12 @@
         "tags": [
           "Widget"
         ],
+        "description": "## Overview\nGet all widgets for the authenticated app.\n\n## Authentication\n**Available for App Tokens only.** The app must have `app_type='widgets'` to access widgets. Apps with other types will receive 403: 'This app's type does not support widgets'.",
         "security": [
           {
             "Bearer": []
           }
-        ],
-        "description": "## Overview\nGet all widgets for the authenticated app.\n\n## Authentication\n**Available for App Tokens only.** The app must have `app_type='widgets'` to access widgets. Apps with other types will receive 403: 'This app's type does not support widgets'."
+        ]
       }
     },
     "/v3/apps/widgets/{uid}": {
@@ -2071,697 +2746,75 @@
           }
         ]
       }
-    },
-    "/platform/v1/apps/translations/{app_code_name}": {
-      "put": {
-        "summary": "Update app translations",
-        "description": "## Overview\nUpdates the translations for an app. The translations must be provided as a CSV file with a specific format. The CSV should have columns for: Key, Context, Character Limit, en, es, fr, it, pt, de, pl, nl, en-GB, he, sl. The rows should contain: Name, Short description, App features, Long description. All English fields are required.\n\n**Authorization**: This endpoint is for app developers/publishers only. The requesting directory must own the app specified by `app_code_name`. Attempting to update translations for an app owned by another directory will result in a 422 AuthorizationException error.\n\n**Available for Directory Tokens**",
-        "tags": [
-          "Applications"
-        ],
-        "parameters": [
-          {
-            "name": "app_code_name",
-            "in": "path",
-            "schema": {
-              "type": "string"
-            },
-            "description": "The app's code name identifier",
-            "required": true
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "translations_csv": {
-                    "type": "string",
-                    "format": "binary",
-                    "description": "CSV file with translations. Format: First row contains headers (Key, Context, Character Limit, en, es, fr, it, pt, de, pl, nl, en-GB, he, sl). Following rows: Name, Short description, App features (semicolon-separated), Long description. All English (en) fields are mandatory. Download a sample CSV file here: https://vcita.github.io/developers-hub/downloads/app_translations_sample.csv"
-                  }
-                },
-                "required": [
-                  "translations_csv"
-                ]
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                },
-                "examples": {
-                  "success_example": {
-                    "value": {
-                      "status": "OK",
-                      "success": true,
-                      "translations": {
-                        "en": {
-                          "name": "My App",
-                          "short_description": "This is a short description",
-                          "long_description": "This is a long and detailed description of the app",
-                          "app_features": [
-                            "Feature 1",
-                            "Feature 2",
-                            "Feature 3"
-                          ]
-                        },
-                        "es": {
-                          "name": "Mi Aplicación",
-                          "short_description": "Esta es una descripción corta",
-                          "long_description": "Esta es una descripción larga y detallada de la aplicación",
-                          "app_features": [
-                            "Característica 1",
-                            "Característica 2",
-                            "Característica 3"
-                          ]
-                        },
-                        "fr": {
-                          "name": "Mon App",
-                          "short_description": "Ceci est une brève description",
-                          "long_description": "Ceci est une description longue et détaillée de l'application",
-                          "app_features": [
-                            "Fonctionnalité 1",
-                            "Fonctionnalité 2",
-                            "Fonctionnalité 3"
-                          ]
-                        },
-                        "it": {
-                          "name": "La Mia App",
-                          "short_description": "Questa è una breve descrizione",
-                          "long_description": "Questa è una descrizione lunga e dettagliata dell'app",
-                          "app_features": [
-                            "Funzione 1",
-                            "Funzione 2",
-                            "Funzione 3"
-                          ]
-                        },
-                        "pt": {
-                          "name": "Meu App",
-                          "short_description": "Esta é uma descrição curta",
-                          "long_description": "Esta é uma descrição longa e detalhada do aplicativo",
-                          "app_features": [
-                            "Recurso 1",
-                            "Recurso 2",
-                            "Recurso 3"
-                          ]
-                        },
-                        "de": {
-                          "name": "Meine App",
-                          "short_description": "Dies ist eine kurze Beschreibung",
-                          "long_description": "Dies ist eine lange und detaillierte Beschreibung der App",
-                          "app_features": [
-                            "Funktion 1",
-                            "Funktion 2",
-                            "Funktion 3"
-                          ]
-                        },
-                        "pl": {
-                          "name": "Moja Aplikacja",
-                          "short_description": "To jest krótki opis",
-                          "long_description": "To jest długi i szczegółowy opis aplikacji",
-                          "app_features": [
-                            "Funkcja 1",
-                            "Funkcja 2",
-                            "Funkcja 3"
-                          ]
-                        },
-                        "nl": {
-                          "name": "Mijn App",
-                          "short_description": "Dit is een korte beschrijving",
-                          "long_description": "Dit is een lange en gedetailleerde beschrijving van de app",
-                          "app_features": [
-                            "Functie 1",
-                            "Functie 2",
-                            "Functie 3"
-                          ]
-                        },
-                        "en-GB": {
-                          "name": "My App",
-                          "short_description": "This is a short description",
-                          "long_description": "This is a long and detailed description of the app",
-                          "app_features": [
-                            "Feature 1",
-                            "Feature 2",
-                            "Feature 3"
-                          ]
-                        },
-                        "he": {
-                          "name": "האפליקציה שלי",
-                          "short_description": "זהו תיאור קצר",
-                          "long_description": "זהו תיאור ארוך ומפורט של האפליקציה",
-                          "app_features": [
-                            "תכונה 1",
-                            "תכונה 2",
-                            "תכונה 3"
-                          ]
-                        },
-                        "sl": {
-                          "name": "Moja Aplikacija",
-                          "short_description": "To je kratek opis",
-                          "long_description": "To je dolg in podroben opis aplikacije",
-                          "app_features": [
-                            "Funkcija 1",
-                            "Funkcija 2",
-                            "Funkcija 3"
-                          ]
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Failure",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                },
-                "examples": {
-                  "error_example": {
-                    "value": {
-                      "status": "Error",
-                      "success": false,
-                      "errors": [
-                        {
-                          "message": "App with given app code name not found",
-                          "code": "not_found",
-                          "field": "app_code_name"
-                        }
-                      ]
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-auth-type": "Application & Application User",
-        "x-amazon-apigateway-integration": {
-          "responses": {
-            "default": {
-              "statusCode": "200"
-            }
-          },
-          "uri": "https://api.vcita.biz/platform/v1/apps/translations/{app_code_name}",
-          "httpMethod": "PUT",
-          "type": "http_proxy"
-        }
-      }
-    },
-    "/oauth/service/token": {
-      "post": {
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Service token generated",
-            "content": {
-              "application/json": {
-                "example": {
-                  "access_token": "eade05e0ee958ed139b7431b1a630bff95260178699ddf88cbd86a32d2ac708c",
-                  "created_at": "2021-11-16T13:29:47.000Z",
-                  "expires_in": 3600,
-                  "token_type": "Bearer"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid credentials"
-          },
-          "401": {
-            "description": "Unauthorized"
-          }
-        },
-        "summary": "Generate an app access token",
-        "description": "## Overview\nGenerate an app access token using OAuth client credentials flow. **No bearer token required** - authentication is via service_id and service_secret in the request body.\n\n## Prerequisites\nRequires an existing OAuth application. Create one using `POST /platform/v1/apps` to obtain `client_id` (service_id) and `client_secret` (service_secret).\n\n## Parameters\n- `service_id`: The OAuth application `client_id` - a 64-character hexadecimal string (e.g., `20cecc9cc620b717187922baa7706ceaf27b254afdb435ff955a913b3393a8f9`)\n- `service_secret`: The OAuth application `client_secret` - a 64-character hexadecimal string\n\n## How to Get Credentials\n1. Create an app: `POST /platform/v1/apps` with directory token\n2. Save the `client_id` and `client_secret` from the response\n3. Use those values as `service_id` and `service_secret` in this endpoint\n\n## Usage\nThis token can be used to create widgets (for apps with `app_type=['widgets']`) or notifications for the app.",
-        "tags": [
-          "Service OAuth"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-amazon-apigateway-integration": {
-          "httpMethod": "POST",
-          "responses": {
-            "default": {
-              "statusCode": "200"
-            }
-          },
-          "type": "http_proxy",
-          "uri": "https:///oauth/service/token"
-        },
-        "x-auth-type": "None",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "properties": {
-                  "service_id": {
-                    "description": "The OAuth application client_id (UID). This is returned when creating an app via `POST /platform/v1/apps`. Must be a valid OAuth application credential.",
-                    "type": "string"
-                  },
-                  "service_secret": {
-                    "description": "The OAuth application client_secret. This is returned when creating an app via `POST /platform/v1/apps`. Must match the OAuth application credentials.",
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "service_id",
-                  "service_secret"
-                ],
-                "type": "object",
-                "example": {
-                  "service_id": "20cecc9cc620b717187922baa7706ceaf27b254afdb435ff955a913b3393a8f9",
-                  "service_secret": "3f12b18a6d015cb99ca56e1abeeb885cf87cee824e7d021064ad446ed9aa3bb2"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v3/apps/app_assignments": {
-      "get": {
-        "operationId": "AppAssignments_list",
-        "summary": "List App Assignments",
-        "description": "Returns app assignments across multiple businesses within a directory, with optional filtering. Note: assignee_uid can only be used when assignee_type is also provided.\n\n**Available for Directory and Internal Tokens.**",
-        "parameters": [
-          {
-            "name": "app_code_name",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Filter by app code name"
-          },
-          {
-            "name": "assignee_type",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "business",
-                "package",
-                "directory"
-              ]
-            },
-            "description": "Filter by assignee type"
-          },
-          {
-            "name": "assignee_uid",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Filter by assignee uid. Only allowed when assignee_type is also provided."
-          },
-          {
-            "name": "directory_uid",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Filter by directory uid. Only available for internal Tokens."
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "App assignments retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "type": "object",
-                          "properties": {
-                            "app_assignments": {
-                              "type": "array",
-                              "items": {
-                                "$ref": "https://vcita.github.io/developers-hub/entities/apps/appAssignment.json"
-                              }
-                            }
-                          },
-                          "required": [
-                            "app_assignments"
-                          ]
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request. Invalid input data."
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing or invalid."
-          },
-          "403": {
-            "description": "Forbidden. You do not have access to this resource."
-          },
-          "500": {
-            "description": "Internal server error."
-          }
-        },
-        "tags": [
-          "App Assignments"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      },
-      "post": {
-        "operationId": "AppAssignments_create",
-        "summary": "Create an App Assignment",
-        "description": "## Overview\nCreate a new app assignment to a business, package or directory.\n\n**Available for Directory Tokens and Internal Tokens only.** Staff and Business tokens are not supported and will return 401 Unauthorized.\n\n## Prerequisites\n- The app specified by `app_code_name` must already exist and belong to the authenticated directory\n- The `directory_uid` parameter is **optional when using Directory Token** (auto-determined from token). If provided, must match the directory associated with your authentication token.",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateAppAssignmentRequestDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "App assignment created successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/appAssignment.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request. Invalid input data."
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing or invalid."
-          },
-          "403": {
-            "description": "Forbidden. You do not have access to this resource."
-          },
-          "500": {
-            "description": "Internal server error."
-          }
-        },
-        "tags": [
-          "App Assignments"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/apps/app_assignments/{uid}": {
-      "delete": {
-        "operationId": "AppAssignments_delete",
-        "summary": "Delete an App Assignment",
-        "description": "## Overview\nDelete an app assignment.\n\n**Available for Directory and internal Tokens**",
-        "parameters": [
-          {
-            "name": "uid",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Unique identifier of the app assignment to delete"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "App assignment deleted successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/appAssignment.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request. Invalid input data."
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing or invalid."
-          },
-          "403": {
-            "description": "Forbidden. You do not have access to this resource."
-          },
-          "404": {
-            "description": "Not found. App assignment not found."
-          },
-          "500": {
-            "description": "Internal server error."
-          }
-        },
-        "tags": [
-          "App Assignments"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/apps/compact_jws_tokens": {
-      "post": {
-        "summary": "Create a compact JWS token",
-        "description": "## Overview\nCreate a new compact JWS token that can be used to authenticate a staff member to an app in inTandem using a JWKS process. The token is signed by the app's private key and can be verified by inTandem's public key. Public JWKS token can be obtained at: https://api.vcita.biz/v3/apps/.well-known/jwks.json. Available for **Staff Tokens** and **AppStaffToken**.",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "app_code_name": {
-                    "type": "string",
-                    "description": "The code name of the app that owns this token"
-                  }
-                },
-                "required": [
-                  "app_code_name"
-                ],
-                "example": {
-                  "app_code_name": "tips"
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "A compact JWS token is successfully created.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/compactJWSToken.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing, invalid or not allowed to access the requested resource."
-          },
-          "429": {
-            "description": "Rate limit has been reached due to the number of requests made for the same staff member in a short period of time."
-          }
-        },
-        "tags": [
-          "JWKS"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/apps/compact_jws_tokens/bulk": {
-      "post": {
-        "summary": "Bulk create compact JWS tokens",
-        "description": "## Overview\nCreate multiple compact JWS tokens for a list of app code names. The response will include the success, generated token (if successful), or error details for each app code name.\n\n**Available for Staff Tokens and AppStaffToken**",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "app_code_names": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "description": "The code name of the app that owns the token"
-                    },
-                    "description": "List of app code names for which JWS tokens need to be generated"
-                  }
-                },
-                "required": [
-                  "app_code_names"
-                ],
-                "example": {
-                  "app_code_names": [
-                    "tips",
-                    "helpdesk",
-                    "sales"
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Bulk creation of compact JWS tokens.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "compact_jws_tokens": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "success": {
-                                "type": "boolean",
-                                "description": "Status of the creation for the entity. Possible values: true (success), false (error)."
-                              },
-                              "data": {
-                                "description": "The generated JWS token or null if failed",
-                                "$ref": "https://vcita.github.io/developers-hub/entities/apps/compactJWSToken.json"
-                              },
-                              "error": {
-                                "type": "string",
-                                "description": "Error message if token creation failed"
-                              }
-                            },
-                            "required": [
-                              "success"
-                            ]
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing, invalid or not allowed to access the requested resource."
-          },
-          "429": {
-            "description": "Rate limit has been reached due to the number of requests made for the same staff member in a short period of time."
-          }
-        },
-        "tags": [
-          "JWKS"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
     }
   },
   "components": {
-    "securitySchemes": {
-      "Bearer": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT",
-        "description": "JWT Bearer token authentication"
-      }
-    },
     "schemas": {
+      "Response": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "CreateAppAssignmentRequestDto": {
+        "type": "object",
+        "properties": {
+          "assignee_type": {
+            "type": "string",
+            "description": "The type of entity this app is assigned to",
+            "enum": [
+              "business",
+              "package",
+              "directory"
+            ]
+          },
+          "assignee_uid": {
+            "type": "string",
+            "description": "The uid of the entity this app is assigned to"
+          },
+          "app_code_name": {
+            "type": "string",
+            "description": "The unique identifier of the app. Must use alphanumeric characters only (no spaces or special characters). The app must exist and belong to the authenticated directory.",
+            "pattern": "^[a-zA-Z0-9]+$"
+          },
+          "directory_uid": {
+            "type": "string",
+            "description": "The uid of the directory this app is assigned to. **Optional when using Directory Token** - will be auto-determined from the token if omitted. If provided, must match the directory associated with your authentication token."
+          },
+          "settings": {
+            "type": "object",
+            "description": "Optional settings for the app assignment",
+            "properties": {
+              "assignment_mode": {
+                "type": "string",
+                "description": "App setting: 'internal' - App does not show in the app market but still available to use in all relevant integration points; 'pre_installed' - Define the app as pre-installed for all new accounts, app shows in app market as installed on first appearance. The user will be able to uninstall it later if they wish to. This is relevant only to account with platform app market",
+                "enum": [
+                  "internal",
+                  "pre_installed"
+                ]
+              }
+            },
+            "required": [
+              "assignment_mode"
+            ]
+          }
+        },
+        "required": [
+          "assignee_type",
+          "assignee_uid",
+          "app_code_name",
+          "settings"
+        ]
+      },
       "CreateWidgetRequestDto": {
         "type": "object",
         "properties": {
@@ -2880,7 +2933,7 @@
           }
         }
       },
-      "Response": {
+      "Response_widgets_and_boards": {
         "type": "object",
         "properties": {
           "success": {
@@ -3075,71 +3128,14 @@
         "required": [
           "widget_uid"
         ]
-      },
-      "Response_apps": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "data": {
-            "type": "object"
-          }
-        },
-        "required": [
-          "success",
-          "data"
-        ]
-      },
-      "CreateAppAssignmentRequestDto": {
-        "type": "object",
-        "properties": {
-          "assignee_type": {
-            "type": "string",
-            "description": "The type of entity this app is assigned to",
-            "enum": [
-              "business",
-              "package",
-              "directory"
-            ]
-          },
-          "assignee_uid": {
-            "type": "string",
-            "description": "The uid of the entity this app is assigned to"
-          },
-          "app_code_name": {
-            "type": "string",
-            "description": "The unique identifier of the app. Must use alphanumeric characters only (no spaces or special characters). The app must exist and belong to the authenticated directory.",
-            "pattern": "^[a-zA-Z0-9]+$"
-          },
-          "directory_uid": {
-            "type": "string",
-            "description": "The uid of the directory this app is assigned to. **Optional when using Directory Token** - will be auto-determined from the token if omitted. If provided, must match the directory associated with your authentication token."
-          },
-          "settings": {
-            "type": "object",
-            "description": "Optional settings for the app assignment",
-            "properties": {
-              "assignment_mode": {
-                "type": "string",
-                "description": "App setting: 'internal' - App does not show in the app market but still available to use in all relevant integration points; 'pre_installed' - Define the app as pre-installed for all new accounts, app shows in app market as installed on first appearance. The user will be able to uninstall it later if they wish to. This is relevant only to account with platform app market",
-                "enum": [
-                  "internal",
-                  "pre_installed"
-                ]
-              }
-            },
-            "required": [
-              "assignment_mode"
-            ]
-          }
-        },
-        "required": [
-          "assignee_type",
-          "assignee_uid",
-          "app_code_name",
-          "settings"
-        ]
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
       }
     }
   },
