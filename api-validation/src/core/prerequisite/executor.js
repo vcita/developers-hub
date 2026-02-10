@@ -144,7 +144,7 @@ function getDynamicDateVariables() {
  */
 async function executeStep(step, context, config, makeRequest, options = {}) {
   const { workflowRepo, depth = 0 } = options;
-  const { id, method, path, params, body, extract: extractConfig, expect, onFail, token, content_type, form_fields, file_fields, x_on_behalf_of, sleep } = step;
+  const { id, method, path, params, body, extract: extractConfig, expect, onFail, token, content_type, form_fields, file_fields, x_on_behalf_of, sleep, useFallback: stepUseFallback } = step;
   
   // Resolve variables in path, params, and body
   const resolvedPath = resolve(path, context);
@@ -255,10 +255,14 @@ async function executeStep(step, context, config, makeRequest, options = {}) {
       if (stepWorkflow.prerequisites?.steps?.length > 0 && depth < 5) {
         console.log(`${indent}[Workflow] ${endpointKey} has ${stepWorkflow.prerequisites.steps.length} prerequisite(s) - executing recursively`);
         
+        // IMPORTANT: Pass the original makeRequest (not effectiveMakeRequest) to recursive prerequisites.
+        // Each prerequisite step has its own path and should determine its own URL independently.
+        // For example, a Partners endpoint's prerequisite may call /platform/v1/... which should
+        // go to the main gateway, NOT the Partners URL.
         const prereqResult = await executePrerequisites(
           stepWorkflow,
           { ...config, params: { ...config.params, ...context } },
-          effectiveMakeRequest,
+          makeRequest,
           { workflowRepo, depth: depth + 1, workflow: stepWorkflow }
         );
         
@@ -276,6 +280,39 @@ async function executeStep(step, context, config, makeRequest, options = {}) {
         Object.assign(context, prereqResult.variables || {});
       }
     }
+  }
+  
+  // Step-level useFallback: true override - applies when the step itself requests the fallback URL
+  // This is independent of the workflow lookup (which checks the endpoint's own workflow metadata)
+  const stepWantsFallback = stepUseFallback === true || stepUseFallback === 'true';
+  if (stepWantsFallback && config.fallbackUrl && effectiveMakeRequest === makeRequest) {
+    console.log(`  [Step ${id}] Step requests fallback API - will use ${config.fallbackUrl}`);
+    const axios = require('axios');
+    effectiveMakeRequest = async (requestConfig, cfg) => {
+      const url = `${config.fallbackUrl}${requestConfig.path}`;
+      console.log(`    [DEBUG] effectiveMakeRequest (step fallback): ${requestConfig.method} ${url}`);
+      try {
+        const response = await axios({
+          method: requestConfig.method,
+          url,
+          data: requestConfig.body,
+          headers: requestConfig.headers,
+          params: requestConfig.params,
+          validateStatus: () => true
+        });
+        console.log(`    [DEBUG] Response status: ${response.status}`);
+        if (response.status >= 400) {
+          console.log(`    [DEBUG] Response error data: ${JSON.stringify(response.data)?.substring(0, 300)}`);
+        }
+        return { status: response.status, data: response.data };
+      } catch (error) {
+        console.log(`    [DEBUG] Request error: ${error.message}`);
+        if (error.response) {
+          return { status: error.response.status, data: error.response.data };
+        }
+        throw error;
+      }
+    };
   }
   
   // Determine which token to use
@@ -799,6 +836,10 @@ function parseYamlSteps(yamlContent) {
       inSection = null;
     } else if (trimmed.startsWith('sleep:')) {
       currentStep.sleep = parseInt(trimmed.split(':')[1].trim(), 10);
+      inSection = null;
+    } else if (trimmed.startsWith('useFallback:')) {
+      const value = trimmed.split(':')[1].trim();
+      currentStep.useFallback = value === 'true';
       inSection = null;
     } else if (trimmed === 'form_fields:') {
       currentStep.form_fields = {};

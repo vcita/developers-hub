@@ -3,7 +3,7 @@ endpoint: "POST /v3/business_administration/online_profiles"
 domain: platform_administration
 tags: [online_profiles]
 swagger: "swagger/platform_administration/online_profiles.json"
-status: pending
+status: verified
 savedAt: 2026-02-10T05:15:00.000Z
 verifiedAt: 2026-02-10T05:15:00.000Z
 timesReused: 0
@@ -14,7 +14,7 @@ tokens: [directory]
 # Create Online Profile
 
 ## Summary
-Creates a new online profile for a business. **Token Type**: Requires a **staff token** with `can_access_admin_account` permission.
+Creates a new online profile for a business. **Token Type**: Requires a **directory token** with X-On-Behalf-Of header.
 
 **Important**: Online profiles are singleton resources - each business can only have one online profile. This endpoint is intended for initial setup of businesses that don't yet have an online profile.
 

@@ -1074,6 +1074,12 @@ You MUST only retry the EXACT endpoint path given to you (${endpoint.method} ${e
 - If the endpoint returns 404 on both primary and fallback, report FAIL — do NOT search for a "real" endpoint.
 - Two different paths = two different endpoints. Period.
 
+## CRITICAL: ONLY USE DOCUMENTED ENDPOINTS
+When making API calls (including prerequisite steps to fetch data like UIDs or emails), you MUST only use documented, official API paths that appear in the swagger definitions.
+- NEVER use legacy, undocumented, or shorthand paths like /v2/staffs, /v2/clients, etc.
+- Use the documented equivalents, e.g. /platform/v1/businesses/{business_id}/staffs instead of /v2/staffs.
+- If you're unsure whether a path is documented, check the Available Endpoints list below.
+
 ## Strategy
 
 1. Call extract_required_uids to see what UIDs are needed
@@ -1166,18 +1172,34 @@ async function runAgentHealer(options) {
       const tokenType = testReq.token || 'staff';
       const authToken = config.tokens?.[tokenType];
       const useFallback = existingWorkflow.metadata?.useFallbackApi === true || existingWorkflow.metadata?.useFallbackApi === 'true';
-      const testBaseUrl = useFallback ? config.fallbackUrl : config.baseUrl;
+      
+      // Partners API endpoints use dedicated URL and Token auth format
+      const isPartnersEndpoint = resolvedPath && resolvedPath.includes('/partners/');
+      const partnersUrl = config.partnersUrl;
+      let testBaseUrl;
+      if (isPartnersEndpoint && partnersUrl) {
+        testBaseUrl = partnersUrl;
+      } else {
+        testBaseUrl = useFallback ? config.fallbackUrl : config.baseUrl;
+      }
       
       if (authToken) {
-        onProgress?.({ type: 'agent_action', action: 'workflow_test_request', details: `Testing with ${tokenType} token${useFallback ? ' (fallback)' : ''}` });
+        onProgress?.({ type: 'agent_action', action: 'workflow_test_request', details: `Testing with ${tokenType} token${useFallback ? ' (fallback)' : ''}${isPartnersEndpoint ? ' (partners)' : ''}` });
         
         try {
-          const authPrefix = tokenType === 'admin' ? 'Admin' : 'Bearer';
+          // Partners API uses HTTP Token authentication: Token token="..."
+          let authHeader;
+          if (isPartnersEndpoint && partnersUrl) {
+            authHeader = `Token token="${authToken}"`;
+          } else {
+            const authPrefix = tokenType === 'admin' ? 'Admin' : 'Bearer';
+            authHeader = `${authPrefix} ${authToken}`;
+          }
           const testResponse = await axios.request({
             method: (testReq.method || endpoint.method).toLowerCase(),
             url: `${testBaseUrl}${resolvedPath}`,
             data: resolvedBody,
-            headers: { 'Authorization': `${authPrefix} ${authToken}`, 'Content-Type': 'application/json' },
+            headers: { 'Authorization': authHeader, 'Content-Type': 'application/json' },
             validateStatus: () => true
           });
           

@@ -250,6 +250,13 @@ If you confirm an endpoint returns 404 on both primary and fallback APIs (not a 
 3. Do NOT create a workflow file for a non-existent endpoint
 4. Do NOT search for alternative endpoints — that violates RULE #9
 
+## RULE #12: ONLY USE DOCUMENTED ENDPOINTS
+When writing prerequisite steps or making API calls to fetch data (UIDs, emails, etc.), you MUST only use documented, official API paths that appear in the swagger definitions.
+- NEVER use legacy, undocumented, or shorthand paths like /v2/staffs, /v2/clients, etc.
+- Use the documented equivalents, e.g. /platform/v1/businesses/{{business_id}}/staffs instead of /v2/staffs.
+- If you need data from an endpoint, verify it exists in the swagger documentation first.
+- Undocumented paths may not be routed by the API gateway and will result in 404 errors.
+
 ## What NOT to do
 - Do NOT read TEMPLATE.md (you already have the format above)
 - Do NOT search for "authorize_params", "def authorize", "base_controller", "Api::Authentication"
@@ -258,6 +265,7 @@ If you confirm an endpoint returns 404 on both primary and fallback APIs (not a 
 - Do NOT go deep into backend source files — 2-3 files max, and only as a last resort
 - Do NOT report success based only on execute_api — you MUST verify with test_workflow
 - Do NOT substitute one endpoint for another — see RULE #9
+- Do NOT use undocumented or legacy API paths — see RULE #12
 `;
 
 /**

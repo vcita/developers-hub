@@ -4,8 +4,8 @@ domain: platform_administration
 tags: [license, directory-offerings]
 swagger: "swagger/platform_administration/license.json"
 status: verified
-savedAt: "2026-02-09T23:02:10.000Z"
-verifiedAt: "2026-02-09T23:02:10.000Z"
+savedAt: "2026-02-10T19:37:23.078Z"
+verifiedAt: "2026-02-10T19:37:23.078Z"
 timesReused: 0
 ---
 
@@ -21,12 +21,12 @@ Each directory can only have one DirectoryOffering per `offering_uid` (uniquenes
 ```yaml
 steps:
   - id: get_offerings
-    description: "Fetch offerings to get the SMS addon offering UID"
+    description: "Fetch offerings to get an available offering UID"
     method: GET
     path: "/v3/license/offerings"
     token: admin
     extract:
-      offering_uid: "$.data.offerings[20].uid"
+      offering_uid: "$.data.offerings[0].uid"
     expect:
       status: 200
     onFail: abort

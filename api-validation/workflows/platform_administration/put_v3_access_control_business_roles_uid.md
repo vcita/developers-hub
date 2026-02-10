@@ -1,22 +1,18 @@
 ---
 endpoint: "PUT /v3/access_control/business_roles/{uid}"
 domain: platform_administration
-tags: []
-swagger: "swagger/platform_administration/access_control.json"
-status: pending
-savedAt: 2026-02-09T23:24:42.000Z
-verifiedAt: 2026-02-09T23:24:42.000Z
+tags: [access_control, business_roles]
+swagger: "swagger/platform_administration/platform_administration.json"
+status: verified
+savedAt: 2026-02-10T16:38:15.000Z
+verifiedAt: 2026-02-10T16:38:15.000Z
 timesReused: 0
-expectedOutcome: 403
-expectedOutcomeReason: "Feature flag 'staff_role_permissions' is disabled in the environment, causing all business role write operations to return 403 'The staff role configuration feature is disabled'"
 ---
 
-# Update Business roles
+# Update Business Role
 
 ## Summary
 Updates an existing business role by UID. **Token Type**: Requires a **staff token**.
-
-> ⚠️ **Feature Flag Required**: This endpoint requires the `staff_role_permissions` feature flag to be enabled. When disabled, it returns 403 "The staff role configuration feature is disabled".
 
 ## Prerequisites
 
@@ -39,19 +35,17 @@ steps:
 
 ```yaml
 steps:
-  - id: put_business_roles
+  - id: main_request
     method: PUT
     path: "/v3/access_control/business_roles/{{role_uid}}"
     body:
-      name: Senior Manager
-      description: Senior management role with elevated permissions for business operations and team oversight
+      name: "Updated Senior Manager"
+      description: "Updated senior management role with elevated permissions for business operations and team oversight"
       permissions:
-        "0":
-          key: campaigns.manage
+        - key: "campaigns.manage"
           allow: true
-        "1":
-          key: payments.manage
+        - key: "payments.manage"  
           allow: true
     expect:
-      status: 403
+      status: 200
 ```
