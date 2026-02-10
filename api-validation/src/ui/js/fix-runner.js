@@ -498,6 +498,7 @@ const FixRunner = {
     html += `</div>`;
     card.innerHTML = html;
     card.classList.remove('hidden');
+    card.style.display = '';  // Clear inline display override from retry hiding
   },
 
   renderEventToPanel(epKey, type, data) {

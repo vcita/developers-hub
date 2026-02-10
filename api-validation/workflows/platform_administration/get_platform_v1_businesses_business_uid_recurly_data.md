@@ -3,7 +3,7 @@ endpoint: "GET /platform/v1/businesses/{business_uid}/recurly_data"
 domain: platform_administration
 tags: [businesses, recurly-data]
 swagger: "swagger/platform_administration/legacy/legacy_v1_platform.json"
-status: skipped
+status: skip
 savedAt: "2026-01-30T07:24:35.659Z"
 verifiedAt: "2026-01-30T07:24:35.659Z"
 timesReused: 0

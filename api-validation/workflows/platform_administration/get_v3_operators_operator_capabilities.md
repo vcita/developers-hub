@@ -3,7 +3,7 @@ endpoint: "GET /v3/operators/operator_capabilities"
 domain: platform_administration
 tags: [operators]
 swagger: "swagger/platform_administration/legacy/legacy_v1_businesses.json"
-status: skipped
+status: skip
 savedAt: "2026-01-28T12:01:10.846Z"
 verifiedAt: "2026-01-28T12:01:10.846Z"
 timesReused: 0

@@ -699,8 +699,8 @@ function generateMarkdown(data) {
     learnings = [],
     successfulRequest = {},
     uidResolution = null,  // UID resolution mappings
-    status = 'verified',   // 'verified', 'pending', 'failed', 'skipped'
-    skipReason = null,     // Reason for skipping (if status is 'skipped')
+    status = 'verified',   // 'verified', 'pending', 'failed', 'skip'
+    skipReason = null,     // Reason for skipping (if status is 'skip')
     tokenType = null,      // Token type required for this endpoint
     responseCodes = null,  // Response codes table data
     discrepancies = [],    // Swagger vs actual behavior discrepancies (for Swagger Discrepancies section)
@@ -775,7 +775,7 @@ function generateMarkdown(data) {
   }
   
   // Add skip reason section if this is a skipped endpoint
-  if ((status === 'skip' || status === 'skipped') && skipReason) {
+  if (status === 'skip' && skipReason) {
     body.push('## Skip Reason');
     body.push('');
     body.push(`**This endpoint should be SKIPPED in automated testing.**`);

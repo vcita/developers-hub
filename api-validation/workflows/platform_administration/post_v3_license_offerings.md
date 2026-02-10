@@ -1,22 +1,34 @@
 ---
 endpoint: "POST /v3/license/offerings"
 domain: platform_administration
-tags: []
+tags: [license, offerings]
 swagger: "swagger/platform_administration/license.json"
 status: verified
-savedAt: "2026-01-30T10:00:00.000Z"
-verifiedAt: "2026-01-30T10:00:00.000Z"
+savedAt: 2026-02-09T23:03:52.000Z
+verifiedAt: 2026-02-09T23:03:52.000Z
 timesReused: 0
 ---
 
-# Create Offerings
+# Create License Offering
 
 ## Summary
-Creates a new offering in the license system. An offering represents commercial terms for selling a SKU, including pricing, payment type, and other metadata. Requires an **admin token** and a valid SKU from the SKUs endpoint.
+Creates a new offering in the license system. An offering represents commercial terms for selling a SKU, including pricing, payment type, and other metadata. **Token Type**: Requires an **admin token**.
 
 ## Prerequisites
 
-No prerequisites required for this endpoint.
+```yaml
+steps:
+  - id: get_sku
+    description: "Fetch available SKUs to get a valid SKU code"
+    method: GET
+    path: "/v3/license/skus"
+    token: admin
+    extract:
+      sku_code: "$.data.skus[?(@.type=='addon')].code_name | [0]"
+    expect:
+      status: 200
+    onFail: abort
+```
 
 ## Test Request
 
@@ -25,24 +37,19 @@ steps:
   - id: post_offerings
     method: POST
     path: "/v3/license/offerings"
+    token: admin
     body:
       type: addon
-      SKU: "{{SKU}}"
-      display_name: SMS Pack 100
+      SKU: "{{sku_code}}"
+      display_name: "SMS Pack 100"
       quantity: 100
       payment_type: monthly
       is_active: true
       vendor: inTandem
       prices:
-        "0":
-          price: 5
+        - price: "5.00"
           currency: USD
-        "1":
-          price: 5
-          currency: EUR
-      trial: 14
-      reporting_tags:
-        "0": business-management
+      trial_period: 14
     expect:
       status: [200, 201]
 ```

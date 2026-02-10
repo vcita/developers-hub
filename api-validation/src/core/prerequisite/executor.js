@@ -207,6 +207,50 @@ async function executeStep(step, context, config, makeRequest, options = {}) {
         };
       }
       
+      // Check if step's endpoint is a Partners API endpoint (path contains /partners/)
+      // Partners API uses a dedicated base URL and Token authentication
+      const isPartnersPath = resolvedPath && resolvedPath.includes('/partners/');
+      if (isPartnersPath && config.partnersUrl) {
+        console.log(`${indent}[Workflow] ${endpointKey} is a Partners API endpoint`);
+        console.log(`${indent}[Workflow] Will use Partners URL: ${config.partnersUrl}`);
+        
+        const axios = require('axios');
+        effectiveMakeRequest = async (requestConfig, cfg) => {
+          const url = `${config.partnersUrl}${requestConfig.path}`;
+          console.log(`    [DEBUG] effectiveMakeRequest (Partners): ${requestConfig.method} ${url}`);
+          
+          // Partners API uses Token auth instead of Bearer
+          const headers = { ...requestConfig.headers };
+          if (headers['Authorization'] && headers['Authorization'].startsWith('Bearer ')) {
+            const token = headers['Authorization'].replace('Bearer ', '');
+            headers['Authorization'] = `Token token="${token}"`;
+            console.log(`    [DEBUG] Switched auth to Token format for Partners API`);
+          }
+          
+          try {
+            const response = await axios({
+              method: requestConfig.method,
+              url,
+              data: requestConfig.body,
+              headers,
+              params: requestConfig.params,
+              validateStatus: () => true
+            });
+            console.log(`    [DEBUG] Response status: ${response.status}`);
+            if (response.status >= 400) {
+              console.log(`    [DEBUG] Response error data: ${JSON.stringify(response.data)?.substring(0, 300)}`);
+            }
+            return { status: response.status, data: response.data };
+          } catch (error) {
+            console.log(`    [DEBUG] Request error: ${error.message}`);
+            if (error.response) {
+              return { status: error.response.status, data: error.response.data };
+            }
+            throw error;
+          }
+        };
+      }
+      
       // Check if step's workflow has its own prerequisites (recursive)
       if (stepWorkflow.prerequisites?.steps?.length > 0 && depth < 5) {
         console.log(`${indent}[Workflow] ${endpointKey} has ${stepWorkflow.prerequisites.steps.length} prerequisite(s) - executing recursively`);
@@ -274,7 +318,9 @@ async function executeStep(step, context, config, makeRequest, options = {}) {
     (x_on_behalf_of === undefined && swaggerRequiresOnBehalfOf);
 
   if (tokenType === 'directory' && useOnBehalfOf) {
-    const onBehalfOf = config?.params?.business_uid || config?.params?.business_id || context?.business_uid;
+    // Prefer context (extracted from prerequisites) over config.params so that
+    // a freshly-created business_uid from a prerequisite step takes effect.
+    const onBehalfOf = context?.business_uid || config?.params?.business_uid || config?.params?.business_id;
     if (onBehalfOf) {
       requestHeaders['X-On-Behalf-Of'] = onBehalfOf;
       console.log(`    [Headers] Added X-On-Behalf-Of for directory token: ${onBehalfOf}`);
@@ -511,7 +557,7 @@ async function executePrerequisites(workflow, config, makeRequest, options = {})
  * @returns {Function} Request function
  */
 function createRequestFunction(baseUrl, options = {}) {
-  const { fallbackUrl, useFallback = false } = options;
+  const { fallbackUrl, useFallback = false, partnersUrl } = options;
   
   // Determine which URL to use as the base
   const effectiveBaseUrl = useFallback && fallbackUrl ? fallbackUrl : baseUrl;
@@ -525,10 +571,26 @@ function createRequestFunction(baseUrl, options = {}) {
     const axios = require('axios');
     
     return async (requestConfig, config) => {
-      // Use effectiveBaseUrl as the primary, but allow config to override
-      const urlBase = useFallback && fallbackUrl 
-        ? fallbackUrl 
-        : (config.baseUrl || effectiveBaseUrl);
+      // Partners API endpoints use dedicated URL and Token authentication
+      const isPartnersPath = requestConfig.path && requestConfig.path.includes('/partners/');
+      const effectivePartnersUrl = partnersUrl || config.partnersUrl;
+      
+      let urlBase;
+      if (isPartnersPath && effectivePartnersUrl) {
+        urlBase = effectivePartnersUrl;
+        console.log(`    [makeRequest] Partners API detected, using: ${urlBase}`);
+        
+        // Switch from Bearer to Token auth for Partners API
+        if (requestConfig.headers?.['Authorization']?.startsWith('Bearer ')) {
+          const token = requestConfig.headers['Authorization'].replace('Bearer ', '');
+          requestConfig.headers['Authorization'] = `Token token="${token}"`;
+          console.log(`    [makeRequest] Switched auth to Token format for Partners API`);
+        }
+      } else {
+        urlBase = useFallback && fallbackUrl 
+          ? fallbackUrl 
+          : (config.baseUrl || effectiveBaseUrl);
+      }
       const url = `${urlBase}${requestConfig.path}`;
       console.log(`    [makeRequest] ${requestConfig.method} ${url} (useFallback=${useFallback}, base=${urlBase})`);
       

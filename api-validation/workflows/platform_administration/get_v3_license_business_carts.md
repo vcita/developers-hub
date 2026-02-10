@@ -3,7 +3,7 @@ endpoint: "GET /v3/license/business_carts"
 domain: platform_administration
 tags: [license]
 swagger: "swagger/platform_administration/license.json"
-status: skipped
+status: skip
 savedAt: "2026-01-28T12:00:28.693Z"
 verifiedAt: "2026-01-28T12:00:28.693Z"
 timesReused: 0

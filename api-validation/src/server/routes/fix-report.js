@@ -233,6 +233,15 @@ router.post('/continue/:sessionId', async (req, res) => {
     const newSessionId = `fix-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const newSession = createSession(newSessionId, failedResults, config);
 
+    // Transfer conversation histories from the old session so the AI can continue where it left off
+    const previousConversations = {};
+    for (const result of oldSession.results) {
+      if (!result.success && result.conversationHistory && failedEndpointKeys.has(result.endpoint)) {
+        previousConversations[result.endpoint] = result.conversationHistory;
+      }
+    }
+    newSession.previousConversations = previousConversations;
+
     // Start processing
     newSession.processingPromise = processFixSession(newSession).catch(err => {
       console.error(`[FixReport] Continue session ${newSessionId} error:`, err);
@@ -310,12 +319,17 @@ async function runInlineRetry(session, ep, epKey) {
     g.endpoints.some(e => (e.endpointKey || `${e.method} ${e.path}`) === epKey)
   );
 
+  // Retrieve previous conversation for this endpoint to enable continuity
+  const previousResult = session.results.find(r => r.endpoint === epKey);
+  const previousConversation = previousResult?.conversationHistory || null;
+
   broadcastEvent(session, 'endpoint_start', {
     endpoint: epKey,
     groupId: group?.id || null,
     isTemplate: false,
     isRetry: true,
-    insightAvailable: 0
+    insightAvailable: 0,
+    hasPreviousConversation: !!previousConversation
   });
 
   const result = await runDocFixer({
@@ -335,6 +349,7 @@ async function runInlineRetry(session, ep, epKey) {
     accumulatedInsight: [],
     referenceWorkflow: group?.referenceWorkflow || null,
     maxIterations: session.config?.ai?.docFixerMaxIterations || 20,
+    previousConversation,
     onProgress: (event) => {
       if (event.type === 'file_changed' && event.file?.startsWith('swagger/') && event.domain) {
         session.swaggerDomainsModified.add(event.domain);
@@ -456,6 +471,10 @@ async function processFixSession(session) {
         total: group.endpoints.length
       });
 
+      // Look up previous conversation from a prior session (for continue/retry continuity)
+      const epEndpointKey = ep.endpointKey || `${ep.method} ${ep.path}`;
+      const previousConversation = session.previousConversations?.[epEndpointKey] || null;
+
       const result = await runDocFixer({
         endpoint: ep,
         failureData: {
@@ -473,6 +492,7 @@ async function processFixSession(session) {
         accumulatedInsight: groupInsight.fixRecipes,
         referenceWorkflow: groupInsight.referenceWorkflow,
         maxIterations: session.config?.ai?.docFixerMaxIterations || 20,
+        previousConversation,
         onProgress: (event) => {
           // Track swagger domain modifications for the unifier
           if (event.type === 'file_changed' && event.file?.startsWith('swagger/') && event.domain) {
@@ -541,6 +561,10 @@ async function processFixSession(session) {
         insightAvailable: 0
       });
 
+      // Look up previous conversation from a prior session (for continue/retry continuity)
+      const epEndpointKey = ep.endpointKey || `${ep.method} ${ep.path}`;
+      const previousConversation = session.previousConversations?.[epEndpointKey] || null;
+
       const result = await runDocFixer({
         endpoint: ep,
         failureData: {
@@ -557,6 +581,7 @@ async function processFixSession(session) {
         accumulatedInsight: [],
         referenceWorkflow: null,
         maxIterations: session.config?.ai?.docFixerMaxIterations || 20,
+        previousConversation,
         onProgress: (event) => {
           if (event.type === 'file_changed' && event.file?.startsWith('swagger/') && event.domain) {
             session.swaggerDomainsModified.add(event.domain);
