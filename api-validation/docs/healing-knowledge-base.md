@@ -196,7 +196,7 @@ When a resolution is confirmed, abstract it here so future healing can reuse it.
   - PUT /v2/coupons/{uid}
 - Common path patterns:
   - /v2/coupons/{id}
-- Resolution: No fix needed - the workflow was already verified and working correctly. The endpoint successfully returns 200 when retrieving a coupon by UID using a staff token with proper prerequisites.
+- Resolution: The workflow uses a staff token with prerequisite to fetch coupon UID. If test_workflow passes (200), mark as verified. If test_workflow fails, set status to pending and investigate — do NOT assume "already verified" means it still works.
 
 
 ## Entry - 0 MISSING_PARAMS_NEED_HEALING on /v3/communication/notification_templates/{id} (fixed)
@@ -217,3 +217,56 @@ When a resolution is confirmed, abstract it here so future healing can reuse it.
 - Common path patterns:
   - /v3/communication/voice_calls/{id}
 - Resolution: Created workflow with prerequisite to fetch voice call UID from list endpoint, then retrieve specific voice call. Uses staff token and returns 200.
+
+
+## Entry - 0 MISSING_PARAMS_NEED_HEALING on /v3/scheduling/resource_types/{id} (created)
+- Symptoms: 0 MISSING_PARAMS_NEED_HEALING on /v3/scheduling/resource_types/{id} (2 endpoints)
+- Sample endpoints:
+  - GET /v3/scheduling/resource_types/{uid}
+  - PUT /v3/scheduling/resource_types/{uid}
+- Common path patterns:
+  - /v3/scheduling/resource_types/{id}
+- Resolution: Created workflow for GET /v3/scheduling/resource_types/{uid} with staff token and prerequisite to fetch resource type UID
+
+
+## Entry - 0 MISSING_PARAMS_NEED_HEALING on /v3/scheduling/resources/{id} (resource)
+- Symptoms: 0 MISSING_PARAMS_NEED_HEALING on /v3/scheduling/resources/{id} (2 endpoints)
+- Sample endpoints:
+  - GET /v3/scheduling/resources/{uid}
+  - PUT /v3/scheduling/resources/{uid}
+- Common path patterns:
+  - /v3/scheduling/resources/{id}
+- Resolution: Successfully created workflow for GET /v3/scheduling/resources/{uid} with prerequisites to create resource type and resource, achieving 200 status
+
+
+## Entry - 422 UNEXPECTED_STATUS_CODE on /business/scheduling/v1/* (fixed)
+- Symptoms: 422 UNEXPECTED_STATUS_CODE on /business/scheduling/v1/* (3 endpoints)
+- Sample endpoints:
+  - PUT /business/scheduling/v1/external_calendar_items/disable
+  - PUT /business/scheduling/v1/external_calendar_items/start_export
+  - PUT /business/scheduling/v1/time_slots/{time_slot_uid}
+- Common path patterns:
+  - /business/scheduling/v1/*
+- Resolution: Fixed PUT /business/scheduling/v1/external_calendar_items/disable by removing expectedOutcome: 422 and adding proper prerequisites. Created calendar sync record before attempting to disable it, resolved staff UID via business staffs endpoint, and configured fallback API usage.
+
+
+## Entry - 404 RESOURCE_NOT_FOUND on /v1/partners/* (partners API routing)
+- Symptoms: 404 RESOURCE_NOT_FOUND on any /v1/partners/* endpoint when called via the standard gateway (app.meet2know.com/apigw) or fallback (app.meet2know.com/api2). The partners routes do not exist on these gateways.
+- Sample endpoints:
+  - GET /v1/partners/reports/business
+  - GET /v1/partners/reports/engagements
+  - GET /v1/partners/reports/impressions
+  - POST /v1/partners/accounts/{business_uid}/set_setup_completed
+- Common path patterns:
+  - /v1/partners/*
+- Resolution: The framework now automatically detects endpoints with "/partners/" in the URL path and routes them to the dedicated Partners API URL (`partnersUrl` in config/default.json). The auth header is also automatically converted from `Bearer {token}` to `Token token="{token}"` which is the format the Partners API expects. Use a **directory** token for partners endpoints. No special workflow flags are needed — the routing and auth conversion happen transparently. If you still get 404, verify that `partnersUrl` is configured in config/default.json.
+
+
+## Entry - 0 MISSING_PARAMS_NEED_HEALING on /v3/business_administration/staff_members/{id} (workflow)
+- Symptoms: 0 MISSING_PARAMS_NEED_HEALING on /v3/business_administration/staff_members/{id} (2 endpoints)
+- Sample endpoints:
+  - GET /v3/business_administration/staff_members/{uid}
+  - PUT /v3/business_administration/staff_members/{uid}
+- Common path patterns:
+  - /v3/business_administration/staff_members/{id}
+- Resolution: Fixed MISSING_PARAMS_NEED_HEALING by adding prerequisite step to fetch staff UID. Updated workflow to fetch staff member UID from /v2/staffs endpoint using fallback API, then use that UID to call the target endpoint.

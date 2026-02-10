@@ -27,7 +27,8 @@ function createApiClient(config) {
   // Attach config for fallback URL access
   instance._config = {
     baseUrl: config.baseUrl,
-    fallbackUrl: config.fallbackUrl || null
+    fallbackUrl: config.fallbackUrl || null,
+    partnersUrl: config.partnersUrl || null
   };
   
   return instance;
@@ -888,6 +889,68 @@ async function executeRequest(client, requestConfig, options = {}) {
   const startTime = Date.now();
   const primaryUrl = client._config?.baseUrl;
   const fallbackUrl = client._config?.fallbackUrl;
+  const partnersUrl = client._config?.partnersUrl;
+  
+  // Partners API endpoints (/v1/partners/*) require a dedicated base URL and Token auth
+  const isPartnersEndpoint = requestConfig.url && requestConfig.url.includes('/partners/');
+  if (isPartnersEndpoint && partnersUrl) {
+    console.log(`  [Partners] Detected partners endpoint, using Partners API URL: ${partnersUrl}`);
+    
+    // Partners API uses HTTP Token authentication instead of Bearer
+    const updatedHeaders = { ...requestConfig.headers };
+    if (updatedHeaders['Authorization'] && updatedHeaders['Authorization'].startsWith('Bearer ')) {
+      const token = updatedHeaders['Authorization'].replace('Bearer ', '');
+      updatedHeaders['Authorization'] = `Token token="${token}"`;
+      console.log(`  [Partners] Switched auth from Bearer to Token format`);
+    }
+    
+    try {
+      const partnersResponse = await axios.request({
+        ...requestConfig,
+        url: partnersUrl + requestConfig.url,
+        timeout: client.defaults.timeout,
+        validateStatus: () => true,
+        headers: {
+          ...client.defaults.headers.common,
+          ...updatedHeaders
+        }
+      });
+      
+      const duration = Date.now() - startTime;
+      
+      return {
+        success: true,
+        response: partnersResponse,
+        duration,
+        error: null,
+        usedFallback: false,
+        usedPartnersUrl: true,
+        fallbackInfo: {
+          primaryUrl,
+          partnersUrl,
+          partnersStatus: partnersResponse.status,
+          fallbackDuration: duration
+        }
+      };
+    } catch (partnersError) {
+      const duration = Date.now() - startTime;
+      console.log(`  [Partners] Partners API request failed: ${partnersError.message}`);
+      
+      return {
+        success: false,
+        response: partnersError.response || null,
+        duration,
+        error: {
+          message: partnersError.message,
+          code: partnersError.code,
+          isTimeout: partnersError.code === 'ECONNABORTED',
+          isNetworkError: partnersError.code === 'ERR_NETWORK' || !partnersError.response
+        },
+        usedFallback: false,
+        usedPartnersUrl: true
+      };
+    }
+  }
   
   // If useFallback is true and fallbackUrl is configured, go directly to fallback
   if (options.useFallback && fallbackUrl) {

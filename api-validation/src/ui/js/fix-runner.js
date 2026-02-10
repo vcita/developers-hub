@@ -32,12 +32,6 @@ const FixRunner = {
       return;
     }
 
-    this.captureOriginalPromptHTML();
-
-    // Read user prompt BEFORE resetState (which restores the section HTML and clears inputs)
-    const promptEl = document.getElementById('fix-user-prompt-input');
-    const userPrompt = promptEl?.value?.trim() || undefined;
-
     this.showPanel();
     this.resetState();
     this.setStatus('starting', `Starting fix session for ${failedResults.length} endpoints...`);
@@ -46,7 +40,7 @@ const FixRunner = {
       const response = await fetch('/api/fix-report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ failedResults, userPrompt })
+        body: JSON.stringify({ failedResults })
       });
 
       const data = await response.json();
@@ -183,21 +177,6 @@ const FixRunner = {
       const data = JSON.parse(e.data);
       this.addInsightBadge(data.groupId, data.recipesCount);
       this.addEndpointEvent('insight', data);
-    });
-
-    // User guidance (from inline retry)
-    this.eventSource.addEventListener('user_guidance', (e) => {
-      const data = JSON.parse(e.data);
-      const epKey = data.endpoint;
-      const id = this.sanitizeId(epKey);
-      const body = document.getElementById(`ep-log-body-${id}`);
-      if (body) {
-        const el = document.createElement('div');
-        el.className = 'ep-log-entry ep-log-guidance';
-        el.innerHTML = `<span class="guidance-icon">💬</span> <strong>User guidance:</strong> ${this.escapeHtml(data.text)}`;
-        body.appendChild(el);
-        body.scrollTop = body.scrollHeight;
-      }
     });
 
     // Knowledge base updated
@@ -388,7 +367,7 @@ const FixRunner = {
       body.classList.remove('collapsed');
       const separator = document.createElement('div');
       separator.className = 'ep-log-entry ep-log-retry-separator';
-      separator.innerHTML = '<hr><strong>🔄 Retrying with guidance...</strong>';
+      separator.innerHTML = '<hr><strong>🔄 Retrying...</strong>';
       body.appendChild(separator);
     }
     if (toggle) toggle.textContent = '▼';
@@ -443,10 +422,9 @@ const FixRunner = {
     if (header) header.insertBefore(iterBadge, header.querySelector('.ep-log-toggle'));
 
     // Auto-collapse the log body once finalized — UNLESS this is a failed retry,
-    // in which case keep the panel expanded so the user can immediately provide
-    // new guidance and see what happened.
+    // in which case keep the panel expanded so the user can see what happened.
     if (resultData.isRetry && !resultData.success) {
-      // Keep expanded — failure card is visible with retry input
+      // Keep expanded — failure card is visible with continue button
     } else {
       this.collapseEndpointPanel(epKey);
     }
@@ -508,11 +486,10 @@ const FixRunner = {
       html += `</div></div>`;
     }
 
-    // Retry with guidance
+    // Retry actions
     html += `<div class="failure-retry-section" id="ep-retry-${id}">
-      <textarea class="failure-retry-input" id="ep-retry-input-${id}" rows="2" placeholder="Additional guidance for retrying this endpoint..."></textarea>
       <div class="failure-actions-bar">
-        <button class="btn btn-sm btn-primary" onclick="FixRunner.retryEndpoint('${this.escapeHtml(epKey)}')">🔄 Retry with Guidance</button>
+        <button class="btn btn-sm btn-primary" onclick="FixRunner.retryEndpoint('${this.escapeHtml(epKey)}')">🔄 Continue</button>
         <button class="btn btn-sm btn-secondary" onclick="FixRunner.copyEndpointLog('${epKey}')">📋 Copy Full Log</button>
         <button class="btn btn-sm btn-secondary" onclick="FixRunner.expandEndpointPanel('${id}')">📖 View Full Log</button>
       </div>
@@ -521,6 +498,7 @@ const FixRunner = {
     html += `</div>`;
     card.innerHTML = html;
     card.classList.remove('hidden');
+    card.style.display = '';  // Clear inline display override from retry hiding
   },
 
   renderEventToPanel(epKey, type, data) {
@@ -851,7 +829,7 @@ const FixRunner = {
       </div>`;
 
     if (hasFailed) {
-      html += `<p class="fix-continue-hint" style="margin-top:8px;">Expand any failed endpoint below to provide guidance and retry it individually.</p>`;
+      html += `<p class="fix-continue-hint" style="margin-top:8px;">Expand any failed endpoint below and click Continue to retry it.</p>`;
     }
 
     promptSection.innerHTML = html;
@@ -877,97 +855,6 @@ const FixRunner = {
     }
   },
 
-  // ─── Continue Session ───────────────────────────────────────────────────
-
-  async continueSession(skipPrompt = false) {
-    if (!this.sessionId) {
-      alert('No session to continue from.');
-      return;
-    }
-
-    // Gather per-endpoint prompts from the individual textareas
-    const endpointPrompts = {};
-    if (!skipPrompt) {
-      const epInputs = document.querySelectorAll('.fix-ep-prompt-input');
-      for (const input of epInputs) {
-        const epKey = input.dataset.endpoint;
-        const value = input.value?.trim();
-        if (epKey && value) {
-          endpointPrompts[epKey] = value;
-        }
-      }
-    }
-
-    // Read the general prompt (fallback for endpoints without specific guidance)
-    const continuePromptEl = document.getElementById('fix-continue-prompt');
-    const panelPromptEl = document.getElementById('fix-user-prompt-input');
-    const userPrompt = skipPrompt ? '' : (continuePromptEl?.value?.trim() || panelPromptEl?.value?.trim() || '');
-
-    const hasAnyPrompt = userPrompt || Object.keys(endpointPrompts).length > 0;
-
-    // Disable continue buttons while starting
-    const continueSection = document.querySelector('.fix-continue-section');
-    if (continueSection) {
-      continueSection.querySelectorAll('button').forEach(btn => btn.disabled = true);
-    }
-
-    try {
-      const response = await fetch(`/api/fix-report/continue/${this.sessionId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userPrompt: userPrompt || undefined,
-          endpointPrompts: Object.keys(endpointPrompts).length > 0 ? endpointPrompts : undefined
-        })
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        alert(`Failed to continue: ${data.error}`);
-        if (continueSection) {
-          continueSection.querySelectorAll('button').forEach(btn => btn.disabled = false);
-        }
-        return;
-      }
-
-      // Add a visual separator in the thinking stream
-      const stream = document.getElementById('fix-thinking-stream');
-      if (stream) {
-        const separator = document.createElement('div');
-        separator.className = 'ep-global-event fix-continue-separator';
-        let sepHtml = `<hr><strong>🔄 Continuing session with ${data.totalEndpoints} failed endpoint${data.totalEndpoints > 1 ? 's' : ''}</strong>`;
-        if (userPrompt) {
-          sepHtml += `<br><em>General: "${this.escapeHtml(userPrompt)}"</em>`;
-        }
-        const epPromptCount = Object.keys(endpointPrompts).length;
-        if (epPromptCount > 0) {
-          sepHtml += `<br><em>📝 ${epPromptCount} endpoint-specific prompt${epPromptCount > 1 ? 's' : ''}</em>`;
-        }
-        separator.innerHTML = sepHtml;
-        stream.appendChild(separator);
-      }
-
-      // Restore the prompt section to its original generic state
-      this.restorePromptSection();
-
-      // Update session ID to the new one and reset progress tracking for the continuation
-      this.sessionId = data.sessionId;
-      this.endpointResults = {};
-      this.totalEndpoints = data.totalEndpoints;
-      this.currentEndpoint = null;
-
-      // Connect SSE to the new session
-      this.connectSSE(data.sessionId);
-      this.setStatus('analyzing', `Continuing: analyzing ${data.totalEndpoints} failed endpoints...`);
-
-    } catch (error) {
-      alert(`Network error: ${error.message}`);
-      if (continueSection) {
-        continueSection.querySelectorAll('button').forEach(btn => btn.disabled = false);
-      }
-    }
-  },
-
   // ─── Retry Single Endpoint (Inline) ─────────────────────────────────────
   //
   // Sends the retry request to the SAME session. The server re-runs the DocFixer
@@ -987,8 +874,6 @@ const FixRunner = {
     }
 
     const id = this.sanitizeId(epKey);
-    const inputEl = document.getElementById(`ep-retry-input-${id}`);
-    const userPrompt = inputEl?.value?.trim() || '';
 
     // Disable the retry button while starting
     const retrySection = document.getElementById(`ep-retry-${id}`);
@@ -1000,7 +885,7 @@ const FixRunner = {
       const response = await fetch(`/api/fix-report/retry/${this.sessionId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ endpoint: epKey, userPrompt })
+        body: JSON.stringify({ endpoint: epKey })
       });
 
       const data = await response.json();
@@ -1043,15 +928,6 @@ const FixRunner = {
     }
   },
 
-  togglePromptSection() {
-    const body = document.getElementById('fix-user-prompt-body');
-    const toggle = document.getElementById('fix-prompt-toggle');
-    if (body) {
-      const isCollapsed = body.classList.toggle('collapsed');
-      if (toggle) toggle.textContent = isCollapsed ? '▶' : '▼';
-    }
-  },
-
   setStatus(status, message) {
     const statusEl = document.getElementById('fix-status');
     const stopBtn = document.getElementById('fix-stop-btn');
@@ -1066,9 +942,6 @@ const FixRunner = {
       stopBtn.disabled = status !== 'running' && status !== 'analyzing';
     }
   },
-
-  // Original HTML for the user prompt section, captured once on first reset
-  _originalPromptHTML: null,
 
   resetState() {
     this.sessionId = null;
@@ -1092,23 +965,9 @@ const FixRunner = {
     if (progressEl) progressEl.style.width = '0%';
     if (textEl) textEl.textContent = '';
 
-    // Restore the original user prompt section
-    this.restorePromptSection();
-  },
-
-  /** Save the original prompt section HTML (called once, lazily) */
-  captureOriginalPromptHTML() {
-    if (this._originalPromptHTML) return;
-    const section = document.getElementById('fix-user-prompt-section');
-    if (section) this._originalPromptHTML = section.innerHTML;
-  },
-
-  /** Restore the prompt section to its original generic state */
-  restorePromptSection() {
-    const section = document.getElementById('fix-user-prompt-section');
-    if (section && this._originalPromptHTML) {
-      section.innerHTML = this._originalPromptHTML;
-    }
+    // Clear the summary stats section
+    const promptSection = document.getElementById('fix-user-prompt-section');
+    if (promptSection) promptSection.innerHTML = '';
   },
 
   // ─── Helpers ─────────────────────────────────────────────────────────────

@@ -1,22 +1,33 @@
 ---
 endpoint: "POST /v3/license/subscriptions"
 domain: platform_administration
-tags: []
+tags: [license, subscriptions]
 swagger: "swagger/platform_administration/license.json"
 status: verified
-savedAt: "2026-01-28T20:45:43.592Z"
-verifiedAt: "2026-01-28T20:45:43.592Z"
+savedAt: "2026-02-09T23:04:36.310Z"
+verifiedAt: "2026-02-09T23:04:36.310Z"
 timesReused: 0
 ---
 
-# Create Subscriptions
+# Create License Subscription
 
 ## Summary
-Endpoint works correctly. Successfully created subscription with staff token when no custom price is specified. Custom pricing validation is working as documented - requires directory or admin tokens.
+Creates a new license subscription for an offering. **Token Type**: Requires a **staff token**.
 
 ## Prerequisites
 
-No prerequisites required for this endpoint.
+```yaml
+steps:
+  - id: get_offerings
+    description: "Fetch offerings to get an offering UID"
+    method: GET
+    path: "/v3/license/offerings"
+    extract:
+      offering_uid: "$.data.offerings[0].uid"
+    expect:
+      status: 200
+    onFail: abort
+```
 
 ## Test Request
 

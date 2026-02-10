@@ -1,48 +1,51 @@
 ---
 endpoint: "POST /v3/reviews/business_reviews_settings"
 domain: reviews
-tags: []
-swagger: "swagger/reviews/business_reviews_settings.json"
+tags: [reviews, business_settings]
+swagger: swagger/reviews/business_reviews_settings.json
 status: verified
-savedAt: "2026-01-25T23:02:03.338Z"
-verifiedAt: "2026-01-25T23:02:03.338Z"
+savedAt: 2026-01-27T09:30:00.000Z
+verifiedAt: 2026-01-27T09:30:00.000Z
 timesReused: 0
+useFallbackApi: true
+tokens: [staff]
 ---
-# Create Business reviews settings
+
+# Create Business Reviews Settings
 
 ## Summary
-POST /v3/reviews/business_reviews_settings works correctly. Returns HTTP 409 (Conflict) when trying to create settings for a business that already has reviews settings, as documented in the swagger description. The API properly enforces the uniqueness constraint per business.
+Creates new business reviews settings. **Token Type**: Requires a **staff token**. Returns 201 on successful creation or 409 if settings already exist for the business.
+
+> ⚠️ Fallback API Required
 
 ## Prerequisites
-None required for this endpoint.
-
-## UID Resolution Procedure
-
-How to dynamically obtain required UIDs for this endpoint:
-
-| UID Field | GET Endpoint | Extract From | Create Fresh | Cleanup |
-|-----------|--------------|--------------|--------------|---------|
-| business_uid | Already provided in test configuration | config parameter | - | Business UIDs are provided by test configuration and should not be deleted |
-
-### Resolution Steps
-
-**business_uid**:
-1. Call `Already provided in test configuration`
-2. Extract from response: `config parameter`
-
-
-
-## How to Resolve Parameters
-Parameters were resolved automatically.
-
-## Critical Learnings
-
-No specific learnings documented.
+```yaml
+steps:
+  - id: get_business_info
+    description: "Get business context from clients endpoint"
+    method: GET
+    path: "/platform/v1/clients"
+    params:
+      per_page: "1"
+    extract:
+      business_uid: "$.data.clients[0].business_uid"
+    expect:
+      status: 200
+    onFail: abort
+```
 
 ## Test Request
-
-Use this template with dynamically resolved UIDs:
-
-```json
-null
+```yaml
+steps:
+  - id: main_request
+    method: POST
+    path: "/v3/reviews/business_reviews_settings"
+    body:
+      business_uid: "{{business_uid}}"
+      display_review_sharing_consent: true
+      platform_id: 1
+      platform_params:
+        place_id: 12345
+    expect:
+      status: [201, 409]
 ```

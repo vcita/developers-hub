@@ -7,6 +7,7 @@ status: verified
 savedAt: "2026-02-01T23:30:00.000Z"
 verifiedAt: "2026-02-01T23:30:00.000Z"
 timesReused: 0
+useFallbackApi: true
 ---
 
 # Complete Booking
@@ -14,13 +15,36 @@ timesReused: 0
 ## Summary
 Complete a pending booking (appointment or event registration).
 
-## Authentication
-Available for **Staff and App tokens**.
+**Token Type**: Requires a **staff token**.
+
+> ⚠️ Fallback API Required
 
 ## Prerequisites
 
 ```yaml
 steps:
+  - id: get_services
+    description: "Get available services for the business"
+    method: GET
+    path: "/platform/v1/services"
+    params:
+      business_id: "{{business_id}}"
+    extract:
+      service_id: "$.data.services[0].id"
+    expect:
+      status: [200]
+    onFail: abort
+
+  - id: get_staffs
+    description: "Get staff members for the business"
+    method: GET
+    path: "/platform/v1/businesses/{{business_id}}/staffs"
+    extract:
+      staff_id: "$.data.staffs[0].id"
+    expect:
+      status: [200]
+    onFail: abort
+
   - id: create_booking
     description: "Create a booking to complete"
     method: POST
@@ -51,7 +75,7 @@ steps:
       booking_id: "{{booking_id}}"
       business_id: "{{business_id}}"
     expect:
-      status: [200]
+      status: [200, 201]
 ```
 
 ## Body Parameters
@@ -64,7 +88,7 @@ steps:
 
 *One of `booking_id` or `event_instance_id` is required.
 
-## Expected Response (200)
+## Expected Response (200/201)
 
 ```json
 {

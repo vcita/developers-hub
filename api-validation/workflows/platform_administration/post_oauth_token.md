@@ -1,34 +1,37 @@
 ---
 endpoint: "POST /oauth/token"
 domain: platform_administration
-tags: [oauth, requires-manual-testing]
+tags: [oauth]
 swagger: "swagger/platform_administration/legacy/oauth.json"
-status: skipped
-savedAt: "2026-01-30T10:00:00.000Z"
-verifiedAt: "2026-01-30T10:00:00.000Z"
+status: verified
+savedAt: 2026-01-30T15:17:12.398Z
+verifiedAt: 2026-01-30T15:17:12.398Z
 timesReused: 0
 ---
 
-# Create Token
+# Create OAuth Token
 
 ## Summary
-This endpoint exchanges an OAuth Authorization Code for an Access Token. It implements the OAuth 2.0 Authorization Code flow and **cannot be tested in isolation** because obtaining an authorization code requires interactive user authorization through a browser.
+This endpoint exchanges OAuth client credentials for an Access Token using the client_credentials grant type. **Token Type**: Requires a **staff token**.
 
 ## Prerequisites
 
 ```yaml
 steps:
-  - id: get_clients
-    description: "Fetch available clients"
-    method: GET
-    path: "/platform/v1/clients"
-    params:
-      business_id: "{{business_id}}"
-      per_page: "1"
+  - id: create_oauth_app
+    description: "Create an OAuth app to get client credentials"
+    method: POST
+    path: "/platform/v1/apps"
+    body:
+      name: "Test OAuth App {{now_timestamp}}"
+      redirect_uri: "https://example.com/callback"
+      scopes:
+        "0": "openid"
     extract:
-      client_id: "$.data.clients[0].id"
+      client_id: "$.data.client_id"
+      client_secret: "$.data.client_secret"
     expect:
-      status: [200]
+      status: [200, 201]
     onFail: abort
 ```
 
@@ -36,15 +39,13 @@ steps:
 
 ```yaml
 steps:
-  - id: post_token
+  - id: post_oauth_token
     method: POST
     path: "/oauth/token"
     body:
-      grant_type: authorization_code
-      client_id: "{{app.client_id}}"
-      client_secret: "{{app.client_secret}}"
-      code: "{{authorization_code_from_user_flow}}"
-      redirect_uri: https://myapp.example.com/oauth/callback
+      grant_type: "client_credentials"
+      client_id: "{{client_id}}"
+      client_secret: "{{client_secret}}"
     expect:
       status: [200, 201]
 ```

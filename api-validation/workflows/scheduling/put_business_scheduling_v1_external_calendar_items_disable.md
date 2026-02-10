@@ -3,42 +3,47 @@ endpoint: "PUT /business/scheduling/v1/external_calendar_items/disable"
 domain: scheduling
 tags: [calendar, sync, external, scheduling]
 swagger: "swagger/scheduling/legacy/scheduling.json"
-status: skipped
-savedAt: "2026-02-01T23:30:00.000Z"
+status: verified
+savedAt: "2026-02-03T18:44:12.000Z"
+verifiedAt: "2026-02-03T18:44:12.000Z"
 timesReused: 0
-skip_reason: "Requires CalendarSync record which can only be created via internal API or UI. See VCITA2-11743 for details."
+tokens: [staff]
+useFallbackApi: true
 ---
 
 # Disable External Calendar Sync
 
 ## Summary
-Disable calendar sync for a staff member without fully disconnecting.
+Disable calendar sync for a staff member without fully disconnecting. **Token Type**: Requires a **staff token**.
 
-## Authentication
-Available for **Staff and App tokens**.
-
-## Important Prerequisite
-
-**This endpoint requires the staff member to already have a CalendarSync record.**
+> ⚠️ Fallback API Required
 
 ## Prerequisites
 
-**Note**: The staff member must have a CalendarSync record pre-configured. CalendarSync is typically created via the vcita web UI or OAuth flow - there is no public API endpoint for creating CalendarSync records.
-
 ```yaml
 steps:
-  - id: connect_calendar
-    description: "Ensure calendar is connected first"
-    method: PUT
-    path: "/business/scheduling/v1/external_calendar_items/connect"
-    token: staff
-    body:
-      staff_uid: "{{staff_id}}"
-      calendar_sync:
-        provider: "google_v3"
-        account: "testuser@gmail.com"
+  - id: get_staff
+    description: "Get staff information"
+    method: GET
+    path: "/platform/v1/businesses/{{business_id}}/staffs"
+    extract:
+      staff_uid: "$.data.staffs[0].id"
     expect:
-      status: [200]
+      status: 200
+    onFail: abort
+    
+  - id: create_calendar_sync
+    description: "Create calendar sync record for staff"
+    method: POST
+    path: "/platform/v1/scheduling/calendar_syncs"
+    body:
+      staff_uid: "{{staff_uid}}"
+      app_code_name: "googlewaysync"
+      provider: "google_v3"
+      should_import: true
+      is_private_import: false
+    expect:
+      status: 200
     onFail: abort
 ```
 
@@ -51,12 +56,12 @@ steps:
     path: "/business/scheduling/v1/external_calendar_items/disable"
     token: staff
     body:
-      staff_uid: "{{staff_id}}"
+      staff_uid: "{{staff_uid}}"
       calendar_sync:
         provider: "google_v3"
         account: "testuser@gmail.com"
     expect:
-      status: [200]
+      status: 200
 ```
 
 ## Request Body Parameters
@@ -85,14 +90,26 @@ steps:
 
 ## Error Responses
 
-### 422 - Staff Not Registered
+### 422 - Staff Not Exists
 ```json
 {
-  "status": "Error",
+  "success": false,
   "errors": [
     {
       "code": "missing",
-      "field": "staff",
+      "message": "staff is not exists"
+    }
+  ]
+}
+```
+
+### 422 - Staff Not Registered
+```json
+{
+  "success": false,
+  "errors": [
+    {
+      "code": "missing",
       "message": "staff is not registered to any calendar sync"
     }
   ]

@@ -1,30 +1,44 @@
 ---
 endpoint: "GET /v3/business_administration/staff_members/{uid}"
 domain: platform_administration
-tags: []
+tags: [staff-only]
 swagger: "swagger/platform_administration/staff_member.json"
 status: verified
-savedAt: "2026-01-28T11:39:26.180Z"
-verifiedAt: "2026-01-28T11:39:26.180Z"
+savedAt: "2026-02-09T22:56:30.000Z"
+verifiedAt: "2026-02-09T22:56:30.000Z"
 timesReused: 0
+useFallbackApi: true
 ---
 
-# Get Staff members
+# Get Staff Member
 
 ## Summary
-GET /v3/business_administration/staff_members/{uid} works correctly when provided with a valid staff member UID. The original test failed because it used a non-existent UID value (5bcebdb0-36ab-4002-9b05-3b964244b2cf). Using a valid staff UID (g7n82lrc4ztic4cp) returns the expected staff member data with a 200 status.
+This endpoint retrieves a specific staff member's information using their UID. **Token Type**: Requires a **staff token**.
+
+> ⚠️ **Fallback API Required**
 
 ## Prerequisites
 
-No prerequisites required for this endpoint.
+```yaml
+steps:
+  - id: get_staff_list
+    description: "Get list of staff members to extract a UID"
+    method: GET
+    path: "/v2/staffs"
+    extract:
+      staff_uid: "$.data[0].uid"
+    expect:
+      status: 200
+    onFail: abort
+```
 
 ## Test Request
 
 ```yaml
 steps:
-  - id: get_staff_members
+  - id: get_staff_member
     method: GET
-    path: "/v3/business_administration/staff_members/{{uid}}"
+    path: "/v3/business_administration/staff_members/{{staff_uid}}"
     expect:
       status: [200, 201]
 ```

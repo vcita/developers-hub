@@ -42,6 +42,7 @@ async function executeWorkflow(workflow, config, makeRequest, options = {}) {
   if (!makeRequest) {
     makeRequest = createRequestFunction(config.baseUrl, {
       fallbackUrl: config.fallbackUrl,
+      partnersUrl: config.partnersUrl,
       useFallback: useFallback
     });
   }

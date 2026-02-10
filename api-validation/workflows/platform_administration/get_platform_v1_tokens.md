@@ -4,15 +4,20 @@ domain: platform_administration
 tags: []
 swagger: "swagger/platform_administration/legacy/legacy_v1_platform.json"
 status: verified
-savedAt: "2026-01-27T09:26:16.136Z"
-verifiedAt: "2026-01-27T09:26:16.136Z"
+savedAt: "2026-01-27T14:32:15.398Z"
+verifiedAt: "2026-01-27T14:32:15.398Z"
 timesReused: 0
+useFallbackApi: true
+tokens: [staff, directory]
 ---
 
 # Get Tokens
 
 ## Summary
-Test passes with directory token. GET /platform/v1/tokens requires directory-level authentication and returns a list of directory tokens.
+GET /platform/v1/tokens retrieves token information. **Token Type**: Works with **staff** or **directory** tokens.
+
+> ⚠️ Fallback API Required
+> This endpoint requires the fallback API due to main gateway routing issues.
 
 ## Prerequisites
 
