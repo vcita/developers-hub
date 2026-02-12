@@ -6,6 +6,7 @@
     "version": "3.0",
     "x-generated": {
       "sourceFiles": [
+        "search.json",
         "license.json",
         "online_profiles.json",
         "partners-api.json",
@@ -291,6 +292,15 @@
         {
           "type": "schema",
           "name": "ErrorResponse",
+          "resolution": "Renamed to ErrorResponse_license",
+          "files": [
+            "merged",
+            "license.json"
+          ]
+        },
+        {
+          "type": "schema",
+          "name": "ErrorResponse",
           "resolution": "Renamed to ErrorResponse_online_profiles",
           "files": [
             "merged",
@@ -307,8 +317,8 @@
           ]
         }
       ],
-      "totalPaths": 70,
-      "totalComponents": 28
+      "totalPaths": 72,
+      "totalComponents": 40
     }
   },
   "servers": [
@@ -318,6 +328,558 @@
     }
   ],
   "paths": {
+    "/v2/search": {
+      "get": {
+        "tags": [
+          "Search"
+        ],
+        "summary": "Search business data",
+        "description": "## Overview\nSearches across business data entities including clients, conversations, bookings, appointments, estimates, payments, and documents. The search is powered by an Elasticsearch-based Seeker service.\n\nThe behavior varies depending on the `entity` parameter:\n- **No entity or general entities**: Returns a combined result with `top_hits` grouped by entity type and `counts` per entity type.\n- **`entity=appointment`**: Returns a decorated list of appointments with pagination support for recurring appointment series.\n- **`entity=event_instance`**: Returns a decorated list of event instances with standard pagination.\n\n### Rate Limiting\nThis endpoint is rate-limited to **60 requests per 60 seconds** per staff member. Exceeding the limit returns a `429 Too Many Requests` response.\n\n### Staff Permissions\nSearch results are filtered based on the requesting staff member's permissions:\n- Clients are scoped to the staff member's accessible clients unless they have full access.\n- Payment and document results are hidden if the staff member lacks view permissions for those entities.\n- Client email, phone, and last name visibility depends on the staff's model view permissions.\n\nAvailable for **Staff and Internal tokens**.",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "description": "The search text to match against business data. Supports free-text search across entity fields (e.g., client name, email, phone number).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "John"
+          },
+          {
+            "name": "entity",
+            "in": "query",
+            "description": "When set, restricts the search to a single entity type and returns a specialized response format. Use `appointment` for appointment-specific search with recurring series support, or `event_instance` for event search. When omitted, the search spans all entity types and returns a general `top_hits` + `counts` response.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "appointment",
+                "event_instance"
+              ]
+            }
+          },
+          {
+            "name": "entities",
+            "in": "query",
+            "description": "Comma-separated list of entity types to include in the search results. Applicable when `entity` is not set. Possible values include: `client`, `conversation`, `booking`, `appointment`, `estimate`, `payment`, `document`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "client,conversation,appointment"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number for pagination (1-based). For appointment searches with recurring series, this can also be an object with `virtual_count` and `physical_count` to properly paginate mixed physical and virtual appointments.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "Number of results per page.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 25
+            }
+          },
+          {
+            "name": "quick",
+            "in": "query",
+            "description": "When set, performs a quick search with potentially fewer results but faster response time.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search_filter[text_filter]",
+            "in": "query",
+            "description": "Additional text filter applied within the search. Used for more targeted filtering beyond the main `query` parameter.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search_filter[staff_filter]",
+            "in": "query",
+            "description": "Comma-separated list of staff UIDs to filter results by specific staff members.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "staff_abc123,staff_def456"
+          },
+          {
+            "name": "search_filter[from_filter]",
+            "in": "query",
+            "description": "Start date filter for time-based searches (e.g., appointments, events). ISO 8601 date format.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "example": "2026-01-01T00:00:00Z"
+          },
+          {
+            "name": "search_filter[to_filter]",
+            "in": "query",
+            "description": "End date filter for time-based searches (e.g., appointments, events). ISO 8601 date format.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "example": "2026-12-31T23:59:59Z"
+          },
+          {
+            "name": "search_filter[sort_order]",
+            "in": "query",
+            "description": "Sort direction for time-based results.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "search_filter[payment_status_state_filter]",
+            "in": "query",
+            "description": "Filter appointments by payment status. Accepts an array of payment status values (e.g., \"not_paid\", \"paid\").",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search_filter[tags_filter]",
+            "in": "query",
+            "description": "Filter results by tags. Used for tag-based client filtering.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search_filter[tags_relation]",
+            "in": "query",
+            "description": "Logical relation for multiple tag filters.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "or",
+                "and"
+              ],
+              "default": "or"
+            }
+          },
+          {
+            "name": "sort_by",
+            "in": "query",
+            "description": "Field to sort results by. The value is mapped through a column identifier mapping for client card fields, or used directly if no mapping exists.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort_order",
+            "in": "query",
+            "description": "Sort direction for the primary sort.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "secondary_sort_by",
+            "in": "query",
+            "description": "Secondary field to sort results by, used as a tiebreaker when primary sort values are equal.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "secondary_sort_order",
+            "in": "query",
+            "description": "Sort direction for the secondary sort.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "select_all",
+            "in": "query",
+            "description": "When set to true, returns a slimmed-down version of client results suitable for bulk selection operations. Client first_name and last_name are excluded from the response.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "new_decoration",
+            "in": "query",
+            "description": "When set to `true`, uses the newer matter-based client decoration format. The response will contain `counts` and `matters` instead of the default `top_hits` format for client results.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          },
+          {
+            "name": "tags",
+            "in": "query",
+            "description": "Filter results by specific tags.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sms_only",
+            "in": "query",
+            "description": "When set to `true`, filters results to only include SMS-related data.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          },
+          {
+            "name": "score_sort",
+            "in": "query",
+            "description": "When set to `false`, disables Elasticsearch relevance score-based sorting. By default, score sorting is enabled when the business has the `score_sort` feature and the search text filter contains a space.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          },
+          {
+            "name": "time_zone",
+            "in": "query",
+            "description": "Time zone to use for date/time calculations in search results (e.g., \"America/New_York\"). Defaults to the current user's or business's time zone.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "America/New_York"
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "description": "Source identifier for tracking where the search request originated. Used for internal metrics.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search completed successfully. The response format depends on the `entity` parameter:\n- **General search** (no entity): Returns `SearchResult` with `top_hits` and `counts`.\n- **entity=appointment**: Returns `AppointmentSearchResponse` with decorated appointments.\n- **entity=event_instance**: Returns `EventSearchResponse` with decorated events.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/SearchResult"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AppointmentSearchResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/EventSearchResponse"
+                    },
+                    {
+                      "type": "null",
+                      "description": "Returned when no query parameters are provided or when the search returns no results."
+                    }
+                  ]
+                },
+                "examples": {
+                  "general_search": {
+                    "summary": "General search across multiple entities",
+                    "value": {
+                      "top_hits": {
+                        "client": [
+                          {
+                            "uid": "c_abc123",
+                            "first_name": "John",
+                            "last_name": "Doe",
+                            "full_name": "John Doe",
+                            "email": "john.doe@example.com",
+                            "phone": "12025551234",
+                            "matter_uid": "m_xyz789",
+                            "matter_name": "John Doe",
+                            "created_at": "2026-01-15T10:30:00Z",
+                            "created_at_h": "Jan 15",
+                            "color_id": 5,
+                            "primary_staff_uid": "staff_abc123",
+                            "client_type": "regular"
+                          }
+                        ],
+                        "conversation": [],
+                        "appointment": []
+                      },
+                      "counts": {
+                        "client": 1,
+                        "conversation": 0,
+                        "appointment": 0
+                      }
+                    }
+                  },
+                  "appointment_search": {
+                    "summary": "Appointment-specific search",
+                    "value": {
+                      "success": true,
+                      "appointments": [
+                        {
+                          "id": "apt_abc123",
+                          "title": "Consultation",
+                          "staff_id": "staff_abc123",
+                          "staff_display_name": "Jane Smith",
+                          "state": "confirmed",
+                          "is_recurring": false,
+                          "start_time": "2026-02-15T09:00:00-05:00",
+                          "start_time_utc": "2026-02-15T14:00:00Z",
+                          "duration": 60,
+                          "client_id": "c_abc123",
+                          "client_first_name": "John",
+                          "client_last_name": "Doe",
+                          "client_full_name": "John Doe",
+                          "client_email": "john.doe@example.com",
+                          "payment_status": "not_paid",
+                          "no_show": false,
+                          "matter_id": "m_xyz789",
+                          "matter_name": "John Doe",
+                          "rsvp_state": "accepted"
+                        }
+                      ],
+                      "count": 1,
+                      "next_page": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing, invalid, or not allowed to access the requested resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": "401 Unauthorized"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found. No matching results were found for the given entity search (appointment or event_instance).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "code": "missing",
+                  "message": "Cant find match appointments"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests. The staff member has exceeded the rate limit of 60 requests per 60 seconds.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "error": "Too many requests"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Gateway Timeout. The Seeker search service is unavailable or timed out.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/search/search_docuforms": {
+      "get": {
+        "tags": [
+          "Search"
+        ],
+        "summary": "Search docuforms activities",
+        "description": "## Overview\nSearches for docuforms (documents and forms) activities within the business. Results are scoped based on the requesting staff member's permissions.\n\n### Staff Scoping\n- **Admin staff** (with full client access): Can see all docuforms activities, unless `teams_view_filter=me` is specified.\n- **Non-admin staff**: Can only see their own docuforms activities, unless they have shared view access.\n\nAvailable for **Staff and Internal tokens**.",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "description": "The search text to match against docuforms data. Defaults to `*` (all) if not provided.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number for pagination (1-based).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "Number of results per page.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 25
+            }
+          },
+          {
+            "name": "select_all",
+            "in": "query",
+            "description": "When set to true, returns all matching docuforms without pagination limits.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "teams_view_filter",
+            "in": "query",
+            "description": "When set to `me`, restricts results to only the current staff member's docuforms, even if the staff has admin access.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "me"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Docuforms search completed successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocuformsSearchResponse"
+                },
+                "example": {
+                  "counts": 2,
+                  "top_hits": {
+                    "docuforms_activity": [
+                      {
+                        "uid": "dfa_abc123",
+                        "type": "invoice",
+                        "status": "sent",
+                        "created_at": "2026-01-20T14:30:00Z"
+                      },
+                      {
+                        "uid": "dfa_def456",
+                        "type": "estimate",
+                        "status": "viewed",
+                        "created_at": "2026-01-18T09:15:00Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing, invalid, or not allowed to access the requested resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": "401 Unauthorized"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Gateway Timeout. The Seeker search service is unavailable or timed out.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v3/license/offerings": {
       "get": {
         "summary": "List all Offerings",
@@ -10420,7 +10982,555 @@
   },
   "components": {
     "schemas": {
+      "SearchResult": {
+        "type": "object",
+        "description": "General search result containing top hits grouped by entity type and counts per entity type.",
+        "properties": {
+          "top_hits": {
+            "type": "object",
+            "description": "Search results grouped by entity type. Each key is an entity type name and its value is an array of matching records.",
+            "properties": {
+              "client": {
+                "type": "array",
+                "description": "Array of matching client records.",
+                "items": {
+                  "$ref": "#/components/schemas/ClientSearchHit"
+                }
+              },
+              "conversation": {
+                "type": "array",
+                "description": "Array of matching conversation records.",
+                "items": {
+                  "$ref": "#/components/schemas/ConversationSearchHit"
+                }
+              },
+              "booking": {
+                "type": "array",
+                "description": "Array of matching booking/appointment records.",
+                "items": {
+                  "$ref": "#/components/schemas/BookingSearchHit"
+                }
+              },
+              "appointment": {
+                "type": "array",
+                "description": "Array of matching appointment records.",
+                "items": {
+                  "$ref": "#/components/schemas/AppointmentSearchHit"
+                }
+              },
+              "estimate": {
+                "type": "array",
+                "description": "Array of matching estimate records.",
+                "items": {
+                  "$ref": "#/components/schemas/EstimateSearchHit"
+                }
+              },
+              "payment": {
+                "type": "array",
+                "description": "Array of matching payment records.",
+                "items": {
+                  "$ref": "#/components/schemas/PaymentSearchHit"
+                }
+              },
+              "document": {
+                "type": "array",
+                "description": "Array of matching document records.",
+                "items": {
+                  "$ref": "#/components/schemas/DocumentSearchHit"
+                }
+              }
+            }
+          },
+          "counts": {
+            "type": "object",
+            "description": "Total count of matching records per entity type.",
+            "properties": {
+              "client": {
+                "type": "integer",
+                "description": "Total number of matching client records."
+              },
+              "conversation": {
+                "type": "integer",
+                "description": "Total number of matching conversation records."
+              },
+              "booking": {
+                "type": "integer",
+                "description": "Total number of matching booking records."
+              },
+              "appointment": {
+                "type": "integer",
+                "description": "Total number of matching appointment records."
+              },
+              "estimate": {
+                "type": "integer",
+                "description": "Total number of matching estimate records."
+              },
+              "payment": {
+                "type": "integer",
+                "description": "Total number of matching payment records."
+              },
+              "document": {
+                "type": "integer",
+                "description": "Total number of matching document records."
+              }
+            }
+          }
+        }
+      },
+      "ClientSearchHit": {
+        "type": "object",
+        "description": "A client record returned from search results.",
+        "properties": {
+          "uid": {
+            "type": "string",
+            "description": "Unique identifier of the client."
+          },
+          "first_name": {
+            "type": "string",
+            "description": "Client's first name."
+          },
+          "last_name": {
+            "type": "string",
+            "description": "Client's last name. May be null if the requesting staff does not have permission to view last names."
+          },
+          "full_name": {
+            "type": "string",
+            "description": "Client's full name (first + last). Respects staff permissions for last name visibility."
+          },
+          "email": {
+            "type": "string",
+            "description": "Client's email address. May be null if the requesting staff does not have permission to view emails."
+          },
+          "phone": {
+            "type": "string",
+            "description": "Client's phone number. May be null if the requesting staff does not have permission to view phone numbers."
+          },
+          "matter_uid": {
+            "type": "string",
+            "description": "Unique identifier of the client's matter (conversation thread)."
+          },
+          "matter_name": {
+            "type": "string",
+            "description": "Name of the client's matter."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the client was created, in ISO 8601 format."
+          },
+          "created_at_h": {
+            "type": "string",
+            "description": "Human-readable formatted creation date."
+          },
+          "color_id": {
+            "type": "integer",
+            "description": "A numeric color identifier derived from the client's UID, used for UI avatar coloring."
+          },
+          "primary_staff_uid": {
+            "type": "string",
+            "description": "Unique identifier of the primary staff member assigned to this client."
+          },
+          "client_type": {
+            "type": "string",
+            "description": "The type of client (e.g., regular client vs. demo client)."
+          },
+          "tag_list": {
+            "type": "array",
+            "description": "Tags associated with this client.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "notifications_phone_display_value": {
+            "type": "string",
+            "description": "Display-formatted phone number used for notifications."
+          },
+          "client_data_associated_with_field": {
+            "type": "array",
+            "description": "Custom client card field data associated with this client.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field_id": {
+                  "type": "integer",
+                  "description": "Internal ID of the client card field."
+                },
+                "uid": {
+                  "type": "string",
+                  "description": "Unique identifier of the client card field."
+                },
+                "type": {
+                  "type": "string",
+                  "description": "Type of the client card field."
+                },
+                "value": {
+                  "type": "string",
+                  "description": "Value of the client card field."
+                }
+              }
+            }
+          }
+        }
+      },
+      "ConversationSearchHit": {
+        "type": "object",
+        "description": "A conversation record returned from search results.",
+        "properties": {
+          "uid": {
+            "type": "string",
+            "description": "Unique identifier of the conversation."
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the conversation was last updated."
+          },
+          "updated_at_h": {
+            "type": "string",
+            "description": "Human-readable formatted last updated date."
+          }
+        }
+      },
+      "BookingSearchHit": {
+        "type": "object",
+        "description": "A booking record returned from search results.",
+        "properties": {
+          "uid": {
+            "type": "string",
+            "description": "Unique identifier of the booking."
+          },
+          "meeting_id": {
+            "type": "string",
+            "description": "Identifier of the associated meeting."
+          },
+          "start_time": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The start time of the booking."
+          },
+          "start_date_h": {
+            "type": "string",
+            "description": "Human-readable formatted start date."
+          },
+          "start_time_h": {
+            "type": "string",
+            "description": "Human-readable formatted start time."
+          }
+        }
+      },
+      "AppointmentSearchHit": {
+        "type": "object",
+        "description": "A decorated appointment record returned from appointment-specific search.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier of the appointment."
+          },
+          "title": {
+            "type": "string",
+            "description": "Title of the appointment."
+          },
+          "staff_id": {
+            "type": "string",
+            "description": "Identifier of the assigned staff member."
+          },
+          "staff_display_name": {
+            "type": "string",
+            "description": "Display name of the assigned staff member."
+          },
+          "state": {
+            "type": "string",
+            "description": "Current state of the appointment (e.g., \"confirmed\", \"pending\", \"cancelled\")."
+          },
+          "is_recurring": {
+            "type": "boolean",
+            "description": "Whether this appointment is part of a recurring series."
+          },
+          "start_time": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The start time of the appointment in the business's time zone."
+          },
+          "start_time_utc": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The start time of the appointment in UTC."
+          },
+          "duration": {
+            "type": "integer",
+            "description": "Duration of the appointment in minutes."
+          },
+          "client_id": {
+            "type": "string",
+            "description": "Identifier of the client associated with this appointment."
+          },
+          "client_first_name": {
+            "type": "string",
+            "description": "First name of the client."
+          },
+          "client_last_name": {
+            "type": "string",
+            "description": "Last name of the client."
+          },
+          "client_full_name": {
+            "type": "string",
+            "description": "Full name of the client."
+          },
+          "client_email": {
+            "type": "string",
+            "description": "Email address of the client."
+          },
+          "client_photo_url": {
+            "type": "string",
+            "description": "URL of the client's photo."
+          },
+          "client_color_id": {
+            "type": "integer",
+            "description": "Color identifier for the client's avatar."
+          },
+          "payment_status": {
+            "type": "string",
+            "description": "Payment status of the appointment."
+          },
+          "no_show": {
+            "type": "boolean",
+            "description": "Whether the client was marked as a no-show."
+          },
+          "matter_id": {
+            "type": "string",
+            "description": "Identifier of the associated matter."
+          },
+          "matter_name": {
+            "type": "string",
+            "description": "Name of the associated matter."
+          },
+          "rsvp_state": {
+            "type": "string",
+            "description": "RSVP state of the appointment."
+          },
+          "additional_staffs_uids": {
+            "type": "array",
+            "description": "UIDs of additional staff members assigned to this appointment.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "linked_booking_uid": {
+            "type": "string",
+            "description": "UID of a linked booking, if any."
+          }
+        }
+      },
+      "EstimateSearchHit": {
+        "type": "object",
+        "description": "An estimate record returned from search results.",
+        "properties": {
+          "uid": {
+            "type": "string",
+            "description": "Unique identifier of the estimate."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the estimate was created."
+          },
+          "created_at_h": {
+            "type": "string",
+            "description": "Human-readable formatted creation date."
+          }
+        }
+      },
+      "PaymentSearchHit": {
+        "type": "object",
+        "description": "A payment record returned from search results.",
+        "properties": {
+          "uid": {
+            "type": "string",
+            "description": "Unique identifier of the payment."
+          },
+          "amount": {
+            "type": "number",
+            "description": "Payment amount."
+          },
+          "currency": {
+            "type": "string",
+            "description": "Currency code of the payment (e.g., \"USD\", \"EUR\")."
+          },
+          "amount_h": {
+            "type": "string",
+            "description": "Human-readable formatted payment amount with currency symbol (e.g., \"$100.00\")."
+          },
+          "invoice_number": {
+            "type": "integer",
+            "description": "Invoice number associated with this payment."
+          },
+          "header": {
+            "type": "string",
+            "description": "Header/title of the payment document."
+          },
+          "title": {
+            "type": "string",
+            "description": "Formatted title combining header and invoice number."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the payment was created."
+          },
+          "created_at_h": {
+            "type": "string",
+            "description": "Human-readable formatted creation date."
+          }
+        }
+      },
+      "DocumentSearchHit": {
+        "type": "object",
+        "description": "A document record returned from search results.",
+        "properties": {
+          "uid": {
+            "type": "string",
+            "description": "Unique identifier of the document."
+          },
+          "direction": {
+            "type": "string",
+            "description": "Direction of the document (e.g., \"business\" for outgoing, \"client\" for incoming). Note: internal \"pivot\" direction is mapped to \"business\"."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the document was created."
+          },
+          "created_at_h": {
+            "type": "string",
+            "description": "Human-readable formatted creation date."
+          }
+        }
+      },
+      "AppointmentSearchResponse": {
+        "type": "object",
+        "description": "Response for appointment-specific search.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Indicates whether the request was successful."
+          },
+          "appointments": {
+            "type": "array",
+            "description": "Array of decorated appointment objects matching the search criteria.",
+            "items": {
+              "$ref": "#/components/schemas/AppointmentSearchHit"
+            }
+          },
+          "count": {
+            "type": "integer",
+            "description": "Total number of matching appointments (including virtual recurring instances)."
+          },
+          "next_page": {
+            "description": "Pagination cursor for the next page. Can be an integer (simple page number) or an object with virtual_count and physical_count for recurring appointment pagination.",
+            "oneOf": [
+              {
+                "type": "integer",
+                "description": "Simple next page number."
+              },
+              {
+                "type": "object",
+                "description": "Pagination cursor for recurring appointments.",
+                "properties": {
+                  "virtual_count": {
+                    "type": "integer",
+                    "description": "Number of virtual (recurring) appointments already returned."
+                  },
+                  "physical_count": {
+                    "type": "integer",
+                    "description": "Number of physical (non-recurring) appointments already returned."
+                  }
+                }
+              },
+              {
+                "type": "null",
+                "description": "Null when there are no more pages."
+              }
+            ]
+          }
+        }
+      },
+      "EventSearchResponse": {
+        "type": "object",
+        "description": "Response for event-specific search.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Indicates whether the request was successful."
+          },
+          "events": {
+            "type": "array",
+            "description": "Array of event instance objects matching the search criteria.",
+            "items": {
+              "type": "object",
+              "description": "Decorated event instance record."
+            }
+          },
+          "count": {
+            "type": "integer",
+            "description": "Total number of matching events."
+          },
+          "next_page": {
+            "description": "Next page number, or null if there are no more pages.",
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "DocuformsSearchResponse": {
+        "type": "object",
+        "description": "Response for docuforms (documents/forms) search.",
+        "properties": {
+          "counts": {
+            "type": "integer",
+            "description": "Total number of matching docuforms activities."
+          },
+          "top_hits": {
+            "type": "object",
+            "properties": {
+              "docuforms_activity": {
+                "type": "array",
+                "description": "Array of matching docuforms activity records.",
+                "items": {
+                  "type": "object",
+                  "description": "A docuforms activity record."
+                }
+              }
+            }
+          }
+        }
+      },
       "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message describing what went wrong."
+          },
+          "code": {
+            "type": "string",
+            "description": "Machine-readable error code (e.g., \"missing\")."
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable error message."
+          }
+        }
+      },
+      "ErrorResponse_license": {
         "type": "object",
         "description": "Standard error response format.",
         "properties": {
