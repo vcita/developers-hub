@@ -1,5 +1,5 @@
 ---
-endpoint: "GET /client/payments/v1/deposits/{deposit_uid}?matter_uid={matter_uid}"
+endpoint: "GET /client/payments/v1/deposits/{deposit_uid}"
 domain: clients
 tags: [deposits, payments]
 swagger: "swagger/clients/legacy/clients_payments.json"
