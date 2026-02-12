@@ -2,13 +2,13 @@
 endpoint: "GET /platform/v1/conversations"
 domain: communication
 tags: [conversations, messaging]
-swagger: "mcp_swagger/communication.json"
+swagger: "swagger/communication/legacy/legacy_v1_communication.json"
 status: verified
 savedAt: 2026-02-08T21:43:45.000Z
-verifiedAt: 2026-02-08T21:43:45.000Z
+verifiedAt: 2026-02-13T00:00:00.000Z
 timesReused: 0
 useFallbackApi: true
-tokens: [staff]
+tokens: [staff, directory]
 ---
 
 # Get All Conversations
@@ -31,13 +31,14 @@ Retrieves a list of all conversations for the current business. This endpoint fo
 
 ## Authentication
 
-Available for **Staff** tokens.
+Available for **Staff and Directory** tokens.
 
 | Token Type | Works | Notes |
 |------------|-------|-------|
 | Staff | ✅ | Requires staff to be associated with a business |
-| App | ⚠️ | May fail via apigw, use fallback |
-| Directory | ⚠️ | May fail via apigw, use fallback |
+| Directory | ✅ | Requires `X-On-Behalf-Of` header with business UID |
+| App | ❌ | Returns 422 Unauthorized - `authorize_action` only accepts `user` and `admin` types |
+| Internal | ✅ | Full access (admin type) |
 
 ## Test Request
 
