@@ -1,0 +1,722 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Generic AI API",
+    "description": "Unified API for chat completions and audio transcriptions across multiple LLM providers (OpenAI, Anthropic, Google). Supports streaming, async processing, tool calling, and structured output.",
+    "version": "3.0",
+    "contact": {}
+  },
+  "tags": [
+    {
+      "name": "AI Chat Completions",
+      "description": "Create chat completions using multiple LLM providers"
+    },
+    {
+      "name": "AI Audio Transcriptions",
+      "description": "Transcribe audio files using multiple providers"
+    },
+    {
+      "name": "AI Chat Completion Runs",
+      "description": "Manage async chat completion runs"
+    },
+    {
+      "name": "AI Transcription Runs",
+      "description": "Manage async transcription runs"
+    }
+  ],
+  "servers": [
+    {
+      "url": "https://api.vcita.biz",
+      "description": "API Gateway server"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "ChatCompletionRequest": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string",
+            "description": "Model identifier in provider/model format. Supported providers: openai, anthropic, google.",
+            "example": "openai/gpt-4o"
+          },
+          "messages": {
+            "type": "array",
+            "description": "Array of messages in the conversation",
+            "items": {
+              "type": "object",
+              "properties": {
+                "role": {
+                  "type": "string",
+                  "enum": ["system", "user", "assistant", "tool"],
+                  "description": "The role of the message author"
+                },
+                "content": {
+                  "description": "Message content. String for text, or array of content parts for multimodal input (images, audio, files).",
+                  "oneOf": [
+                    { "type": "string" },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "enum": ["text", "image_url", "image", "audio_url", "video_url", "input_audio", "file"]
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "name": {
+                  "type": "string",
+                  "description": "Optional name for the participant"
+                },
+                "tool_calls": {
+                  "type": "array",
+                  "description": "Tool calls made by the assistant (assistant messages only)",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string" },
+                      "type": { "type": "string", "enum": ["function"] },
+                      "function": {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "arguments": { "type": "string" }
+                        }
+                      }
+                    }
+                  }
+                },
+                "tool_call_id": {
+                  "type": "string",
+                  "description": "ID of the tool call this message responds to (tool messages only)"
+                }
+              },
+              "required": ["role"]
+            }
+          },
+          "stream": {
+            "type": "boolean",
+            "description": "Whether to stream the response as Server-Sent Events (SSE). Defaults to true.",
+            "default": true
+          },
+          "async": {
+            "type": "boolean",
+            "description": "Process asynchronously. Returns a run UID for polling. Recommended for thinking models (o1, o3, Claude extended thinking).",
+            "default": false
+          },
+          "temperature": {
+            "type": "number",
+            "description": "Sampling temperature (0-2). Higher values make output more random.",
+            "minimum": 0,
+            "maximum": 2,
+            "example": 0.7
+          },
+          "max_tokens": {
+            "type": "integer",
+            "description": "Maximum number of tokens to generate",
+            "minimum": 1,
+            "example": 1024
+          },
+          "top_p": {
+            "type": "number",
+            "description": "Top-p (nucleus) sampling parameter (0-1)",
+            "minimum": 0,
+            "maximum": 1,
+            "example": 1
+          },
+          "tools": {
+            "type": "array",
+            "description": "Array of tools available for function calling",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": ["function"]
+                },
+                "function": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "The name of the function"
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "Description of what the function does"
+                    },
+                    "parameters": {
+                      "type": "object",
+                      "description": "JSON Schema describing the function parameters"
+                    },
+                    "strict": {
+                      "type": "boolean",
+                      "description": "Whether to enforce strict schema validation"
+                    }
+                  },
+                  "required": ["name", "parameters"]
+                }
+              },
+              "required": ["type", "function"]
+            }
+          },
+          "response_format": {
+            "type": "object",
+            "description": "Response format specification for structured output",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["text", "json_object", "json_schema"],
+                "description": "The format type"
+              },
+              "json_schema": {
+                "type": "object",
+                "description": "JSON Schema definition (required when type is json_schema)",
+                "properties": {
+                  "name": { "type": "string" },
+                  "schema": { "type": "object" },
+                  "strict": { "type": "boolean" }
+                }
+              }
+            }
+          },
+          "stop": {
+            "description": "Stop sequence(s) to end generation",
+            "oneOf": [
+              { "type": "string" },
+              { "type": "array", "items": { "type": "string" } }
+            ]
+          }
+        },
+        "required": ["model", "messages"]
+      },
+      "ChatCompletionRunList": {
+        "type": "object",
+        "properties": {
+          "chat_completion_runs": {
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/ai/ChatCompletionRun.json"
+            }
+          }
+        }
+      },
+      "TranscriptionRunList": {
+        "type": "object",
+        "properties": {
+          "transcription_runs": {
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/ai/TranscriptionRun.json"
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+      }
+    }
+  },
+  "paths": {
+    "/v3/ai/chat_completions": {
+      "post": {
+        "tags": ["AI Chat Completions"],
+        "summary": "Create a ChatCompletion",
+        "description": "## Overview\nCreate chat completions using multiple LLM providers (OpenAI, Anthropic, Google). Supports text and multimodal input (images, audio, video, files), streaming responses via SSE, async mode for long-running thinking models, tool calling (function calling), and structured output (JSON schema).\n\n### Supported Models\n| Provider | Models |\n|----------|--------|\n| OpenAI | `openai/gpt-5`, `openai/gpt-4o`, `openai/gpt-4o-mini`, `openai/o3-mini`, `openai/o1` |\n| Anthropic | `anthropic/claude-sonnet-4-5-20250929`, `anthropic/claude-haiku-4-5-20251001`, `anthropic/claude-3-5-sonnet-latest`, `anthropic/claude-3-5-haiku-latest` |\n| Google | `google/gemini-2.5-pro`, `google/gemini-2.0-flash`, `google/gemini-2.0-pro` |\n\n### Streaming\nBy default, responses are streamed as Server-Sent Events (SSE). Set `stream: false` for a single JSON response.\n\n### Async Mode\nSet `async: true` to queue the request and receive a run UID. Poll `GET /v3/ai/chat_completion_runs/{uid}` for the result. Recommended for thinking models.\n\n**Available for Staff tokens**",
+        "security": [{ "Bearer": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatCompletionRequest"
+              },
+              "examples": {
+                "simple": {
+                  "summary": "Simple text completion",
+                  "value": {
+                    "model": "openai/gpt-4o-mini",
+                    "messages": [{ "role": "user", "content": "Say hello" }],
+                    "stream": false,
+                    "max_tokens": 100
+                  }
+                },
+                "tool_calling": {
+                  "summary": "With function calling",
+                  "value": {
+                    "model": "openai/gpt-4o-mini",
+                    "messages": [{ "role": "user", "content": "What is the weather in Paris?" }],
+                    "stream": false,
+                    "tools": [{
+                      "type": "function",
+                      "function": {
+                        "name": "get_weather",
+                        "description": "Get current weather for a location",
+                        "parameters": {
+                          "type": "object",
+                          "properties": {
+                            "location": { "type": "string" }
+                          },
+                          "required": ["location"]
+                        }
+                      }
+                    }]
+                  }
+                },
+                "structured_output": {
+                  "summary": "With JSON schema output",
+                  "value": {
+                    "model": "openai/gpt-4o-mini",
+                    "messages": [{ "role": "user", "content": "Extract: John is 30 years old" }],
+                    "stream": false,
+                    "response_format": {
+                      "type": "json_schema",
+                      "json_schema": {
+                        "name": "person",
+                        "schema": {
+                          "type": "object",
+                          "properties": {
+                            "name": { "type": "string" },
+                            "age": { "type": "integer" }
+                          },
+                          "required": ["name", "age"]
+                        }
+                      }
+                    }
+                  }
+                },
+                "async": {
+                  "summary": "Async mode for thinking models",
+                  "value": {
+                    "model": "openai/o1",
+                    "messages": [{ "role": "user", "content": "Solve this complex problem..." }],
+                    "async": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful non-streaming completion",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/ChatCompletion.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "Server-Sent Events stream. Each event is a JSON chunk with `data:` prefix, ending with `data: [DONE]`."
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Async mode: job queued, poll for result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/ChatCompletionRun.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Validation error (invalid model format, unsupported provider, missing messages)"
+          },
+          "429": {
+            "description": "Rate limit exceeded (10 requests per minute)"
+          },
+          "502": {
+            "description": "LLM provider API error"
+          }
+        }
+      }
+    },
+    "/v3/ai/audio_transcriptions": {
+      "post": {
+        "tags": ["AI Audio Transcriptions"],
+        "summary": "Create an AudioTranscription",
+        "description": "## Overview\nTranscribe audio files using multiple providers (OpenAI Whisper, OpenAI GPT-4o Transcribe, Google Chirp). Supports file upload via multipart form data.\n\n### Supported Models\n| Provider | Models |\n|----------|--------|\n| OpenAI | `openai/whisper-1`, `openai/gpt-4o-transcribe` |\n| Google | `google/chirp-2` |\n\n### Async Mode\nSet `async: true` to queue the transcription and receive a run UID. Poll `GET /v3/ai/transcription_runs/{uid}` for the result. Recommended for long audio files or diarization.\n\n**Available for Staff tokens**",
+        "security": [{ "Bearer": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Audio file to transcribe (max 25MB). Supported formats: mp3, mp4, m4a, wav, webm, flac, ogg."
+                  },
+                  "model": {
+                    "type": "string",
+                    "description": "Model identifier in provider/model format",
+                    "example": "openai/gpt-4o-transcribe"
+                  },
+                  "language": {
+                    "type": "string",
+                    "description": "ISO-639-1 language code (e.g., 'en', 'es', 'he')"
+                  },
+                  "prompt": {
+                    "type": "string",
+                    "description": "Optional guiding prompt for transcription"
+                  },
+                  "response_format": {
+                    "type": "string",
+                    "enum": ["json", "text", "srt", "verbose_json", "vtt"],
+                    "description": "Response format (default: json)"
+                  },
+                  "temperature": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "description": "Sampling temperature (0-1)"
+                  },
+                  "async": {
+                    "type": "boolean",
+                    "description": "Process asynchronously. Returns run UID for polling.",
+                    "default": false
+                  }
+                },
+                "required": ["file", "model"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful transcription",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/AudioTranscription.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Async mode: job queued, poll for result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/TranscriptionRun.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "413": {
+            "description": "File size exceeds 25MB limit"
+          },
+          "422": {
+            "description": "Validation error (missing file, unsupported format, invalid model)"
+          },
+          "429": {
+            "description": "Rate limit exceeded (10 requests per minute)"
+          }
+        }
+      }
+    },
+    "/v3/ai/chat_completion_runs/{uid}": {
+      "get": {
+        "tags": ["AI Chat Completion Runs"],
+        "summary": "Retrieve a ChatCompletionRun",
+        "description": "## Overview\nGet the status and result of an async chat completion job. Poll this endpoint until status is COMPLETED or FAILED.\n\n**Available for Staff tokens**",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the chat completion run",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Chat completion run status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/ChatCompletionRun.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Chat completion run not found"
+          }
+        }
+      }
+    },
+    "/v3/ai/chat_completion_runs": {
+      "get": {
+        "tags": ["AI Chat Completion Runs"],
+        "summary": "List ChatCompletionRuns",
+        "description": "## Overview\nRetrieve a list of chat completion runs for the authenticated client with optional pagination and sorting.\n\n**Available for Staff tokens**",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number for pagination",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "Number of items per page",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Sort field and direction (e.g., 'created_at:desc')",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of chat completion runs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "#/components/schemas/ChatCompletionRunList"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/v3/ai/transcription_runs/{uid}": {
+      "get": {
+        "tags": ["AI Transcription Runs"],
+        "summary": "Retrieve a TranscriptionRun",
+        "description": "## Overview\nGet the status and result of an async transcription job. Poll this endpoint until status is COMPLETED or FAILED.\n\n**Available for Staff tokens**",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the transcription run",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transcription run status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/TranscriptionRun.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Transcription run not found"
+          }
+        }
+      }
+    },
+    "/v3/ai/transcription_runs": {
+      "get": {
+        "tags": ["AI Transcription Runs"],
+        "summary": "List TranscriptionRuns",
+        "description": "## Overview\nRetrieve a list of transcription runs for the authenticated client with optional pagination and sorting.\n\n**Available for Staff tokens**",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number for pagination",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "Number of items per page",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Sort field and direction (e.g., 'created_at:desc')",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of transcription runs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "#/components/schemas/TranscriptionRunList"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    }
+  }
+}
