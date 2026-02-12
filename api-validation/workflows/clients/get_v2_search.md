@@ -1,8 +1,8 @@
 ---
 endpoint: GET /v2/search
-domain: platform_administration
+domain: clients
 tags: [search]
-swagger: swagger/platform_administration/search.json
+swagger: swagger/clients/search.json
 status: verified
 savedAt: 2026-01-26T21:28:12.398Z
 verifiedAt: 2026-01-26T21:28:12.398Z
