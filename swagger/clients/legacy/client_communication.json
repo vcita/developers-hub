@@ -389,9 +389,6 @@
     },
     "/portals/{business_uid}/share_documents_form/submit": {
       "post": {
-        "consumes": [
-          "multipart/form-data"
-        ],
         "description": "## Overview\nSubmits Share Documents Form to the business.\n\n## Authentication\n**Available for Client Tokens only.**\n\n## Critical Requirement\nThe `matter_uid` query parameter must reference a matter with an assigned staff member. Without this, the endpoint returns 500 due to a server-side bug.\n\n## Request Format\nThis endpoint requires `multipart/form-data` format with actual binary file uploads (not JSON). Documents must be uploaded as form fields with proper content types.\n\n## Important: Field Naming Convention\n**Document fields MUST use explicit numeric indices** (e.g., `[0]`, `[1]`), NOT empty brackets `[]`.\n\n- Correct: `form_data[fields][documents][0]=@file.pdf`\n- Wrong: `form_data[fields][documents][]=@file.pdf` (causes 500 error)\n\nThis is because the server expects a Hash structure, not an Array.\n\n## Captcha\nWhen the business has the `captcha_intake_form` feature enabled, a valid `captcha_token` is required.\n\n## Example cURL\n```bash\ncurl -X POST 'https://api.vcita.biz/client_api/v1/portals/{business_uid}/share_documents_form/submit?matter_uid={matter_uid}' \\\n  -H 'Authorization: Bearer {token}' \\\n  -F 'form_data[fields][title]=My Document' \\\n  -F 'form_data[fields][message]=Please review' \\\n  -F 'form_data[fields][documents][0]=@file.pdf;type=application/pdf'\n```",
         "parameters": [
           {
@@ -406,33 +403,38 @@
             "required": true,
             "type": "string",
             "description": "The matter/conversation UID to associate with the document upload. **Critical**: The matter must have an assigned staff member to avoid 500 errors."
-          },
-          {
-            "in": "formData",
-            "name": "form_data[fields][title]",
-            "type": "string",
-            "description": "Document title"
-          },
-          {
-            "in": "formData",
-            "name": "form_data[fields][message]",
-            "type": "string",
-            "description": "Message accompanying the documents"
-          },
-          {
-            "in": "formData",
-            "name": "form_data[fields][documents][0]",
-            "type": "file",
-            "required": true,
-            "description": "File to upload. **Important**: Use explicit indices `[0]`, `[1]`, etc. - NOT empty brackets `[]`. For multiple files, use `form_data[fields][documents][0]`, `form_data[fields][documents][1]`, etc."
-          },
-          {
-            "in": "formData",
-            "name": "captcha_token",
-            "type": "string",
-            "description": "reCAPTCHA token. Required when business has captcha_intake_form feature enabled."
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["form_data[fields][documents][0]"],
+                "properties": {
+                  "form_data[fields][title]": {
+                    "type": "string",
+                    "description": "Document title"
+                  },
+                  "form_data[fields][message]": {
+                    "type": "string",
+                    "description": "Message accompanying the documents"
+                  },
+                  "form_data[fields][documents][0]": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "File to upload. **Important**: Use explicit indices `[0]`, `[1]`, etc. - NOT empty brackets `[]`. For multiple files, use `form_data[fields][documents][0]`, `form_data[fields][documents][1]`, etc."
+                  },
+                  "captcha_token": {
+                    "type": "string",
+                    "description": "reCAPTCHA token. Required when business has captcha_intake_form feature enabled."
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Success - Documents submitted successfully.",
