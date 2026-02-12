@@ -21,13 +21,14 @@
     "/v3/apps/navigation_items": {
       "get": {
         "tags": ["Navigation Items"],
-        "summary": "Get all NavigationItems",
-        "description": "Retrieve a list of navigation items for the authenticated directory. Supports filtering by parent and mobile availability.",
+        "summary": "List Navigation Items",
+        "description": "Retrieve a paginated list of navigation items for the authenticated directory. Supports filtering by parent and mobile availability. Available for **Directory tokens**.",
         "operationId": "listNavigationItems",
         "parameters": [
           {
             "name": "parent_uid",
             "in": "query",
+            "required": false,
             "description": "Filter by parent navigation item unique identifier. Use 'null' for root-level items (e.g., \"nav-item-parent123\").",
             "schema": {
               "type": "string"
@@ -36,9 +37,34 @@
           {
             "name": "available_in_mobile",
             "in": "query",
+            "required": false,
             "description": "Filter by whether the navigation item should appear in mobile app navigation (e.g., true, false).",
             "schema": {
               "type": "boolean"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Page number of results (e.g., 1, 2, 3).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000,
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "description": "How many items to return per page. Max: 100 (e.g., 25, 50, 100).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
             }
           }
         ],
@@ -87,7 +113,7 @@
                         "key": "dashboard",
                         "modules": null,
                         "permissions": null,
-                        "url": "/dashboard",
+                        "url": "/app/dashboard",
                         "badge_id": null,
                         "action": null,
                         "available_in_mobile": true,
@@ -146,14 +172,14 @@
         },
         "security": [
           {
-            "Bearer": []
+            "DirectoryToken": []
           }
         ]
       },
       "post": {
         "tags": ["Navigation Items"],
-        "summary": "Create a NavigationItem",
-        "description": "Create a new navigation item for the authenticated directory. The directory_uid is automatically set from the Directory Token context.",
+        "summary": "Create a Navigation Item",
+        "description": "Create a new navigation item for the authenticated directory. The directory_uid is automatically set from the Directory Token context. Available for **Directory tokens**.",
         "operationId": "createNavigationItem",
         "requestBody": {
           "required": true,
@@ -173,7 +199,7 @@
                 "key": "custom_module",
                 "modules": ["scheduling"],
                 "permissions": ["payments.invoices.export"],
-                "url": "/custom-module",
+                "url": "/app/custom-module",
                 "available_in_mobile": true,
                 "favorite_in_mobile": false,
                 "upsell_handling": "show_upsell"
@@ -216,7 +242,7 @@
                     "key": "custom_module",
                     "modules": ["scheduling"],
                     "permissions": ["payments.invoices.export"],
-                    "url": "/custom-module",
+                    "url": "/app/custom-module",
                     "badge_id": null,
                     "action": null,
                     "available_in_mobile": true,
@@ -233,7 +259,7 @@
             }
           },
           "400": {
-            "description": "Bad Request - Invalid request body or validation errors.",
+            "description": "Bad Request - Malformed request or invalid syntax.",
             "content": {
               "application/json": {
                 "schema": {
@@ -258,6 +284,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired Directory Token"
+                    }
+                  ]
                 }
               }
             }
@@ -268,6 +303,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Token does not have navigation_items:write scope"
+                    }
+                  ]
                 }
               }
             }
@@ -293,7 +337,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Entity - Validation error with valid syntax.",
+            "description": "Unprocessable Entity - Validation error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -315,16 +359,147 @@
         },
         "security": [
           {
-            "Bearer": []
+            "DirectoryToken": []
           }
         ]
       }
     },
     "/v3/apps/navigation_items/{uid}": {
+      "get": {
+        "tags": ["Navigation Items"],
+        "summary": "Get a Navigation Item",
+        "description": "Retrieve a single navigation item by its unique identifier. Available for **Directory tokens**.",
+        "operationId": "getNavigationItem",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the navigation item to retrieve (e.g., \"nav-item-abc123\").",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Navigation item retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/navigation_item.json"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "uid": "nav-item-abc123",
+                    "parent_uid": null,
+                    "directory_uid": "dir-xyz789",
+                    "order": 0,
+                    "title": {
+                      "en": "Dashboard",
+                      "he": "לוח בקרה"
+                    },
+                    "icon": "icon-Dashboard_POV",
+                    "key": "dashboard",
+                    "modules": null,
+                    "permissions": null,
+                    "url": "/app/dashboard",
+                    "badge_id": null,
+                    "action": null,
+                    "available_in_mobile": true,
+                    "favorite_in_mobile": true,
+                    "upsell_handling": null,
+                    "is_bmp": false,
+                    "created_by": "directory",
+                    "updated_by": "directory",
+                    "created_at": "2026-01-15T10:30:00Z",
+                    "updated_at": "2026-01-15T10:30:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing Directory Token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired Directory Token"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Navigation item belongs to a different directory.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Navigation item belongs to a different directory"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - Navigation item does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Navigation item not found"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "DirectoryToken": []
+          }
+        ]
+      },
       "put": {
         "tags": ["Navigation Items"],
-        "summary": "Update a NavigationItem",
-        "description": "Update an existing navigation item. Only provided fields will be updated.",
+        "summary": "Update a Navigation Item",
+        "description": "Update an existing navigation item. Only provided fields will be updated. Available for **Directory tokens**.",
         "operationId": "updateNavigationItem",
         "parameters": [
           {
@@ -333,8 +508,7 @@
             "required": true,
             "description": "Unique identifier of the navigation item to update (e.g., \"nav-item-abc123\").",
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "string"
             }
           }
         ],
@@ -374,16 +548,54 @@
                       }
                     }
                   ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "uid": "nav-item-abc123",
+                    "parent_uid": null,
+                    "directory_uid": "dir-xyz789",
+                    "order": 2,
+                    "title": {
+                      "en": "Updated Module Name",
+                      "he": "שם מודול מעודכן"
+                    },
+                    "icon": "icon-Dashboard_POV",
+                    "key": "dashboard",
+                    "modules": null,
+                    "permissions": null,
+                    "url": "/app/dashboard",
+                    "badge_id": null,
+                    "action": null,
+                    "available_in_mobile": true,
+                    "favorite_in_mobile": true,
+                    "upsell_handling": null,
+                    "is_bmp": false,
+                    "created_by": "directory",
+                    "updated_by": "directory",
+                    "created_at": "2026-01-15T10:30:00Z",
+                    "updated_at": "2026-01-15T16:00:00Z"
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "Bad Request - Invalid request body.",
+            "description": "Bad Request - Malformed request or invalid syntax.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "order",
+                      "code": "invalid_type",
+                      "message": "Order must be a non-negative integer"
+                    }
+                  ]
                 }
               }
             }
@@ -394,6 +606,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired Directory Token"
+                    }
+                  ]
                 }
               }
             }
@@ -404,6 +625,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Navigation item belongs to a different directory"
+                    }
+                  ]
                 }
               }
             }
@@ -414,6 +644,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Navigation item not found"
+                    }
+                  ]
                 }
               }
             }
@@ -424,6 +663,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "key",
+                      "code": "duplicate",
+                      "message": "A navigation item with this key already exists in the directory"
+                    }
+                  ]
                 }
               }
             }
@@ -434,6 +683,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "parent_uid",
+                      "code": "invalid_reference",
+                      "message": "Parent navigation item not found"
+                    }
+                  ]
                 }
               }
             }
@@ -441,14 +700,14 @@
         },
         "security": [
           {
-            "Bearer": []
+            "DirectoryToken": []
           }
         ]
       },
       "delete": {
         "tags": ["Navigation Items"],
-        "summary": "Delete a NavigationItem",
-        "description": "Delete a navigation item. Items with children cannot be deleted until all children are removed first.",
+        "summary": "Delete a Navigation Item",
+        "description": "Delete a navigation item. Items with children cannot be deleted until all children are removed first. Available for **Directory tokens**.",
         "operationId": "deleteNavigationItem",
         "parameters": [
           {
@@ -457,8 +716,7 @@
             "required": true,
             "description": "Unique identifier of the navigation item to delete (e.g., \"nav-item-abc123\").",
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "string"
             }
           }
         ],
@@ -491,6 +749,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired Directory Token"
+                    }
+                  ]
                 }
               }
             }
@@ -501,6 +768,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Navigation item belongs to a different directory"
+                    }
+                  ]
                 }
               }
             }
@@ -511,6 +787,15 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Navigation item not found"
+                    }
+                  ]
                 }
               }
             }
@@ -518,7 +803,7 @@
         },
         "security": [
           {
-            "Bearer": []
+            "DirectoryToken": []
           }
         ]
       }
@@ -531,8 +816,8 @@
         "description": "Request body for creating a new navigation item.",
         "properties": {
           "parent_uid": {
-            "type": ["string", "null"],
-            "format": "uuid",
+            "type": "string",
+            "nullable": true,
             "description": "Unique identifier of the parent navigation item. Set to null for root-level items (e.g., \"nav-item-parent123\")."
           },
           "order": {
@@ -547,6 +832,7 @@
           },
           "icon": {
             "type": "string",
+            "nullable": true,
             "maxLength": 255,
             "description": "Icon identifier from the platform icon library. For a list of supported icon identifiers, refer to the inTandem UI icon library used by the platform (e.g., \"icon-Dashboard_POV\")."
           },
@@ -557,6 +843,8 @@
           },
           "modules": {
             "type": "array",
+            "nullable": true,
+            "uniqueItems": true,
             "items": {
               "type": "string"
             },
@@ -564,6 +852,8 @@
           },
           "permissions": {
             "type": "array",
+            "nullable": true,
+            "uniqueItems": true,
             "items": {
               "type": "string"
             },
@@ -572,15 +862,22 @@
           "url": {
             "type": "string",
             "maxLength": 500,
-            "description": "Navigation URL, relative or absolute (e.g., \"/dashboard\", \"https://app.example.com\")."
+            "description": "Navigation URL. Supports three URL types: (1) Internal Route — a relative path starting with '/app/' that navigates the user within the platform (e.g., \"/app/dashboard\", \"/app/calendar\", \"/app/clients\", \"/app/payments/orders\"). (2) Embedded App — a relative path following the pattern '/app/embedded/{APP_NAME}/{PATH}', where {APP_NAME} is the app identifier and {PATH} is a navigation path appended to the app's base URL stored in the database; query parameters can also be appended (e.g., \"/app/embedded/printer/settings\", \"/app/embedded/printer/preview?app_id=123\"). (3) External URL — a full URL starting with 'https://' that opens in a new browser tab (e.g., \"https://help.vcita.com\")."
           },
           "badge_id": {
-            "type": ["string", "null"],
+            "type": "string",
+            "nullable": true,
             "enum": ["inbox_unread", null],
-            "description": "Badge identifier that displays a notification indicator on this navigation item. Supported values are finite and managed by the platform. (e.g., \"inbox_unread\" or null)."
+            "description": "Badge identifier that displays a notification indicator on this navigation item. Supported values are finite and managed by the platform (e.g., \"inbox_unread\" or null)."
           },
           "action": {
-            "$ref": "#/components/schemas/NavigationAction"
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NavigationAction"
+              }
+            ],
+            "description": "Action configuration for special click behaviors. Set to null for standard navigation (no special action)."
           },
           "available_in_mobile": {
             "type": "boolean",
@@ -594,13 +891,9 @@
           },
           "upsell_handling": {
             "type": "string",
-            "enum": ["hide", "show_upsell"],
-            "description": "Behavior when user lacks permissions. 'hide' removes the item, 'show_upsell' displays upgrade prompt."
-          },
-          "is_bmp": {
-            "type": "boolean",
-            "default": false,
-            "description": "Whether this is a BMP (Business Management Platform) item (e.g., true, false)."
+            "nullable": true,
+            "enum": ["hide", "show_upsell", null],
+            "description": "Behavior when user lacks permissions. 'hide' removes the item, 'show_upsell' displays upgrade prompt. Null means default behavior (hide)."
           }
         },
         "required": ["title", "key", "url"]
@@ -610,8 +903,8 @@
         "description": "Request body for updating an existing navigation item. All fields are optional; only provided fields will be updated.",
         "properties": {
           "parent_uid": {
-            "type": ["string", "null"],
-            "format": "uuid",
+            "type": "string",
+            "nullable": true,
             "description": "Unique identifier of the parent navigation item (e.g., \"nav-item-parent123\" or null)."
           },
           "order": {
@@ -623,9 +916,10 @@
             "$ref": "#/components/schemas/TitleI18n"
           },
           "icon": {
-            "type": ["string", "null"],
+            "type": "string",
+            "nullable": true,
             "maxLength": 255,
-            "description": "Icon identifier from the platform icon library (e.g., \"icon-Dashboard_POV\"). Use null to remove."
+            "description": "Icon identifier from the platform icon library (e.g., \"icon-Dashboard_POV\"). Set to null to remove."
           },
           "key": {
             "type": "string",
@@ -633,33 +927,40 @@
             "description": "Human-readable unique identifier (e.g., \"updated_key\")."
           },
           "modules": {
-            "type": ["array", "null"],
+            "type": "array",
+            "nullable": true,
+            "uniqueItems": true,
             "items": {
               "type": "string"
             },
-            "description": "Array of module identifiers. The list of enabled modules can be retrieved from the features endpoint (e.g., \"https://developers.intandem.tech/reference/get_platform-v1-businesses-business-id-features\"). (e.g., [\"scheduling\"] or null)."
+            "description": "Array of module identifiers. The list of enabled modules can be retrieved from the features endpoint (e.g., \"https://developers.intandem.tech/reference/get_platform-v1-businesses-business-id-features\"). Set to null to remove (e.g., [\"scheduling\"] or null)."
           },
           "permissions": {
-            "type": ["array", "null"],
+            "type": "array",
+            "nullable": true,
+            "uniqueItems": true,
             "items": {
               "type": "string"
             },
-            "description": "Array of permission identifiers. To retrieve valid permission codes, use the endpoint (GET \"/v3/access_control/permissions\"). (e.g., [\"payments.invoices.export\"] or null)."
+            "description": "Array of permission identifiers. To retrieve valid permission codes, use the endpoint (GET \"/v3/access_control/permissions\"). Set to null to remove (e.g., [\"payments.invoices.export\"] or null)."
           },
           "url": {
             "type": "string",
             "maxLength": 500,
-            "description": "Navigation URL (e.g., \"/new-path\")."
+            "description": "Navigation URL. Supports three URL types: (1) Internal Route — a relative path starting with '/app/' that navigates the user within the platform (e.g., \"/app/dashboard\", \"/app/calendar\"). (2) Embedded App — a relative path following the pattern '/app/embedded/{APP_NAME}/{PATH}', where {APP_NAME} is the app identifier and {PATH} is a navigation path appended to the app's base URL; query parameters can also be appended (e.g., \"/app/embedded/printer/settings\"). (3) External URL — a full URL starting with 'https://' that opens in a new browser tab (e.g., \"https://help.vcita.com\")."
           },
           "badge_id": {
-            "type": ["string", "null"],
+            "type": "string",
+            "nullable": true,
             "enum": ["inbox_unread", null],
             "description": "Badge identifier (e.g., \"inbox_unread\" or null to remove)."
           },
           "action": {
-            "oneOf": [
-              { "$ref": "#/components/schemas/NavigationAction" },
-              { "type": "null" }
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NavigationAction"
+              }
             ],
             "description": "Action configuration or null to remove."
           },
@@ -672,13 +973,10 @@
             "description": "Whether to show in mobile favorites."
           },
           "upsell_handling": {
-            "type": ["string", "null"],
+            "type": "string",
+            "nullable": true,
             "enum": ["hide", "show_upsell", null],
             "description": "Upsell behavior or null for default."
-          },
-          "is_bmp": {
-            "type": "boolean",
-            "description": "Whether this is a BMP item."
           }
         }
       },
@@ -719,7 +1017,6 @@
           },
           "params": {
             "type": "object",
-            "additionalProperties": true,
             "description": "Action-specific parameters. For \"open_modal\": params must include the modal configuration (e.g., {\"modalName\": \"AppMarket\"}, {\"modalName\": \"ClientPicker\"}, {\"modalName\": \"IframeModal\", \"url\": \"https://example.com\", \"title\": \"Page Title\"}). See the [inTandem JS SDK openModal documentation](https://developers.intandem.tech/docs/openmodal) for complete parameter specifications for each modal type."
           }
         },
@@ -766,11 +1063,10 @@
       }
     },
     "securitySchemes": {
-      "Bearer": {
+      "DirectoryToken": {
         "type": "http",
         "scheme": "bearer",
-        "bearerFormat": "JWT",
-        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+        "description": "Directory Token authentication. Provide a valid Directory Token in the Authorization header. Example: 'Authorization: Bearer {directory_token}'"
       }
     }
   }
