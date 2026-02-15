@@ -32,161 +32,207 @@
   ],
   "components": {
     "schemas": {
+      "ChatMessage": {
+        "type": "object",
+        "description": "A single message in the chat conversation. Messages represent the dialogue between the user, system, assistant, and tools.",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": ["system", "user", "assistant", "tool"],
+            "description": "The role of the message author. 'system' sets the assistant's behavior, 'user' is the human input, 'assistant' is the model's response, 'tool' is the response to a tool call."
+          },
+          "content": {
+            "description": "Message content. A string for plain text input, or an array of content parts for multimodal input (images, audio, video, files).",
+            "oneOf": [
+              { "type": "string" },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ContentPart"
+                }
+              }
+            ]
+          },
+          "name": {
+            "type": "string",
+            "description": "Optional name for the participant. Useful for distinguishing between multiple users in a multi-turn conversation."
+          },
+          "tool_calls": {
+            "type": "array",
+            "description": "Tool calls made by the assistant. Only present on messages with role 'assistant' when the model decides to invoke a function.",
+            "items": {
+              "$ref": "#/components/schemas/ToolCall"
+            }
+          },
+          "tool_call_id": {
+            "type": "string",
+            "description": "The unique identifier of the tool call this message responds to. Required on messages with role 'tool'."
+          }
+        },
+        "required": ["role"]
+      },
+      "ContentPart": {
+        "type": "object",
+        "description": "A content part for multimodal messages. Supports text, images, audio, video, and file inputs.",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["text", "image_url", "image", "audio_url", "video_url", "input_audio", "file"],
+            "description": "The type of content part. 'text' for plain text, 'image_url' for an image via URL, 'image' for inline image data, 'audio_url' for audio via URL, 'video_url' for video via URL, 'input_audio' for inline audio data, 'file' for file attachments."
+          }
+        }
+      },
+      "ToolCall": {
+        "type": "object",
+        "description": "A tool call requested by the assistant during a chat completion.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique identifier for this tool call, used to match tool responses back to the request."
+          },
+          "type": {
+            "type": "string",
+            "enum": ["function"],
+            "description": "The type of tool call. Currently only 'function' is supported."
+          },
+          "function": {
+            "type": "object",
+            "description": "The function to be called, including its name and arguments.",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "The name of the function to call."
+              },
+              "arguments": {
+                "type": "string",
+                "description": "A JSON-encoded string of the arguments to pass to the function."
+              }
+            }
+          }
+        }
+      },
+      "ToolDefinition": {
+        "type": "object",
+        "description": "Defines a tool (function) available to the model during chat completion. The model may choose to call one or more tools based on the conversation context.",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["function"],
+            "description": "The type of tool. Currently only 'function' is supported."
+          },
+          "function": {
+            "type": "object",
+            "description": "The function definition including its name, description, and parameter schema.",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "The name of the function to be called. Must be a-z, A-Z, 0-9, underscores, or dashes, with a maximum length of 64."
+              },
+              "description": {
+                "type": "string",
+                "description": "A clear description of what the function does. The model uses this to decide when and how to call the function."
+              },
+              "parameters": {
+                "type": "object",
+                "description": "A JSON Schema object describing the function's parameters. The model will generate arguments that conform to this schema."
+              },
+              "strict": {
+                "type": "boolean",
+                "description": "Whether to enforce strict schema validation on the generated arguments. When true, the model output is guaranteed to match the schema exactly."
+              }
+            },
+            "required": ["name", "parameters"]
+          }
+        },
+        "required": ["type", "function"]
+      },
+      "ResponseFormat": {
+        "type": "object",
+        "description": "Response format specification for structured output. Use this to constrain the model's output to a specific format such as JSON.",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["text", "json_object", "json_schema"],
+            "description": "The format type. 'text' for free-form text (default), 'json_object' for any valid JSON, 'json_schema' for JSON constrained to a specific schema."
+          },
+          "json_schema": {
+            "type": "object",
+            "description": "JSON Schema definition. Required when type is 'json_schema'. Defines the exact structure the model must follow.",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "A name for the schema, used for identification."
+              },
+              "schema": {
+                "type": "object",
+                "description": "The JSON Schema that the model's output must conform to."
+              },
+              "strict": {
+                "type": "boolean",
+                "description": "Whether to enforce strict schema validation on the model's output."
+              }
+            }
+          }
+        }
+      },
       "ChatCompletionRequest": {
         "type": "object",
+        "description": "Request body for creating a chat completion. Specify the model, messages, and optional parameters to control the completion behavior.",
         "properties": {
           "model": {
             "type": "string",
-            "description": "Model identifier in provider/model format. Supported providers: openai, anthropic, google.",
+            "description": "Model identifier in provider/model format. Supported providers: openai, anthropic, google (e.g., \"openai/gpt-4o\", \"anthropic/claude-sonnet-4-5-20250929\", \"google/gemini-2.5-pro\").",
             "example": "openai/gpt-4o"
           },
           "messages": {
             "type": "array",
-            "description": "Array of messages in the conversation",
+            "description": "Array of messages representing the conversation history. Must include at least one message with role 'user'.",
             "items": {
-              "type": "object",
-              "properties": {
-                "role": {
-                  "type": "string",
-                  "enum": ["system", "user", "assistant", "tool"],
-                  "description": "The role of the message author"
-                },
-                "content": {
-                  "description": "Message content. String for text, or array of content parts for multimodal input (images, audio, files).",
-                  "oneOf": [
-                    { "type": "string" },
-                    {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "type": {
-                            "type": "string",
-                            "enum": ["text", "image_url", "image", "audio_url", "video_url", "input_audio", "file"]
-                          }
-                        }
-                      }
-                    }
-                  ]
-                },
-                "name": {
-                  "type": "string",
-                  "description": "Optional name for the participant"
-                },
-                "tool_calls": {
-                  "type": "array",
-                  "description": "Tool calls made by the assistant (assistant messages only)",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": { "type": "string" },
-                      "type": { "type": "string", "enum": ["function"] },
-                      "function": {
-                        "type": "object",
-                        "properties": {
-                          "name": { "type": "string" },
-                          "arguments": { "type": "string" }
-                        }
-                      }
-                    }
-                  }
-                },
-                "tool_call_id": {
-                  "type": "string",
-                  "description": "ID of the tool call this message responds to (tool messages only)"
-                }
-              },
-              "required": ["role"]
+              "$ref": "#/components/schemas/ChatMessage"
             }
           },
           "stream": {
             "type": "boolean",
-            "description": "Whether to stream the response as Server-Sent Events (SSE). Defaults to true.",
+            "description": "Whether to stream the response as Server-Sent Events (SSE). When true, the response is delivered incrementally as text/event-stream. Defaults to true.",
             "default": true
           },
           "async": {
             "type": "boolean",
-            "description": "Process asynchronously. Returns a run UID for polling. Recommended for thinking models (o1, o3, Claude extended thinking).",
+            "description": "Process the request asynchronously. Returns a run UID immediately that can be polled via GET /v3/ai/chat_completion_runs/{uid}. Recommended for thinking models (e.g., openai/o1, openai/o3-mini) that may take longer to respond.",
             "default": false
           },
           "temperature": {
             "type": "number",
-            "description": "Sampling temperature (0-2). Higher values make output more random.",
+            "description": "Sampling temperature between 0 and 2. Higher values (e.g., 0.8) make the output more random, while lower values (e.g., 0.2) make it more focused and deterministic.",
             "minimum": 0,
             "maximum": 2,
             "example": 0.7
           },
           "max_tokens": {
             "type": "integer",
-            "description": "Maximum number of tokens to generate",
+            "description": "Maximum number of tokens to generate in the completion. The total length of input tokens and generated tokens is limited by the model's context length.",
             "minimum": 1,
             "example": 1024
           },
           "top_p": {
             "type": "number",
-            "description": "Top-p (nucleus) sampling parameter (0-1)",
+            "description": "Top-p (nucleus) sampling parameter between 0 and 1. The model considers the results of the tokens with top_p probability mass. For example, 0.1 means only tokens comprising the top 10% probability mass are considered.",
             "minimum": 0,
             "maximum": 1,
             "example": 1
           },
           "tools": {
             "type": "array",
-            "description": "Array of tools available for function calling",
+            "description": "Array of tool definitions available for the model to call during the completion. The model may choose to call zero or more of these tools based on the conversation context.",
             "items": {
-              "type": "object",
-              "properties": {
-                "type": {
-                  "type": "string",
-                  "enum": ["function"]
-                },
-                "function": {
-                  "type": "object",
-                  "properties": {
-                    "name": {
-                      "type": "string",
-                      "description": "The name of the function"
-                    },
-                    "description": {
-                      "type": "string",
-                      "description": "Description of what the function does"
-                    },
-                    "parameters": {
-                      "type": "object",
-                      "description": "JSON Schema describing the function parameters"
-                    },
-                    "strict": {
-                      "type": "boolean",
-                      "description": "Whether to enforce strict schema validation"
-                    }
-                  },
-                  "required": ["name", "parameters"]
-                }
-              },
-              "required": ["type", "function"]
+              "$ref": "#/components/schemas/ToolDefinition"
             }
           },
           "response_format": {
-            "type": "object",
-            "description": "Response format specification for structured output",
-            "properties": {
-              "type": {
-                "type": "string",
-                "enum": ["text", "json_object", "json_schema"],
-                "description": "The format type"
-              },
-              "json_schema": {
-                "type": "object",
-                "description": "JSON Schema definition (required when type is json_schema)",
-                "properties": {
-                  "name": { "type": "string" },
-                  "schema": { "type": "object" },
-                  "strict": { "type": "boolean" }
-                }
-              }
-            }
+            "$ref": "#/components/schemas/ResponseFormat"
           },
           "stop": {
-            "description": "Stop sequence(s) to end generation",
+            "description": "Up to 4 sequences where the model will stop generating further tokens. The returned text will not contain the stop sequence.",
             "oneOf": [
               { "type": "string" },
               { "type": "array", "items": { "type": "string" } }
@@ -197,6 +243,7 @@
       },
       "ChatCompletionRunList": {
         "type": "object",
+        "description": "A list of chat completion runs.",
         "properties": {
           "chat_completion_runs": {
             "type": "array",
@@ -208,6 +255,7 @@
       },
       "TranscriptionRunList": {
         "type": "object",
+        "description": "A list of transcription runs.",
         "properties": {
           "transcription_runs": {
             "type": "array",
@@ -309,7 +357,7 @@
         },
         "responses": {
           "200": {
-            "description": "Successful non-streaming completion",
+            "description": "Successful non-streaming completion.",
             "content": {
               "application/json": {
                 "schema": {
@@ -320,7 +368,6 @@
                     {
                       "properties": {
                         "data": {
-                          "type": "object",
                           "$ref": "https://vcita.github.io/developers-hub/entities/ai/ChatCompletion.json"
                         }
                       }
@@ -337,7 +384,7 @@
             }
           },
           "202": {
-            "description": "Async mode: job queued, poll for result",
+            "description": "Async mode: job queued successfully. Poll the returned run UID for the result.",
             "content": {
               "application/json": {
                 "schema": {
@@ -348,7 +395,6 @@
                     {
                       "properties": {
                         "data": {
-                          "type": "object",
                           "$ref": "https://vcita.github.io/developers-hub/entities/ai/ChatCompletionRun.json"
                         }
                       }
@@ -358,17 +404,101 @@
               }
             }
           },
+          "400": {
+            "description": "Bad Request - The request body is malformed or contains invalid syntax.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "invalid_syntax",
+                      "message": "Request body contains invalid JSON."
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized - The bearer token is missing, expired, or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token."
+                    }
+                  ]
+                }
+              }
+            }
           },
           "422": {
-            "description": "Validation error (invalid model format, unsupported provider, missing messages)"
+            "description": "Unprocessable Entity - Validation error with valid syntax.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "model",
+                      "code": "invalid",
+                      "message": "Unsupported model format. Expected provider/model (e.g., 'openai/gpt-4o')."
+                    }
+                  ]
+                }
+              }
+            }
           },
           "429": {
-            "description": "Rate limit exceeded (10 requests per minute)"
+            "description": "Too Many Requests - Rate limit exceeded (10 requests per minute).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "rate_limit_exceeded",
+                      "message": "Rate limit exceeded. Maximum 10 requests per minute. Please retry after 60 seconds."
+                    }
+                  ]
+                }
+              }
+            }
           },
           "502": {
-            "description": "LLM provider API error"
+            "description": "Bad Gateway - The upstream LLM provider returned an error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "provider_error",
+                      "message": "The LLM provider returned an error. Please try again later."
+                    }
+                  ]
+                }
+              }
+            }
           }
         }
       }
@@ -393,31 +523,31 @@
                   },
                   "model": {
                     "type": "string",
-                    "description": "Model identifier in provider/model format",
+                    "description": "Model identifier in provider/model format (e.g., \"openai/gpt-4o-transcribe\", \"openai/whisper-1\", \"google/chirp-2\").",
                     "example": "openai/gpt-4o-transcribe"
                   },
                   "language": {
                     "type": "string",
-                    "description": "ISO-639-1 language code (e.g., 'en', 'es', 'he')"
+                    "description": "ISO-639-1 language code for the audio content (e.g., \"en\" for English, \"es\" for Spanish, \"he\" for Hebrew). When omitted, the provider will auto-detect the language."
                   },
                   "prompt": {
                     "type": "string",
-                    "description": "Optional guiding prompt for transcription"
+                    "description": "Optional guiding prompt to improve transcription accuracy. Useful for providing context, domain-specific terminology, or correcting recurring misrecognitions."
                   },
                   "response_format": {
                     "type": "string",
                     "enum": ["json", "text", "srt", "verbose_json", "vtt"],
-                    "description": "Response format (default: json)"
+                    "description": "Desired response format. 'json' returns a simple JSON with text, 'text' returns plain text, 'srt' returns SubRip subtitle format, 'verbose_json' returns detailed JSON with word-level timestamps, 'vtt' returns WebVTT subtitle format. Defaults to 'json'."
                   },
                   "temperature": {
                     "type": "number",
                     "minimum": 0,
                     "maximum": 1,
-                    "description": "Sampling temperature (0-1)"
+                    "description": "Sampling temperature between 0 and 1. Higher values make the output more random, while lower values make it more deterministic. Defaults to 0."
                   },
                   "async": {
                     "type": "boolean",
-                    "description": "Process asynchronously. Returns run UID for polling.",
+                    "description": "Process the request asynchronously. Returns a run UID immediately that can be polled via GET /v3/ai/transcription_runs/{uid}. Recommended for long audio files or when diarization is needed.",
                     "default": false
                   }
                 },
@@ -428,7 +558,7 @@
         },
         "responses": {
           "200": {
-            "description": "Successful transcription",
+            "description": "Successful transcription.",
             "content": {
               "application/json": {
                 "schema": {
@@ -439,7 +569,6 @@
                     {
                       "properties": {
                         "data": {
-                          "type": "object",
                           "$ref": "https://vcita.github.io/developers-hub/entities/ai/AudioTranscription.json"
                         }
                       }
@@ -450,7 +579,7 @@
             }
           },
           "202": {
-            "description": "Async mode: job queued, poll for result",
+            "description": "Async mode: job queued successfully. Poll the returned run UID for the result.",
             "content": {
               "application/json": {
                 "schema": {
@@ -461,7 +590,6 @@
                     {
                       "properties": {
                         "data": {
-                          "type": "object",
                           "$ref": "https://vcita.github.io/developers-hub/entities/ai/TranscriptionRun.json"
                         }
                       }
@@ -471,17 +599,102 @@
               }
             }
           },
+          "400": {
+            "description": "Bad Request - The request is malformed or contains invalid syntax.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "invalid_syntax",
+                      "message": "Request body is malformed or missing required multipart form data."
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized - The bearer token is missing, expired, or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token."
+                    }
+                  ]
+                }
+              }
+            }
           },
           "413": {
-            "description": "File size exceeds 25MB limit"
+            "description": "Payload Too Large - The uploaded audio file exceeds the 25MB size limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "file",
+                      "code": "too_large",
+                      "message": "File size exceeds the maximum allowed limit of 25MB."
+                    }
+                  ]
+                }
+              }
+            }
           },
           "422": {
-            "description": "Validation error (missing file, unsupported format, invalid model)"
+            "description": "Unprocessable Entity - Validation error with valid syntax.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "model",
+                      "code": "invalid",
+                      "message": "Unsupported model. Supported models: openai/whisper-1, openai/gpt-4o-transcribe, google/chirp-2."
+                    }
+                  ]
+                }
+              }
+            }
           },
           "429": {
-            "description": "Rate limit exceeded (10 requests per minute)"
+            "description": "Too Many Requests - Rate limit exceeded (10 requests per minute).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "rate_limit_exceeded",
+                      "message": "Rate limit exceeded. Maximum 10 requests per minute. Please retry after 60 seconds."
+                    }
+                  ]
+                }
+              }
+            }
           }
         }
       }
@@ -497,7 +710,7 @@
             "name": "uid",
             "in": "path",
             "required": true,
-            "description": "Unique identifier of the chat completion run",
+            "description": "Unique identifier of the chat completion run (e.g., \"0ce1af9d-3337-419b-933c-02ea21d4d9ca\").",
             "schema": {
               "type": "string"
             }
@@ -505,7 +718,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Chat completion run status",
+            "description": "Chat completion run retrieved successfully.",
             "content": {
               "application/json": {
                 "schema": {
@@ -516,7 +729,6 @@
                     {
                       "properties": {
                         "data": {
-                          "type": "object",
                           "$ref": "https://vcita.github.io/developers-hub/entities/ai/ChatCompletionRun.json"
                         }
                       }
@@ -527,10 +739,43 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized - The bearer token is missing, expired, or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token."
+                    }
+                  ]
+                }
+              }
+            }
           },
           "404": {
-            "description": "Chat completion run not found"
+            "description": "Not Found - No chat completion run exists with the specified UID.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "uid",
+                      "code": "not_found",
+                      "message": "Chat completion run not found."
+                    }
+                  ]
+                }
+              }
+            }
           }
         }
       }
@@ -539,13 +784,13 @@
       "get": {
         "tags": ["AI Chat Completion Runs"],
         "summary": "List ChatCompletionRuns",
-        "description": "## Overview\nRetrieve a list of chat completion runs for the authenticated client with optional pagination and sorting.\n\n**Available for Staff tokens**",
+        "description": "## Overview\nRetrieve a paginated list of chat completion runs for the authenticated client. Supports sorting by field and direction.\n\n**Available for Staff tokens**",
         "security": [{ "Bearer": [] }],
         "parameters": [
           {
             "name": "page",
             "in": "query",
-            "description": "Page number for pagination",
+            "description": "Page number for pagination (e.g., 1, 2, 3). Defaults to 1.",
             "required": false,
             "schema": {
               "type": "integer",
@@ -555,7 +800,7 @@
           {
             "name": "per_page",
             "in": "query",
-            "description": "Number of items per page",
+            "description": "Number of items per page, between 1 and 100. Defaults to 20.",
             "required": false,
             "schema": {
               "type": "integer",
@@ -566,7 +811,7 @@
           {
             "name": "sort",
             "in": "query",
-            "description": "Sort field and direction (e.g., 'created_at:desc')",
+            "description": "Sort field and direction in the format 'field:direction' (e.g., \"created_at:desc\", \"status:asc\").",
             "required": false,
             "schema": {
               "type": "string"
@@ -575,7 +820,7 @@
         ],
         "responses": {
           "200": {
-            "description": "List of chat completion runs",
+            "description": "List of chat completion runs retrieved successfully.",
             "content": {
               "application/json": {
                 "schema": {
@@ -586,7 +831,6 @@
                     {
                       "properties": {
                         "data": {
-                          "type": "object",
                           "$ref": "#/components/schemas/ChatCompletionRunList"
                         }
                       }
@@ -597,7 +841,23 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized - The bearer token is missing, expired, or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token."
+                    }
+                  ]
+                }
+              }
+            }
           }
         }
       }
@@ -613,7 +873,7 @@
             "name": "uid",
             "in": "path",
             "required": true,
-            "description": "Unique identifier of the transcription run",
+            "description": "Unique identifier of the transcription run (e.g., \"85ade9f5-2690-48e8-ae5b-b07d6b57b457\").",
             "schema": {
               "type": "string"
             }
@@ -621,7 +881,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Transcription run status",
+            "description": "Transcription run retrieved successfully.",
             "content": {
               "application/json": {
                 "schema": {
@@ -632,7 +892,6 @@
                     {
                       "properties": {
                         "data": {
-                          "type": "object",
                           "$ref": "https://vcita.github.io/developers-hub/entities/ai/TranscriptionRun.json"
                         }
                       }
@@ -643,10 +902,43 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized - The bearer token is missing, expired, or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token."
+                    }
+                  ]
+                }
+              }
+            }
           },
           "404": {
-            "description": "Transcription run not found"
+            "description": "Not Found - No transcription run exists with the specified UID.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "uid",
+                      "code": "not_found",
+                      "message": "Transcription run not found."
+                    }
+                  ]
+                }
+              }
+            }
           }
         }
       }
@@ -655,13 +947,13 @@
       "get": {
         "tags": ["AI Transcription Runs"],
         "summary": "List TranscriptionRuns",
-        "description": "## Overview\nRetrieve a list of transcription runs for the authenticated client with optional pagination and sorting.\n\n**Available for Staff tokens**",
+        "description": "## Overview\nRetrieve a paginated list of transcription runs for the authenticated client. Supports sorting by field and direction.\n\n**Available for Staff tokens**",
         "security": [{ "Bearer": [] }],
         "parameters": [
           {
             "name": "page",
             "in": "query",
-            "description": "Page number for pagination",
+            "description": "Page number for pagination (e.g., 1, 2, 3). Defaults to 1.",
             "required": false,
             "schema": {
               "type": "integer",
@@ -671,7 +963,7 @@
           {
             "name": "per_page",
             "in": "query",
-            "description": "Number of items per page",
+            "description": "Number of items per page, between 1 and 100. Defaults to 20.",
             "required": false,
             "schema": {
               "type": "integer",
@@ -682,7 +974,7 @@
           {
             "name": "sort",
             "in": "query",
-            "description": "Sort field and direction (e.g., 'created_at:desc')",
+            "description": "Sort field and direction in the format 'field:direction' (e.g., \"created_at:desc\", \"status:asc\").",
             "required": false,
             "schema": {
               "type": "string"
@@ -691,7 +983,7 @@
         ],
         "responses": {
           "200": {
-            "description": "List of transcription runs",
+            "description": "List of transcription runs retrieved successfully.",
             "content": {
               "application/json": {
                 "schema": {
@@ -702,7 +994,6 @@
                     {
                       "properties": {
                         "data": {
-                          "type": "object",
                           "$ref": "#/components/schemas/TranscriptionRunList"
                         }
                       }
@@ -713,7 +1004,23 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Unauthorized - The bearer token is missing, expired, or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token."
+                    }
+                  ]
+                }
+              }
+            }
           }
         }
       }
