@@ -113,9 +113,15 @@
                         "key": "dashboard",
                         "modules": null,
                         "permissions": null,
-                        "url": "/app/dashboard",
                         "badge_code": null,
-                        "action": null,
+                        "action": {
+                          "name": "navigate",
+                          "params": {
+                            "type": "relative",
+                            "path": "/app/dashboard",
+                            "new_tab": false
+                          }
+                        },
                         "available_in_mobile": true,
                         "favorite_in_mobile": true,
                         "upsell_handling": null,
@@ -199,7 +205,13 @@
                 "key": "custom_module",
                 "modules": ["scheduling"],
                 "permissions": ["payments.invoices.export"],
-                "url": "/app/custom-module",
+                "action": {
+                  "name": "navigate",
+                  "params": {
+                    "type": "relative",
+                    "path": "/app/custom-module"
+                  }
+                },
                 "available_in_mobile": true,
                 "favorite_in_mobile": false,
                 "upsell_handling": "show_upsell"
@@ -242,9 +254,14 @@
                     "key": "custom_module",
                     "modules": ["scheduling"],
                     "permissions": ["payments.invoices.export"],
-                    "url": "/app/custom-module",
                     "badge_code": null,
-                    "action": null,
+                    "action": {
+                      "name": "navigate",
+                      "params": {
+                        "type": "relative",
+                        "path": "/app/custom-module"
+                      }
+                    },
                     "available_in_mobile": true,
                     "favorite_in_mobile": false,
                     "upsell_handling": "show_upsell",
@@ -433,9 +450,15 @@
                     "key": "dashboard",
                     "modules": null,
                     "permissions": null,
-                    "url": "/app/dashboard",
                     "badge_code": null,
-                    "action": null,
+                    "action": {
+                      "name": "navigate",
+                      "params": {
+                        "type": "relative",
+                        "path": "/app/dashboard",
+                        "new_tab": false
+                      }
+                    },
                     "available_in_mobile": true,
                     "favorite_in_mobile": true,
                     "upsell_handling": null,
@@ -728,11 +751,6 @@
             },
             "description": "Array of permission identifiers required for visibility. To retrieve valid permission codes, use the endpoint (GET \"/v3/access_control/permissions\"). (e.g., [\"payments.invoices.export\", \"clients.manage\"])."
           },
-          "url": {
-            "type": "string",
-            "maxLength": 500,
-            "description": "Navigation URL. Supports three URL types: (1) Internal Route — a relative path starting with '/app/' that navigates the user within the platform (e.g., \"/app/dashboard\", \"/app/calendar\", \"/app/clients\", \"/app/payments/orders\"). (2) Embedded App — a relative path following the pattern '/app/embedded/{APP_NAME}/{PATH}', where {APP_NAME} is the app identifier and {PATH} is a navigation path appended to the app's base URL stored in the database; query parameters can also be appended (e.g., \"/app/embedded/printer/settings\", \"/app/embedded/printer/preview?app_id=123\"). (3) External URL — a full URL starting with 'https://' that opens in a new browser tab (e.g., \"https://help.vcita.com\")."
-          },
           "badge_code": {
             "type": "string",
             "nullable": true,
@@ -741,8 +759,7 @@
           },
           "action": {
             "$ref": "#/components/schemas/NavigationAction",
-            "nullable": true,
-            "description": "Action configuration for special click behaviors when the item is clicked. Actions are handled by the inTandem JS SDK. Set to null for standard navigation (no special action)."
+            "description": "Action configuration that defines the behavior when the navigation item is clicked. Actions are handled by the inTandem JS SDK. Every navigation item must have an action. Must be one of: NavigateAction or OpenModalAction."
           },
           "available_in_mobile": {
             "type": "boolean",
@@ -761,7 +778,7 @@
             "description": "Behavior when user lacks permissions. 'hide' removes the item, 'show_upsell' displays upgrade prompt. Null means default behavior (hide)."
           }
         },
-        "required": ["title", "key", "url"]
+        "required": ["title", "key", "action"]
       },
       "UpdateNavigationItemRequest": {
         "type": "object",
@@ -810,11 +827,6 @@
             },
             "description": "Array of permission identifiers required for visibility. To retrieve valid permission codes, use the endpoint (GET \"/v3/access_control/permissions\"). Set to null to remove (e.g., [\"payments.invoices.export\", \"clients.manage\"] or null)."
           },
-          "url": {
-            "type": "string",
-            "maxLength": 500,
-            "description": "Navigation URL. Supports three URL types: (1) Internal Route — a relative path starting with '/app/' that navigates the user within the platform (e.g., \"/app/dashboard\", \"/app/calendar\", \"/app/clients\", \"/app/payments/orders\"). (2) Embedded App — a relative path following the pattern '/app/embedded/{APP_NAME}/{PATH}', where {APP_NAME} is the app identifier and {PATH} is a navigation path appended to the app's base URL stored in the database; query parameters can also be appended (e.g., \"/app/embedded/printer/settings\", \"/app/embedded/printer/preview?app_id=123\"). (3) External URL — a full URL starting with 'https://' that opens in a new browser tab (e.g., \"https://help.vcita.com\")."
-          },
           "badge_code": {
             "type": "string",
             "nullable": true,
@@ -823,8 +835,7 @@
           },
           "action": {
             "$ref": "#/components/schemas/NavigationAction",
-            "nullable": true,
-            "description": "Action configuration for special click behaviors when the item is clicked. Actions are handled by the inTandem JS SDK. Set to null for standard navigation (no special action)."
+            "description": "Action configuration that defines the behavior when the navigation item is clicked. Actions are handled by the inTandem JS SDK. Must be one of: NavigateAction or OpenModalAction."
           },
           "available_in_mobile": {
             "type": "boolean",
@@ -869,20 +880,80 @@
         }
       },
       "NavigationAction": {
+        "description": "Action configuration that defines the behavior when a navigation item is clicked. Actions are handled by the inTandem JS SDK. Must be one of: NavigateAction (navigates to a page) or OpenModalAction (opens a modal dialog).",
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/NavigateAction"
+          },
+          {
+            "$ref": "#/components/schemas/OpenModalAction"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "name",
+          "mapping": {
+            "navigate": "#/components/schemas/NavigateAction",
+            "open_modal": "#/components/schemas/OpenModalAction"
+          }
+        }
+      },
+      "NavigateAction": {
         "type": "object",
-        "description": "Action configuration for special click behaviors when a navigation item is clicked. Actions are handled by the inTandem JS SDK.",
+        "description": "Navigate action that directs the user to a page when the navigation item is clicked. Uses the inTandem JS SDK navigate function. See the [navigate documentation](https://developers.intandem.tech/docs/navigate).",
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": ["navigate"],
+            "description": "Action type identifier. Must be \"navigate\" for navigation actions."
+          },
+          "params": {
+            "type": "object",
+            "description": "Parameters for the navigate action.",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["relative", "absolute"],
+                "description": "The type of navigation requested. \"relative\" indicates an internal path in the system, \"absolute\" indicates an external URL. Defaults to \"relative\" if not provided (e.g., \"relative\", \"absolute\")."
+              },
+              "path": {
+                "type": "string",
+                "maxLength": 500,
+                "description": "The navigation path. Supports three path formats: (1) Internal Route — a relative path starting with '/app/' that navigates the user within the platform (e.g., \"/app/dashboard\", \"/app/calendar\", \"/app/clients\", \"/app/payments/orders\"). (2) Embedded App — a relative path following the pattern '/app/embedded/{APP_NAME}/{PATH}', where {APP_NAME} is the app identifier and {PATH} is a navigation path appended to the app's base URL stored in the database; query parameters can also be appended (e.g., \"/app/embedded/printer/settings\", \"/app/embedded/printer/preview?app_id=123\"). (3) External URL — a full URL starting with 'https://' that navigates to an external page (e.g., \"https://help.vcita.com\")."
+              },
+              "new_tab": {
+                "type": "boolean",
+                "default": false,
+                "description": "Whether to open the navigation path in a new browser tab. Defaults to false (e.g., true, false)."
+              }
+            },
+            "required": ["path"]
+          }
+        },
+        "required": ["name", "params"],
+        "example": {
+          "name": "navigate",
+          "params": {
+            "type": "relative",
+            "path": "/app/dashboard",
+            "new_tab": false
+          }
+        }
+      },
+      "OpenModalAction": {
+        "type": "object",
+        "description": "Open modal action that opens a modal dialog over the current page when the navigation item is clicked. Uses the inTandem JS SDK openModal function. See the [openModal documentation](https://developers.intandem.tech/docs/openmodal) for available modals and their required parameters.",
         "properties": {
           "name": {
             "type": "string",
             "enum": ["open_modal"],
-            "description": "Action type identifier. Currently supported: \"open_modal\" (opens a modal dialog using the inTandem JS SDK). See the [openModal documentation](https://developers.intandem.tech/docs/openmodal) for available modals and their required parameters."
+            "description": "Action type identifier. Must be \"open_modal\" for modal actions."
           },
           "params": {
             "type": "object",
-            "description": "Action-specific parameters. For \"open_modal\": params must include the modal configuration (e.g., {\"modalName\": \"AppMarket\"}, {\"modalName\": \"ClientPicker\"}, {\"modalName\": \"IframeModal\", \"url\": \"https://example.com\", \"title\": \"Page Title\"}). See the [inTandem JS SDK openModal documentation](https://developers.intandem.tech/docs/openmodal) for complete parameter specifications for each modal type."
+            "description": "Modal configuration parameters. Must include the modal name and any modal-specific parameters. See the [inTandem JS SDK openModal documentation](https://developers.intandem.tech/docs/openmodal) for complete parameter specifications for each modal type (e.g., {\"modalName\": \"AppMarket\"}, {\"modalName\": \"ClientPicker\"}, {\"modalName\": \"IframeModal\", \"url\": \"https://example.com\", \"title\": \"Page Title\"})."
           }
         },
-        "required": ["name"],
+        "required": ["name", "params"],
         "example": {
           "name": "open_modal",
           "params": {
