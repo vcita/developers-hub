@@ -1,0 +1,482 @@
+# API Documentation Fix Report Handler
+
+When processing ai-fixes.md validation reports, use this rule to fix all documentation issues.
+
+## IMPORTANT: Workflow Template Reference
+
+**ALWAYS read the workflow template before creating/modifying workflows:**
+```
+api-validation/workflows/TEMPLATE.md
+```
+
+This is the single source of truth for workflow format. Read it before creating any workflow.
+
+## Knowledge Base Reference (MANDATORY)
+
+Before investigating any failed endpoint, check the healing knowledge base:
+```
+api-validation/docs/healing-knowledge-base.md
+```
+
+If the symptoms or path pattern match, apply the documented resolution first.
+If you identify a new recurring pattern, add a new entry to the knowledge base.
+
+## MANDATORY: CREATE A PLAN BEFORE EXECUTION
+
+Before making ANY changes, you MUST create a detailed plan using the CreatePlan tool.
+
+### Plan Creation Steps
+
+1. **Read the ENTIRE report** - Parse the JSON section to get all issues
+2. **Identify root causes** - Most failures are caused by:
+   - Missing workflow files (test runner sends empty body `{}`)
+   - Workflows missing required query parameters
+   - Workflows with incorrect/placeholder test data
+   - **Validate your findings with the source code - start with frontage, looking on how this endpoint is used from the front-end. Only if needed go to the controller code**
+3. **Compare each issue with the test log** - Understand WHY it failed
+4. **Verify each fix will produce 2xx result** - Don't just document errors
+5. **Create the plan** with these sections:
+
+### Required Plan Structure
+
+```markdown
+# Fix {Domain} API Documentation Issues
+
+## Report Summary
+- Total Issues: X
+- Endpoints Tested: X
+- Passed: X
+- Failed: X
+- Warnings: X
+
+## Root Cause Analysis
+[Explain the main causes of failures - usually missing/incomplete workflows]
+
+## Priority 1: Create Missing Workflow Files
+[List endpoints that have NO workflow file - these fail because empty body is sent]
+- Endpoint: POST /path
+- File to create: api-validation/workflows/{domain}/filename.md
+- Required body: {"field": "value"}
+- Expected result: 2xx
+
+## Priority 2: Fix Existing Workflows
+[List workflows that exist but have incorrect/missing data]
+- Endpoint: GET /path
+- File: existing-workflow.md
+- Problem: Missing query parameter
+- Fix: Add ?param={{param}} to path
+- Expected result: 2xx
+
+## Priority 3: Swagger Schema Fixes
+[Mark required fields to prevent future empty body tests]
+- File: swagger/domain/file.json
+- Endpoint: POST /path
+- Fix: Add "required": true to body; add "required": ["field"]
+
+## Priority 4: Warning-Level Issues
+[x-reference-to annotations - don't block 2xx]
+
+## Skip / No Action Needed
+[False positives, infrastructure issues, tooling issues]
+
+## Summary - Files to Create/Modify
+### New Workflow Files (count)
+### Workflow Files to Fix (count)
+### Swagger Files to Update (count)
+```
+
+## GOAL: GET 2XX RESULTS FIRST
+
+The primary goal is to make tests PASS (return 2xx), NOT to document errors.
+
+## Workflow Status Rules (Verified vs Non-2xx)
+
+- **Verified means reliable 2xx**: Only mark `status: verified` when the workflow consistently returns a 2xx response using valid test data.
+- **Non-2xx expected is NOT verified**: If the workflow expects a non-2xx status (via `expectedOutcome` or the Test Request `expect.status`), keep `status: pending` (or `failed`/`skipped` when appropriate).
+- **Avoid legacy `success`**: Do not set `status: success` in new or updated workflows. Use `verified` only for reliable 2xx.
+- **Expected outcome alignment**: If `expectedOutcome` is present and it is not in the 2xx range, treat the workflow as **not verified**, even if it is stable.
+
+This keeps the UI "Verified" label meaningful: **Verified = 2xx** only.
+
+### Root Cause: Missing/Incomplete Workflows
+
+**Most failures occur because:**
+1. **No workflow file exists** → Test runner sends empty body `{}` → 500 error
+2. **Workflow missing query params** → Required param not sent → 400/422 error
+3. **Workflow has placeholder data** → Invalid UID/values → 422 error
+
+### How to Identify Root Cause
+
+| Error Pattern | Root Cause | Fix |
+|--------------|------------|-----|
+| 500 on empty body | No workflow file exists | Create workflow with valid body |
+| 500 on missing required field | Workflow sends empty/incomplete body | Add required fields to workflow |
+| 422 "param required" | Workflow missing query parameter | Add `?param={{param}}` to path |
+| 422 "invalid value" | Workflow has placeholder/fake data | Use real data or dynamic reference |
+| 401 Unauthorized | Workflow missing auth query param | Add auth-related param |
+| 404 Not Found | UID doesn't exist | Fix UID resolution in workflow |
+| **422 "Unauthorized"** | **Wrong token type or missing headers** | **Check similar verified workflows for correct token pattern (directory + X-On-Behalf-Of, etc.)** |
+| **403 Forbidden** | **Token lacks permission or wrong token type** | **Check similar verified workflows - may need different token type** |
+
+### CRITICAL: Check Similar Verified Workflows FIRST
+
+**Before debugging or attempting fixes, look at verified workflows with similar path patterns.**
+
+This is often the fastest way to identify the correct authentication pattern, required headers, or token type.
+
+**Steps:**
+1. **Identify the path pattern** - Extract the base pattern from the failing endpoint
+   - Example: `/platform/v1/clients/{client_id}/payments` → pattern is `/platform/v1/clients/{client_id}/*`
+   
+2. **Search for similar verified workflows:**
+   ```bash
+   # Find workflows with similar path patterns
+   grep -r "platform/v1/clients/{client_id}" api-validation/workflows/ --include="*.md"
+   
+   # Or use glob to find by filename pattern
+   ls api-validation/workflows/*/get_platform_v1_clients_client_id_*.md
+   ```
+
+3. **Read 2-3 verified workflows** with similar patterns and note:
+   - What **token type** do they use? (`token: staff`, `token: directory`, `token: client`)
+   - Do they require special **headers**? (e.g., `X-On-Behalf-Of`)
+   - What **prerequisites** do they have?
+   - What **response codes** do they expect?
+
+4. **Apply the same pattern** to the failing endpoint
+
+**Example - Pattern Recognition:**
+| Failing Endpoint | Similar Verified Endpoints | Pattern Learned |
+|------------------|---------------------------|-----------------|
+| `GET /platform/v1/clients/{client_id}/payments` | `GET /platform/v1/clients/{client_id}/estimates`, `GET /platform/v1/clients/{client_id}/invoices` | All use `token: directory` with `X-On-Behalf-Of` header |
+| `POST /business/clients/v1/matters` | `PUT /business/clients/v1/matters/{uid}` | Both require `token: staff` and matter_uid from prerequisite |
+
+**Common Path Patterns and Their Token Requirements:**
+| Path Pattern | Typical Token | Notes |
+|-------------|---------------|-------|
+| `/platform/v1/clients/{client_id}/*` | `directory` | Requires `X-On-Behalf-Of: {{business_id}}` header |
+| `/business/clients/v1/*` | `staff` | Staff token with business context |
+| `/client/payments/v1/*` | `client` | Client JWT token |
+| `/v3/access_control/*` | `staff` or `directory` | Depends on operation |
+
+**Why This Matters:**
+- Authentication/authorization issues (401, 403, 422 "Unauthorized") are often solved by using the correct token pattern
+- Looking at similar working endpoints is faster than debugging the backend code
+- Patterns are consistent within path families
+
+### Check If Workflow Exists FIRST
+
+Before analyzing any issue:
+1. Check if workflow file exists: `api-validation/workflows/{domain}/{endpoint_file}.md`
+2. If NO workflow exists → Create one with valid test data
+3. If workflow exists → Check if it has all required params/body fields
+
+## NO JIRA TICKETS UNTIL 2XX
+
+**Do NOT create JIRA tickets for:**
+- 500 errors from empty bodies (fix: create workflow)
+- 500 errors from missing required fields (fix: add to workflow)
+- 422 validation errors (fix: correct the test data)
+- Any error that can be fixed by providing valid test data
+
+**Assume the endpoint WORKS** - focus on sending correct requests first.
+
+**Only consider JIRA after:**
+1. Workflow has valid test data
+2. All required params are sent
+3. Endpoint STILL fails with proper request
+4. Error is verified as actual code bug
+
+## Fix Prompt (Use when applying workflow/swagger fixes)
+
+```
+You are fixing API validation failures based on ai-fixes.md.
+Rules:
+- Always read TEMPLATE.md first and follow its workflow format.
+- Always check api-validation/docs/healing-knowledge-base.md for a matching resolution before investigating.
+- If a new recurring pattern is confirmed, update api-validation/docs/healing-knowledge-base.md with a new entry (symptoms, sample endpoints, common path patterns, resolution).
+- Fix workflows before swagger. Goal is 2xx responses.
+- If a workflow expects non-2xx (expectedOutcome), keep status pending (not verified).
+- Mark verified ONLY after a reliable 2xx response is observed.
+- Never change endpoint paths. Never edit mcp_swagger files.
+- Validate findings via frontend usage (frontage) before controller code.
+
+Task:
+1) For each failed endpoint, inspect the workflow (or create it).
+2) Ensure required query params/body fields are present and real UIDs are resolved via prerequisites.
+3) Run the workflow against the API until a 2xx is returned or the failure is documented.
+4) Update workflow status appropriately (verified only for 2xx).
+5) Only after workflows succeed, update swagger required fields/x-reference-to annotations.
+```
+
+## JIRA Prompt (Use only after a real 2xx attempt fails)
+
+```
+Create a JIRA ticket in epic VCITA2-11611 for a backend bug found by API validation.
+Include:
+- Endpoint (method + path)
+- Exact request body/params used (from workflow)
+- Token type and headers
+- Expected behavior (2xx) and actual response
+- Evidence that workflow data is valid and prerequisites were satisfied
+- Error response payload and timestamps
+- Impact and suggested owner if known
+- Confirmation that api-validation/docs/healing-knowledge-base.md has no matching resolution
+- If a new recurring pattern is confirmed, note that the knowledge base was updated
+
+Only file JIRA after:
+- Workflow exists and is valid
+- All required params/body fields are sent
+- The API still fails with correct data
+```
+
+## FIX PRIORITY ORDER (STRICT)
+
+### Priority 1: Create Missing Workflows
+Endpoints with NO workflow file fail because empty body is sent.
+
+**Check for each failed endpoint:**
+```bash
+ls api-validation/workflows/{domain}/
+# Look for: {method}_{path_with_underscores}.md
+```
+
+**Create workflow following the canonical template:**
+
+> **REQUIRED**: Read `api-validation/workflows/TEMPLATE.md` before creating any workflow!
+
+The template defines all required sections, frontmatter fields, and YAML step format.
+
+### Priority 2: Fix Existing Workflows
+Workflows exist but have incorrect/missing data.
+
+**Common fixes:**
+- Add missing query parameters to path
+- Add missing body fields
+- Replace placeholder UIDs with `{{uid}}` references
+- Add prerequisite steps for UID resolution
+
+### Priority 3: Swagger Required Fields
+After workflows work, mark required fields to prevent future empty body tests.
+
+**Schema fixes:**
+```json
+{
+  "parameters": [{
+    "name": "body",
+    "in": "body",
+    "required": true,
+    "schema": {
+      "type": "object",
+      "required": ["field1", "field2"]
+    }
+  }]
+}
+```
+
+### Priority 4: x-reference-to Annotations
+Warning-level documentation improvements (don't block 2xx).
+
+## VERIFY FIXES AGAINST TEST LOGS
+
+For each issue in the report:
+
+1. **Read the actual error message** in the report
+2. **Identify what request was sent** (body, params)
+3. **Determine why it failed**:
+   - Empty body? → Create/fix workflow
+   - Missing param? → Add to workflow path
+   - Invalid value? → Fix workflow data
+4. **Confirm your fix will produce 2xx**
+5. **Document in plan with expected result**
+
+### Example Analysis
+
+**Report says:** `500 on empty body - note/content not marked required`
+
+**Analysis:**
+1. What was sent? Empty body `{}`
+2. Why? No workflow file exists for POST /notes
+3. Fix: Create workflow with `{"note": {"content": "Test"}}`
+4. Expected result: 201 Created
+
+**DO NOT** just add `required` to swagger and call it done - that documents the error but doesn't make the test pass.
+
+## Workflow Files Location
+- Path: `api-validation/workflows/{domain}/{endpoint_file}.md`
+- Naming: `{method}_{path_with_underscores}.md`
+- Example: `post_business_clients_v1_matters_matter_uid_notes.md`
+
+## Signs That a Workflow Fix is Needed
+
+| Error Pattern | Likely Cause | Fix |
+|--------------|--------------|-----|
+| 500 on any POST/PUT/PATCH | No workflow or empty body | Create workflow with body |
+| 422 with "Not Found" on UID | Fake/placeholder UID | Use real UID or `{{uid}}` |
+| 422 with "missing" field | Required field not sent | Add field to workflow body |
+| 404 on entity lookup | Entity doesn't exist | Add prerequisite to create it |
+| 400/422 "required param" | Query param missing | Add to workflow path |
+
+## How to Identify Fake Test Data
+- UIDs that look fake: `inv_12345`, `pkg_abc`, `test123`, `example_uid`
+- Real UIDs look like: `lk9wgeze3ee1nl1v`, `fc2ca1c54e528bc4`
+- If a UID is short, sequential, or contains words like "test/example/sample" → IT'S FAKE
+
+## Feature Flags in Documentation
+
+- **Do not add or document feature flags** in swagger, workflows, or JIRA tickets unless the flag is in the **packagable** list. See `api-validation/docs/packagable-feature-flags.md` for the canonical list and directive.
+- **Before treating a feature flag as the cause of a failure**, check **GET /v3/license/features_packages** (same token/business as the test). If the staff has that feature, the failure is not due to the feature flag.
+- Redundant/non-packagable flags (e.g. `tags_features`) should not be documented; create a JIRA to remove them from code.
+
+## Allowed Changes
+- You are ONLY allowed to change documentation (swagger files, workflow files)
+- You are NOT allowed to change application code
+- If code fixes are TRULY required (after exhausting all workflow/swagger options AND getting 2xx with valid data fails), create a JIRA ticket in epic: https://myvcita.atlassian.net/browse/VCITA2-11611 using Atlassian MCP
+
+## Processing Flow
+
+### Phase 1: Create Plan (MANDATORY)
+1. Read complete ai-fixes.md file
+2. Extract ALL issues from JSON section
+3. For each failed endpoint:
+   - **Check similar verified workflows first** (same path pattern, e.g., `/platform/v1/clients/{client_id}/*`)
+   - Note the token type, headers, and prerequisites used by similar working endpoints
+   - Check if workflow file exists
+   - Read the error message to understand root cause
+   - Determine fix that will produce 2xx (often: use same pattern as similar verified workflows)
+4. Create plan using CreatePlan tool
+5. Wait for user approval before proceeding
+
+### Phase 2: Create Missing Workflows
+For each endpoint without a workflow:
+1. Create workflow file with valid test data
+2. Include all required body fields
+3. Include all required query parameters
+4. Set expected status to [200, 201]
+
+### Phase 3: Fix Existing Workflows
+For workflows with issues:
+1. **Check similar verified workflows first** - copy their token type, headers, and patterns
+2. Add missing query parameters to path
+3. Add missing body fields
+4. Fix placeholder/fake data
+5. Add prerequisites for UID resolution
+6. If auth errors persist, verify token type matches similar working endpoints
+
+### Phase 4: Swagger Schema Updates
+After workflows are ready:
+1. Add `required: true` to body parameters
+2. Add `required` array to schemas
+3. Add `x-reference-to` annotations
+4. Add error response schemas
+
+### Phase 5: Test your changes (MANDATORY)
+**Definition of Done: A 200 (or 2xx) response from the actual API**
+
+You MUST test each fix by running the actual workflow and endpoints:
+1. Run the workflow file you created/modified against the real API
+2. Use the tokens from `api-validation/config/tokens.json` for authentication
+3. Verify you get a **200 (or appropriate 2xx) response** - this is the ONLY success criteria
+4. If the response is NOT 2xx:
+   - Analyze the error response to understand what's wrong
+   - Go back and fix the workflow (search for root cause again)
+   - Retry the test
+5. If retry still fails, mark the fix as failed in the progress tracking file with the error details
+6. **Do NOT proceed to the next endpoint until you have a 2xx response or documented failure**
+
+**A fix is NOT complete until you have verified it with an actual API call returning 2xx.**
+
+### Phase 6: Generate Reports
+- Create `{report-folder}/fix-progress.md`
+- Create `{report-folder}/endpoints-to-retest.md`
+
+## Output Requirements
+
+### 1. Progress Tracking File
+Create `{report-folder}/fix-progress.md` with:
+- Total issues count
+- Workflows created count
+- Workflows fixed count
+- Swagger changes count
+- Checklist of every endpoint and its status
+- Endpoints that could not be fixed
+
+### 2. Endpoints to Retest
+Create `{report-folder}/endpoints-to-retest.md` with:
+
+**Markdown table:**
+| Endpoint | Method | Fix Applied | Expected Result |
+|----------|--------|-------------|-----------------|
+
+**Quick Copy section:**
+```
+METHOD /path, METHOD /path, METHOD /path
+```
+
+## Schema Fix Guidelines
+
+When fixing swagger documentation, **fix the JSON Schema itself**:
+
+### DO: Use JSON Schema Properties
+```json
+{
+  "type": "object",
+  "required": ["tag"],
+  "properties": {
+    "tag": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Tag to add to the matter"
+    }
+  },
+  "example": { "tag": "important" }
+}
+```
+
+### DON'T: Add Redundant Description Text
+```
+❌ "## Request Body Requirements\nThe request body must include..."
+```
+
+## CRITICAL RULES
+
+### Fix Priority (MUST follow this order)
+1. **CREATE PLAN FIRST** - Always create and get approval before changes
+2. **WORKFLOW FIRST** - Create/fix workflows to get 2xx results
+3. **SCHEMA SECOND** - Mark required fields after workflows work
+4. **ANNOTATIONS THIRD** - Add x-reference-to (warning level)
+5. **JIRA LAST** - Only after 2xx with valid data still fails
+
+### General Rules
+1. **NEVER skip an issue** - every single issue must be addressed
+2. **NEVER remove an endpoint** - even if it returns 404
+3. **NEVER change endpoint paths** - paths are immutable
+4. **NEVER create JIRA until 2xx attempt** - fix workflows first
+5. **ALWAYS check if workflow exists** - missing workflow = root cause
+6. **ALWAYS verify fix produces 2xx** - don't just document errors
+7. **ALWAYS read the test log** - understand what request was sent
+8. **Swagger Files** - Never alter `mcp_swagger` files (auto-generated). Always use `/swagger` directory
+
+### Skip / No Action Needed Categories
+- Gateway fallback issues (infrastructure, not swagger)
+- Type mismatch issues (API serialization bugs, not blocking 2xx)
+- UID resolution tooling issues (tooling, not swagger)
+- False positives (e.g., "missing token docs" when docs exist)
+
+## Completion Criteria
+
+**Definition of Done: A 200 (or 2xx) response from the actual API**
+
+You are NOT done until:
+- [ ] Plan created and approved
+- [ ] Every missing workflow file created
+- [ ] Every existing workflow fixed
+- [ ] **Each fix tested by running the actual workflow against the real API**
+- [ ] **Each fix verified to return a 200 (or 2xx) response**
+- [ ] Swagger required fields marked
+- [ ] fix-progress.md shows 100% completion
+- [ ] endpoints-to-retest.md generated
+
+**CRITICAL: A fix is NOT complete without an actual 200 response. Theoretical fixes are not accepted.**
+
+**If you find yourself wanting to skip something or stop early - DON'T. Go back and continue processing.**

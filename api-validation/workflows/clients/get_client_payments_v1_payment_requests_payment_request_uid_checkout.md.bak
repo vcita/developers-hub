@@ -1,0 +1,63 @@
+---
+endpoint: GET /client/payments/v1/payment_requests/{payment_request_uid}/checkout
+domain: clients
+tags: []
+status: success
+savedAt: 2026-01-26T05:23:16.654Z
+verifiedAt: 2026-01-26T05:23:16.654Z
+timesReused: 0
+---
+# Get Checkout
+
+## Summary
+The GET /client/payments/v1/payment_requests/{payment_request_uid}/checkout endpoint works correctly. The original 422 error about coupon functionality was likely due to a specific business configuration at the time of the first test. The endpoint successfully returns checkout session data with HTTP 200, and the response includes is_allowed_coupons: false to indicate coupon functionality status.
+
+## Prerequisites
+No specific prerequisites documented.
+
+## UID Resolution Procedure
+
+| UID Field | GET Endpoint | Extract From | Create Fresh | Cleanup |
+|-----------|--------------|--------------|--------------|---------|
+| payment_request_uid | GET /business/payments/v1/payment_requests | data.payment_requests[0].uid | - | N/A |
+
+### Resolution Steps
+
+**payment_request_uid**:
+1. Call `GET /business/payments/v1/payment_requests` with staff token
+2. Extract from response: `data.payment_requests[0].uid`
+3. Alternative: Call `GET /client/payments/v1/payment_requests?matter_uid={{matter_uid}}` with client token
+
+```json
+{
+  "payment_request_uid": {
+    "source_endpoint": "GET /business/payments/v1/payment_requests",
+    "extract_from": "data.payment_requests[0].uid",
+    "fallback_endpoint": "GET /client/payments/v1/payment_requests?matter_uid={{matter_uid}}",
+    "create_fresh": false,
+    "create_endpoint": null,
+    "create_body": null,
+    "cleanup_endpoint": null,
+    "cleanup_note": "Payment requests are business data, do not delete"
+  }
+}
+```
+
+## How to Resolve Parameters
+Parameters were resolved automatically.
+
+## Critical Learnings
+
+1. **UID source**: payment_request_uid comes from GET /business/payments/v1/payment_requests (staff token) or GET /client/payments/v1/payment_requests (client token), NOT from /platform/v1/payment/checkout/{url_key}
+2. **Module permissions**: Requires payments module to be enabled for the business
+
+## Request Template
+
+Use this template with dynamically resolved UIDs:
+
+```json
+{
+  "method": "GET",
+  "path": "/client/payments/v1/payment_requests/{{resolved.payment_request_uid}}/checkout"
+}
+```

@@ -5,10 +5,12 @@
     "description": "Unified OpenAPI specification for apps domain",
     "version": "3.0",
     "x-generated": {
-      "timestamp": "2025-09-08T10:01:23.242Z",
       "sourceFiles": [
-        "widgets_and_boards.json",
+        "navigation_items.json",
         "legacy_v1_apps.json",
+        "widgets_and_boards.json",
+        "legacy_app_translation.json",
+        "legacy_token.json",
         "apps.json",
         "jwks.json"
       ],
@@ -48,6 +50,28 @@
               "basePath": "/platform/v1"
             }
           ]
+        },
+        {
+          "file": "legacy_app_translation.json",
+          "basePath": "/platform/v1",
+          "transformations": [
+            {
+              "original": "/apps/translations/{app_code_name}",
+              "normalized": "/platform/v1/apps/translations/{app_code_name}",
+              "basePath": "/platform/v1"
+            }
+          ]
+        },
+        {
+          "file": "legacy_token.json",
+          "basePath": "/oauth/service",
+          "transformations": [
+            {
+              "original": "/token",
+              "normalized": "/oauth/service/token",
+              "basePath": "/oauth/service"
+            }
+          ]
         }
       ],
       "pathConflicts": [],
@@ -62,8 +86,8 @@
           ]
         }
       ],
-      "totalPaths": 16,
-      "totalComponents": 15
+      "totalPaths": 20,
+      "totalComponents": 22
     }
   },
   "servers": [
@@ -73,11 +97,1995 @@
     }
   ],
   "paths": {
+    "/v3/apps/navigation_items": {
+      "get": {
+        "tags": [
+          "Navigation Items"
+        ],
+        "summary": "List Navigation Items",
+        "description": "Retrieve a paginated list of navigation items for the authenticated directory. Supports filtering by parent and mobile availability. Available for **Staff & Directory tokens**.",
+        "operationId": "listNavigationItems",
+        "parameters": [
+          {
+            "name": "parent_uid",
+            "in": "query",
+            "required": false,
+            "description": "Filter by parent navigation item unique identifier. Use 'null' for root-level items (e.g., \"nav-item-parent123\").",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "available_in_mobile",
+            "in": "query",
+            "required": false,
+            "description": "Filter by whether the navigation item should appear in mobile app navigation (e.g., true, false).",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Page number of results (e.g., 1, 2, 3).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000,
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "description": "How many items to return per page. Max: 100 (e.g., 25, 50, 100).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Navigation items retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "navigation_items": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "https://vcita.github.io/developers-hub/entities/apps/navigation_item.json"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "navigation_items": [
+                      {
+                        "uid": "nav-item-abc123",
+                        "parent_uid": null,
+                        "directory_uid": "dir-xyz789",
+                        "order": 0,
+                        "title": {
+                          "en": "Dashboard",
+                          "he": "לוח בקרה"
+                        },
+                        "icon": "icon-Dashboard_POV",
+                        "key": "dashboard",
+                        "modules": null,
+                        "permissions": null,
+                        "badge_code": null,
+                        "action": {
+                          "name": "navigate",
+                          "params": {
+                            "type": "relative",
+                            "path": "/app/dashboard",
+                            "new_tab": false
+                          }
+                        },
+                        "available_in_mobile": true,
+                        "favorite_in_mobile": true,
+                        "upsell_handling": null,
+                        "is_bmp": false,
+                        "created_by": "directory",
+                        "updated_by": "directory",
+                        "created_at": "2026-01-15T10:30:00Z",
+                        "updated_at": "2026-01-15T10:30:00Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Insufficient permissions to read navigation items"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "NavigationItems": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Navigation Items"
+        ],
+        "summary": "Create a Navigation Item",
+        "description": "Create a new navigation item for the authenticated directory. The directory_uid is automatically set from the authenticated token context. Available for **Directory tokens**.",
+        "operationId": "createNavigationItem",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateNavigationItemRequest"
+              },
+              "example": {
+                "parent_uid": null,
+                "order": 1,
+                "title": {
+                  "en": "Custom Module",
+                  "he": "מודול מותאם"
+                },
+                "icon": "icon-Custom",
+                "key": "custom_module",
+                "modules": [
+                  "scheduling"
+                ],
+                "permissions": [
+                  "payments.invoices.export"
+                ],
+                "action": {
+                  "name": "navigate",
+                  "params": {
+                    "type": "relative",
+                    "path": "/app/custom-module"
+                  }
+                },
+                "available_in_mobile": true,
+                "favorite_in_mobile": false,
+                "upsell_handling": "show_upsell"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Navigation item created successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/navigation_item.json"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "uid": "nav-item-new123",
+                    "parent_uid": null,
+                    "directory_uid": "dir-xyz789",
+                    "order": 1,
+                    "title": {
+                      "en": "Custom Module",
+                      "he": "מודול מותאם"
+                    },
+                    "icon": "icon-Custom",
+                    "key": "custom_module",
+                    "modules": [
+                      "scheduling"
+                    ],
+                    "permissions": [
+                      "payments.invoices.export"
+                    ],
+                    "badge_code": null,
+                    "action": {
+                      "name": "navigate",
+                      "params": {
+                        "type": "relative",
+                        "path": "/app/custom-module"
+                      }
+                    },
+                    "available_in_mobile": true,
+                    "favorite_in_mobile": false,
+                    "upsell_handling": "show_upsell",
+                    "is_bmp": false,
+                    "created_by": "directory",
+                    "updated_by": "directory",
+                    "created_at": "2026-01-15T14:00:00Z",
+                    "updated_at": "2026-01-15T14:00:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Malformed request or invalid syntax.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "title.en",
+                      "code": "required",
+                      "message": "English title is required"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Insufficient permissions to write navigation items"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict - Duplicate key within directory.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "key",
+                      "code": "duplicate",
+                      "message": "A navigation item with key 'custom_module' already exists in this directory"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "parent_uid",
+                      "code": "invalid_reference",
+                      "message": "Parent navigation item not found"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "NavigationItems": []
+          }
+        ]
+      }
+    },
+    "/v3/apps/navigation_items/{uid}": {
+      "put": {
+        "tags": [
+          "Navigation Items"
+        ],
+        "summary": "Update a Navigation Item",
+        "description": "Update an existing navigation item. Only provided fields will be updated. Available for **Directory tokens**.",
+        "operationId": "updateNavigationItem",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the navigation item to update (e.g., \"nav-item-abc123\").",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNavigationItemRequest"
+              },
+              "example": {
+                "title": {
+                  "en": "Updated Module Name",
+                  "he": "שם מודול מעודכן"
+                },
+                "order": 2
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Navigation item updated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/navigation_item.json"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "uid": "nav-item-abc123",
+                    "parent_uid": null,
+                    "directory_uid": "dir-xyz789",
+                    "order": 2,
+                    "title": {
+                      "en": "Updated Module Name",
+                      "he": "שם מודול מעודכן"
+                    },
+                    "icon": "icon-Dashboard_POV",
+                    "key": "dashboard",
+                    "modules": null,
+                    "permissions": null,
+                    "badge_code": null,
+                    "action": {
+                      "name": "navigate",
+                      "params": {
+                        "type": "relative",
+                        "path": "/app/dashboard",
+                        "new_tab": false
+                      }
+                    },
+                    "available_in_mobile": true,
+                    "favorite_in_mobile": true,
+                    "upsell_handling": null,
+                    "is_bmp": false,
+                    "created_by": "directory",
+                    "updated_by": "directory",
+                    "created_at": "2026-01-15T10:30:00Z",
+                    "updated_at": "2026-01-15T16:00:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Malformed request or invalid syntax.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "order",
+                      "code": "invalid_type",
+                      "message": "Order must be a non-negative integer"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Navigation item belongs to a different directory.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Navigation item belongs to a different directory"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - Navigation item does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Navigation item not found"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict - Duplicate key within directory.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "key",
+                      "code": "duplicate",
+                      "message": "A navigation item with this key already exists in the directory"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "parent_uid",
+                      "code": "invalid_reference",
+                      "message": "Parent navigation item not found"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "NavigationItems": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Navigation Items"
+        ],
+        "summary": "Delete a Navigation Item",
+        "description": "Delete a navigation item. Items with children cannot be deleted until all children are removed first. Available for **Directory tokens**.",
+        "operationId": "deleteNavigationItem",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the navigation item to delete (e.g., \"nav-item-abc123\").",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Navigation item deleted successfully."
+          },
+          "400": {
+            "description": "Bad Request - Cannot delete item with children.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "has_children",
+                      "message": "Cannot delete navigation item that has child items. Delete children first."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Navigation item belongs to a different directory.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Navigation item belongs to a different directory"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - Navigation item does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Navigation item not found"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "NavigationItems": []
+          }
+        ]
+      }
+    },
+    "/platform/v1/apps": {
+      "get": {
+        "description": "Retrieve a list of available apps. Response format varies by token type - Staff tokens receive detailed app data including full configuration, while Directory tokens receive simplified app data for apps associated with the directory.\n\n**Available for Staff and Directory Tokens.**",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "list apps",
+            "content": {
+              "application/json": {
+                "example": {
+                  "apps": [
+                    {
+                      "api_uri": "https://dummy-path.com",
+                      "app_code_name": "dummyapp_62",
+                      "app_features": [],
+                      "app_host": "https://dummy-path.com",
+                      "app_id": "some_id",
+                      "app_mobile_screenshot_uris": [],
+                      "app_screenshot_uris": [],
+                      "built_in": false,
+                      "contact_support_link": "https://dummy-path.com",
+                      "deep_link": "https://dummy-path.com",
+                      "description": {},
+                      "is_internal": false,
+                      "locales": [],
+                      "menu_items": {
+                        "subitems": [
+                          {
+                            "category": "clients",
+                            "item_name": {
+                              "en": "RDBMS Page"
+                            },
+                            "route": "rdbms",
+                            "display_order": 0,
+                            "block_impersonation": false
+                          }
+                        ]
+                      },
+                      "name": "Some App",
+                      "open_in_new_tab": false,
+                      "full_screen": false,
+                      "permissions": [
+                        "can_view_payments"
+                      ],
+                      "personal_connection": false,
+                      "pre_installed": false,
+                      "privacy_policy_link": "https://dummy-path.com",
+                      "requires_upgrade": false,
+                      "status": "not_installed",
+                      "supported_countries": [
+                        "United States"
+                      ],
+                      "supported_in_mobile": true,
+                      "url_params": []
+                    }
+                  ],
+                  "status": "OK"
+                }
+              }
+            }
+          }
+        },
+        "summary": "List of apps",
+        "tags": [
+          "Applications"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "GET",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///platform/v1/apps"
+        },
+        "x-auth-type": "Application & Application User",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "post": {
+        "description": "## Overview\nCreate a new app.\n\n**Available for Directory and internal Tokens.**",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "app created",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data": {
+                    "app_code_name": "some_code_name",
+                    "app_id": "some_id",
+                    "client_id": "OAuth Client ID",
+                    "client_secret": "OAuth Client Secret",
+                    "name": "Some App",
+                    "access_token_format": "opaque",
+                    "client_auth_jwks_uri": "https://example.com/.well-known/jwks.json"
+                  },
+                  "status": "OK"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Creates an app",
+        "tags": [
+          "Applications"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///platform/v1/apps"
+        },
+        "x-auth-type": "Application & Application User",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "app_code_name": {
+                    "description": "The app's unique code name. This will be used as the app's id for APIs.\n\n**Validation**:\n- Must contain only alphanumeric characters (a-z, A-Z, 0-9)\n- No spaces, underscores, hyphens, or special characters allowed\n- **Must be unique across the entire system** - duplicate app_code_names will be rejected",
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9]+$",
+                    "required": true
+                  },
+                  "app_type": {
+                    "description": "Define a list of integration points the app implements. Valid values are: payments, wallets, communication, menu_items, docuforms, import_clients, automated_flows, signatures, onboarding_wizard, notifications. More information can be found in the guides section of the developer hub",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "redirect_uri": {
+                    "description": "The app's main landing page. The platform will use this URI when opening the app's iframe.",
+                    "type": "string",
+                    "required": true
+                  },
+                  "trusted": {
+                    "description": "Whether application can skip the user consent screen (true/false). When set to true, users will not see the authorization consent screen when installing or accessing the app.",
+                    "type": "string"
+                  },
+                  "url_params": {
+                    "description": "Parameters that will be passed to the app in the app's iframe query string. Valid values are: impersonate, business_uid, staff_role, staff_uid, payment_permissions, language, package, brand_host",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "menu_items": {
+                    "description": "When app is installed, these items will be added to the left sidebar menu. If not provided, the app will not be displayed in the left sidebar menu. app_type must include 'menu_items' to use this property.",
+                    "properties": {
+                      "subitems": {
+                        "description": "Items array",
+                        "items": {
+                          "properties": {
+                            "category": {
+                              "description": "Section of the left menu in which the item will appear. Valid values are: [\"calendar\", \"clients\", \"payments\", \"inbox\", \"documents\", \"campaigns\", \"reputation\", \"my-livesite\", \"social\", \"social_info\", \"app_market\", \"reports\", \"team-chat\", \"advertising\", \"subscriptions\", \"my_account\", \"cashflow\", \"workforce\", \"setupguide\", \"reviews\", \"social_media\", \"online_listing\"]",
+                              "type": "string"
+                            },
+                            "item_name": {
+                              "description": "Item names in different languages",
+                              "properties": {
+                                "de": {
+                                  "type": "string"
+                                },
+                                "en": {
+                                  "description": "Item name in english",
+                                  "type": "string"
+                                },
+                                "es": {
+                                  "type": "string"
+                                },
+                                "fr": {
+                                  "type": "string"
+                                },
+                                "he": {
+                                  "type": "string"
+                                },
+                                "it": {
+                                  "type": "string"
+                                },
+                                "pl": {
+                                  "type": "string"
+                                },
+                                "pt": {
+                                  "type": "string"
+                                },
+                                "ru": {
+                                  "type": "string"
+                                },
+                                "sl": {
+                                  "type": "string"
+                                },
+                                "tr": {
+                                  "type": "string"
+                                }
+                              },
+                              "type": "object"
+                            },
+                            "permissions": {
+                              "description": "Permissions to control who can view this menu item. Available permissions: [\"can_access_listings_management\", \"can_access_soci\", \"can_access_online_presence\", \"can_access_clients\", \"can_use_reports\", \"can_view_payments\", \"can_view_documents\", \"has_marketing_permissions\", \"can_access_admin_account\", \"can_access_settings\", \"can_export_payments\"]",
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "route": {
+                              "description": "Suffix route relative to the app domain.",
+                              "type": "string"
+                            },
+                            "display_order": {
+                              "description": "Display order of the menu item withihn the category. Start from 0. If not provided, will be added to the end of the category.",
+                              "type": "number"
+                            },
+                            "block_impersonation": {
+                              "description": "Whether the menu item should be blocked when an operator is impersonating as a staff member",
+                              "type": "boolean",
+                              "default": false
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "open_in_new_tab": {
+                    "description": "Whether the app will be opened in a new tab or as an iframe",
+                    "type": "boolean"
+                  },
+                  "full_screen": {
+                    "description": "Whether the app will be opened in a full screen mode, taking over the page header but leaving the sidebar and topbar visible",
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "name": {
+                    "description": "[App Market] The app's name as it will be displayed in the app market. Must be 3 to 25 chars long. If translations are required, use the app translations API ",
+                    "type": "string"
+                  },
+                  "description": {
+                    "description": "[App Market] The app's description. This is displayed in the app info page in the app market.",
+                    "properties": {
+                      "logo": {
+                        "description": "Link to the app's logo",
+                        "type": "string"
+                      },
+                      "short_description": {
+                        "description": "The app's short description. Should contain a summarize review of the app's purpose and functions. Max length is 260 chars.",
+                        "type": "string"
+                      },
+                      "text": {
+                        "description": "The app's long description. Should describe the app's functions in detail. Max length is 380 chars.",
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "app_features": {
+                    "description": "[App Market] A list of the app's features. Will be displayed to the user in the app info page in the app market. Max 10 features. Max feature length is 500 chars.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "app_screenshot_uris": {
+                    "description": "[App Market] Links to app screenshots or demo videos. Displayed on the desktop App info page in the app market. Each asset must be 608 × 272 px. Supported formats: GIF, PNG, JPEG, MJPEG, SVG, MP4, WebM, OGV.",
+                    "type": "string"
+                  },
+                  "app_mobile_screenshot_uris": {
+                    "description": "[App Market] Links to app screenshots or demo videos. Displayed on the mobile App info page in the app market. Each asset must be 608 × 272 px. Supported formats: GIF, PNG, JPEG, MJPEG, SVG, MP4, WebM, OGV.",
+                    "type": "string"
+                  },
+                  "contact_support_link": {
+                    "description": "[App Market] Link to the app's contact support page. This is displayed in the app info page in the app market.",
+                    "type": "string"
+                  },
+                  "locales": {
+                    "description": "[App Market] Locales supported by the app in the app market. If supplied it will be shown for the users in the app market. Valid values are: 'en', 'he', 'es', 'pl', 'fr', 'it', 'pt', 'de', 'nl', 'en-GB', 'zh-SG', 'keys', 'pseudo'",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "en",
+                        "he",
+                        "es",
+                        "pl",
+                        "fr",
+                        "it",
+                        "pt",
+                        "de",
+                        "nl",
+                        "en-GB",
+                        "zh-SG",
+                        "keys",
+                        "pseudo"
+                      ]
+                    },
+                    "type": "array"
+                  },
+                  "payment_data": {
+                    "description": "[App Market] Payment data for the app. Will be displayed in the app info page",
+                    "properties": {
+                      "pay_per_unit": {
+                        "description": "The units available in this purchasable for extra payment",
+                        "type": "array"
+                      },
+                      "prices": {
+                        "description": "Price list. **Must be an array of price objects.**",
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "currency": {
+                              "description": "Currency, allowed only: USD, GBP or EUR",
+                              "type": "string",
+                              "enum": [
+                                "USD",
+                                "GBP",
+                                "EUR"
+                              ]
+                            },
+                            "pay_per_unit": {
+                              "description": "Unit prices",
+                              "properties": {
+                                "staff": {
+                                  "description": "Price per staff",
+                                  "type": "number"
+                                }
+                              },
+                              "type": "object"
+                            },
+                            "payment_type": {
+                              "description": "Payment type",
+                              "type": "string",
+                              "enum": [
+                                "monthly",
+                                "free"
+                              ]
+                            },
+                            "price": {
+                              "description": "Price to pay",
+                              "type": "number"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "privacy_policy_link": {
+                    "description": "[App Market] A link to the apps privacy policy. This is displayed in the app info page in the app market.",
+                    "type": "string"
+                  },
+                  "personal_connection": {
+                    "description": "[App Market] Use to determine if each staff needs to connect separately to the app.",
+                    "type": "boolean"
+                  },
+                  "supported_countries": {
+                    "description": "Countries in which the app will be available. Use **full country names** (e.g., 'United States', 'United Kingdom', 'Israel'), not ISO codes. Use an empty array for all countries.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "api_uri": {
+                    "description": "[Internal use only] The URL of the application API. This is required for apps that implement integration points like Calendar. This is mainly for internal use. For further details contact the support team.",
+                    "type": "string"
+                  },
+                  "app_layer": {
+                    "description": "[Internal use only] The layer of the application. Valid values are: cores, connectors, integrations, widgets, boards. This is mainly for internal use. For further details contact the support team.",
+                    "type": "string"
+                  },
+                  "deep_link": {
+                    "description": "[Internal use only] The deep link to an inner product page. This is not made for third-party apps, but for apps that open as part of the product. Made for internal developer use only.",
+                    "properties": {
+                      "path": {
+                        "description": "The relative path to the page.",
+                        "type": "string"
+                      },
+                      "path_params": {
+                        "description": "The params that will be added to the path URL (optional)",
+                        "type": "object"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "scopes": {
+                    "description": "[Internal use only] OAuth scopes this app can request. Valid scope formats: `openid` (for OpenID Connect), or context-based scopes like `business/clients`, `business/payments`, `business/docuforms`. Scopes can also have CRUD suffixes: `payments_read`, `payments_create`, `payments_update`, `payments_delete`. Currently not strictly enforced. For further details contact the support team.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "demand_scopes": {
+                    "description": "[Internal use only] Minimum required OAuth scopes for this app. Uses same format as `scopes` field: `openid`, context-based (`business/clients`), or with CRUD suffixes (`payments_read`). Currently not strictly enforced. For further details contact the support team.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "access_token_format": {
+                    "description": "Format of access tokens issued for this app. Determines whether tokens are opaque or JWT.",
+                    "type": "string",
+                    "enum": [
+                      "opaque",
+                      "jwt"
+                    ],
+                    "default": "opaque"
+                  },
+                  "client_auth_jwks_uri": {
+                    "description": "The client_auth_jwks_uri property lets you authenticate with our OAuth service using JWT signed tokens instead of a client_secret. In the OAuth token request, the service will choose the correct authentication method based on the provided parameters. To use client authentication with Private Key JWT, this property must be set. The URI should return a JSON Web Key Set containing your public keys. The service will retrieve this JWKS and use the keys to verify the JWT you provide.",
+                    "type": "string"
+                  },
+                  "open_channel": {
+                    "description": "Indicator for communication app if it enables direct, sessionless messaging without requiring pre-established channel sessions.",
+                    "type": "boolean"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/platform/v1/apps/{id}": {
+      "get": {
+        "description": "## Overview\nRetrieve an app by code name. Available for **Staff and Directory Tokens**.",
+        "parameters": [
+          {
+            "description": "App code name",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data": {
+                    "application": {
+                      "api_uri": "https://oururi.com",
+                      "app_code_name": "IncredibleCodeName",
+                      "app_features": [
+                        "Lorem ipsum dolor",
+                        "consectetur adipiscing"
+                      ],
+                      "app_screenshot_uris": [
+                        "https://www.techadvisor.com/cmsdata/features/3685380/rick_and_morty_season_4_thumb800.jpg"
+                      ],
+                      "app_type": [
+                        "communication"
+                      ],
+                      "contact_support_link": "https://www.ynet.co.il/home/0,7340,L-8,00.html",
+                      "description": {
+                        "logo": "https://c15101458.ssl.cf2.rackcdn.com/avatar/image/3835/normal_rqmnvkhvgg0g82mtzcoir0cg7vyythwg.png",
+                        "short_description": "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+                        "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit ut aliquam, purus sit amet luctus venenatis, lectus magna fringilla urna, porttitor rhoncus dolor purus non enim praesent elementum facilisis leo, vel fringilla est ullamcorper eget."
+                      },
+                      "locales": [
+                        "en",
+                        "es",
+                        "fr"
+                      ],
+                      "menu_items": null,
+                      "name": "New Testing App 2",
+                      "oauth_redirect_uris": [
+                        "https://redirect.com",
+                        "https://stuff.com",
+                        "https://hello.com"
+                      ],
+                      "open_in_new_tab": true,
+                      "full_screen": false,
+                      "openid": true,
+                      "privacy_policy_link": "https://www.sport5.co.il/",
+                      "redirect_uri": "https://en.wikipedia.org/wiki",
+                      "supported_countries": [
+                        "United States",
+                        "United Kingdom",
+                        "Israel"
+                      ],
+                      "trusted": true,
+                      "url_params": [],
+                      "access_token_format": "opaque",
+                      "client_auth_jwks_uri": "https://example.com/.well-known/jwks.json"
+                    },
+                    "success": true
+                  },
+                  "success": true
+                }
+              }
+            }
+          }
+        },
+        "summary": "Read an app",
+        "tags": [
+          "Applications"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "GET",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///platform/v1/apps/{id}"
+        },
+        "x-auth-type": "Application & Application User",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "put": {
+        "description": "## Overview\nUpdate an app by code name.\n\n## Authentication\n**Available for Internal Tokens and Directory Tokens.**\n\n### Token Type Behavior\n- **Internal Tokens**: Can update any app, including the `trusted` field\n- **Directory Tokens**: Can only update apps created by/owned by that directory. Cannot modify the `trusted` field.\n\n## Path Parameter\nThe `{id}` in the path must be the **app_code_name** (string identifier), not the numeric app_id. Use `GET /platform/v1/apps` to find app_code_name values.\n\n## Field Restrictions\n- `trusted`: This parameter can **only be set by Internal Tokens**. Directory tokens cannot modify this field.",
+        "parameters": [
+          {
+            "description": "App code name",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "application": {
+                    "api_uri": "https://OurApi.com",
+                    "app_features": [
+                      "Talk to all your friends!",
+                      "Purchase stuff online!"
+                    ],
+                    "app_layer": "cores",
+                    "app_screenshot_uris": [
+                      "http://OurBestScreenshot.png"
+                    ],
+                    "app_type": [
+                      "communication"
+                    ],
+                    "contact_support_link": "https://contactsupport.com",
+                    "deep_link": {
+                      "path": "/app/somepath",
+                      "path_params": {
+                        "this_is_a_parameter": 12
+                      }
+                    },
+                    "demand_scopes": [
+                      "payments",
+                      "clients"
+                    ],
+                    "description": {
+                      "logo": "https://BeautifulLogo.png",
+                      "short_description": "This is the app's short description. A quick summary of the app's uses.",
+                      "text": "This is the app's long description. It should describe the app's uses and benefits in detail."
+                    },
+                    "locales": [
+                      "en"
+                    ],
+                    "menu_items": {
+                      "subitems": [
+                        {
+                          "category": "clients",
+                          "item_name": {
+                            "en": "My RDBMS"
+                          },
+                          "route": "route",
+                          "display_order": 0
+                        }
+                      ]
+                    },
+                    "name": "Our app",
+                    "oauth_redirect_uris": [
+                      "https://redirect.com",
+                      "https://stuff.com",
+                      "https://hello.com"
+                    ],
+                    "open_in_new_tab": true,
+                    "privacy_policy_link": "https://ourprivacy.com",
+                    "redirect_uri": "https://redirect.com",
+                    "scopes": [
+                      "clients"
+                    ],
+                    "supported_countries": [
+                      "US"
+                    ],
+                    "trusted": "false",
+                    "url_params": [
+                      "business_uid"
+                    ],
+                    "access_token_format": "opaque",
+                    "client_auth_jwks_uri": "https://example.com/.well-known/jwks.json"
+                  },
+                  "success": true
+                }
+              }
+            }
+          }
+        },
+        "summary": "Updates an app",
+        "tags": [
+          "Applications"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "PUT",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///platform/v1/apps/{id}"
+        },
+        "x-auth-type": "Application & Application User",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "app_type": {
+                    "description": "Define a list of integration points the app implements. Valid values are: payments, wallets, communication, menu_items, docuforms, import_clients, automated_flows, signatures, onboarding_wizard, notifications. More information can be found in the guides section of the developer hub",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "redirect_uri": {
+                    "description": "The app's main landing page. The platform will use this URI when opening the app's iframe.",
+                    "type": "string"
+                  },
+                  "trusted": {
+                    "description": "Whether application can skip the user consent screen (true/false). When set to true, users will not see the authorization consent screen when installing or accessing the app. **Internal Tokens only** - Directory tokens cannot modify this field.",
+                    "type": "string"
+                  },
+                  "url_params": {
+                    "description": "Parameters that will be passed to the app in the app's iframe query string. Valid values are: impersonate, business_uid, staff_role, staff_uid, payment_permissions, language, package, brand_host",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "menu_items": {
+                    "description": "When app is installed, these items will be added to the left sidebar menu. If not provided, the app will not be displayed in the left sidebar menu. app_type must include 'menu_items' to use this property.",
+                    "properties": {
+                      "subitems": {
+                        "description": "Items array",
+                        "items": {
+                          "properties": {
+                            "category": {
+                              "description": "Section of the left menu in which the item will appear. Valid values are: [\"calendar\", \"clients\", \"payments\", \"inbox\", \"documents\", \"campaigns\", \"reputation\", \"my-livesite\", \"social\", \"social_info\", \"app_market\", \"reports\", \"team-chat\", \"advertising\", \"subscriptions\", \"my_account\", \"cashflow\", \"workforce\", \"setupguide\", \"reviews\", \"social_media\", \"online_listing\"]",
+                              "type": "string"
+                            },
+                            "item_name": {
+                              "description": "Item names in different languages",
+                              "properties": {
+                                "de": {
+                                  "type": "string"
+                                },
+                                "en": {
+                                  "description": "Item name in english",
+                                  "type": "string"
+                                },
+                                "es": {
+                                  "type": "string"
+                                },
+                                "fr": {
+                                  "type": "string"
+                                },
+                                "he": {
+                                  "type": "string"
+                                },
+                                "it": {
+                                  "type": "string"
+                                },
+                                "pl": {
+                                  "type": "string"
+                                },
+                                "pt": {
+                                  "type": "string"
+                                },
+                                "ru": {
+                                  "type": "string"
+                                },
+                                "sl": {
+                                  "type": "string"
+                                },
+                                "tr": {
+                                  "type": "string"
+                                }
+                              },
+                              "type": "object"
+                            },
+                            "permissions": {
+                              "description": "Permissions to control who can view this menu item. Available permissions: [\"can_access_listings_management\", \"can_access_soci\", \"can_access_online_presence\", \"can_access_clients\", \"can_use_reports\", \"can_view_payments\", \"can_view_documents\", \"has_marketing_permissions\", \"can_access_admin_account\", \"can_access_settings\", \"can_export_payments\"]",
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            },
+                            "route": {
+                              "description": "Suffix route relative to the app domain.",
+                              "type": "string"
+                            },
+                            "display_order": {
+                              "description": "Display order of the menu item withihn the category. Start from 0. If not provided, will be added to the end of the category.",
+                              "type": "number"
+                            },
+                            "block_impersonation": {
+                              "description": "Whether the menu item should be blocked when an operator is impersonating as a staff member",
+                              "type": "boolean",
+                              "default": false
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "open_in_new_tab": {
+                    "description": "Whether the app will be opened in a new tab or as an iframe",
+                    "type": "boolean"
+                  },
+                  "full_screen": {
+                    "description": "Whether the app will be opened in a full screen mode, taking over the page header but leaving the sidebar and topbar visible",
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "name": {
+                    "description": "[App Market] The app's name as it will be displayed in the app market. Must be 3 to 25 chars long. If translations are required, use the app translations API ",
+                    "type": "string"
+                  },
+                  "description": {
+                    "description": "[App Market] The app's description. This is displayed in the app info page in the app market.",
+                    "properties": {
+                      "logo": {
+                        "description": "Link to the app's logo",
+                        "type": "string"
+                      },
+                      "short_description": {
+                        "description": "The app's short description. Should contain a summarize review of the app's purpose and functions. Max length is 260 chars.",
+                        "type": "string"
+                      },
+                      "text": {
+                        "description": "The app's long description. Should describe the app's functions in detail. Max length is 380 chars.",
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "app_features": {
+                    "description": "[App Market] A list of the app's features. Will be displayed to the user in the app info page in the app market. Max 10 features. Max feature length is 500 chars.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "app_screenshot_uris": {
+                    "description": "[App Market] Links to app screenshots or demo videos. Displayed on the desktop App info page in the app market. Each asset must be 608 × 272 px. Supported formats: GIF, PNG, JPEG, MJPEG, SVG, MP4, WebM, OGV.",
+                    "type": "string"
+                  },
+                  "app_mobile_screenshot_uris": {
+                    "description": "[App Market] Links to app screenshots or demo videos. Displayed on the mobile App info page in the app market. Each asset must be 608 × 272 px. Supported formats: GIF, PNG, JPEG, MJPEG, SVG, MP4, WebM, OGV.",
+                    "type": "string"
+                  },
+                  "contact_support_link": {
+                    "description": "[App Market] Link to the app's contact support page. This is displayed in the app info page in the app market.",
+                    "type": "string"
+                  },
+                  "locales": {
+                    "description": "[App Market] Locales supported by the app in the app market. If supplied it will be shown for the users in the app market. Valid values are: 'en', 'he', 'es', 'pl', 'fr', 'it', 'pt', 'de', 'nl', 'en-GB', 'zh-SG', 'keys', 'pseudo'",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "privacy_policy_link": {
+                    "description": "[App Market] A link to the apps privacy policy. This is displayed in the app info page in the app market.",
+                    "type": "string"
+                  },
+                  "personal_connection": {
+                    "description": "[App Market] Use to determine if each staff needs to connect separately to the app.",
+                    "type": "boolean"
+                  },
+                  "supported_countries": {
+                    "description": "Countries in which the app will be available. Use **full country names** (e.g., 'United States', 'United Kingdom', 'Israel'), not ISO codes. Use an empty array for all countries.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "api_uri": {
+                    "description": "[Internal use only] The URL of the application API. This is required for apps that implement integration points like Calendar. This is mainly for internal use. For further details contact the support team.",
+                    "type": "string"
+                  },
+                  "app_layer": {
+                    "description": "[Internal use only] The layer of the application. Valid values are: cores, connectors, integrations, widgets, boards. This is mainly for internal use. For further details contact the support team.",
+                    "type": "string"
+                  },
+                  "deep_link": {
+                    "description": "[Internal use only] The deep link to an inner product page. This is not made for third-party apps, but for apps that open as part of the product. Made for internal developer use only.",
+                    "properties": {
+                      "path": {
+                        "description": "The relative path to the page.",
+                        "type": "string"
+                      },
+                      "path_params": {
+                        "description": "The params that will be added to the path URL (optional)",
+                        "type": "object"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "scopes": {
+                    "description": "[Internal use only] OAuth scopes this app can request. Valid scope formats: `openid` (for OpenID Connect), or context-based scopes like `business/clients`, `business/payments`, `business/docuforms`. Scopes can also have CRUD suffixes: `payments_read`, `payments_create`, `payments_update`, `payments_delete`. Currently not strictly enforced. For further details contact the support team.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "demand_scopes": {
+                    "description": "[Internal use only] Minimum required OAuth scopes for this app. Uses same format as `scopes` field: `openid`, context-based (`business/clients`), or with CRUD suffixes (`payments_read`). Currently not strictly enforced. For further details contact the support team.",
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "access_token_format": {
+                    "description": "Format of access tokens issued for this app. Determines whether tokens are opaque or JWT.",
+                    "type": "string",
+                    "enum": [
+                      "opaque",
+                      "jwt"
+                    ],
+                    "default": "opaque"
+                  },
+                  "client_auth_jwks_uri": {
+                    "description": "The client_auth_jwks_uri property lets you authenticate with our OAuth service using JWT signed tokens instead of a client_secret. In the OAuth token request, the service will choose the correct authentication method based on the provided parameters. To use client authentication with Private Key JWT, this property must be set. The URI should return a JSON Web Key Set containing your public keys. The service will retrieve this JWKS and use the keys to verify the JWT you provide.",
+                    "type": "string"
+                  },
+                  "oauth_redirect_uris": {
+                    "description": "An array of URLs to redirect the user to after a successful login.",
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/platform/v1/apps/{id}/assign": {
+      "post": {
+        "description": "## Overview\nAssign an application to a business or directory so it appears in the App Market.\n\n**⚠️ DEPRECATED**: Use `POST /v3/apps/app_assignments` instead.\n\n## Authentication\n**Available for Internal Tokens and Directory Tokens.**\n\n### Directory Token Requirements\nDirectory tokens can only assign apps they own/created:\n\n- **Assign to Directory**: Requires `is_internal: \"true\"`. The app must be owned by your directory.\n- **Assign to Business**: Requires `hide_from_market: \"true\"`. The app must be owned by your directory and the business must belong to your directory.\n\n## Path Parameter\nThe `{id}` in the path must be the **app_code_name** (string identifier), not the numeric app_id.\n\n## Migration Guide\n\n### Old Format (This Endpoint)\n```json\n{\n  \"directory_uid\": \"def456\",\n  \"is_internal\": \"true\"\n}\n```\n\n### New Format (`POST /v3/apps/app_assignments`)\n```json\n{\n  \"assignee_type\": \"directory\",\n  \"assignee_uid\": \"def456\",\n  \"app_code_name\": \"myapp\",\n  \"settings\": {\n    \"assignment_mode\": \"internal\"\n  }\n}\n```\n\n### Parameter Mapping\n| Old Parameter | New Parameter |\n|---------------|---------------|\n| `business_uid` | `assignee_uid` (with `assignee_type: \"business\"`) |\n| `directory_uid` | `assignee_uid` (with `assignee_type: \"directory\"`) |\n| `is_internal: \"true\"` | `settings.assignment_mode: \"internal\"` |\n| `pre_installed: \"true\"` | `settings.assignment_mode: \"pre_installed\"` |\n| `built_in: \"true\"` | Not supported in v3 |",
+        "parameters": [
+          {
+            "description": "App code name",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data": {
+                    "app_data": {
+                      "assignment": {
+                        "app_id": 2,
+                        "built_in": false,
+                        "business_id": 1222,
+                        "created_at": "2021-11-16T13:29:47.000Z",
+                        "directory_id": 12,
+                        "id": 1,
+                        "is_internal": false,
+                        "pre_installed": false,
+                        "updated_at": "2021-11-16T13:29:47.000Z"
+                      }
+                    }
+                  },
+                  "success": true
+                }
+              }
+            }
+          }
+        },
+        "summary": "[DEPRECATED] Assign an app to directory or business - Use POST /v3/apps/app_assignments",
+        "tags": [
+          "Applications"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "responses": {
+            "default": {
+              "statusCode": "201"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///platform/v1/apps/{id}/assign"
+        },
+        "x-auth-type": "Application & Application User",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "built_in": {
+                    "description": "Define the app as built_in for this directory, meaning it is installed for all its users and cannot be uninstalled by them. Used with directory_uid only.",
+                    "type": "string"
+                  },
+                  "business_uid": {
+                    "description": "The business uid to associate the app to.",
+                    "type": "string"
+                  },
+                  "directory_uid": {
+                    "description": "The directory uid to associate the app to.",
+                    "type": "string"
+                  },
+                  "is_internal": {
+                    "description": "Specify that the app is an internal - used with directory_uid only.",
+                    "type": "string"
+                  },
+                  "pre_installed": {
+                    "description": "Define the app as pre-installed for all new accounts of this directory - used with directory_uid only.",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/platform/v1/apps/{id}/install_app": {
+      "post": {
+        "description": "## Overview\nInstall an app for the authorized business. .\n\n**Available for Staff Tokens**",
+        "parameters": [
+          {
+            "description": "App code name",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "app_data": {
+                    "app_code_name": "IncredibleCodeName",
+                    "app_id": 72,
+                    "app_name": "My Wiki Pages"
+                  },
+                  "data": {
+                    "app_data": {
+                      "app_code_name": "mywikipages_72",
+                      "app_features": [],
+                      "app_host": "https://en.wikipedia.org/wiki",
+                      "app_id": 72,
+                      "app_name": "My Wiki Pages",
+                      "app_screenshot_uris": [],
+                      "contact_support_link": null,
+                      "description": {},
+                      "is_internal": false,
+                      "locales": [],
+                      "permissions": null,
+                      "privacy_policy_link": null,
+                      "requires_upgrade": false,
+                      "status": "installed",
+                      "supported_countries": [],
+                      "url_params": [
+                        "language",
+                        "staff_role"
+                      ]
+                    }
+                  },
+                  "success": true
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Failure",
+            "content": {
+              "application/json": {
+                "example": {
+                  "app_data": {
+                    "app_code_name": "IncredibleCodeName"
+                  },
+                  "errors": [
+                    {
+                      "code": "already_exists",
+                      "message": "Already installed"
+                    }
+                  ],
+                  "success": false
+                }
+              }
+            }
+          }
+        },
+        "summary": "Install an app [Internal]",
+        "tags": [
+          "Applications"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "responses": {
+            "default": {
+              "statusCode": "201"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///platform/v1/apps/{id}/install_app"
+        },
+        "x-auth-type": "Application & Application User",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/platform/v1/apps/{id}/unassign": {
+      "post": {
+        "description": "## Overview\nUnassign an application from a business or directory.\n\n**⚠️ DEPRECATED**: Use `DELETE /v3/apps/app_assignments/{uid}` instead.\n\n## Authentication\n**Available for Internal Tokens and Directory Tokens.**\n\n### Directory Token Requirements\n- The app must be owned by/created by your directory\n- The app must have an existing assignment to the specified business or directory\n\n## Path Parameter\nThe `{id}` in the path must be the **app_code_name** (string identifier), not the numeric app_id. Using a numeric app_id will result in a 422 error: 'Not valid uid or app'.\n\n## Request Body\nProvide either `directory_uid` OR `business_uid` (not both) to specify what to unassign from.",
+        "parameters": [
+          {
+            "description": "App code name",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data": {
+                    "app_data": {
+                      "assignment": {
+                        "app_id": 2,
+                        "business_id": 1222,
+                        "created_at": "2021-11-16T13:29:47.000Z",
+                        "directory_id": 12,
+                        "id": 1,
+                        "is_internal": false,
+                        "updated_at": "2021-11-16T13:29:47.000Z"
+                      }
+                    }
+                  },
+                  "success": true
+                }
+              }
+            }
+          }
+        },
+        "summary": "Unassign an app on directory or a business [Internal]",
+        "tags": [
+          "Applications"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "responses": {
+            "default": {
+              "statusCode": "201"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///platform/v1/apps/{id}/unassign"
+        },
+        "x-auth-type": "Application & Application User",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "business_uid": {
+                    "description": "The business uid to associate the app to.",
+                    "type": "string"
+                  },
+                  "directory_uid": {
+                    "description": "The directory uid to associate the app to.",
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/platform/v1/apps/{id}/uninstall_app": {
+      "post": {
+        "description": "## Overview\nUninstall an app for the authorized business. .\n\n**Available for Staff Tokens**",
+        "parameters": [
+          {
+            "description": "App code name",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "app_data": {
+                    "app_code_name": "IncredibleCodeName",
+                    "app_id": 72,
+                    "app_name": "My Wiki Pages"
+                  },
+                  "data": {
+                    "app_data": {
+                      "app_code_name": "mywikipages_72",
+                      "app_features": [],
+                      "app_host": "https://en.wikipedia.org/wiki",
+                      "app_id": 72,
+                      "app_name": "My Wiki Pages",
+                      "app_screenshot_uris": [],
+                      "contact_support_link": null,
+                      "description": {},
+                      "is_internal": false,
+                      "locales": [],
+                      "permissions": null,
+                      "privacy_policy_link": null,
+                      "requires_upgrade": false,
+                      "status": "uninstalled",
+                      "supported_countries": [],
+                      "url_params": [
+                        "language",
+                        "staff_role"
+                      ]
+                    }
+                  },
+                  "success": true
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Failure",
+            "content": {
+              "application/json": {
+                "example": {
+                  "app_data": {
+                    "app_code_name": "IncredibleCodeName"
+                  },
+                  "errors": [
+                    {
+                      "code": "missing",
+                      "message": "App not installed"
+                    }
+                  ],
+                  "success": false
+                }
+              }
+            }
+          }
+        },
+        "summary": "Uninstall an app [Internal]",
+        "tags": [
+          "Applications"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "responses": {
+            "default": {
+              "statusCode": "201"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///platform/v1/apps/{id}/uninstall_app"
+        },
+        "x-auth-type": "Application & Application User",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v3/apps/widgets": {
       "post": {
         "operationId": "Widgets_create",
         "summary": "Create a Widget",
-        "description": "Create a new widget. **Only available for App Tokens that has the app_type 'widgets'**",
+        "description": "## Overview\nCreate a new widget.\n\n## Authentication\n**Available for App Tokens only.** The app must have `app_type='widgets'` to create widgets. Apps with other types will receive 403: 'This app's type does not support widgets'.\n\n## How to Get an App Token\n1. Use `GET /platform/v1/apps` (with directory token) to find apps with `app_type='widgets'`\n2. If none exist, create one with `POST /platform/v1/apps` including `app_type: 'widgets'`\n3. Use the app's `client_id` and `client_secret` to authenticate, or use `GET /platform/v1/tokens` to list app tokens",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -207,6 +2215,7 @@
         "tags": [
           "Widget"
         ],
+        "description": "## Overview\nGet all widgets for the authenticated app.\n\n## Authentication\n**Available for App Tokens only.** The app must have `app_type='widgets'` to access widgets. Apps with other types will receive 403: 'This app's type does not support widgets'.",
         "security": [
           {
             "Bearer": []
@@ -218,7 +2227,7 @@
       "put": {
         "operationId": "Widgets_update",
         "summary": "Update Widget",
-        "description": "Update a widget. **Only available for App Tokens that has the app_type 'widgets'**",
+        "description": "## Overview\nUpdate an existing widget.\n\n## Authentication\n**Available for App Tokens only.** The app must have `app_type='widgets'`. Apps with other types will receive 403: 'This app's type does not support widgets'.",
         "parameters": [
           {
             "name": "uid",
@@ -283,7 +2292,7 @@
       "post": {
         "operationId": "StaffWidgetsBoard_create",
         "summary": "Create a Staff Widgets Board",
-        "description": "Creates a widgets board for staff member. **Available for Staff Tokens**",
+        "description": "## Overview\nCreates a widgets board for staff member.\n\n**Uniqueness Constraint**: Each staff member can only have ONE board per `type` value. For example, a staff member cannot have two boards with `type: \"home\"`. Attempting to create a duplicate returns 403 error: 'Duplication Error: StaffWidgetsBoard Already Exist'.\n\n**Testing Tip**: To reliably test this endpoint, first create a fresh staff member using `POST /platform/v1/businesses/{business_id}/staffs`, then create the board for that new staff.\n\n**Available for Staff Tokens**",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -336,7 +2345,7 @@
       "get": {
         "operationId": "StaffWidgetsBoard_getAll",
         "summary": "Get all Widgets Boards Of The Staff",
-        "description": "Returns the widgets boards for staff member. **Available for Staff Tokens**",
+        "description": "## Overview\nReturns the widgets boards for staff member.\n\n**Available for Staff Tokens**",
         "parameters": [
           {
             "name": "page",
@@ -373,7 +2382,7 @@
             }
           },
           {
-            "description": "Filter by type, Example: type=dashboard",
+            "description": "Filter by type, Example: type=home",
             "name": "type",
             "required": false,
             "in": "query",
@@ -425,13 +2434,13 @@
       "put": {
         "operationId": "StaffWidgetsBoard_update",
         "summary": "Update a Staff Widgets Board",
-        "description": "Update a staff widget board. **Only available for Business Tokens**",
+        "description": "## Overview\nUpdate a staff widget board.\n\n**Available for Staff Tokens**",
         "parameters": [
           {
             "name": "uid",
             "required": true,
             "in": "path",
-            "description": "The staff widgets board uid",
+            "description": "The staff widgets board UID. **Must be a valid UID from an existing Staff Widgets Board.** Use `GET /v3/apps/staff_widgets_boards` to find valid UIDs. Invalid UIDs will return 404 with message 'StaffWidgetsBoard Not Exist'.",
             "schema": {
               "type": "string"
             }
@@ -490,7 +2499,7 @@
       "post": {
         "operationId": "StaffWidgetsBoardsTemplate_create",
         "summary": "Create a Staff Widgets Boards Template",
-        "description": "Create a staff widget board template. **Only available for Directory Tokens**",
+        "description": "## Overview\nCreate a staff widget board template.\n\n**Available for Directory Tokens only.**\n\n**Uniqueness Constraint**: Each staff member can only have ONE active widgets boards template. Creating a template when one already exists returns 400: 'Duplicate entry not allowed for active rows.'\n\n**To replace existing template**: First use `DELETE /v3/apps/staff_widgets_boards_templates/{uid}` to remove the existing template, then create a new one.",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -530,6 +2539,30 @@
               }
             }
           },
+          "400": {
+            "description": "Bad Request. A duplicate entry already exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "integer",
+                      "example": 400
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Duplicate entry not allowed for active rows."
+                    },
+                    "error": {
+                      "type": "string",
+                      "example": "Bad Request"
+                    }
+                  }
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized. The bearer token is missing or invalid."
           },
@@ -549,7 +2582,7 @@
       "get": {
         "operationId": "StaffWidgetsBoardsTemplate_getAll",
         "summary": "Get all Staff Widgets Boards Templates",
-        "description": "Get all staff widget board templates. **Only available for Directory Tokens**",
+        "description": "## Overview\nGet all staff widget board templates. **Only.\n\n**available for Directory Tokens**",
         "parameters": [
           {
             "description": "Filter by owner_type, Example: owner_type=directory",
@@ -626,7 +2659,7 @@
       "put": {
         "operationId": "StaffWidgetsBoardsTemplate_update",
         "summary": "Update a Staff Widgets Boards Template",
-        "description": "Update a staff widget board template. **Only available for Directory Tokens**",
+        "description": "## Overview\nUpdate an existing staff widget board template.\n\n**Available for Directory Tokens only.**\n\n## Prerequisites\n- The `uid` path parameter must be a valid UID from an existing staff widgets boards template\n- Use `GET /v3/apps/staff_widgets_boards_templates` to find available template UIDs\n\n",
         "parameters": [
           {
             "name": "uid",
@@ -694,7 +2727,7 @@
       "delete": {
         "operationId": "StaffWidgetsBoardsTemplate_delete",
         "summary": "Delete a Staff Widgets Boards Template",
-        "description": "Delete a staff widget board template. **Only available for Directory Tokens**",
+        "description": "## Overview\nDelete a staff widget board template. **Only.\n\n**available for Directory Tokens**",
         "parameters": [
           {
             "name": "uid",
@@ -738,1194 +2771,300 @@
         ]
       }
     },
-    "/platform/v1/apps": {
-      "get": {
-        "parameters": [],
-        "responses": {
-          "201": {
-            "description": "list apps",
-            "content": {
-              "application/json": {
-                "example": {
-                  "apps": [
-                    {
-                      "api_uri": "https://dummy-path.com",
-                      "app_code_name": "dummyapp_62",
-                      "app_features": [],
-                      "app_host": "https://dummy-path.com",
-                      "app_id": "some_id",
-                      "app_mobile_screenshot_uris": [],
-                      "app_screenshot_uris": [],
-                      "built_in": false,
-                      "contact_support_link": "https://dummy-path.com",
-                      "deep_link": "https://dummy-path.com",
-                      "description": {},
-                      "is_internal": false,
-                      "locales": [],
-                      "menu_items": {
-                        "subitems": [
-                          {
-                            "category": "clients",
-                            "item_name": {
-                              "en": "RDBMS Page"
-                            },
-                            "route": "rdbms"
-                          }
-                        ]
-                      },
-                      "name": "Some App",
-                      "open_in_new_tab": false,
-                      "permissions": [
-                        "can_view_payments"
-                      ],
-                      "personal_connection": false,
-                      "pre_installed": false,
-                      "privacy_policy_link": "https://dummy-path.com",
-                      "requires_upgrade": false,
-                      "status": "not_installed",
-                      "supported_countries": [
-                        "United States"
-                      ],
-                      "supported_in_mobile": true,
-                      "url_params": []
-                    }
-                  ],
-                  "status": "OK"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "summary": "List of apps",
+    "/platform/v1/apps/translations/{app_code_name}": {
+      "put": {
+        "summary": "Update app translations",
+        "description": "## Overview\nUpdates the translations for an app. The translations must be provided as a CSV file with a specific format. The CSV should have columns for: Key, Context, Character Limit, en, es, fr, it, pt, de, pl, nl, en-GB, he, sl. The rows should contain: Name, Short description, App features, Long description. All English fields are required.\n\n**Authorization**: This endpoint is for app developers/publishers only. The requesting directory must own the app specified by `app_code_name`. Attempting to update translations for an app owned by another directory will result in a 422 AuthorizationException error.\n\n**Available for Directory Tokens**",
         "tags": [
           "Applications"
         ],
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-amazon-apigateway-integration": {
-          "httpMethod": "GET",
-          "responses": {
-            "default": {
-              "statusCode": "200"
-            }
-          },
-          "type": "http_proxy",
-          "uri": "https:///platform/v1/apps"
-        },
-        "x-auth-type": "Application & Application User"
-      },
-      "post": {
-        "parameters": [],
-        "responses": {
-          "201": {
-            "description": "app created",
-            "content": {
-              "application/json": {
-                "example": {
-                  "data": {
-                    "app_code_name": "some_code_name",
-                    "app_id": "some_id",
-                    "client_id": "OAuth Client ID",
-                    "client_secret": "OAuth Client Secret",
-                    "name": "Some App"
-                  },
-                  "status": "OK"
-                }
-              }
-            }
-          }
-        },
-        "security": [
+        "parameters": [
           {
-            "Bearer": []
+            "name": "app_code_name",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "The app's code name identifier",
+            "required": true
           }
         ],
-        "summary": "Creates an app",
-        "tags": [
-          "Applications"
-        ],
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-amazon-apigateway-integration": {
-          "httpMethod": "POST",
-          "responses": {
-            "default": {
-              "statusCode": "200"
-            }
-          },
-          "type": "http_proxy",
-          "uri": "https:///platform/v1/apps"
-        },
-        "x-auth-type": "Application & Application User",
         "requestBody": {
+          "required": true,
           "content": {
-            "application/json": {
+            "multipart/form-data": {
               "schema": {
+                "type": "object",
                 "properties": {
-                  "api_uri": {
-                    "description": "Link to the application API",
-                    "type": "string"
-                  },
-                  "app_code_name": {
-                    "description": "The app's code name. This will be used as the app's id for APIS",
-                    "type": "string"
-                  },
-                  "app_features": {
-                    "description": "A list of the app's features. Will be displayed to the user in the app info page. Max 10 features. Max feature length is 500 chars.",
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "app_layer": {
-                    "description": "Layer of application.",
-                    "type": "string"
-                  },
-                  "app_mobile_screenshot_uris": {
-                    "description": "Links to app screenshots or demo videos. Displayed on the mobile App info page. Each asset must be 608 × 272 px. Supported formats: GIF, PNG, JPEG, MJPEG, SVG, MP4, WebM, OVG.",
-                    "type": "string"
-                  },
-                  "app_screenshot_uris": {
-                    "description": "Links to app screenshots or demo videos. Displayed on the desktop App info page. Each asset must be 608 × 272 px. Supported formats: GIF, PNG, JPEG, MJPEG, SVG, MP4, WebM, OVG.",
-                    "type": "string"
-                  },
-                  "app_type": {
-                    "description": "The app's type. Valid values are: payments, wallets, communication, menu_items, docuforms, import_clients, automated_flows, signatures, onboarding_wizard, notifications",
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "contact_support_link": {
-                    "description": "Link to the app's contact support page",
-                    "type": "string"
-                  },
-                  "deep_link": {
-                    "description": "The deep link to an inner product page. This is not made for third-party apps, but for apps that open as part of the product. Made for internal developer use only.",
-                    "properties": {
-                      "path": {
-                        "description": "The relative path to the page.",
-                        "type": "string"
-                      },
-                      "path_params": {
-                        "description": "The params that will be added to the path URL (optional)",
-                        "type": "object"
-                      }
-                    },
-                    "type": "object"
-                  },
-                  "demand_scopes": {
-                    "description": "Scopes the application must have in order to serve requests.",
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "description": {
-                    "properties": {
-                      "logo": {
-                        "description": "Link to the app's logo",
-                        "type": "string"
-                      },
-                      "short_description": {
-                        "description": "The app's short description. Should contain a summarize review of the app's purpose and functions. Max length is 260 chars.",
-                        "type": "string"
-                      },
-                      "text": {
-                        "description": "The app's long description. Should describe the app's functions in detail. Max length is 380 chars.",
-                        "type": "string"
-                      }
-                    },
-                    "type": "object"
-                  },
-                  "locales": {
-                    "description": "Locales supported by the app",
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "menu_items": {
-                    "description": "Configuration for the left sidebar menu",
-                    "properties": {
-                      "subitems": {
-                        "description": "Items array",
-                        "items": {
-                          "properties": {
-                            "category": {
-                              "description": "Section of the left menu in which the item will appear. Valid values are: [\"calendar\", \"clients\", \"payments\", \"inbox\", \"documents\", \"campaigns\", \"reputation\", \"my-livesite\", \"social\", \"social_info\", \"app_market\", \"reports\", \"team-chat\", \"advertising\", \"subscriptions\", \"my_account\", \"cashflow\", \"workforce\", \"setupguide\", \"reviews\", \"social_media\", \"online_listing\"]",
-                              "type": "string"
-                            },
-                            "item_name": {
-                              "description": "Item names in different languages",
-                              "properties": {
-                                "de": {
-                                  "type": "string"
-                                },
-                                "en": {
-                                  "description": "Item name in english",
-                                  "type": "string"
-                                },
-                                "es": {
-                                  "type": "string"
-                                },
-                                "fr": {
-                                  "type": "string"
-                                },
-                                "he": {
-                                  "type": "string"
-                                },
-                                "it": {
-                                  "type": "string"
-                                },
-                                "pl": {
-                                  "type": "string"
-                                },
-                                "pt": {
-                                  "type": "string"
-                                },
-                                "ru": {
-                                  "type": "string"
-                                },
-                                "sl": {
-                                  "type": "string"
-                                },
-                                "tr": {
-                                  "type": "string"
-                                }
-                              },
-                              "type": "object"
-                            },
-                            "permissions": {
-                              "description": "Permissions to control who can view this menu item. Available permissions: [\"can_access_listings_management\", \"can_access_soci\", \"can_access_online_presence\", \"can_access_clients\", \"can_use_reports\", \"can_view_payments\", \"can_view_documents\", \"has_marketing_permissions\", \"can_access_admin_account\", \"can_access_settings\", \"can_export_payments\"]",
-                              "items": {
-                                "type": "string"
-                              },
-                              "type": "array"
-                            },
-                            "route": {
-                              "description": "Suffix route relative to the app domain.",
-                              "type": "string"
-                            }
-                          },
-                          "type": "object"
-                        },
-                        "type": "array"
-                      }
-                    },
-                    "type": "object"
-                  },
-                  "name": {
-                    "description": "The app's name. Must be 3 to 25 chars long.",
-                    "type": "string"
-                  },
-                  "open_in_new_tab": {
-                    "description": "Whether the app will be opened in a new tab or as an iframe",
-                    "type": "boolean"
-                  },
-                  "payment_data": {
-                    "description": "Payment data for the app. Will be displayed in the app info page",
-                    "properties": {
-                      "pay_per_unit": {
-                        "description": "The units available in this purchasable for extra payment",
-                        "type": "array"
-                      },
-                      "prices": {
-                        "description": "Price list",
-                        "properties": {
-                          "currency": {
-                            "description": "Currency, allowed only: USD, GBP or EUR",
-                            "type": "string"
-                          },
-                          "pay_per_unit": {
-                            "description": "Unit prices",
-                            "properties": {
-                              "staff": {
-                                "description": "Price per staff",
-                                "type": "number"
-                              }
-                            },
-                            "type": "object"
-                          },
-                          "payment_type": {
-                            "description": "Payment type, allowed: monthly, free}",
-                            "type": "string"
-                          },
-                          "price": {
-                            "description": "Price to pay",
-                            "type": "number"
-                          }
-                        },
-                        "type": "object"
-                      }
-                    },
-                    "type": "object"
-                  },
-                  "personal_connection": {
-                    "description": "Whether the app requires each user to connect separately",
-                    "type": "boolean"
-                  },
-                  "privacy_policy_link": {
-                    "description": "A link to the apps privacy policy",
-                    "type": "string"
-                  },
-                  "redirect_uri": {
-                    "description": "The link that the user will be redirected to when opening the app",
-                    "type": "string"
-                  },
-                  "scopes": {
-                    "description": "Scopes the application needs access to.",
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "supported_countries": {
-                    "description": "Countries in which the app will be available. Empty array for all countries.",
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "trusted": {
-                    "description": "Whether application can skip the authorization screen (true/false)",
-                    "type": "string"
-                  },
-                  "url_params": {
-                    "description": "Parameters that will be passed to the app. Valid values are: impersonate, business_uid, staff_role, staff_uid, payment_permissions, language, package, brand_host",
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
+                  "translations_csv": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "CSV file with translations. Format: First row contains headers (Key, Context, Character Limit, en, es, fr, it, pt, de, pl, nl, en-GB, he, sl). Following rows: Name, Short description, App features (semicolon-separated), Long description. All English (en) fields are mandatory. Download a sample CSV file here: https://vcita.github.io/developers-hub/downloads/app_translations_sample.csv"
                   }
                 },
-                "type": "object"
+                "required": [
+                  "translations_csv"
+                ]
               }
             }
           }
-        }
-      }
-    },
-    "/platform/v1/apps/{id}": {
-      "get": {
-        "description": "Returns an app its by code name, if it is associated with the token's directory",
-        "parameters": [
-          {
-            "description": "App code name",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        },
         "responses": {
           "200": {
             "description": "Success",
             "content": {
               "application/json": {
-                "example": {
-                  "data": {
-                    "application": {
-                      "api_uri": "https://oururi.com",
-                      "app_code_name": "IncredibleCodeName",
-                      "app_features": [
-                        "Lorem ipsum dolor",
-                        "consectetur adipiscing"
-                      ],
-                      "app_screenshot_uris": [
-                        "https://www.techadvisor.com/cmsdata/features/3685380/rick_and_morty_season_4_thumb800.jpg"
-                      ],
-                      "app_type": [
-                        "communication"
-                      ],
-                      "contact_support_link": "https://www.ynet.co.il/home/0,7340,L-8,00.html",
-                      "description": {
-                        "logo": "https://c15101458.ssl.cf2.rackcdn.com/avatar/image/3835/normal_rqmnvkhvgg0g82mtzcoir0cg7vyythwg.png",
-                        "short_description": "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
-                        "text": "Lorem ipsum dolor sit amet, consectetur adipiscing elit ut aliquam, purus sit amet luctus venenatis, lectus magna fringilla urna, porttitor rhoncus dolor purus non enim praesent elementum facilisis leo, vel fringilla est ullamcorper eget."
-                      },
-                      "locales": [
-                        "en",
-                        "es",
-                        "fr"
-                      ],
-                      "menu_items": null,
-                      "name": "New Testing App 2",
-                      "oauth_redirect_uris": [
-                        "https://redirect.com",
-                        "https://stuff.com",
-                        "https://hello.com"
-                      ],
-                      "open_in_new_tab": true,
-                      "openid": true,
-                      "privacy_policy_link": "https://www.sport5.co.il/",
-                      "redirect_uri": "https://en.wikipedia.org/wiki",
-                      "supported_countries": [
-                        "United States",
-                        "United Kingdom",
-                        "Israel"
-                      ],
-                      "trusted": true,
-                      "url_params": []
-                    },
-                    "success": true
-                  },
-                  "success": true
+                "schema": {
+                  "type": "object"
+                },
+                "examples": {
+                  "success_example": {
+                    "value": {
+                      "status": "OK",
+                      "success": true,
+                      "translations": {
+                        "en": {
+                          "name": "My App",
+                          "short_description": "This is a short description",
+                          "long_description": "This is a long and detailed description of the app",
+                          "app_features": [
+                            "Feature 1",
+                            "Feature 2",
+                            "Feature 3"
+                          ]
+                        },
+                        "es": {
+                          "name": "Mi Aplicación",
+                          "short_description": "Esta es una descripción corta",
+                          "long_description": "Esta es una descripción larga y detallada de la aplicación",
+                          "app_features": [
+                            "Característica 1",
+                            "Característica 2",
+                            "Característica 3"
+                          ]
+                        },
+                        "fr": {
+                          "name": "Mon App",
+                          "short_description": "Ceci est une brève description",
+                          "long_description": "Ceci est une description longue et détaillée de l'application",
+                          "app_features": [
+                            "Fonctionnalité 1",
+                            "Fonctionnalité 2",
+                            "Fonctionnalité 3"
+                          ]
+                        },
+                        "it": {
+                          "name": "La Mia App",
+                          "short_description": "Questa è una breve descrizione",
+                          "long_description": "Questa è una descrizione lunga e dettagliata dell'app",
+                          "app_features": [
+                            "Funzione 1",
+                            "Funzione 2",
+                            "Funzione 3"
+                          ]
+                        },
+                        "pt": {
+                          "name": "Meu App",
+                          "short_description": "Esta é uma descrição curta",
+                          "long_description": "Esta é uma descrição longa e detalhada do aplicativo",
+                          "app_features": [
+                            "Recurso 1",
+                            "Recurso 2",
+                            "Recurso 3"
+                          ]
+                        },
+                        "de": {
+                          "name": "Meine App",
+                          "short_description": "Dies ist eine kurze Beschreibung",
+                          "long_description": "Dies ist eine lange und detaillierte Beschreibung der App",
+                          "app_features": [
+                            "Funktion 1",
+                            "Funktion 2",
+                            "Funktion 3"
+                          ]
+                        },
+                        "pl": {
+                          "name": "Moja Aplikacja",
+                          "short_description": "To jest krótki opis",
+                          "long_description": "To jest długi i szczegółowy opis aplikacji",
+                          "app_features": [
+                            "Funkcja 1",
+                            "Funkcja 2",
+                            "Funkcja 3"
+                          ]
+                        },
+                        "nl": {
+                          "name": "Mijn App",
+                          "short_description": "Dit is een korte beschrijving",
+                          "long_description": "Dit is een lange en gedetailleerde beschrijving van de app",
+                          "app_features": [
+                            "Functie 1",
+                            "Functie 2",
+                            "Functie 3"
+                          ]
+                        },
+                        "en-GB": {
+                          "name": "My App",
+                          "short_description": "This is a short description",
+                          "long_description": "This is a long and detailed description of the app",
+                          "app_features": [
+                            "Feature 1",
+                            "Feature 2",
+                            "Feature 3"
+                          ]
+                        },
+                        "he": {
+                          "name": "האפליקציה שלי",
+                          "short_description": "זהו תיאור קצר",
+                          "long_description": "זהו תיאור ארוך ומפורט של האפליקציה",
+                          "app_features": [
+                            "תכונה 1",
+                            "תכונה 2",
+                            "תכונה 3"
+                          ]
+                        },
+                        "sl": {
+                          "name": "Moja Aplikacija",
+                          "short_description": "To je kratek opis",
+                          "long_description": "To je dolg in podroben opis aplikacije",
+                          "app_features": [
+                            "Funkcija 1",
+                            "Funkcija 2",
+                            "Funkcija 3"
+                          ]
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "summary": "Read an app",
-        "tags": [
-          "Applications"
-        ],
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-amazon-apigateway-integration": {
-          "httpMethod": "GET",
-          "responses": {
-            "default": {
-              "statusCode": "200"
-            }
           },
-          "type": "http_proxy",
-          "uri": "https:///platform/v1/apps/{id}"
-        },
-        "x-auth-type": "Application & Application User"
-      },
-      "put": {
-        "description": "Updates an app by the code name specified in the path",
-        "parameters": [
-          {
-            "description": "App code name",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
+          "422": {
+            "description": "Failure",
             "content": {
               "application/json": {
-                "example": {
-                  "application": {
-                    "api_uri": "https://OurApi.com",
-                    "app_features": [
-                      "Talk to all your friends!",
-                      "Purchase stuff online!"
-                    ],
-                    "app_layer": "cores",
-                    "app_screenshot_uris": [
-                      "http://OurBestScreenshot.png"
-                    ],
-                    "app_type": [
-                      "communication"
-                    ],
-                    "contact_support_link": "https://contactsupport.com",
-                    "deep_link": {
-                      "path": "/app/somepath",
-                      "path_params": {
-                        "this_is_a_parameter": 12
-                      }
-                    },
-                    "demand_scopes": [
-                      "payments",
-                      "clients"
-                    ],
-                    "description": {
-                      "logo": "https://BeautifulLogo.png",
-                      "short_description": "This is the app's short description. A quick summary of the app's uses.",
-                      "text": "This is the app's long description. It should describe the app's uses and benefits in detail."
-                    },
-                    "locales": [
-                      "en"
-                    ],
-                    "menu_items": {
-                      "subitems": [
+                "schema": {
+                  "type": "object"
+                },
+                "examples": {
+                  "error_example": {
+                    "value": {
+                      "status": "Error",
+                      "success": false,
+                      "errors": [
                         {
-                          "category": "clients",
-                          "item_name": {
-                            "en": "My RDBMS"
-                          },
-                          "route": "route"
+                          "message": "App with given app code name not found",
+                          "code": "not_found",
+                          "field": "app_code_name"
                         }
                       ]
-                    },
-                    "name": "Our app",
-                    "oauth_redirect_uris": [
-                      "https://redirect.com",
-                      "https://stuff.com",
-                      "https://hello.com"
-                    ],
-                    "open_in_new_tab": true,
-                    "privacy_policy_link": "https://ourprivacy.com",
-                    "redirect_uri": "https://redirect.com",
-                    "scopes": [
-                      "clients"
-                    ],
-                    "supported_countries": [
-                      "US"
-                    ],
-                    "trusted": "false",
-                    "url_params": [
-                      "business_uid"
-                    ]
-                  },
-                  "success": true
+                    }
+                  }
                 }
               }
             }
           }
         },
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-auth-type": "Application & Application User",
+        "x-amazon-apigateway-integration": {
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "uri": "https://api.vcita.biz/platform/v1/apps/translations/{app_code_name}",
+          "httpMethod": "PUT",
+          "type": "http_proxy"
+        },
         "security": [
           {
             "Bearer": []
           }
-        ],
-        "summary": "Updates an app",
+        ]
+      }
+    },
+    "/oauth/service/token": {
+      "post": {
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Service token generated",
+            "content": {
+              "application/json": {
+                "example": {
+                  "access_token": "eade05e0ee958ed139b7431b1a630bff95260178699ddf88cbd86a32d2ac708c",
+                  "created_at": "2021-11-16T13:29:47.000Z",
+                  "expires_in": 3600,
+                  "token_type": "Bearer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid credentials"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "summary": "Generate an app access token",
+        "description": "## Overview\nGenerate an app access token using OAuth client credentials flow. **No bearer token required** - authentication is via service_id and service_secret in the request body.\n\n## Prerequisites\nRequires an existing OAuth application. Create one using `POST /platform/v1/apps` to obtain `client_id` (service_id) and `client_secret` (service_secret).\n\n## Parameters\n- `service_id`: The OAuth application `client_id` - a 64-character hexadecimal string (e.g., `20cecc9cc620b717187922baa7706ceaf27b254afdb435ff955a913b3393a8f9`)\n- `service_secret`: The OAuth application `client_secret` - a 64-character hexadecimal string\n\n## How to Get Credentials\n1. Create an app: `POST /platform/v1/apps` with directory token\n2. Save the `client_id` and `client_secret` from the response\n3. Use those values as `service_id` and `service_secret` in this endpoint\n\n## Usage\nThis token can be used to create widgets (for apps with `app_type=['widgets']`) or notifications for the app.",
         "tags": [
-          "Applications"
+          "Service OAuth"
         ],
         "x-amazon-apigateway-auth": {
           "type": "NONE"
         },
         "x-amazon-apigateway-integration": {
-          "httpMethod": "PUT",
+          "httpMethod": "POST",
           "responses": {
             "default": {
               "statusCode": "200"
             }
           },
           "type": "http_proxy",
-          "uri": "https:///platform/v1/apps/{id}"
+          "uri": "https:///oauth/service/token"
         },
-        "x-auth-type": "Application & Application User",
+        "x-auth-type": "None",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
                 "properties": {
-                  "api_uri": {
-                    "description": "Link to the application API",
+                  "service_id": {
+                    "description": "The OAuth application client_id (UID). This is returned when creating an app via `POST /platform/v1/apps`. Must be a valid OAuth application credential.",
                     "type": "string"
                   },
-                  "app_features": {
-                    "description": "A list of the app's features. Will be displayed to the user in the app info page. Max 10 features. Max feature length is 500 chars.",
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "app_layer": {
-                    "description": "Layer of application.",
-                    "type": "string"
-                  },
-                  "app_mobile_screenshot_uris": {
-                    "description": "Links to app screenshots or demo videos. Displayed on the mobile App info page. Each asset must be 608 × 272 px. Supported formats: GIF, PNG, JPEG, MJPEG, SVG, MP4, WebM, OVG.",
-                    "type": "string"
-                  },
-                  "app_screenshot_uris": {
-                    "description": "Links to app screenshots or demo videos. Displayed on the desktop App info page. Each asset must be 608 × 272 px. Supported formats: GIF, PNG, JPEG, MJPEG, SVG, MP4, WebM, OVG.",
-                    "type": "string"
-                  },
-                  "app_type": {
-                    "description": "The app's type. Valid values are: payments, wallets, communication, menu_items, docuforms, import_clients, automated_flows, signatures, onboarding_wizard, notifications, calendar_sync",
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "contact_support_link": {
-                    "description": "Link to the app's contact support page",
-                    "type": "string"
-                  },
-                  "deep_link": {
-                    "description": "The deep link to an inner product page. This is not made for third-party apps, but for apps that open as part of the product. Made for internal developer use only.",
-                    "properties": {
-                      "path": {
-                        "description": "The relative path to the page.",
-                        "type": "string"
-                      },
-                      "path_params": {
-                        "description": "The params that will be added to the path URL (optional)",
-                        "type": "object"
-                      }
-                    },
-                    "type": "object"
-                  },
-                  "demand_scopes": {
-                    "description": "Scopes the application must have in order to serve requests.",
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "description": {
-                    "properties": {
-                      "logo": {
-                        "description": "Link to the app's logo",
-                        "type": "string"
-                      },
-                      "short_description": {
-                        "description": "The app's short description. Should contain a summarize review of the app's purpose and functions. Max length is 260 chars.",
-                        "type": "string"
-                      },
-                      "text": {
-                        "description": "The app's long description. Should describe the app's functions in detail. Max length is 380 chars.",
-                        "type": "string"
-                      }
-                    },
-                    "type": "object"
-                  },
-                  "locales": {
-                    "description": "Locales supported by the app",
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "menu_items": {
-                    "description": "Configuration for the left sidebar menu",
-                    "properties": {
-                      "subitems": {
-                        "description": "Items array",
-                        "items": {
-                          "properties": {
-                            "category": {
-                              "description": "Section of the left menu in which the item will appear. Valid values are: [\"calendar\", \"clients\", \"payments\", \"inbox\", \"documents\", \"campaigns\", \"reputation\", \"my-livesite\", \"social\", \"social_info\", \"app_market\", \"reports\", \"team-chat\", \"advertising\", \"subscriptions\", \"my_account\", \"cashflow\", \"workforce\", \"setupguide\", \"reviews\", \"social_media\", \"online_listing\"]",
-                              "type": "string"
-                            },
-                            "item_name": {
-                              "description": "Item names in different languages",
-                              "properties": {
-                                "de": {
-                                  "type": "string"
-                                },
-                                "en": {
-                                  "description": "Item name in english",
-                                  "type": "string"
-                                },
-                                "es": {
-                                  "type": "string"
-                                },
-                                "fr": {
-                                  "type": "string"
-                                },
-                                "he": {
-                                  "type": "string"
-                                },
-                                "it": {
-                                  "type": "string"
-                                },
-                                "pl": {
-                                  "type": "string"
-                                },
-                                "pt": {
-                                  "type": "string"
-                                },
-                                "ru": {
-                                  "type": "string"
-                                },
-                                "sl": {
-                                  "type": "string"
-                                },
-                                "tr": {
-                                  "type": "string"
-                                }
-                              },
-                              "type": "object"
-                            },
-                            "permissions": {
-                              "description": "Permissions to control who can view this menu item. Available permissions: [\"can_access_listings_management\", \"can_access_soci\", \"can_access_online_presence\", \"can_access_clients\", \"can_use_reports\", \"can_view_payments\", \"can_view_documents\", \"has_marketing_permissions\", \"can_access_admin_account\", \"can_access_settings\", \"can_export_payments\"]",
-                              "items": {
-                                "type": "string"
-                              },
-                              "type": "array"
-                            },
-                            "route": {
-                              "description": "Suffix route relative to the app domain.",
-                              "type": "string"
-                            }
-                          },
-                          "type": "object"
-                        },
-                        "type": "array"
-                      }
-                    },
-                    "type": "object"
-                  },
-                  "name": {
-                    "description": "The app's name. Must be 3 to 25 chars long.",
-                    "type": "string"
-                  },
-                  "oauth_redirect_uris": {
-                    "description": "An array of URLs to redirect the user to after a successful login.",
-                    "type": "array"
-                  },
-                  "open_in_new_tab": {
-                    "description": "Whether the app will be opened in a new tab or as an iframe",
-                    "type": "boolean"
-                  },
-                  "personal_connection": {
-                    "description": "Whether the app requires each user to connect separately",
-                    "type": "boolean"
-                  },
-                  "privacy_policy_link": {
-                    "description": "A link to the apps privacy policy",
-                    "type": "string"
-                  },
-                  "redirect_uri": {
-                    "description": "The link that the user will be redirected to when opening the app",
-                    "type": "string"
-                  },
-                  "scopes": {
-                    "description": "Scopes the application needs access to.",
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "supported_countries": {
-                    "description": "Countries in which the app will be available. Empty array for all countries.",
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  },
-                  "trusted": {
-                    "description": "Whether application can skip the authorization screen (true/false)",
-                    "type": "string"
-                  },
-                  "url_params": {
-                    "description": "Parameters that will be passed to the app.  Valid values are: impersonate, business_uid, staff_role, staff_uid, payment_permissions, language, package, brand_host",
-                    "items": {
-                      "type": "string"
-                    },
-                    "type": "array"
-                  }
-                },
-                "type": "object"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/platform/v1/apps/{id}/assign": {
-      "post": {
-        "description": "Assign an application to business or directory so that it can be viewed in the App Market",
-        "parameters": [
-          {
-            "description": "App code name",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "example": {
-                  "data": {
-                    "app_data": {
-                      "assignment": {
-                        "app_id": 2,
-                        "built_in": false,
-                        "business_id": 1222,
-                        "created_at": "2021-11-16T13:29:47.000Z",
-                        "directory_id": 12,
-                        "id": 1,
-                        "is_internal": false,
-                        "pre_installed": false,
-                        "updated_at": "2021-11-16T13:29:47.000Z"
-                      }
-                    }
-                  },
-                  "success": true
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "summary": "Assign an app on directory or a business [Internal]",
-        "tags": [
-          "Applications"
-        ],
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-amazon-apigateway-integration": {
-          "httpMethod": "POST",
-          "responses": {
-            "default": {
-              "statusCode": "201"
-            }
-          },
-          "type": "http_proxy",
-          "uri": "https:///platform/v1/apps/{id}/assign"
-        },
-        "x-auth-type": "Application & Application User",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "properties": {
-                  "built_in": {
-                    "description": "Define the app as built_in for this directory, meaning it is installed for all its users and cannot be uninstalled by them. Used with directory_uid only.",
-                    "type": "string"
-                  },
-                  "business_uid": {
-                    "description": "The business uid to associate the app to.",
-                    "type": "string"
-                  },
-                  "directory_uid": {
-                    "description": "The directory uid to associate the app to.",
-                    "type": "string"
-                  },
-                  "is_internal": {
-                    "description": "Specify that the app is an internal - used with directory_uid only.",
-                    "type": "string"
-                  },
-                  "pre_installed": {
-                    "description": "Define the app as pre-installed for all new accounts of this directory - used with directory_uid only.",
+                  "service_secret": {
+                    "description": "The OAuth application client_secret. This is returned when creating an app via `POST /platform/v1/apps`. Must match the OAuth application credentials.",
                     "type": "string"
                   }
                 },
-                "type": "object"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/platform/v1/apps/{id}/install_app": {
-      "post": {
-        "description": "Installs an app for the business whose token was used for authorization",
-        "parameters": [
-          {
-            "description": "App code name",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": "Success",
-            "content": {
-              "application/json": {
+                "required": [
+                  "service_id",
+                  "service_secret"
+                ],
+                "type": "object",
                 "example": {
-                  "app_data": {
-                    "app_code_name": "IncredibleCodeName",
-                    "app_id": 72,
-                    "app_name": "My Wiki Pages"
-                  },
-                  "data": {
-                    "app_data": {
-                      "app_code_name": "mywikipages_72",
-                      "app_features": [],
-                      "app_host": "https://en.wikipedia.org/wiki",
-                      "app_id": 72,
-                      "app_name": "My Wiki Pages",
-                      "app_screenshot_uris": [],
-                      "contact_support_link": null,
-                      "description": {},
-                      "is_internal": false,
-                      "locales": [],
-                      "permissions": null,
-                      "privacy_policy_link": null,
-                      "requires_upgrade": false,
-                      "status": "installed",
-                      "supported_countries": [],
-                      "url_params": [
-                        "language",
-                        "staff_role"
-                      ]
-                    }
-                  },
-                  "success": true
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Failure",
-            "content": {
-              "application/json": {
-                "example": {
-                  "app_data": {
-                    "app_code_name": "IncredibleCodeName"
-                  },
-                  "errors": [
-                    {
-                      "code": "already_exists",
-                      "message": "Already installed"
-                    }
-                  ],
-                  "success": false
+                  "service_id": "20cecc9cc620b717187922baa7706ceaf27b254afdb435ff955a913b3393a8f9",
+                  "service_secret": "3f12b18a6d015cb99ca56e1abeeb885cf87cee824e7d021064ad446ed9aa3bb2"
                 }
               }
             }
           }
         },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "summary": "Install an app [Internal]",
-        "tags": [
-          "Applications"
-        ],
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-amazon-apigateway-integration": {
-          "httpMethod": "POST",
-          "responses": {
-            "default": {
-              "statusCode": "201"
-            }
-          },
-          "type": "http_proxy",
-          "uri": "https:///platform/v1/apps/{id}/install_app"
-        },
-        "x-auth-type": "Application & Application User",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {}
-            }
-          }
-        }
-      }
-    },
-    "/platform/v1/apps/{id}/unassign": {
-      "post": {
-        "description": "Unassign an application from business or directory",
-        "parameters": [
-          {
-            "description": "App code name",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "example": {
-                  "data": {
-                    "app_data": {
-                      "assignment": {
-                        "app_id": 2,
-                        "business_id": 1222,
-                        "created_at": "2021-11-16T13:29:47.000Z",
-                        "directory_id": 12,
-                        "id": 1,
-                        "is_internal": false,
-                        "updated_at": "2021-11-16T13:29:47.000Z"
-                      }
-                    }
-                  },
-                  "success": true
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "summary": "Unassign an app on directory or a business [Internal]",
-        "tags": [
-          "Applications"
-        ],
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-amazon-apigateway-integration": {
-          "httpMethod": "POST",
-          "responses": {
-            "default": {
-              "statusCode": "201"
-            }
-          },
-          "type": "http_proxy",
-          "uri": "https:///platform/v1/apps/{id}/unassign"
-        },
-        "x-auth-type": "Application & Application User",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "properties": {
-                  "business_uid": {
-                    "description": "The business uid to associate the app to.",
-                    "type": "string"
-                  },
-                  "directory_uid": {
-                    "description": "The directory uid to associate the app to.",
-                    "type": "string"
-                  }
-                },
-                "type": "object"
-              }
-            }
-          }
-        }
-      }
-    },
-    "/platform/v1/apps/{id}/uninstall_app": {
-      "post": {
-        "description": "Uninstalls an app for the business whose token was used for authorization",
-        "parameters": [
-          {
-            "description": "App code name",
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "example": {
-                  "app_data": {
-                    "app_code_name": "IncredibleCodeName",
-                    "app_id": 72,
-                    "app_name": "My Wiki Pages"
-                  },
-                  "data": {
-                    "app_data": {
-                      "app_code_name": "mywikipages_72",
-                      "app_features": [],
-                      "app_host": "https://en.wikipedia.org/wiki",
-                      "app_id": 72,
-                      "app_name": "My Wiki Pages",
-                      "app_screenshot_uris": [],
-                      "contact_support_link": null,
-                      "description": {},
-                      "is_internal": false,
-                      "locales": [],
-                      "permissions": null,
-                      "privacy_policy_link": null,
-                      "requires_upgrade": false,
-                      "status": "uninstalled",
-                      "supported_countries": [],
-                      "url_params": [
-                        "language",
-                        "staff_role"
-                      ]
-                    }
-                  },
-                  "success": true
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Failure",
-            "content": {
-              "application/json": {
-                "example": {
-                  "app_data": {
-                    "app_code_name": "IncredibleCodeName"
-                  },
-                  "errors": [
-                    {
-                      "code": "missing",
-                      "message": "App not installed"
-                    }
-                  ],
-                  "success": false
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "summary": "Uninstall an app [Internal]",
-        "tags": [
-          "Applications"
-        ],
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-amazon-apigateway-integration": {
-          "httpMethod": "POST",
-          "responses": {
-            "default": {
-              "statusCode": "201"
-            }
-          },
-          "type": "http_proxy",
-          "uri": "https:///platform/v1/apps/{id}/uninstall_app"
-        },
-        "x-auth-type": "Application & Application User",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {}
-            }
-          }
-        }
+        "security": []
       }
     },
     "/v3/apps/app_assignments": {
       "get": {
         "operationId": "AppAssignments_list",
         "summary": "List App Assignments",
-        "description": "Get a list of app assignments with optional filtering. Note: assignee_uid can only be used when assignee_type is also provided. **Available for Directory and internal Tokens**",
+        "description": "Returns app assignments across multiple businesses within a directory, with optional filtering. Note: assignee_uid can only be used when assignee_type is also provided.\n\n**Available for Directory and Internal Tokens.**",
         "parameters": [
           {
             "name": "app_code_name",
@@ -2027,7 +3166,7 @@
       "post": {
         "operationId": "AppAssignments_create",
         "summary": "Create an App Assignment",
-        "description": "Create a new app assignment to a business, package or directory. **Available for Directory and internal Tokens**",
+        "description": "## Overview\nCreate a new app assignment to a business, package or directory.\n\n**Available for Directory Tokens and Internal Tokens only.** Staff and Business tokens are not supported and will return 401 Unauthorized.\n\n## Prerequisites\n- The app specified by `app_code_name` must already exist and belong to the authenticated directory\n- The `directory_uid` parameter is **optional when using Directory Token** (auto-determined from token). If provided, must match the directory associated with your authentication token.",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -2088,7 +3227,7 @@
       "delete": {
         "operationId": "AppAssignments_delete",
         "summary": "Delete an App Assignment",
-        "description": "Delete an app assignment. **Available for Directory and internal Tokens**",
+        "description": "## Overview\nDelete an app assignment.\n\n**Available for Directory and internal Tokens**",
         "parameters": [
           {
             "name": "uid",
@@ -2151,7 +3290,7 @@
     "/v3/apps/compact_jws_tokens": {
       "post": {
         "summary": "Create a compact JWS token",
-        "description": "Create a new compact JWS token that can be used to authenticate a staff member to an app in inTandem using a JWKS process. The token is signed by the app's private key and can be verified by inTandem's public key. Public JWKS token can be obtained at: https://api.vcita.biz/v3/apps/.well-known/jwks.json. Available for **Staff Tokens** and **AppStaffToken**.",
+        "description": "## Overview\nCreate a new compact JWS token that can be used to authenticate a staff member to an app in inTandem using a JWKS process. The token is signed by the app's private key and can be verified by inTandem's public key. Public JWKS token can be obtained at: https://api.vcita.biz/v3/apps/.well-known/jwks.json. Available for **Staff Tokens** and **AppStaffToken**.",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -2217,7 +3356,7 @@
     "/v3/apps/compact_jws_tokens/bulk": {
       "post": {
         "summary": "Bulk create compact JWS tokens",
-        "description": "Create multiple compact JWS tokens for a list of app code names. The response will include the success, generated token (if successful), or error details for each app code name.",
+        "description": "## Overview\nCreate multiple compact JWS tokens for a list of app code names. The response will include the success, generated token (if successful), or error details for each app code name.\n\n**Available for Staff Tokens and AppStaffToken**",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -2279,9 +3418,7 @@
                               }
                             },
                             "required": [
-                              "success",
-                              "entity",
-                              "error"
+                              "success"
                             ]
                           }
                         }
@@ -2312,6 +3449,352 @@
   },
   "components": {
     "schemas": {
+      "CreateNavigationItemRequest": {
+        "type": "object",
+        "description": "Request body for creating a new navigation item.",
+        "properties": {
+          "parent_uid": {
+            "type": "string",
+            "nullable": true,
+            "description": "Unique identifier of the parent navigation item. Set to null for root-level items (e.g., \"nav-item-parent123\")."
+          },
+          "order": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "description": "Display order within the parent level (e.g., 0, 1, 2)."
+          },
+          "title": {
+            "$ref": "#/components/schemas/TitleI18n",
+            "description": "Localized title object. Must include at least the 'en' (English) locale. Additional locales are allowed as additional keys (e.g., \"he\", \"es\", \"fr\")."
+          },
+          "icon": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255,
+            "description": "Icon identifier from the platform icon library. For a list of supported icon identifiers, refer to the inTandem UI icon library used by the platform (e.g., \"icon-Dashboard_POV\")."
+          },
+          "key": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Human-readable unique identifier within the directory (e.g., \"dashboard\", \"custom_module\")."
+          },
+          "modules": {
+            "type": "array",
+            "nullable": true,
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            },
+            "description": "Array of module identifiers required for visibility. The list of enabled modules can be retrieved from the features endpoint (e.g., \"https://developers.intandem.tech/reference/get_platform-v1-businesses-business-id-features\"). (e.g., [\"scheduling\", \"payments\"])."
+          },
+          "permissions": {
+            "type": "array",
+            "nullable": true,
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            },
+            "description": "Array of permission identifiers required for visibility. To retrieve valid permission codes, use the endpoint (GET \"/v3/access_control/permissions\"). (e.g., [\"payments.invoices.export\", \"clients.manage\"])."
+          },
+          "badge_code": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "inbox_unread",
+              null
+            ],
+            "description": "Badge code that displays a notification indicator on this navigation item. Supported values are finite and managed by the platform (e.g., \"inbox_unread\" or null)."
+          },
+          "action": {
+            "$ref": "#/components/schemas/NavigationAction",
+            "description": "Action configuration that defines the behavior when the navigation item is clicked. Actions are handled by the inTandem JS SDK. Every navigation item must have an action. Must be one of: NavigateAction or OpenModalAction."
+          },
+          "available_in_mobile": {
+            "type": "boolean",
+            "default": true,
+            "description": "Whether to show in mobile navigation (e.g., true, false)."
+          },
+          "favorite_in_mobile": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether to show in mobile favorites section (e.g., true, false)."
+          },
+          "upsell_handling": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "hide",
+              "show_upsell",
+              null
+            ],
+            "description": "Behavior when user lacks permissions. 'hide' removes the item, 'show_upsell' displays upgrade prompt. Null means default behavior (hide)."
+          }
+        },
+        "required": [
+          "title",
+          "key",
+          "action"
+        ]
+      },
+      "UpdateNavigationItemRequest": {
+        "type": "object",
+        "description": "Request body for updating an existing navigation item. All fields are optional; only provided fields will be updated.",
+        "properties": {
+          "parent_uid": {
+            "type": "string",
+            "nullable": true,
+            "description": "Unique identifier of the parent navigation item. Set to null for root-level items (e.g., \"nav-item-parent123\" or null)."
+          },
+          "order": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Display order within the parent level. Lower numbers appear first (e.g., 0, 1, 2)."
+          },
+          "title": {
+            "$ref": "#/components/schemas/TitleI18n",
+            "description": "Localized title object. Must include at least the 'en' (English) locale. Additional locales are allowed as additional keys (e.g., \"he\", \"es\", \"fr\")."
+          },
+          "icon": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255,
+            "description": "Icon identifier from the platform icon library. For a list of supported icon identifiers, refer to the inTandem UI icon library used by the platform. Set to null to remove (e.g., \"icon-Dashboard_POV\", \"icon-Settings\" or null)."
+          },
+          "key": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Human-readable unique identifier within the directory. Used by API consumers for programmatic access. Must be stable across title/translation changes (e.g., \"dashboard\", \"custom_module\")."
+          },
+          "modules": {
+            "type": "array",
+            "nullable": true,
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            },
+            "description": "Array of module identifiers required for visibility. The list of enabled modules can be retrieved from the features endpoint (e.g., \"https://developers.intandem.tech/reference/get_platform-v1-businesses-business-id-features\"). Set to null to remove (e.g., [\"scheduling\", \"payments\"] or null)."
+          },
+          "permissions": {
+            "type": "array",
+            "nullable": true,
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            },
+            "description": "Array of permission identifiers required for visibility. To retrieve valid permission codes, use the endpoint (GET \"/v3/access_control/permissions\"). Set to null to remove (e.g., [\"payments.invoices.export\", \"clients.manage\"] or null)."
+          },
+          "badge_code": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "inbox_unread",
+              null
+            ],
+            "description": "Badge code that displays a notification indicator on this navigation item. Supported values are finite and managed by the platform. Set to null to remove (e.g., \"inbox_unread\" or null)."
+          },
+          "action": {
+            "$ref": "#/components/schemas/NavigationAction",
+            "description": "Action configuration that defines the behavior when the navigation item is clicked. Actions are handled by the inTandem JS SDK. Must be one of: NavigateAction or OpenModalAction."
+          },
+          "available_in_mobile": {
+            "type": "boolean",
+            "description": "Whether this navigation item should appear in mobile app navigation. Set to false for desktop-only features (e.g., true, false)."
+          },
+          "favorite_in_mobile": {
+            "type": "boolean",
+            "description": "Whether this item appears in the mobile favorites/quick-access section. Only applicable when available_in_mobile is true (e.g., true, false)."
+          },
+          "upsell_handling": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "hide",
+              "show_upsell",
+              null
+            ],
+            "description": "Behavior when user lacks required modules/permissions. 'hide' removes the item completely, 'show_upsell' displays it with an upgrade prompt. Null means default behavior (hide)."
+          }
+        }
+      },
+      "TitleI18n": {
+        "type": "object",
+        "description": "Localized title object. English (en) is required. Supported locale codes are: de, en, es, fr, he, it, pl, pt, ru, sl, tr.",
+        "propertyNames": {
+          "type": "string",
+          "enum": [
+            "de",
+            "en",
+            "es",
+            "fr",
+            "he",
+            "it",
+            "pl",
+            "pt",
+            "ru",
+            "sl",
+            "tr"
+          ]
+        },
+        "properties": {
+          "en": {
+            "type": "string",
+            "description": "English title (required)."
+          },
+          "he": {
+            "type": "string",
+            "description": "Hebrew title (optional)."
+          }
+        },
+        "required": [
+          "en"
+        ],
+        "additionalProperties": {
+          "type": "string"
+        },
+        "example": {
+          "en": "Dashboard",
+          "he": "לוח בקרה"
+        }
+      },
+      "NavigationAction": {
+        "description": "Action configuration that defines the behavior when a navigation item is clicked. Actions are handled by the inTandem JS SDK. Must be one of: NavigateAction (navigates to a page) or OpenModalAction (opens a modal dialog).",
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/NavigateAction"
+          },
+          {
+            "$ref": "#/components/schemas/OpenModalAction"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "name",
+          "mapping": {
+            "navigate": "#/components/schemas/NavigateAction",
+            "open_modal": "#/components/schemas/OpenModalAction"
+          }
+        }
+      },
+      "NavigateAction": {
+        "type": "object",
+        "description": "Navigate action that directs the user to a page when the navigation item is clicked. Uses the inTandem JS SDK navigate function. See the [navigate documentation](https://developers.intandem.tech/docs/navigate).",
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": [
+              "navigate"
+            ],
+            "description": "Action type identifier. Must be \"navigate\" for navigation actions."
+          },
+          "params": {
+            "type": "object",
+            "description": "Parameters for the navigate action.",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "relative",
+                  "absolute"
+                ],
+                "description": "The type of navigation requested. \"relative\" indicates an internal path in the system, \"absolute\" indicates an external URL. Defaults to \"relative\" if not provided (e.g., \"relative\", \"absolute\")."
+              },
+              "path": {
+                "type": "string",
+                "maxLength": 500,
+                "description": "The navigation path. Supports three path formats: (1) Internal Route — a relative path starting with '/app/' that navigates the user within the platform (e.g., \"/app/dashboard\", \"/app/calendar\", \"/app/clients\", \"/app/payments/orders\"). (2) Embedded App — a relative path following the pattern '/app/embedded/{APP_NAME}/{PATH}', where {APP_NAME} is the app identifier and {PATH} is a navigation path appended to the app's base URL stored in the database; query parameters can also be appended (e.g., \"/app/embedded/printer/settings\", \"/app/embedded/printer/preview?app_id=123\"). (3) External URL — a full URL starting with 'https://' that navigates to an external page (e.g., \"https://help.vcita.com\")."
+              },
+              "new_tab": {
+                "type": "boolean",
+                "default": false,
+                "description": "Whether to open the navigation path in a new browser tab. Defaults to false (e.g., true, false)."
+              }
+            },
+            "required": [
+              "path"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "params"
+        ],
+        "example": {
+          "name": "navigate",
+          "params": {
+            "type": "relative",
+            "path": "/app/dashboard",
+            "new_tab": false
+          }
+        }
+      },
+      "OpenModalAction": {
+        "type": "object",
+        "description": "Open modal action that opens a modal dialog over the current page when the navigation item is clicked. Uses the inTandem JS SDK openModal function. See the [openModal documentation](https://developers.intandem.tech/docs/openmodal) for available modals and their required parameters.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": [
+              "open_modal"
+            ],
+            "description": "Action type identifier. Must be \"open_modal\" for modal actions."
+          },
+          "params": {
+            "type": "object",
+            "description": "Modal configuration parameters. Must include the modal name and any modal-specific parameters. See the [inTandem JS SDK openModal documentation](https://developers.intandem.tech/docs/openmodal) for complete parameter specifications for each modal type (e.g., {\"modalName\": \"AppMarket\"}, {\"modalName\": \"ClientPicker\"}, {\"modalName\": \"IframeModal\", \"url\": \"https://example.com\", \"title\": \"Page Title\"})."
+          }
+        },
+        "required": [
+          "name",
+          "params"
+        ],
+        "example": {
+          "name": "open_modal",
+          "params": {
+            "modalName": "AppMarket"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "description": "Standard error response format.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ],
+            "description": "Always false for error responses."
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "Field that caused the error (for validation errors)."
+                },
+                "code": {
+                  "type": "string",
+                  "description": "Error code identifier."
+                },
+                "message": {
+                  "type": "string",
+                  "description": "Human-readable error message."
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ]
+            }
+          }
+        },
+        "required": [
+          "success",
+          "errors"
+        ]
+      },
       "CreateWidgetRequestDto": {
         "type": "object",
         "properties": {
@@ -2338,13 +3821,7 @@
           },
           "module": {
             "type": "string",
-            "description": "The module (FF) required for the widget to show up for a staff member",
-            "enum": [
-              "Payments",
-              "Bookings",
-              "Clients",
-              "Campaigns"
-            ]
+            "description": "The module (FF) required for the widget to show up for a staff member"
           },
           "component_data": {
             "allOf": [
@@ -2362,19 +3839,25 @@
       },
       "StaffWidgetsBoardRequestDto": {
         "type": "object",
+        "description": "Request body for creating or updating a staff widgets board.\n\n**Uniqueness Constraint**: Each staff member can only have ONE board per `type` value. For example, a staff cannot have two 'home' type boards. Attempting to create a duplicate returns 403: 'Duplication Error: StaffWidgetsBoard Already Exist'.\n\n**To update an existing board**: Use `GET /v3/apps/staff_widgets_boards` to find the board's UID, then use `PUT /v3/apps/staff_widgets_boards/{uid}`.",
         "properties": {
           "board_layout_code_name": {
             "type": "string",
-            "description": "A string representing the board layout",
+            "description": "A string representing the board layout. Must be unique per staff member when combined with `type`.",
             "enum": [
-              "MainAndSideBar2Columns"
+              "MainAndSideBar2Columns",
+              "MainAndSideBar3Columns",
+              "SingleColumn"
             ]
           },
           "type": {
             "type": "string",
-            "description": "the grid frame of the layout, determines the layout frame containing the board",
+            "description": "The grid frame of the layout, determines the layout frame containing the board. Must be unique per staff member when combined with `board_layout_code_name`.",
             "enum": [
-              "home"
+              "home",
+              "custom",
+              "dashboard",
+              "analytics"
             ]
           },
           "sections": {
@@ -2386,17 +3869,9 @@
           }
         },
         "required": [
-          "staff_uid",
-          "client_uid",
-          "from_number",
-          "to_number",
-          "direction",
-          "status",
-          "rate",
-          "provider",
-          "source_id",
-          "external_uuid",
-          "business_uid"
+          "board_layout_code_name",
+          "type",
+          "sections"
         ]
       },
       "UpdateWidgetRequestDto": {
@@ -2434,13 +3909,7 @@
           },
           "module": {
             "type": "string",
-            "description": "The module (FF) required for the widget to show up for a staff member",
-            "enum": [
-              "Payments",
-              "Bookings",
-              "Clients",
-              "Campaigns"
-            ]
+            "description": "The module (FF) required for the widget to show up for a staff member"
           }
         }
       },
@@ -2563,11 +4032,11 @@
           }
         },
         "required": [
-          "max_height,",
-          "min_height,",
-          "height,",
-          "max_width,",
-          "min_width,",
+          "max_height",
+          "min_height",
+          "height",
+          "max_width",
+          "min_width",
           "width"
         ]
       },
@@ -2584,17 +4053,19 @@
       },
       "ComponentDataDto": {
         "type": "object",
+        "description": "Component data for the widget, specifying the component name and configuration.",
         "properties": {
           "name": {
-            "type": "string"
+            "type": "string",
+            "description": "**Required.** The component name identifier for the widget."
           },
           "config": {
-            "type": "object"
+            "type": "object",
+            "description": "Optional configuration object for the widget component."
           }
         },
         "required": [
-          "name",
-          "config"
+          "name"
         ]
       },
       "SectionDto": {
@@ -2602,7 +4073,8 @@
         "properties": {
           "code_name": {
             "type": "string",
-            "description": "The section code name"
+            "description": "The section code name. Common values based on layout: For `MainAndSideBar2Columns` or `MainAndSideBar3Columns` layouts use 'main' and 'sidebar'. For `SingleColumn` layout use 'main'.",
+            "example": "main"
           },
           "widgets": {
             "description": "The sections widgets",
@@ -2622,10 +4094,10 @@
         "properties": {
           "widget_uid": {
             "type": "string",
-            "description": "The widget uid"
+            "description": "The unique identifier of an existing Widget to include in this section. **Important**: This must be a valid UID from a Widget entity (use `GET /v3/apps/widgets` to find available widgets). Using invalid UIDs will result in a server error."
           },
           "dimensions": {
-            "description": "The sections widgets",
+            "description": "Custom dimensions for the widget in this section",
             "allOf": [
               {
                 "$ref": "#/components/schemas/CustomizedWidgetDimensionsDto"
@@ -2634,7 +4106,7 @@
           }
         },
         "required": [
-          "uid"
+          "widget_uid"
         ]
       },
       "Response_apps": {
@@ -2670,7 +4142,12 @@
           },
           "app_code_name": {
             "type": "string",
-            "description": "The unique identifier of the app"
+            "description": "The unique identifier of the app. Must use alphanumeric characters only (no spaces or special characters). The app must exist and belong to the authenticated directory.",
+            "pattern": "^[a-zA-Z0-9]+$"
+          },
+          "directory_uid": {
+            "type": "string",
+            "description": "The uid of the directory this app is assigned to. **Optional when using Directory Token** - will be auto-determined from the token if omitted. If provided, must match the directory associated with your authentication token."
           },
           "settings": {
             "type": "object",
@@ -2703,9 +4180,20 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "JWT",
-        "description": "JWT Bearer token authentication"
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+      },
+      "NavigationItems": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {token}'"
       }
     }
   },
-  "tags": []
+  "tags": [
+    {
+      "name": "Navigation Items",
+      "description": "CRUD operations for navigation menu items"
+    }
+  ]
 }

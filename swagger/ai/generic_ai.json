@@ -1,0 +1,820 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Generic AI API",
+    "description": "Unified API for chat completions and audio transcriptions across multiple LLM providers (OpenAI, Anthropic, Google). Supports streaming, async processing, tool calling, and structured output.",
+    "version": "3.0",
+    "contact": {}
+  },
+  "tags": [
+    {
+      "name": "AI Chat Completions",
+      "description": "Create chat completions using multiple LLM providers"
+    },
+    {
+      "name": "AI Audio Transcriptions",
+      "description": "Transcribe audio files using multiple providers"
+    },
+    {
+      "name": "AI Chat Completion Runs",
+      "description": "Manage async chat completion runs"
+    },
+    {
+      "name": "AI Transcription Runs",
+      "description": "Manage async transcription runs"
+    }
+  ],
+  "servers": [
+    {
+      "url": "https://api.vcita.biz",
+      "description": "API Gateway server"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "ChatCompletionRunList": {
+        "type": "object",
+        "description": "A list of chat completion runs.",
+        "properties": {
+          "chat_completion_runs": {
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/ai/ChatCompletionRun.json"
+            }
+          }
+        }
+      },
+      "TranscriptionRunList": {
+        "type": "object",
+        "description": "A list of transcription runs.",
+        "properties": {
+          "transcription_runs": {
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/ai/TranscriptionRun.json"
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+      }
+    }
+  },
+  "paths": {
+    "/v3/ai/chat_completions": {
+      "post": {
+        "tags": ["AI Chat Completions"],
+        "summary": "Create a ChatCompletion",
+        "description": "## Overview\nCreate chat completions using multiple LLM providers (OpenAI, Anthropic, Google). Supports text and multimodal input (images, audio, video, files), streaming responses via SSE, async mode for long-running thinking models, tool calling (function calling), and structured output (JSON schema).\n\n### Supported Models\n| Provider | Models |\n|----------|--------|\n| OpenAI | `openai/gpt-5`, `openai/gpt-4o`, `openai/gpt-4o-mini`, `openai/o3-mini`, `openai/o1` |\n| Anthropic | `anthropic/claude-sonnet-4-5-20250929`, `anthropic/claude-haiku-4-5-20251001`, `anthropic/claude-3-5-sonnet-latest`, `anthropic/claude-3-5-haiku-latest` |\n| Google | `google/gemini-2.5-pro`, `google/gemini-2.0-flash`, `google/gemini-2.0-pro` |\n\n### Streaming\nBy default, responses are streamed as Server-Sent Events (SSE). Set `stream: false` for a single JSON response.\n\n### Async Mode\nSet `async: true` to queue the request and receive a run UID. Poll `GET /v3/ai/chat_completion_runs/{uid}` for the result. Recommended for thinking models.\n\n**Available for Staff tokens**",
+        "security": [{ "Bearer": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "https://vcita.github.io/developers-hub/entities/ai/ChatCompletionRequest.json"
+              },
+              "examples": {
+                "simple": {
+                  "summary": "Simple text completion",
+                  "value": {
+                    "model": "openai/gpt-4o-mini",
+                    "messages": [{ "role": "user", "content": "Say hello" }],
+                    "stream": false,
+                    "max_tokens": 100
+                  }
+                },
+                "tool_calling": {
+                  "summary": "With function calling",
+                  "value": {
+                    "model": "openai/gpt-4o-mini",
+                    "messages": [{ "role": "user", "content": "What is the weather in Paris?" }],
+                    "stream": false,
+                    "tools": [{
+                      "type": "function",
+                      "function": {
+                        "name": "get_weather",
+                        "description": "Get current weather for a location",
+                        "parameters": {
+                          "type": "object",
+                          "properties": {
+                            "location": { "type": "string" }
+                          },
+                          "required": ["location"]
+                        }
+                      }
+                    }]
+                  }
+                },
+                "structured_output": {
+                  "summary": "With JSON schema output",
+                  "value": {
+                    "model": "openai/gpt-4o-mini",
+                    "messages": [{ "role": "user", "content": "Extract: John is 30 years old" }],
+                    "stream": false,
+                    "response_format": {
+                      "type": "json_schema",
+                      "json_schema": {
+                        "name": "person",
+                        "schema": {
+                          "type": "object",
+                          "properties": {
+                            "name": { "type": "string" },
+                            "age": { "type": "integer" }
+                          },
+                          "required": ["name", "age"]
+                        }
+                      }
+                    }
+                  }
+                },
+                "async": {
+                  "summary": "Async mode for thinking models",
+                  "value": {
+                    "model": "openai/o1",
+                    "messages": [{ "role": "user", "content": "Solve this complex problem..." }],
+                    "async": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful non-streaming completion.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/ChatCompletion.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "Server-Sent Events stream. Each event is a JSON chunk with `data:` prefix, ending with `data: [DONE]`."
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Async mode: job queued successfully. Poll the returned run UID for the result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/ChatCompletionRun.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - The request body is malformed or contains invalid syntax.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "invalid_syntax",
+                      "message": "Request body contains invalid JSON."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - The bearer token is missing, expired, or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error with valid syntax.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "model",
+                      "code": "invalid",
+                      "message": "Unsupported model format. Expected provider/model (e.g., 'openai/gpt-4o')."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - Rate limit exceeded (10 requests per minute).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "rate_limit_exceeded",
+                      "message": "Rate limit exceeded. Maximum 10 requests per minute. Please retry after 60 seconds."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bad Gateway - The upstream LLM provider returned an error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "provider_error",
+                      "message": "The LLM provider returned an error. Please try again later."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/ai/audio_transcriptions": {
+      "post": {
+        "tags": ["AI Audio Transcriptions"],
+        "summary": "Create an AudioTranscription",
+        "description": "## Overview\nTranscribe audio files using multiple providers (OpenAI Whisper, OpenAI GPT-4o Transcribe, Google Chirp). Supports file upload via multipart form data.\n\n### Supported Models\n| Provider | Models |\n|----------|--------|\n| OpenAI | `openai/whisper-1`, `openai/gpt-4o-transcribe` |\n| Google | `google/chirp-2` |\n\n### Async Mode\nSet `async: true` to queue the transcription and receive a run UID. Poll `GET /v3/ai/transcription_runs/{uid}` for the result. Recommended for long audio files or diarization.\n\n**Available for Staff tokens**",
+        "security": [{ "Bearer": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Audio file to transcribe (max 25MB). Supported formats: mp3, mp4, m4a, wav, webm, flac, ogg."
+                  },
+                  "model": {
+                    "type": "string",
+                    "description": "Model identifier in provider/model format (e.g., \"openai/gpt-4o-transcribe\", \"openai/whisper-1\", \"google/chirp-2\").",
+                    "example": "openai/gpt-4o-transcribe"
+                  },
+                  "language": {
+                    "type": "string",
+                    "description": "ISO-639-1 language code for the audio content (e.g., \"en\" for English, \"es\" for Spanish, \"he\" for Hebrew). When omitted, the provider will auto-detect the language."
+                  },
+                  "prompt": {
+                    "type": "string",
+                    "description": "Optional guiding prompt to improve transcription accuracy. Useful for providing context, domain-specific terminology, or correcting recurring misrecognitions."
+                  },
+                  "response_format": {
+                    "type": "string",
+                    "enum": ["json", "text", "srt", "verbose_json", "vtt"],
+                    "description": "Desired response format. 'json' returns a simple JSON with text, 'text' returns plain text, 'srt' returns SubRip subtitle format, 'verbose_json' returns detailed JSON with word-level timestamps, 'vtt' returns WebVTT subtitle format. Defaults to 'json'."
+                  },
+                  "temperature": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "description": "Sampling temperature between 0 and 1. Higher values make the output more random, while lower values make it more deterministic. Defaults to 0."
+                  },
+                  "async": {
+                    "type": "boolean",
+                    "description": "Process the request asynchronously. Returns a run UID immediately that can be polled via GET /v3/ai/transcription_runs/{uid}. Recommended for long audio files or when diarization is needed.",
+                    "default": false
+                  }
+                },
+                "required": ["file", "model"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful transcription.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/AudioTranscription.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Async mode: job queued successfully. Poll the returned run UID for the result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/TranscriptionRun.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - The request is malformed or contains invalid syntax.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "invalid_syntax",
+                      "message": "Request body is malformed or missing required multipart form data."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - The bearer token is missing, expired, or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload Too Large - The uploaded audio file exceeds the 25MB size limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "file",
+                      "code": "too_large",
+                      "message": "File size exceeds the maximum allowed limit of 25MB."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error with valid syntax.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "model",
+                      "code": "invalid",
+                      "message": "Unsupported model. Supported models: openai/whisper-1, openai/gpt-4o-transcribe, google/chirp-2."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - Rate limit exceeded (10 requests per minute).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "rate_limit_exceeded",
+                      "message": "Rate limit exceeded. Maximum 10 requests per minute. Please retry after 60 seconds."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/ai/chat_completion_runs/{uid}": {
+      "get": {
+        "tags": ["AI Chat Completion Runs"],
+        "summary": "Retrieve a ChatCompletionRun",
+        "description": "## Overview\nGet the status and result of an async chat completion job. Poll this endpoint until status is COMPLETED or FAILED.\n\n**Available for Staff tokens**",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the chat completion run (e.g., \"0ce1af9d-3337-419b-933c-02ea21d4d9ca\").",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Chat completion run retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/ChatCompletionRun.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - The bearer token is missing, expired, or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - No chat completion run exists with the specified UID.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "uid",
+                      "code": "not_found",
+                      "message": "Chat completion run not found."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/ai/chat_completion_runs": {
+      "get": {
+        "tags": ["AI Chat Completion Runs"],
+        "summary": "List ChatCompletionRuns",
+        "description": "## Overview\nRetrieve a paginated list of chat completion runs for the authenticated client. Supports sorting by field and direction.\n\n**Available for Staff tokens**",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number for pagination (e.g., 1, 2, 3). Defaults to 1.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "Number of items per page, between 1 and 100. Defaults to 20.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Sort field and direction in the format 'field:direction' (e.g., \"created_at:desc\", \"status:asc\").",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of chat completion runs retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/ChatCompletionRunList"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - The bearer token is missing, expired, or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/ai/transcription_runs/{uid}": {
+      "get": {
+        "tags": ["AI Transcription Runs"],
+        "summary": "Retrieve a TranscriptionRun",
+        "description": "## Overview\nGet the status and result of an async transcription job. Poll this endpoint until status is COMPLETED or FAILED.\n\n**Available for Staff tokens**",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the transcription run (e.g., \"85ade9f5-2690-48e8-ae5b-b07d6b57b457\").",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transcription run retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/TranscriptionRun.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - The bearer token is missing, expired, or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - No transcription run exists with the specified UID.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "uid",
+                      "code": "not_found",
+                      "message": "Transcription run not found."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/ai/transcription_runs": {
+      "get": {
+        "tags": ["AI Transcription Runs"],
+        "summary": "List TranscriptionRuns",
+        "description": "## Overview\nRetrieve a paginated list of transcription runs for the authenticated client. Supports sorting by field and direction.\n\n**Available for Staff tokens**",
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number for pagination (e.g., 1, 2, 3). Defaults to 1.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "Number of items per page, between 1 and 100. Defaults to 20.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Sort field and direction in the format 'field:direction' (e.g., \"created_at:desc\", \"status:asc\").",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of transcription runs retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/TranscriptionRunList"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - The bearer token is missing, expired, or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

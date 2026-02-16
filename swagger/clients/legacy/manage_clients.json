@@ -11,7 +11,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Import clients from external app. Once the import process is complete, we will request a page number minus one (-1 page)",
+        "description": "## Overview\nImport clients to an app. Creates client records based on the provided field mappings.\n\n## Authentication\n**Available for Staff, App, and Directory tokens.**\n\n## Prerequisites\n1. The app specified by `app_code_name` must be assigned to the business\n2. The app must have `app_type` set to `import_clients`\n3. Use `POST /v3/apps/app_assignments` with `assignment_mode: 'internal'` to assign the app\n\n## Request Body\n- `import_params`: Configuration for the import process\n- `fields_mapping`: Maps client fields to their values",
         "parameters": [
           {
             "description": "App code name",
@@ -23,26 +23,36 @@
           {
             "in": "body",
             "name": "body",
+            "required": true,
             "schema": {
+              "type": "object",
+              "required": ["import_params", "fields_mapping"],
               "properties": {
                 "fields_mapping": {
+                  "description": "Maps client fields to their values. At minimum, provide email or phone for contact identification.",
+                  "type": "object",
                   "properties": {
                     "email": {
-                      "description": "email@local.local",
+                      "description": "Client email address (e.g., email@example.com)",
                       "type": "string"
                     },
                     "first_name": {
-                      "description": "First name",
+                      "description": "Client first name",
+                      "type": "string"
+                    },
+                    "last_name": {
+                      "description": "Client last name",
                       "type": "string"
                     },
                     "phone": {
-                      "description": "1213214124124",
+                      "description": "Client phone number (e.g., 1213214124124)",
                       "type": "string"
                     }
-                  },
-                  "type": "object"
+                  }
                 },
                 "import_params": {
+                  "description": "Configuration for the import process",
+                  "type": "object",
                   "properties": {
                     "send_notifications_when_done": {
                       "description": "Sends an email to staff when the import is done. Defaults to true. Set to false to skip.",
@@ -54,13 +64,12 @@
                     },
                     "upload_type": {
                       "description": "Is it single (individual contacts) or multi (multiple clients under the same contact)",
-                      "type": "string"
+                      "type": "string",
+                      "enum": ["single", "multi"]
                     }
-                  },
-                  "type": "object"
+                  }
                 }
-              },
-              "type": "object"
+              }
             }
           }
         ],
@@ -69,7 +78,7 @@
         ],
         "responses": {
           "201": {
-            "description": "Success",
+            "description": "Success - Import session created",
             "examples": {
               "application/json": {
                 "data": {
@@ -80,14 +89,31 @@
             }
           },
           "422": {
-            "description": "Failure",
+            "description": "Validation Error - Common causes include: app not installed, wrong app type, or invalid data",
             "examples": {
               "application/json": {
                 "errors": [
                   {
-                    "code": "Error Code",
-                    "field": "Error Field (optional)",
-                    "message": "Error Message"
+                    "code": "invalid",
+                    "message": "The application {app_code_name} is not installed for the business"
+                  }
+                ],
+                "success": false
+              }
+            },
+            "x-error-codes": {
+              "not_installed": "The application {app_code_name} is not installed for the business",
+              "wrong_type": "wrong type expecting import_clients"
+            }
+          },
+          "500": {
+            "description": "Internal Server Error - May occur if request body is missing or malformed. Ensure import_params and fields_mapping are provided.",
+            "examples": {
+              "application/json": {
+                "errors": [
+                  {
+                    "code": "unexpected",
+                    "message": "undefined method `key?' for nil:NilClass"
                   }
                 ],
                 "success": false
@@ -122,17 +148,17 @@
         "x-auth-type": "Application & Application User"
       }
     },
-    "/v1/contacts/{uid}/matters": {
+    "/v1/contacts/{client_uid}/matters": {
       "get": {
         "consumes": [
           "application/json"
         ],
-        "description": "Gets Matters of a contact",
+        "description": "## Overview\nGets Matters of a client.\n\n## Authentication\n**Available for Staff, App, and Directory Tokens.**",
         "parameters": [
           {
-            "description": "Contact UID",
+            "description": "Client UID",
             "in": "path",
-            "name": "uid",
+            "name": "client_uid",
             "required": true,
             "type": "string"
           }
@@ -220,7 +246,7 @@
             }
           },
           "type": "http_proxy",
-          "uri": "https:///business/clients/v1/contacts/{uid}/matters"
+          "uri": "https:///business/clients/v1/contacts/{client_uid}/matters"
         },
         "x-auth-type": "Application & Application User"
       },
@@ -228,55 +254,61 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Create a new Matter",
+        "description": "## Overview\nCreate a new Matter for a contact.\n\n## Important Context\nCreating a client via POST /platform/v1/clients automatically creates a first matter. This endpoint is used to create **additional matters** for an existing client.\n\n## Name Field Requirement\nAdditional matters require a name field to differentiate them:\n1. Call `GET /platform/v1/fields` to get field definitions\n2. Find the field where `type == \"name\"` AND `object_type == \"matter\"`\n3. Use the field's `id` as the `uid` with a unique name value\n\n**Available for Staff tokens**",
         "parameters": [
           {
-            "description": "Matter UID",
+            "description": "The UID of the contact (client) to create the matter for. This is the contact's unique identifier, also referred to as `contact_uid` internally.",
             "in": "path",
-            "name": "uid",
+            "name": "client_uid",
             "required": true,
             "type": "string"
           },
           {
             "in": "body",
             "name": "body",
+            "required": true,
             "schema": {
+              "type": "object",
+              "required": ["matter"],
               "properties": {
                 "matter": {
+                  "type": "object",
+                  "required": ["fields"],
                   "properties": {
                     "fields": {
-                      "description": "A list of fields to be updated",
+                      "description": "Array of custom field objects to set on the matter. Must include at least one element: the matter 'name' field, which is required to create a matter. To obtain the correct field UID for the name field, call `GET /platform/v1/fields` and find the field where `type` is `name` AND `object_type` is `matter`. Use that field's `id` as the `uid` value in this array.",
+                      "type": "array",
+                      "minItems": 1,
                       "items": {
+                        "type": "object",
+                        "required": ["uid", "value"],
                         "properties": {
                           "uid": {
-                            "description": "The fields uid",
-                            "type": "string"
+                            "description": "The field definition UID. This is a dynamic identifier obtained from `GET /platform/v1/fields`. For the required name field, filter the response by `type='name'` AND `object_type='matter'` and use the `id` value (e.g., `hfv05wachtec1bvp`).",
+                            "type": "string",
+                            "x-reference-to": "field"
                           },
                           "value": {
-                            "description": "The fields value to be updated",
+                            "description": "The value to set for this field. For the name field, this becomes the matter's display name and should be a descriptive, unique-per-client value (e.g., `Personal Injury Case`).",
                             "type": "string"
                           }
-                        },
-                        "type": "object"
-                      },
-                      "type": "array"
+                        }
+                      }
                     },
                     "note": {
-                      "description": "A note to add to the matter created",
+                      "description": "An optional note to attach to the newly created matter.",
                       "type": "string"
                     },
                     "tags": {
-                      "description": "Tags to add to the matter created",
+                      "description": "An optional list of tags to associate with the newly created matter.",
                       "items": {
                         "type": "string"
                       },
                       "type": "array"
                     }
-                  },
-                  "type": "object"
+                  }
                 }
-              },
-              "type": "object"
+              }
             }
           }
         ],
@@ -324,14 +356,28 @@
             }
           },
           "422": {
-            "description": "Failure",
+            "description": "Validation Error - Common causes include: missing or invalid field UID, missing name field value, or invalid client_uid",
             "examples": {
               "application/json": {
                 "errors": [
                   {
-                    "code": "Error Code",
-                    "field": "Error Field (optional)",
-                    "message": "Error Message"
+                    "code": "missing_field",
+                    "field": "name",
+                    "message": "Name can't be blank"
+                  }
+                ],
+                "success": false
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error - May occur if the request body is empty or malformed. Ensure the request body contains the required matter object with fields array.",
+            "examples": {
+              "application/json": {
+                "errors": [
+                  {
+                    "code": "unexpected",
+                    "message": "undefined method `[]' for nil:NilClass"
                   }
                 ],
                 "success": false
@@ -361,7 +407,7 @@
             }
           },
           "type": "http_proxy",
-          "uri": "https:///business/clients/v1/contacts/{uid}/matters"
+          "uri": "https:///business/clients/v1/contacts/{client_uid}/matters"
         },
         "x-auth-type": "Application & Application User"
       }
@@ -371,10 +417,10 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Gets Matters by filter. Searchable fields are: Email, First name, Last name, Matter name and Phone.",
+        "description": "## Overview\nGets Matters by filter. Searchable fields are: Email, First name, Last name, Matter name and Phone.\n\n## Required Parameters\nYou must provide a `filter` parameter to search. Without it, the endpoint returns HTTP 422.\n\n## Filter Formats\n- `filter[advanced][start_with]=term` - Search by name/email/phone prefix\n- `filter[uid_in]=uid1,uid2,uid3` - Get specific matters by UIDs\n\n**Available for Staff, App, and Directory Tokens**",
         "parameters": [
           {
-            "description": "Example: /business/clients/v1/matters?filter[advanced][start_with]=term.",
+            "description": "Filter query to search matters. Required. Examples: `filter[advanced][start_with]=john` (search by name/email/phone prefix), `filter[uid_in]=uid1,uid2` (get specific UIDs)",
             "in": "query",
             "name": "filter",
             "required": true,
@@ -474,7 +520,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Gets the collaborators of a Matter",
+        "description": "## Overview\nGets the collaborators of a Matter.\n\n## Authentication\n**Available for Staff, App, and Directory Tokens.**",
         "parameters": [
           {
             "description": "Matter UID",
@@ -537,7 +583,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Adds a collaborator to a Matter",
+        "description": "## Overview\nAdds a collaborator to a Matter Available for **Staff, App, and Directory tokens**.",
         "parameters": [
           {
             "description": "Matter UID",
@@ -552,15 +598,18 @@
             "schema": {
               "properties": {
                 "collaborator": {
+                  "type": "object",
                   "properties": {
                     "staff_uid": {
-                      "description": "The staff uid",
-                      "type": "string"
+                      "description": "UID of an existing staff member in the business. Can be retrieved via GET /platform/v1/businesses/{business_uid}/staffs",
+                      "type": "string",
+                      "x-reference-to": "staff"
                     }
                   },
-                  "type": "object"
+                  "required": ["staff_uid"]
                 }
               },
+              "required": ["collaborator"],
               "type": "object"
             }
           }
@@ -584,6 +633,9 @@
                 "success": true
               }
             }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation failed. Missing or invalid collaborator or staff_uid."
           }
         },
         "security": [
@@ -618,7 +670,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Removes a collaborator from a Matter",
+        "description": "## Overview\nRemoves a collaborator from a Matter Available for **Staff, App, and Directory tokens**.",
         "parameters": [
           {
             "description": "Matter UID",
@@ -688,10 +740,10 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Nest a matter under another contact person",
+        "description": "## Overview\nMoves a matter from its current contact to a different destination contact (nesting). The source contact is automatically deleted if it has no remaining matters after the nesting operation.\n\n## Important\nThe matter being nested must have a **different name** than any existing matter on the destination contact. If names collide, the API returns a 422 validation error.\n\n## Authentication\nAvailable for **Staff, App, and Directory tokens**.",
         "parameters": [
           {
-            "description": "Matter UID",
+            "description": "The unique identifier of the matter to be moved/nested.",
             "in": "path",
             "name": "matter_uid",
             "required": true,
@@ -700,14 +752,19 @@
           {
             "in": "body",
             "name": "body",
+            "required": true,
             "schema": {
+              "type": "object",
+              "required": ["contact_uid"],
               "properties": {
                 "contact_uid": {
-                  "description": "Contact UID",
+                  "description": "The unique identifier of the destination contact to nest the matter under. Must be a valid contact UID belonging to the same business.",
                   "type": "string"
                 }
               },
-              "type": "object"
+              "example": {
+                "contact_uid": "{{contact_uid}}"
+              }
             }
           }
         ],
@@ -716,11 +773,40 @@
         ],
         "responses": {
           "200": {
-            "description": "Success",
+            "description": "Matter successfully nested under the destination contact.",
             "examples": {
               "application/json": {
                 "data": null,
                 "success": true
+              }
+            }
+          },
+          "404": {
+            "description": "Contact not found - the destination contact_uid does not exist or does not belong to the business.",
+            "examples": {
+              "application/json": {
+                "success": false,
+                "errors": [
+                  {
+                    "code": "missing",
+                    "message": "This contact doesn't exist"
+                  }
+                ]
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error - typically occurs when the matter name already exists on the destination contact.",
+            "examples": {
+              "application/json": {
+                "success": false,
+                "errors": [
+                  {
+                    "code": "invalid_nesting",
+                    "field": "matter_uid",
+                    "message": "A matter with this name already exists on the destination contact"
+                  }
+                ]
               }
             }
           }
@@ -757,7 +843,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Gets a list of notes",
+        "description": "## Overview\nGets a list of notes.\n\n## Authentication\n**Available for Staff, App, and Directory Tokens.**",
         "parameters": [
           {
             "description": "Matter UID",
@@ -835,7 +921,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Adds a note",
+        "description": "## Overview\nAdds a note Available for **Staff, App, and Directory tokens**.",
         "parameters": [
           {
             "description": "Matter UID",
@@ -847,19 +933,23 @@
           {
             "in": "body",
             "name": "body",
+            "required": true,
             "schema": {
+              "type": "object",
+              "required": ["note"],
               "properties": {
                 "note": {
+                  "type": "object",
+                  "required": ["content"],
                   "properties": {
                     "content": {
                       "description": "A notes content",
-                      "type": "string"
+                      "type": "string",
+                      "minLength": 1
                     }
-                  },
-                  "type": "object"
+                  }
                 }
-              },
-              "type": "object"
+              }
             }
           }
         ],
@@ -917,7 +1007,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Remove a note",
+        "description": "## Overview\nRemove a note Available for **Staff, App, and Directory tokens**.",
         "parameters": [
           {
             "description": "Matter UID",
@@ -986,7 +1076,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Get a note",
+        "description": "## Overview\nGet a note.\n\n## Authentication\n**Available for Staff, App, and Directory Tokens.**",
         "parameters": [
           {
             "description": "Matter UID",
@@ -1055,7 +1145,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Update a note",
+        "description": "## Overview\nUpdate a note Available for **Staff, App, and Directory tokens**.",
         "parameters": [
           {
             "description": "Matter UID",
@@ -1144,7 +1234,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Reassign staff to Matter",
+        "description": "## Overview\nReassign staff to Matter Available for **Staff, App, and Directory tokens**.",
         "parameters": [
           {
             "description": "Matter UID",
@@ -1216,12 +1306,167 @@
         "x-auth-type": "Application & Application User"
       }
     },
+    "/v1/tags": {
+      "put": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "## Overview\nBulk add tags to one or more matters. This is the endpoint used by the product (e.g. with Staff token). Send `new_api: true`, `matters.uids` (array of matter UIDs), and `tags` (array of tag strings). Available for **Staff, App, and Directory tokens**. Requires packagable feature **tags_feature** (returns 401 when disabled).",
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": ["matters", "tags"],
+              "properties": {
+                "new_api": {
+                  "type": "boolean",
+                  "description": "Set to true to use the bulk API behavior (recommended)."
+                },
+                "matters": {
+                  "type": "object",
+                  "required": ["uids"],
+                  "properties": {
+                    "uids": {
+                      "type": "array",
+                      "items": { "type": "string" },
+                      "description": "List of matter UIDs to add tags to."
+                    }
+                  }
+                },
+                "tags": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "description": "List of tag strings to add to the given matters."
+                }
+              }
+            }
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized - missing or invalid token, or missing tags_feature for the business."
+          }
+        },
+        "security": [
+          {
+            "default": [
+              "business/clients"
+            ]
+          }
+        ],
+        "summary": "Bulk add tags to matters",
+        "tags": [
+          "Matters"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "PUT",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///business/clients/v1/tags"
+        },
+        "x-auth-type": "Application & Application User"
+      },
+      "delete": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "## Overview\nBulk remove tags from one or more matters. Same contract as PUT: send `matters.uids` (array of matter UIDs) and `tags` (array of tag strings to remove). Optional query param `new_api: true` (Frontage sends it). Available for **Staff, App, and Directory tokens**. Requires **tags_feature** (returns 401 when disabled). Frontend: `frontage/app/assets/frontage/app/crm/actions/client-tags/client-bulk-tags-controller.js.coffee` (customDELETE with body).",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "new_api",
+            "required": false,
+            "type": "boolean",
+            "description": "Set to true to use bulk API (Frontage sends this)."
+          },
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": ["matters", "tags"],
+              "properties": {
+                "matters": {
+                  "type": "object",
+                  "required": ["uids"],
+                  "properties": {
+                    "uids": {
+                      "type": "array",
+                      "items": { "type": "string" },
+                      "description": "List of matter UIDs to remove tags from."
+                    }
+                  }
+                },
+                "tags": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "description": "List of tag strings to remove from the given matters."
+                }
+              }
+            }
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "401": {
+            "description": "Unauthorized - missing or invalid token, or missing tags_feature."
+          }
+        },
+        "security": [
+          {
+            "default": [
+              "business/clients"
+            ]
+          }
+        ],
+        "summary": "Bulk remove tags from matters",
+        "tags": [
+          "Matters"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "DELETE",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///business/clients/v1/tags"
+        },
+        "x-auth-type": "Application & Application User"
+      }
+    },
     "/v1/matters/{matter_uid}/tags": {
       "delete": {
         "consumes": [
           "application/json"
         ],
-        "description": "Remove a tag from a Matter",
+        "description": "## Overview\nRemove a tag from a single Matter (one matter_uid in path, one tag in body). For bulk remove use DELETE /v1/tags. Available for **Staff, App, and Directory tokens**.",
         "parameters": [
           {
             "description": "Matter UID",
@@ -1288,7 +1533,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Gets a list of tags of a Matter",
+        "description": "## Overview\nGets a list of tags of a Matter.\n\n## Authentication\n**Available for Staff, App, and Directory Tokens.**",
         "parameters": [
           {
             "description": "Matter UID",
@@ -1347,7 +1592,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Adds a tag to a Matter",
+        "description": "## Overview\n**Deprecated.** Use **PUT /v1/tags** instead (bulk add with body `new_api`, `matters.uids`, `tags`). This endpoint adds a single tag to one matter. Available for **Staff, App, and Directory tokens**.",
         "parameters": [
           {
             "description": "Matter UID",
@@ -1359,14 +1604,17 @@
           {
             "in": "body",
             "name": "body",
+            "required": true,
             "schema": {
+              "type": "object",
+              "required": ["tag"],
               "properties": {
                 "tag": {
                   "description": "A new tag to add",
-                  "type": "string"
+                  "type": "string",
+                  "minLength": 1
                 }
-              },
-              "type": "object"
+              }
             }
           }
         ],
@@ -1382,6 +1630,20 @@
                 "success": true
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized - missing or invalid token, or token accepted but business context mismatch (e.g. Staff token for a different business).",
+            "examples": {
+              "application/json": {
+                "success": false,
+                "errors": [
+                  {
+                    "code": "unauthorized",
+                    "message": "Unauthorized"
+                  }
+                ]
+              }
+            }
           }
         },
         "security": [
@@ -1391,7 +1653,7 @@
             ]
           }
         ],
-        "summary": "Adds a tag to a Matter",
+        "summary": "[Deprecated] Adds a tag to a Matter",
         "tags": [
           "Matters"
         ],
@@ -1416,7 +1678,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Gets a Matter",
+        "description": "## Overview\nGets a Matter.\n\n## Authentication\n**Available for Staff, App, and Directory Tokens.**",
         "parameters": [
           {
             "description": "Matter UID",
@@ -1515,10 +1777,10 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Updates a Matter",
+        "description": "## Overview\nUpdates a Matter.\n\n## Authentication\n**Available for Staff, App, and Directory tokens.**\n\n## Validation\n- `uid` (path parameter): Must be a valid matter UID that exists and is accessible to the authenticated user\n- `fields[].uid`: Each field UID must be a valid field that exists for this specific matter. Use `GET /business/clients/v1/matters/{uid}` to see available field UIDs.",
         "parameters": [
           {
-            "description": "Matter UID",
+            "description": "Matter UID. Must be a valid matter UID that exists and is accessible to the authenticated user.",
             "in": "path",
             "name": "uid",
             "required": true,
@@ -1527,32 +1789,35 @@
           {
             "in": "body",
             "name": "body",
+            "required": true,
             "schema": {
+              "type": "object",
+              "required": ["matter"],
               "properties": {
                 "matter": {
+                  "type": "object",
                   "properties": {
                     "fields": {
-                      "description": "A list of fields to be updated",
+                      "description": "A list of fields to be updated. Each field UID must exist for this specific matter.",
+                      "type": "array",
                       "items": {
+                        "type": "object",
                         "properties": {
                           "uid": {
-                            "description": "The fields uid",
-                            "type": "string"
+                            "description": "The field UID. Must be a valid custom_field that exists for this specific matter.",
+                            "type": "string",
+                            "x-reference-to": "custom_field"
                           },
                           "value": {
-                            "description": "The fields value to be updated",
+                            "description": "The field value to be updated",
                             "type": "string"
                           }
-                        },
-                        "type": "object"
-                      },
-                      "type": "array"
+                        }
+                      }
                     }
-                  },
-                  "type": "object"
+                  }
                 }
-              },
-              "type": "object"
+              }
             }
           }
         ],
@@ -1647,8 +1912,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Get settings",
-
+        "description": "## Overview\nGet settings.\n\n## Authentication\n**Available for Staff, App, and Directory Tokens.**",
         "produces": [
           "application/json"
         ],
@@ -1712,28 +1976,46 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Update settings",
+        "description": "## Overview\nUpdate settings Available for **Staff, App, and Directory tokens**.",
         "parameters": [
           {
             "in": "body",
             "name": "body",
+            "required": true,
             "schema": {
+              "type": "object",
+              "required": ["settings"],
               "properties": {
                 "settings": {
+                  "type": "object",
+                  "required": ["terms"],
                   "properties": {
                     "terms": {
+                      "type": "object",
+                      "required": ["selected"],
                       "properties": {
                         "selected": {
-                          "type": "string"
+                          "description": "The terminology used to refer to clients in the business. Valid values: clients, patients, students, pets, cases, projects, properties, jobs, accounts, opportunities, vehicles",
+                          "type": "string",
+                          "enum": [
+                            "clients",
+                            "patients",
+                            "students",
+                            "pets",
+                            "cases",
+                            "projects",
+                            "properties",
+                            "jobs",
+                            "accounts",
+                            "opportunities",
+                            "vehicles"
+                          ]
                         }
-                      },
-                      "type": "object"
+                      }
                     }
-                  },
-                  "type": "object"
+                  }
                 }
-              },
-              "type": "object"
+              }
             }
           }
         ],
@@ -1783,139 +2065,6 @@
         },
         "x-auth-type": "Application & Application User"
       }
-    },
-    "/v3/clients/client_settings/{client_uid}": {
-      "get": {
-        "consumes": [
-          "application/json"
-        ],
-        "description": "Get the client settings for a specific client - Available for Staff and Client Tokens",
-
-        "produces": [
-          "application/json"
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "examples": {
-              "application/json": {
-                "data": {
-                  "data": {
-                    "client_uid": "94ca2054-3bb0-4788-8e9e-ee2442975cdd",
-                    "created_at": "2024-07-01T13:35:29.000Z",
-                    "opt_out_transactional_sms": false,
-                    "updated_at": "2024-07-01T13:35:29.000Z"
-                  },
-                  "success": true
-                },
-                "success": true
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "default": [
-              "business/clients"
-            ]
-          }
-        ],
-        "summary": "Retrieve Client Settings",
-        "tags": [
-          "Client Settings"
-        ],
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-amazon-apigateway-integration": {
-          "httpMethod": "GET",
-          "responses": {
-            "default": {
-              "statusCode": "200"
-            }
-          },
-          "type": "http_proxy",
-          "uri": "https:///v3/clients/client_settings/{client_uid}"
-        },
-        "x-auth-type": "Application & Application User"
-      },
-      "parameters": [
-        {
-          "description": "Unique identifier of the Client",
-          "in": "path",
-          "name": "client_uid",
-          "required": true,
-          "type": "string"
-        }
-      ],
-      "put": {
-        "consumes": [
-          "application/json"
-        ],
-        "description": "Update the client settings for a specific client - Available for Staff and Client Tokens",
-        "parameters": [
-          {
-            "in": "body",
-            "name": "body",
-            "schema": {
-              "properties": {
-                "opt_out_transactional_sms": {
-                  "description": "Opt out from transactional SMS",
-                  "type": "boolean"
-                }
-              },
-              "type": "object"
-            }
-          }
-        ],
-        "produces": [
-          "application/json"
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "examples": {
-              "application/json": {
-                "data": {
-                  "data": {
-                    "client_uid": "94ca2054-3bb0-4788-8e9e-ee2442975cdd",
-                    "created_at": "2024-07-01T13:35:29.000Z",
-                    "opt_out_transactional_sms": true,
-                    "updated_at": "2024-07-01T13:35:29.000Z"
-                  },
-                  "success": true
-                },
-                "success": true
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "default": [
-              "business/clients"
-            ]
-          }
-        ],
-        "summary": "Update Client Settings",
-        "tags": [
-          "Client Settings"
-        ],
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-amazon-apigateway-integration": {
-          "httpMethod": "PUT",
-          "responses": {
-            "default": {
-              "statusCode": "200"
-            }
-          },
-          "type": "http_proxy",
-          "uri": "https:///v3/clients/client_settings/{client_uid}"
-        },
-        "x-auth-type": "Application & Application User"
-      }
     }
   },
   "securityDefinitions": {
@@ -1940,5 +2089,15 @@
     }
   },
   "swagger": "2.0",
-  "x-throttling-tier": "8ReqPerSec"
+  "x-throttling-tier": "8ReqPerSec",
+  "components": {
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+      }
+    }
+  }
 }
