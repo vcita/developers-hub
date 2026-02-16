@@ -1,0 +1,1151 @@
+/**
+ * Response Validator
+ * Validates API responses against documented schemas using AJV
+ */
+
+const Ajv = require('ajv');
+const addFormats = require('ajv-formats');
+
+// Failure reason codes
+const FAILURE_REASONS = {
+  SCHEMA_MISMATCH: 'SCHEMA_MISMATCH',
+  MISSING_REQUIRED_FIELD: 'MISSING_REQUIRED_FIELD',
+  TYPE_MISMATCH: 'TYPE_MISMATCH',
+  UNEXPECTED_STATUS_CODE: 'UNEXPECTED_STATUS_CODE',
+  AUTH_FAILED: 'AUTH_FAILED',
+  ENDPOINT_NOT_FOUND: 'ENDPOINT_NOT_FOUND',
+  RESOURCE_NOT_FOUND: 'RESOURCE_NOT_FOUND', // Resource/entity not found (404 with valid API response)
+  VALIDATION_ERROR: 'VALIDATION_ERROR', // API returned validation error (may use wrong status code like 404)
+  CONFLICT: 'CONFLICT', // 409 Conflict - operation cannot be performed due to current state
+  TIMEOUT: 'TIMEOUT',
+  REF_RESOLUTION_FAILED: 'REF_RESOLUTION_FAILED',
+  RATE_LIMITED: 'RATE_LIMITED',
+  SERVER_ERROR: 'SERVER_ERROR',
+  NETWORK_ERROR: 'NETWORK_ERROR',
+  DOC_ISSUE: 'DOC_ISSUE',
+  PARAM_NAME_MISMATCH: 'PARAM_NAME_MISMATCH',
+  EXPECTED_ERROR: 'EXPECTED_ERROR', // API returned documented error response
+  BAD_GATEWAY_FALLBACK: 'BAD_GATEWAY_FALLBACK', // Primary URL returned 502, succeeded on fallback URL
+  SWAGGER_TYPE_MISMATCH: 'SWAGGER_TYPE_MISMATCH' // API error indicates swagger has wrong type definition
+};
+
+// Friendly message templates
+const FRIENDLY_MESSAGES = {
+  [FAILURE_REASONS.SCHEMA_MISMATCH]: (details) => 
+    `Response shape doesn't match documentation. ${details || ''}`,
+  
+  [FAILURE_REASONS.MISSING_REQUIRED_FIELD]: (field) => 
+    `Response is missing required field '${field}'. The API returned successfully but the field wasn't present.`,
+  
+  [FAILURE_REASONS.TYPE_MISMATCH]: (field, expected, actual) => 
+    `Field '${field}' has type '${actual}' but documentation says '${expected}'.`,
+  
+  [FAILURE_REASONS.UNEXPECTED_STATUS_CODE]: (expected, actual, hint) => 
+    `Expected status ${expected} but got ${actual}. ${hint || ''}`,
+  
+  [FAILURE_REASONS.AUTH_FAILED]: (tokenType) => 
+    `Authentication failed with ${tokenType} token. Verify the token is valid and has access to this endpoint.`,
+  
+  [FAILURE_REASONS.ENDPOINT_NOT_FOUND]: () => 
+    `Endpoint not found (404). The API path may be incorrect in the documentation.`,
+  
+  [FAILURE_REASONS.RESOURCE_NOT_FOUND]: (resourceInfo) => 
+    `Resource not found (404). The requested ${resourceInfo || 'entity'} does not exist. This is a valid API response.`,
+  
+  [FAILURE_REASONS.VALIDATION_ERROR]: (message, field) => 
+    `Validation error: ${message || 'Invalid request data'}${field ? ` (field: ${field})` : ''}. The request body or parameters may not match the expected format.`,
+  
+  [FAILURE_REASONS.CONFLICT]: (message) => 
+    `Conflict (409). ${message || 'The operation cannot be performed due to the current state of the resource.'}`,
+  
+  [FAILURE_REASONS.TIMEOUT]: (timeout) => 
+    `Request timed out after ${timeout}ms. The endpoint may be slow or unavailable.`,
+  
+  [FAILURE_REASONS.REF_RESOLUTION_FAILED]: (ref) => 
+    `Could not resolve schema reference '${ref}'. The external entity URL may be incorrect.`,
+  
+  [FAILURE_REASONS.RATE_LIMITED]: () =>
+    `Request was rate limited (429). Consider reducing request rate.`,
+  
+  [FAILURE_REASONS.SERVER_ERROR]: (status) =>
+    `Server returned error ${status}. This may be a temporary issue or indicate a problem with the API.`,
+  
+  [FAILURE_REASONS.NETWORK_ERROR]: (message) =>
+    `Network error: ${message}. Check connectivity and base URL configuration.`,
+  
+  [FAILURE_REASONS.DOC_ISSUE]: () =>
+    `Documentation issue detected. The API call succeeded after correcting the request, but the documentation needs updating.`,
+  
+  [FAILURE_REASONS.PARAM_NAME_MISMATCH]: (original, correct) =>
+    `Documentation uses {${original}} but API expects {${correct}}. Update the OpenAPI spec.`,
+  
+  [FAILURE_REASONS.EXPECTED_ERROR]: (status) =>
+    `API returned ${status} error response. This is expected behavior per documentation.`,
+  
+  [FAILURE_REASONS.BAD_GATEWAY_FALLBACK]: (primaryUrl, fallbackUrl, primaryStatus) =>
+    `Primary URL (${primaryUrl}) returned bad gateway error (status ${primaryStatus || 502}). Request succeeded using fallback URL (${fallbackUrl}).`,
+  
+  [FAILURE_REASONS.SWAGGER_TYPE_MISMATCH]: (field, swaggerType, apiExpectedType) =>
+    `Swagger type mismatch: Field '${field}' is defined as '${swaggerType}' in swagger, but API expects '${apiExpectedType}'. Update the swagger type definition.`
+};
+
+/**
+ * Create AJV validator instance
+ * @returns {Ajv} Configured AJV instance
+ */
+function createValidator() {
+  const ajv = new Ajv({
+    allErrors: true,
+    verbose: true,
+    strict: false,
+    validateFormats: false,
+    allowUnionTypes: true // Allow multiple types including null
+  });
+  
+  // Add format validators
+  addFormats(ajv);
+  
+  return ajv;
+}
+
+/**
+ * Convert OpenAPI schema to be more lenient with null values
+ * - Explicit nullable: true fields allow null
+ * - Optional fields (not in required) also allow null implicitly
+ * @param {Object} schema - OpenAPI schema
+ * @param {string[]} requiredFields - Array of required field names (from parent)
+ * @param {string} fieldName - Current field name (to check if required)
+ * @returns {Object} JSON Schema compatible schema
+ */
+function convertNullableSchema(schema, requiredFields = [], fieldName = null) {
+  if (!schema || typeof schema !== 'object') {
+    return schema;
+  }
+  
+  // Handle arrays
+  if (Array.isArray(schema)) {
+    return schema.map(item => convertNullableSchema(item, requiredFields));
+  }
+  
+  // Clone the schema
+  const converted = { ...schema };
+  
+  // Determine if this field should allow null:
+  // 1. Explicit nullable: true
+  // 2. Field is optional (not in parent's required array)
+  const isExplicitlyNullable = converted.nullable === true;
+  const isOptional = fieldName && !requiredFields.includes(fieldName);
+  const shouldAllowNull = isExplicitlyNullable || isOptional;
+  
+  // Add null to type if needed
+  if (shouldAllowNull && converted.type) {
+    if (Array.isArray(converted.type)) {
+      if (!converted.type.includes('null')) {
+        converted.type = [...converted.type, 'null'];
+      }
+    } else {
+      converted.type = [converted.type, 'null'];
+    }
+  }
+  
+  // Get required fields for children
+  const childRequired = converted.required || [];
+  
+  // Recursively process nested schemas
+  if (converted.properties) {
+    converted.properties = {};
+    for (const [key, value] of Object.entries(schema.properties)) {
+      // Pass the required array and field name to children
+      converted.properties[key] = convertNullableSchema(value, childRequired, key);
+    }
+  }
+  
+  if (converted.items) {
+    // Array items don't have a field name context
+    converted.items = convertNullableSchema(schema.items, []);
+  }
+  
+  if (converted.allOf) {
+    converted.allOf = schema.allOf.map(s => convertNullableSchema(s, requiredFields));
+  }
+  
+  if (converted.anyOf) {
+    converted.anyOf = schema.anyOf.map(s => convertNullableSchema(s, requiredFields));
+  }
+  
+  if (converted.oneOf) {
+    converted.oneOf = schema.oneOf.map(s => convertNullableSchema(s, requiredFields));
+  }
+  
+  if (converted.additionalProperties && typeof converted.additionalProperties === 'object') {
+    converted.additionalProperties = convertNullableSchema(schema.additionalProperties, []);
+  }
+  
+  return converted;
+}
+
+/**
+ * Validate response against schema
+ * @param {Object} response - API response data
+ * @param {Object} schema - JSON Schema to validate against
+ * @param {Ajv} ajv - AJV validator instance
+ * @returns {Object} { valid: boolean, errors: Object[] }
+ */
+function validateAgainstSchema(response, schema, ajv = createValidator()) {
+  if (!schema) {
+    return { valid: true, errors: [] };
+  }
+  
+  // Handle unresolved $ref
+  if (schema._resolveError) {
+    return {
+      valid: false,
+      errors: [{
+        reason: FAILURE_REASONS.REF_RESOLUTION_FAILED,
+        message: schema._resolveError,
+        friendlyMessage: FRIENDLY_MESSAGES[FAILURE_REASONS.REF_RESOLUTION_FAILED](schema.$ref)
+      }]
+    };
+  }
+  
+  // Check if schema still has unresolved $ref
+  if (schema.$ref) {
+    return {
+      valid: false,
+      errors: [{
+        reason: FAILURE_REASONS.REF_RESOLUTION_FAILED,
+        message: `Unresolved reference: ${schema.$ref}`,
+        friendlyMessage: FRIENDLY_MESSAGES[FAILURE_REASONS.REF_RESOLUTION_FAILED](schema.$ref)
+      }]
+    };
+  }
+  
+  // Convert OpenAPI nullable to JSON Schema compatible format
+  const processedSchema = convertNullableSchema(schema);
+  
+  let validate;
+  try {
+    validate = ajv.compile(processedSchema);
+  } catch (compileError) {
+    // Handle MissingRefError or other compilation errors
+    const refMatch = compileError.message?.match(/can't resolve reference ([^\s]+)/);
+    if (refMatch) {
+      return {
+        valid: false,
+        errors: [{
+          reason: FAILURE_REASONS.REF_RESOLUTION_FAILED,
+          message: compileError.message,
+          friendlyMessage: FRIENDLY_MESSAGES[FAILURE_REASONS.REF_RESOLUTION_FAILED](refMatch[1])
+        }]
+      };
+    }
+    // Skip validation for schemas that can't be compiled
+    console.warn('Schema compilation error:', compileError.message);
+    return { valid: true, errors: [], skippedValidation: true };
+  }
+  
+  const valid = validate(response);
+  
+  // Check for undocumented fields (additional properties)
+  const undocumentedFields = findUndocumentedFields(response, processedSchema);
+  
+  if (valid) {
+    // Even if valid, report undocumented fields as warnings
+    if (undocumentedFields.length > 0) {
+      return { 
+        valid: true, 
+        errors: [],
+        warnings: undocumentedFields.map(field => ({
+          reason: 'UNDOCUMENTED_FIELD',
+          path: field.path,
+          message: `Field "${field.field}" is not documented in schema`,
+          friendlyMessage: `API returned undocumented field "${field.field}" at ${field.path || 'root'}. Consider adding it to the documentation.`
+        }))
+      };
+    }
+    return { valid: true, errors: [] };
+  }
+  
+  // Convert AJV errors to our format
+  const errors = (validate.errors || []).map(error => {
+    const path = error.instancePath || '';
+    const property = error.params?.missingProperty || error.params?.additionalProperty || '';
+    
+    let reason = FAILURE_REASONS.SCHEMA_MISMATCH;
+    let friendlyMessage = '';
+    
+    if (error.keyword === 'required') {
+      reason = FAILURE_REASONS.MISSING_REQUIRED_FIELD;
+      friendlyMessage = FRIENDLY_MESSAGES[reason](property);
+    } else if (error.keyword === 'type') {
+      reason = FAILURE_REASONS.TYPE_MISMATCH;
+      const field = path || 'root';
+      friendlyMessage = FRIENDLY_MESSAGES[reason](
+        field,
+        error.params.type,
+        typeof error.data
+      );
+    } else {
+      friendlyMessage = FRIENDLY_MESSAGES[reason](error.message);
+    }
+    
+    return {
+      reason,
+      keyword: error.keyword,
+      path,
+      message: error.message,
+      friendlyMessage,
+      params: error.params,
+      data: error.data
+    };
+  });
+  
+  return { valid: false, errors, warnings: undocumentedFields.map(field => ({
+    reason: 'UNDOCUMENTED_FIELD',
+    path: field.path,
+    message: `Field "${field.field}" is not documented in schema`,
+    friendlyMessage: `API returned undocumented field "${field.field}" at ${field.path || 'root'}. Consider adding it to the documentation.`
+  })) };
+}
+
+/**
+ * Find fields in response that are not documented in schema
+ * @param {*} data - Response data
+ * @param {Object} schema - JSON Schema
+ * @param {string} path - Current path
+ * @param {number} depth - Current recursion depth (to prevent infinite loops)
+ * @returns {Array} Array of undocumented field info
+ */
+function findUndocumentedFields(data, schema, path = '', depth = 0) {
+  const undocumented = [];
+  
+  // Prevent infinite recursion and skip deep nesting
+  if (depth > 5 || !data || typeof data !== 'object' || !schema) {
+    return undocumented;
+  }
+  
+  // Skip if schema has unresolved $ref (can't validate)
+  if (schema.$ref) {
+    return undocumented;
+  }
+  
+  // Handle arrays - only check first item to avoid noise
+  if (Array.isArray(data)) {
+    const itemSchema = schema.items;
+    if (itemSchema && data.length > 0) {
+      undocumented.push(...findUndocumentedFields(data[0], itemSchema, `${path}[0]`, depth + 1));
+    }
+    return undocumented;
+  }
+  
+  // Collect all documented properties from schema (handle complex compositions)
+  const schemaProperties = collectSchemaProperties(schema);
+  
+  // If schema allows additional properties or we couldn't determine properties, skip
+  if (schema.additionalProperties === true || Object.keys(schemaProperties).length === 0) {
+    return undocumented;
+  }
+  
+  // Check each field in the response
+  for (const key of Object.keys(data)) {
+    const fieldPath = path ? `${path}.${key}` : key;
+    
+    // Skip common response envelope fields that may not be in entity schemas
+    if (['success', 'status', 'message', 'meta', 'pagination'].includes(key) && !path) {
+      continue;
+    }
+    
+    if (!schemaProperties[key]) {
+      // Field is not documented
+      undocumented.push({ field: key, path: fieldPath });
+    } else if (schemaProperties[key] && data[key] && typeof data[key] === 'object') {
+      // Recursively check nested objects
+      undocumented.push(...findUndocumentedFields(data[key], schemaProperties[key], fieldPath, depth + 1));
+    }
+  }
+  
+  return undocumented;
+}
+
+/**
+ * Recursively collect all properties from a schema, handling allOf, oneOf, anyOf
+ * @param {Object} schema - JSON Schema
+ * @returns {Object} Merged properties object
+ */
+function collectSchemaProperties(schema) {
+  let properties = {};
+  
+  if (!schema) return properties;
+  
+  // Direct properties
+  if (schema.properties) {
+    properties = { ...properties, ...schema.properties };
+  }
+  
+  // Handle allOf - merge all properties
+  if (schema.allOf && Array.isArray(schema.allOf)) {
+    for (const subSchema of schema.allOf) {
+      properties = { ...properties, ...collectSchemaProperties(subSchema) };
+    }
+  }
+  
+  // Handle oneOf - use first as reference
+  if (schema.oneOf && Array.isArray(schema.oneOf) && schema.oneOf[0]) {
+    properties = { ...properties, ...collectSchemaProperties(schema.oneOf[0]) };
+  }
+  
+  // Handle anyOf - use first as reference
+  if (schema.anyOf && Array.isArray(schema.anyOf) && schema.anyOf[0]) {
+    properties = { ...properties, ...collectSchemaProperties(schema.anyOf[0]) };
+  }
+  
+  return properties;
+}
+
+/**
+ * Build a validation result object
+ * @param {Object} params - Result parameters
+ * @returns {Object} Validation result
+ */
+function buildValidationResult({
+  endpoint,
+  status,
+  httpStatus,
+  duration,
+  tokenUsed,
+  reason = null,
+  errors = [],
+  response = null,
+  request = null,
+  suggestion = null
+}) {
+  // PASS, WARN, and ERROR are "successful" statuses (include request/response without error details)
+  const isSuccessful = status === 'PASS' || status === 'WARN' || status === 'ERROR';
+  
+  const result = {
+    endpoint: `${endpoint.method} ${endpoint.path}`,
+    domain: endpoint.domain,
+    method: endpoint.method,
+    path: endpoint.path,
+    summary: endpoint.summary || null,
+    description: endpoint.description || null,
+    swaggerFile: endpoint.swaggerFile || endpoint.domain, // Include swagger file path for reference
+    status,
+    httpStatus,
+    duration: `${duration}ms`,
+    durationMs: duration,
+    tokenUsed,
+    details: null
+  };
+  
+  // Build friendlyMessage for all statuses that have a reason
+  const friendlyMessage = errors.length > 0 
+    ? errors[0].friendlyMessage 
+    : (reason ? (FRIENDLY_MESSAGES[reason]?.(httpStatus) || reason) : null);
+  
+  if (!isSuccessful) {
+    // FAIL or SKIP - include full error details
+    result.details = {
+      reason,
+      friendlyMessage,
+      errors,
+      suggestion,
+      request: request ? {
+        url: request.url,
+        method: request.method,
+        headers: request.headers, // Keep full headers for cURL generation
+        headersDisplay: maskSensitiveHeaders(request.headers), // Masked for display
+        params: request.params,
+        data: request.data
+      } : null,
+      response: response ? {
+        status: response.status,
+        headers: response.headers,
+        data: truncateData(response.data)
+      } : null
+    };
+  } else {
+    // PASS, WARN, ERROR - include request/response and any issues for debugging
+    result.details = {
+      reason,
+      friendlyMessage, // Include for WARN/ERROR to show what the issue is
+      errors, // Include for WARN to show schema/doc issues
+      suggestion, // Include for WARN/ERROR
+      request: request ? {
+        url: request.url,
+        method: request.method,
+        headers: request.headers,
+        headersDisplay: maskSensitiveHeaders(request.headers),
+        params: request.params,
+        data: request.data
+      } : null,
+      response: response ? {
+        status: response.status,
+        headers: response.headers,
+        data: truncateData(response.data)
+      } : null
+    };
+  }
+  
+  return result;
+}
+
+/**
+ * Detect if a response contains validation errors (API may use wrong status code)
+ * Some APIs return 404 for validation errors which should be recoverable
+ * @param {Object} responseData - Response body
+ * @returns {Object|null} - { isValidationError: boolean, message: string, field: string }
+ */
+function detectValidationError(responseData) {
+  if (!responseData || typeof responseData !== 'object') {
+    return null;
+  }
+  
+  // Check for common validation error patterns
+  const errors = responseData.errors || [];
+  if (!Array.isArray(errors) || errors.length === 0) {
+    return null;
+  }
+  
+  // Look for validation-related error codes or messages
+  const validationPatterns = [
+    /not valid/i,
+    /invalid/i,
+    /required/i,
+    /missing/i,
+    /must be/i,
+    /should be/i,
+    /cannot be/i,
+    /expected/i,
+    /format/i,
+    /type/i,
+    /validation/i,
+    /bad.?request/i
+  ];
+  
+  const validationCodes = ['missing', 'invalid', 'required', 'bad_request', 'validation', 'type_error'];
+  
+  for (const error of errors) {
+    const code = (error.code || '').toLowerCase();
+    const message = error.message || '';
+    
+    // Check if error code indicates validation
+    if (validationCodes.some(c => code.includes(c))) {
+      return {
+        isValidationError: true,
+        message: message,
+        field: error.field || null
+      };
+    }
+    
+    // Check if error message indicates validation
+    if (validationPatterns.some(pattern => pattern.test(message))) {
+      return {
+        isValidationError: true,
+        message: message,
+        field: error.field || null
+      };
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Check if response data indicates a "resource not found" (vs endpoint not found)
+ * @param {Object} responseData - Response body
+ * @returns {Object|null} - { isResourceNotFound: boolean, resourceInfo: string }
+ */
+function detectResourceNotFound(responseData) {
+  if (!responseData || typeof responseData !== 'object') {
+    return null;
+  }
+  
+  // Check for common API error response patterns
+  const hasApiStructure = responseData.success === false || 
+                          responseData.errors || 
+                          responseData.error ||
+                          responseData.message ||
+                          responseData.code;
+  
+  if (!hasApiStructure) {
+    return null;
+  }
+  
+  // Extract error message to get resource info
+  let errorMessage = '';
+  if (responseData.errors && Array.isArray(responseData.errors) && responseData.errors.length > 0) {
+    errorMessage = responseData.errors[0].message || responseData.errors[0].code || '';
+  } else if (responseData.error) {
+    errorMessage = typeof responseData.error === 'string' ? responseData.error : responseData.error.message || '';
+  } else if (responseData.message) {
+    errorMessage = responseData.message;
+  }
+  
+  // Check if the error indicates a resource not found (not endpoint)
+  const notFoundPatterns = [
+    /not found/i,
+    /does not exist/i,
+    /doesn't exist/i,
+    /no .* found/i,
+    /could not find/i,
+    /unable to find/i,
+    /invalid .* id/i,
+    /unknown .*/i
+  ];
+  
+  const isResourceNotFound = notFoundPatterns.some(pattern => pattern.test(errorMessage)) ||
+                             responseData.code === 'not_found' ||
+                             (responseData.errors?.[0]?.code === 'not_found');
+  
+  if (isResourceNotFound) {
+    // Try to extract resource name from message (e.g., "Chat not found" -> "Chat")
+    const resourceMatch = errorMessage.match(/^(\w+)\s+not found/i) ||
+                          errorMessage.match(/^(\w+)\s+does not exist/i);
+    const resourceInfo = resourceMatch ? resourceMatch[1] : 'resource';
+    
+    return { isResourceNotFound: true, resourceInfo };
+  }
+  
+  return null;
+}
+
+/**
+ * Check if 404 response indicates a true endpoint/routing error (path doesn't exist)
+ * vs a missing resource/entity (path exists but entity not found)
+ * 
+ * This function looks for explicit routing error messages that indicate
+ * the API path itself is wrong, not just a missing resource.
+ * 
+ * @param {Object} responseData - Response body
+ * @returns {Object|null} - { isEndpointNotFound: boolean, routingInfo: string }
+ */
+function detectEndpointNotFound(responseData) {
+  if (!responseData || typeof responseData !== 'object') {
+    return null;
+  }
+  
+  // Extract message from various response formats
+  let errorMessage = '';
+  if (typeof responseData === 'string') {
+    errorMessage = responseData;
+  } else if (responseData.message) {
+    errorMessage = responseData.message;
+  } else if (responseData.error) {
+    errorMessage = typeof responseData.error === 'string' 
+      ? responseData.error 
+      : responseData.error.message || '';
+  } else if (responseData.errors && Array.isArray(responseData.errors) && responseData.errors.length > 0) {
+    errorMessage = responseData.errors[0].message || responseData.errors[0].code || '';
+  }
+  
+  // Patterns that indicate routing/path errors (NOT resource errors)
+  const routingErrorPatterns = [
+    /route not found/i,
+    /endpoint not found/i,
+    /cannot (get|post|put|patch|delete)/i,
+    /no route/i,
+    /path not found/i,
+    /not implemented/i,
+    /unknown route/i,
+    /unknown endpoint/i,
+    /invalid path/i,
+    /method not allowed/i,
+    /api not found/i,
+    /service not available/i,
+    /no matching route/i,
+    /^\s*<!DOCTYPE/i,  // HTML error page (often from proxy/gateway)
+    /Bad Gateway/i,
+    /502/,
+    /503/
+  ];
+  
+  const isEndpointNotFound = routingErrorPatterns.some(pattern => pattern.test(errorMessage));
+  
+  if (isEndpointNotFound) {
+    return { 
+      isEndpointNotFound: true, 
+      routingInfo: errorMessage.substring(0, 200) 
+    };
+  }
+  
+  // Also check if response looks like a generic gateway/proxy error
+  // These typically don't have our API's error structure
+  const hasNoApiStructure = !responseData.success && 
+                            !responseData.errors && 
+                            !responseData.error && 
+                            !responseData.data &&
+                            !responseData.code;
+  
+  // If we get a raw HTML page or no API structure with certain messages, it's likely routing
+  if (hasNoApiStructure && responseData.statusCode === 404) {
+    return {
+      isEndpointNotFound: true,
+      routingInfo: 'No API response structure - likely gateway/proxy error'
+    };
+  }
+  
+  return null;
+}
+
+/**
+ * Detect if an API validation error indicates a swagger type mismatch
+ * This catches cases where swagger defines a field as one type (e.g., string) 
+ * but the API actually expects a different type (e.g., number)
+ * 
+ * @param {Object} responseData - Response body with error info
+ * @param {Object} requestBody - The request body that was sent
+ * @param {Object} requestSchema - The swagger schema for the request body
+ * @param {boolean} returnAll - If true, returns ALL mismatches; if false, returns only the first
+ * @returns {Object|Object[]|null} - Single mismatch, array of mismatches, or null
+ */
+function detectSwaggerTypeMismatch(responseData, requestBody, requestSchema, returnAll = false) {
+  if (!responseData || typeof responseData !== 'object') {
+    return returnAll ? [] : null;
+  }
+  
+  // Extract errors array
+  const errors = responseData.errors || [];
+  if (!Array.isArray(errors) || errors.length === 0) {
+    return returnAll ? [] : null;
+  }
+  
+  // Type keywords that indicate what the API expects
+  const typePatterns = [
+    { pattern: /must be (?:a |an )?(number|numeric|integer|int)/i, expectedType: 'number' },
+    { pattern: /must be (?:a |an )?(string|text)/i, expectedType: 'string' },
+    { pattern: /must be (?:a |an )?(boolean|bool|true|false)/i, expectedType: 'boolean' },
+    { pattern: /must be (?:a |an )?(array|list)/i, expectedType: 'array' },
+    { pattern: /must be (?:a |an )?(object)/i, expectedType: 'object' },
+    { pattern: /(?:is not|isn't) (?:a |an )?(number|numeric|integer)/i, expectedType: 'number' },
+    { pattern: /(?:is not|isn't) (?:a |an )?(string|text)/i, expectedType: 'string' },
+    { pattern: /(?:is not|isn't) (?:a |an )?(boolean|bool)/i, expectedType: 'boolean' },
+    { pattern: /invalid type.*expected (number|integer|string|boolean|array|object)/i, expectedType: '$1' },
+    { pattern: /expected (number|integer|string|boolean|array|object)/i, expectedType: '$1' },
+    { pattern: /type mismatch.*expected (number|integer|string|boolean|array|object)/i, expectedType: '$1' },
+  ];
+  
+  const mismatches = [];
+  
+  for (const error of errors) {
+    const message = error.message || '';
+    const field = error.field || null;
+    
+    if (!field || !message) continue;
+    
+    // Check if the error message indicates a type expectation
+    for (const { pattern, expectedType } of typePatterns) {
+      const match = message.match(pattern);
+      if (match) {
+        const apiExpectedType = expectedType === '$1' ? match[1].toLowerCase() : expectedType;
+        
+        // Now check what type the swagger says this field should be
+        const swaggerType = findSwaggerFieldType(field, requestSchema);
+        
+        // If swagger type exists and doesn't match what API expects, it's a mismatch
+        if (swaggerType && swaggerType !== apiExpectedType && 
+            // Handle integer vs number equivalence
+            !(swaggerType === 'integer' && apiExpectedType === 'number') &&
+            !(swaggerType === 'number' && apiExpectedType === 'integer')) {
+          const mismatch = {
+            field,
+            swaggerType,
+            apiExpectedType,
+            message,
+            suggestion: `Update swagger to change '${field}' from type '${swaggerType}' to '${apiExpectedType}'`
+          };
+          
+          if (!returnAll) {
+            return mismatch;
+          }
+          mismatches.push(mismatch);
+          break; // Only one mismatch per error entry
+        }
+      }
+    }
+  }
+  
+  return returnAll ? mismatches : (mismatches[0] || null);
+}
+
+/**
+ * Convert a value to the target type
+ * @param {any} value - The value to convert
+ * @param {string} targetType - The target type ('number', 'string', 'boolean', 'integer')
+ * @returns {any} The converted value
+ */
+function convertValueToType(value, targetType) {
+  if (value === null || value === undefined) {
+    return value;
+  }
+  
+  switch (targetType) {
+    case 'number':
+    case 'integer':
+      const num = Number(value);
+      return isNaN(num) ? (targetType === 'integer' ? 0 : 0.0) : num;
+    case 'string':
+      return String(value);
+    case 'boolean':
+      if (typeof value === 'string') {
+        return value.toLowerCase() === 'true' || value === '1';
+      }
+      return Boolean(value);
+    default:
+      return value;
+  }
+}
+
+/**
+ * Apply type conversions to a request body based on detected mismatches
+ * @param {Object} requestBody - The original request body
+ * @param {Object[]} mismatches - Array of { field, apiExpectedType } objects
+ * @returns {Object} New request body with converted types
+ */
+function applyTypeConversions(requestBody, mismatches) {
+  if (!requestBody || !mismatches || mismatches.length === 0) {
+    return requestBody;
+  }
+  
+  // Deep clone to avoid mutating original
+  const newBody = JSON.parse(JSON.stringify(requestBody));
+  
+  for (const mismatch of mismatches) {
+    const { field, apiExpectedType } = mismatch;
+    
+    // Handle nested fields (e.g., 'payment_method.uid')
+    const parts = field.split('.');
+    let current = newBody;
+    
+    // Navigate to parent
+    for (let i = 0; i < parts.length - 1; i++) {
+      if (current && typeof current === 'object') {
+        // Check direct property
+        if (current[parts[i]] !== undefined) {
+          current = current[parts[i]];
+        }
+        // Check wrapped objects (common pattern: { entity: { properties } })
+        else {
+          let found = false;
+          for (const key of Object.keys(current)) {
+            if (typeof current[key] === 'object' && current[key] !== null && current[key][parts[i]] !== undefined) {
+              current = current[key][parts[i]];
+              found = true;
+              break;
+            }
+          }
+          if (!found) {
+            current = null;
+            break;
+          }
+        }
+      } else {
+        current = null;
+        break;
+      }
+    }
+    
+    // Set the converted value
+    const lastPart = parts[parts.length - 1];
+    if (current && typeof current === 'object') {
+      if (current[lastPart] !== undefined) {
+        current[lastPart] = convertValueToType(current[lastPart], apiExpectedType);
+      }
+      // Check wrapped objects
+      else {
+        for (const key of Object.keys(current)) {
+          if (typeof current[key] === 'object' && current[key] !== null && current[key][lastPart] !== undefined) {
+            current[key][lastPart] = convertValueToType(current[key][lastPart], apiExpectedType);
+            break;
+          }
+        }
+      }
+    }
+  }
+  
+  return newBody;
+}
+
+/**
+ * Find the type of a field in a swagger schema (recursively searches nested objects)
+ * @param {string} fieldPath - The field name or path (e.g., 'amount' or 'payment_method.type')
+ * @param {Object} schema - The swagger schema
+ * @returns {string|null} - The type of the field or null if not found
+ */
+function findSwaggerFieldType(fieldPath, schema) {
+  if (!schema || !fieldPath) return null;
+  
+  // Handle nested paths (e.g., 'payment_method.type')
+  const parts = fieldPath.split('.');
+  let currentSchema = schema;
+  
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    
+    // Look in properties
+    if (currentSchema.properties && currentSchema.properties[part]) {
+      currentSchema = currentSchema.properties[part];
+    }
+    // Look in nested object wrappers (common pattern: { entity_name: { properties: ... } })
+    else {
+      // Search through all properties for nested objects
+      let found = false;
+      if (currentSchema.properties) {
+        for (const [key, value] of Object.entries(currentSchema.properties)) {
+          if (value.type === 'object' && value.properties && value.properties[part]) {
+            currentSchema = value.properties[part];
+            found = true;
+            break;
+          }
+        }
+      }
+      if (!found) return null;
+    }
+    
+    // If this is the last part, return the type
+    if (i === parts.length - 1) {
+      return currentSchema.type || null;
+    }
+  }
+  
+  return currentSchema.type || null;
+}
+
+/**
+ * Validate HTTP status code
+ * @param {number} actualStatus - Actual HTTP status
+ * @param {Object} expectedResponses - Expected responses from spec
+ * @param {Object} responseData - Response body (for distinguishing 404 types)
+ * @returns {Object} { valid: boolean, error: Object|null }
+ */
+function validateStatusCode(actualStatus, expectedResponses, responseData = null) {
+  const expectedCodes = Object.keys(expectedResponses || {}).map(Number);
+  
+  // Always accept documented status codes
+  if (expectedCodes.includes(actualStatus)) {
+    return { valid: true, error: null };
+  }
+  
+  // Common error cases
+  if (actualStatus === 401 || actualStatus === 403) {
+    return {
+      valid: false,
+      error: {
+        reason: FAILURE_REASONS.AUTH_FAILED,
+        expected: expectedCodes,
+        actual: actualStatus
+      }
+    };
+  }
+  
+  if (actualStatus === 404) {
+    // First check if this is actually a validation error (API returns 404 for invalid data)
+    const validationCheck = detectValidationError(responseData);
+    if (validationCheck?.isValidationError) {
+      return {
+        valid: false,
+        error: {
+          reason: FAILURE_REASONS.VALIDATION_ERROR,
+          expected: expectedCodes,
+          actual: actualStatus,
+          message: validationCheck.message,
+          field: validationCheck.field
+        }
+      };
+    }
+    
+    // Check for explicit routing/endpoint errors FIRST
+    // These indicate the path itself is wrong (not a missing resource)
+    const endpointNotFoundCheck = detectEndpointNotFound(responseData);
+    if (endpointNotFoundCheck?.isEndpointNotFound) {
+      return {
+        valid: false,
+        error: {
+          reason: FAILURE_REASONS.ENDPOINT_NOT_FOUND,
+          expected: expectedCodes,
+          actual: actualStatus,
+          routingInfo: endpointNotFoundCheck.routingInfo
+        }
+      };
+    }
+    
+    // Distinguish between endpoint not found vs resource not found
+    const resourceCheck = detectResourceNotFound(responseData);
+    
+    if (resourceCheck?.isResourceNotFound) {
+      return {
+        valid: false,
+        error: {
+          reason: FAILURE_REASONS.RESOURCE_NOT_FOUND,
+          expected: expectedCodes,
+          actual: actualStatus,
+          resourceInfo: resourceCheck.resourceInfo
+        }
+      };
+    }
+    
+    // DEFAULT: Assume it's a resource not found (missing UID/entity)
+    // This is more common than a truly missing endpoint - if the endpoint path was wrong,
+    // most API gateways return explicit "route not found" messages
+    return {
+      valid: false,
+      error: {
+        reason: FAILURE_REASONS.RESOURCE_NOT_FOUND,
+        expected: expectedCodes,
+        actual: actualStatus,
+        resourceInfo: 'unknown resource (404 without explicit error message)'
+      }
+    };
+  }
+  
+  if (actualStatus === 409) {
+    // 409 Conflict - expected business error (e.g., duplicate resource, invalid state)
+    // Extract error message from response if available
+    const errorMessage = responseData?.errors?.[0]?.message || 
+                         responseData?.error?.message || 
+                         responseData?.message;
+    return {
+      valid: false,
+      error: {
+        reason: FAILURE_REASONS.CONFLICT,
+        expected: expectedCodes,
+        actual: actualStatus,
+        message: errorMessage,
+        isExpectedError: true // Flag to indicate this should be ERROR not FAIL
+      }
+    };
+  }
+  
+  if (actualStatus === 429) {
+    return {
+      valid: false,
+      error: {
+        reason: FAILURE_REASONS.RATE_LIMITED,
+        expected: expectedCodes,
+        actual: actualStatus
+      }
+    };
+  }
+  
+  if (actualStatus >= 500) {
+    return {
+      valid: false,
+      error: {
+        reason: FAILURE_REASONS.SERVER_ERROR,
+        expected: expectedCodes,
+        actual: actualStatus
+      }
+    };
+  }
+  
+  return {
+    valid: false,
+    error: {
+      reason: FAILURE_REASONS.UNEXPECTED_STATUS_CODE,
+      expected: expectedCodes,
+      actual: actualStatus
+    }
+  };
+}
+
+/**
+ * Mask sensitive headers
+ * @param {Object} headers - Request/response headers
+ * @returns {Object} Headers with sensitive values masked
+ */
+function maskSensitiveHeaders(headers) {
+  if (!headers) return headers;
+  
+  const sensitive = ['authorization', 'x-api-key', 'cookie'];
+  const masked = { ...headers };
+  
+  for (const key of Object.keys(masked)) {
+    if (sensitive.includes(key.toLowerCase())) {
+      masked[key] = '***MASKED***';
+    }
+  }
+  
+  return masked;
+}
+
+/**
+ * Truncate large response data
+ * @param {*} data - Response data
+ * @param {number} maxLength - Max string length
+ * @returns {*} Truncated data
+ */
+function truncateData(data, maxLength = 1000) {
+  if (!data) return data;
+  
+  const str = typeof data === 'string' ? data : JSON.stringify(data);
+  
+  if (str.length <= maxLength) {
+    return data;
+  }
+  
+  return str.substring(0, maxLength) + '... [truncated]';
+}
+
+/**
+ * Get suggestion for fixing a validation failure
+ * @param {string} reason - Failure reason code
+ * @param {Object} context - Additional context
+ * @returns {string} Suggestion text
+ */
+function getSuggestion(reason, context = {}) {
+  switch (reason) {
+    case FAILURE_REASONS.MISSING_REQUIRED_FIELD:
+      return `Either add '${context.field}' to the API response, or mark it as optional in the OpenAPI spec`;
+    
+    case FAILURE_REASONS.TYPE_MISMATCH:
+      return `Update the schema to reflect the actual type, or fix the API to return the documented type`;
+    
+    case FAILURE_REASONS.AUTH_FAILED:
+      return `Check token validity and permissions. Ensure the token has access to this endpoint.`;
+    
+    case FAILURE_REASONS.ENDPOINT_NOT_FOUND:
+      return `Verify the endpoint path is correct in the documentation.`;
+    
+    case FAILURE_REASONS.VALIDATION_ERROR:
+      return `Check the request body format and required fields. The API may expect different field names or structure than documented.`;
+    
+    case FAILURE_REASONS.RESOURCE_NOT_FOUND:
+      return `The endpoint works correctly but returned 404 because the test resource doesn't exist. This is expected behavior - consider adding test data or documenting 404 responses.`;
+    
+    case FAILURE_REASONS.CONFLICT:
+      return `The endpoint returned 409 Conflict, indicating the operation cannot be performed due to the current state (e.g., duplicate resource, invalid state). This is a valid API error response.`;
+    
+    case FAILURE_REASONS.RATE_LIMITED:
+      return `Reduce request rate or wait before retrying. Consider using the conservative rate limit preset.`;
+    
+    case FAILURE_REASONS.SCHEMA_MISMATCH:
+      return `Compare actual response with documented schema. Update either the API or documentation.`;
+    
+    case FAILURE_REASONS.BAD_GATEWAY_FALLBACK:
+      return `The primary API gateway returned 502 Bad Gateway but the fallback URL succeeded. Investigate gateway/load balancer issues on the primary URL.`;
+    
+    case FAILURE_REASONS.SWAGGER_TYPE_MISMATCH:
+      return `The swagger defines field '${context.field}' as type '${context.swaggerType}' but the API expects '${context.apiExpectedType}'. Update the swagger schema to use the correct type.`;
+    
+    default:
+      return null;
+  }
+}
+
+module.exports = {
+  createValidator,
+  validateAgainstSchema,
+  validateStatusCode,
+  buildValidationResult,
+  getSuggestion,
+  maskSensitiveHeaders,
+  truncateData,
+  detectSwaggerTypeMismatch,
+  detectValidationError,
+  detectResourceNotFound,
+  findSwaggerFieldType,
+  convertValueToType,
+  applyTypeConversions,
+  FAILURE_REASONS,
+  FRIENDLY_MESSAGES
+};

@@ -1,0 +1,664 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Online Profiles API",
+    "description": "API for managing business online profile settings including supported languages and privacy policy URL used by the Client Portal.",
+    "version": "3.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.vcita.biz/v3/business_administration"
+    }
+  ],
+  "paths": {
+    "/online_profiles/{business_uid}": {
+      "get": {
+        "summary": "Get Online Profile",
+        "description": "## Overview\nRetrieve the online profile for a specific business. This is a **public endpoint** that does not require authentication. Note: Returns 200 with null data even if business doesn't exist. Available for **Staff tokens**.",
+        "operationId": "getOnlineProfilePublic",
+        "parameters": [
+          {
+            "name": "business_uid",
+            "in": "path",
+            "required": true,
+            "description": "The unique identifier of the business.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Online profile retrieved successfully. Data will be null if no profile exists or business not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "online_profile": {
+                              "oneOf": [
+                                {
+                                  "$ref": "https://vcita.github.io/developers-hub/entities/business_administration/onlineProfile.json"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "examples": {
+                  "with_privacy_policy": {
+                    "summary": "Profile with privacy policy URL",
+                    "value": {
+                      "success": true,
+                      "data": {
+                        "online_profile": {
+                          "uid": "abc123",
+                          "business_uid": "d290f1ee26c54",
+                          "supported_languages": [
+                            "en",
+                            "es"
+                          ],
+                          "privacy_policy_url": "https://example.com/privacy",
+                          "created_at": "2026-01-12T10:30:00Z",
+                          "updated_at": "2026-01-12T10:30:00Z"
+                        }
+                      }
+                    }
+                  },
+                  "no_policy": {
+                    "summary": "Profile without privacy policy configured",
+                    "value": {
+                      "success": true,
+                      "data": {
+                        "online_profile": {
+                          "uid": "abc123",
+                          "business_uid": "d290f1ee26c54",
+                          "supported_languages": [
+                            "en"
+                          ],
+                          "privacy_policy_url": null,
+                          "created_at": "2026-01-12T10:30:00Z",
+                          "updated_at": "2026-01-12T10:30:00Z"
+                        }
+                      }
+                    }
+                  },
+                  "not_found": {
+                    "summary": "Business not found or no profile",
+                    "value": {
+                      "success": true,
+                      "data": {
+                        "online_profile": null
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Online Profiles"
+        ]
+      }
+    },
+    "/online_profiles": {
+      "get": {
+        "summary": "Get My Online Profile",
+        "description": "## Overview\nRetrieve the online profile for the business associated with the authenticated token.\n\nAvailable for **Staff Tokens**.",
+        "operationId": "getMyOnlineProfile",
+        "responses": {
+          "200": {
+            "description": "Online profiles retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "online_profiles": {
+                          "oneOf": [
+                            {
+                              "type": "array",
+                              "items": {
+                                "$ref": "https://vcita.github.io/developers-hub/entities/business_administration/onlineProfile.json"
+                              }
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                "examples": {
+                  "with_profile": {
+                    "summary": "Online profile exists",
+                    "value": {
+                      "success": true,
+                      "data": {
+                        "online_profiles": [
+                          {
+                            "uid": "abc123",
+                            "business_uid": "d290f1ee26c54",
+                            "supported_languages": [
+                              "en",
+                              "es"
+                            ],
+                            "privacy_policy_url": "https://example.com/privacy",
+                            "created_at": "2026-01-12T10:30:00Z",
+                            "updated_at": "2026-01-12T10:30:00Z"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "no_profile": {
+                    "summary": "No online profile configured",
+                    "value": {
+                      "success": true,
+                      "data": {
+                        "online_profiles": null
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Missing or invalid authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Authentication required"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Online Profiles"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "Create Online Profile",
+        "description": "## Overview\nCreate a new online profile for the business. Requires `can_access_admin_account?` permission. Available for **Staff tokens**.\n\n**Important**: Online profiles are singleton resources - each business can only have one online profile. If a profile already exists, this endpoint returns a 422 error with code `already_exists`. Use the PUT endpoint to update an existing profile.\n\n**Note**: Online profiles cannot be deleted, only updated.",
+        "operationId": "createOnlineProfile",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOnlineProfileRequest"
+              },
+              "examples": {
+                "with_languages": {
+                  "summary": "Create with supported languages only",
+                  "value": {
+                    "supported_languages": [
+                      "en",
+                      "es",
+                      "fr"
+                    ]
+                  }
+                },
+                "with_privacy_policy": {
+                  "summary": "Create with privacy policy URL",
+                  "value": {
+                    "supported_languages": [
+                      "en"
+                    ],
+                    "privacy_policy_url": "https://example.com/privacy"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Online profile created successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/business_administration/onlineProfile.json"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "uid": "abc123",
+                    "business_uid": "d290f1ee26c54",
+                    "supported_languages": [
+                      "en",
+                      "es"
+                    ],
+                    "privacy_policy_url": "https://example.com/privacy",
+                    "created_at": "2026-01-12T10:30:00Z",
+                    "updated_at": "2026-01-12T10:30:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Client token or missing authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Client is not authorized"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Staff token lacks required permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Access denied"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict - Online profile already exists for this business",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "conflict",
+                      "message": "Online profile already exists for this business"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error or profile already exists.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "already_exists": {
+                    "summary": "Online profile already exists",
+                    "description": "Returned when attempting to create an online profile for a business that already has one. Use PUT to update instead.",
+                    "value": {
+                      "success": false,
+                      "errors": [
+                        {
+                          "code": "already_exists",
+                          "message": "OnlineProfile already exists for this business. Use PUT to update.",
+                          "field": "online_profile"
+                        }
+                      ]
+                    }
+                  },
+                  "validation_error": {
+                    "summary": "Invalid privacy policy URL",
+                    "value": {
+                      "success": false,
+                      "errors": [
+                        {
+                          "field": "privacy_policy_url",
+                          "code": "invalid",
+                          "message": "URL must be a valid HTTP or HTTPS URL"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Online Profiles"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/online_profiles/{uid}": {
+      "put": {
+        "summary": "Update Online Profile",
+        "description": "## Overview\nwith `can_access_admin_account?` permission Update an existing online profile. Available for **Staff tokens**.",
+        "operationId": "updateOnlineProfile",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "The unique identifier of the online profile.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOnlineProfileRequest"
+              },
+              "examples": {
+                "update_languages": {
+                  "summary": "Update supported languages only",
+                  "value": {
+                    "supported_languages": [
+                      "en",
+                      "es",
+                      "de"
+                    ]
+                  }
+                },
+                "set_privacy_policy": {
+                  "summary": "Set privacy policy URL",
+                  "value": {
+                    "privacy_policy_url": "https://newsite.com/privacy-policy"
+                  }
+                },
+                "clear_policy_empty": {
+                  "summary": "Clear privacy policy (empty string)",
+                  "value": {
+                    "privacy_policy_url": ""
+                  }
+                },
+                "clear_policy_null": {
+                  "summary": "Clear privacy policy (null)",
+                  "value": {
+                    "privacy_policy_url": null
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Online profile updated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/business_administration/onlineProfile.json"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "uid": "abc123",
+                    "business_uid": "d290f1ee26c54",
+                    "supported_languages": [
+                      "en",
+                      "es"
+                    ],
+                    "privacy_policy_url": "https://newsite.com/privacy-policy",
+                    "created_at": "2026-01-12T10:30:00Z",
+                    "updated_at": "2026-01-12T14:00:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Client token or missing authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Client is not authorized"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Staff token lacks required permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Access denied"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - Online profile not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Online profile not found"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "privacy_policy_url",
+                      "code": "invalid",
+                      "message": "URL must be a valid HTTP or HTTPS URL"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Online Profiles"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CreateOnlineProfileRequest": {
+        "type": "object",
+        "properties": {
+          "supported_languages": {
+            "type": "array",
+            "description": "List of ISO 639-1 language/locale codes supported by the business for client-facing content (e.g., [\"en\", \"es\", \"en-GB\"]).",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z]{2}(-[A-Z]{2})?$"
+            },
+            "uniqueItems": true
+          },
+          "privacy_policy_url": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2048,
+            "description": "External URL to the business's privacy policy page (e.g., \"https://example.com/privacy\"). Optional."
+          }
+        }
+      },
+      "UpdateOnlineProfileRequest": {
+        "type": "object",
+        "properties": {
+          "supported_languages": {
+            "type": "array",
+            "description": "List of ISO 639-1 language/locale codes supported by the business for client-facing content (e.g., [\"en\", \"es\", \"en-GB\"]).",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z]{2}(-[A-Z]{2})?$"
+            },
+            "uniqueItems": true
+          },
+          "privacy_policy_url": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2048,
+            "nullable": true,
+            "description": "External URL to the business's privacy policy page. Set to empty string or null to clear. Omit to leave unchanged."
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "The field that caused the error (for validation errors)"
+                },
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ]
+            }
+          }
+        },
+        "required": [
+          "success",
+          "errors"
+        ]
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+      }
+    }
+  }
+}

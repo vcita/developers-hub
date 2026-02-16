@@ -3,7 +3,8 @@
   "host": "api.vcita.biz",
   "info": {
     "title": "Oauth API",
-    "version": "v2.0"
+    "version": "v2.0",
+    "description": "OAuth 2.0 API for token exchange and user information. This API implements the OAuth 2.0 Authorization Code flow for secure third-party application access."
   },
   "paths": {
     "/token": {
@@ -15,30 +16,44 @@
           {
             "in": "body",
             "name": "body",
+            "required": true,
             "schema": {
+              "type": "object",
+              "required": ["grant_type", "client_id", "client_secret", "code", "redirect_uri"],
               "properties": {
+                "grant_type": {
+                  "description": "The OAuth 2.0 grant type. Must be `authorization_code` for the Authorization Code flow.",
+                  "type": "string",
+                  "enum": ["authorization_code"],
+                  "example": "authorization_code"
+                },
                 "client_id": {
-                  "description": "The Client ID for the Developer App",
-                  "type": "string"
+                  "description": "The OAuth Client ID obtained when creating an app via `POST /platform/v1/apps`. This value is returned in the `data.client_id` field of the app creation response.",
+                  "type": "string",
+                  "example": "abc123def456"
                 },
                 "client_secret": {
-                  "description": "The Client Secret for the Developer App",
-                  "type": "string"
+                  "description": "The OAuth Client Secret obtained when creating an app via `POST /platform/v1/apps`. This value is returned in the `data.client_secret` field of the app creation response. **Important**: This secret is only shown once during app creation - store it securely.",
+                  "type": "string",
+                  "example": "secret_xyz789"
                 },
                 "code": {
-                  "description": "A code that was generated as part of the OAuth Code Authorization Flow",
-                  "type": "string"
-                },
-                "grant_type": {
-                  "description": "Currently \"authorization_code\" is the only supported value",
-                  "type": "string"
+                  "description": "The authorization code obtained from the OAuth authorization flow. This code is provided as a query parameter when the user is redirected back to your `redirect_uri` after authorizing your app. Authorization codes are single-use and expire shortly after being issued.",
+                  "type": "string",
+                  "example": "auth_code_abc123"
                 },
                 "redirect_uri": {
-                  "description": "The Redirect URI used when generating the code",
-                  "type": "string"
+                  "description": "The exact redirect URI that was used when initiating the authorization request. This must match one of the URIs configured for your app (either `redirect_uri` or one of the `oauth_redirect_uris` set during app creation).",
+                  "type": "string",
+                  "format": "uri",
+                  "example": "https://myapp.example.com/oauth/callback"
+                },
+                "code_verifier": {
+                  "description": "**Optional - PKCE only**. The code verifier used when the authorization request was initiated with PKCE (Proof Key for Code Exchange). If your app used a `code_challenge` during authorization, you must provide the original `code_verifier` here. Note: PKCE support may vary - check server capabilities.",
+                  "type": "string",
+                  "example": "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
                 }
-              },
-              "type": "object"
+              }
             }
           }
         ],
@@ -47,7 +62,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Code Exchanged For Access Token",
+            "description": "Authorization code successfully exchanged for access token.",
             "examples": {
               "application/json": {
                 "access_token": "eade05e0ee958ed139b7431b1a630bff95260178699ddf88cbd86a32d2ac708c",
@@ -56,11 +71,29 @@
                 "token_type": "Bearer"
               }
             }
+          },
+          "400": {
+            "description": "Bad Request - Invalid or malformed request.",
+            "examples": {
+              "application/json": {
+                "error": "invalid_request",
+                "error_description": "The request is missing a required parameter, includes an unsupported parameter value, or is otherwise malformed."
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid client credentials or authorization code.",
+            "examples": {
+              "application/json": {
+                "error": "invalid_client",
+                "error_description": "Client authentication failed. The client_id or client_secret is invalid."
+              }
+            }
           }
         },
-        "summary": "Exchanges a OAuth Code for an Access Token",
+        "summary": "Exchange Authorization Code for Access Token",
         "tags": [
-          "Token Management"
+          "Tokens"
         ],
         "x-amazon-apigateway-auth": {
           "type": "NONE"
@@ -75,7 +108,8 @@
           "type": "http_proxy",
           "uri": "https:///oauth/token"
         },
-        "x-auth-type": "None"
+        "x-auth-type": "None",
+        "description": "## Overview\nExchanges an OAuth Authorization Code for an Access Token. This endpoint is the final step in the OAuth 2.0 Authorization Code flow.\n\n**This endpoint does not require authentication headers** - authentication is performed via the `client_id` and `client_secret` in the request body.\n\n## Prerequisites\n\nBefore using this endpoint, you must:\n\n### 1. Create an OAuth Application\nCreate an app using `POST /platform/v1/apps` with a **Directory token**. This returns:\n- `client_id`: Your OAuth Client ID\n- `client_secret`: Your OAuth Client Secret (shown only once - store securely!)\n\nExample app creation request:\n```json\n{\n  \"name\": \"My OAuth App\",\n  \"app_code_name\": \"myoauthapp\",\n  \"redirect_uri\": \"https://myapp.example.com/oauth/callback\",\n  \"scopes\": [\"openid\"]\n}\n```\n\n### 2. Obtain an Authorization Code\nRedirect users to the authorization endpoint to obtain consent:\n```\nGET /oauth/authorize?response_type=code&client_id={client_id}&redirect_uri={redirect_uri}&scope={scopes}&state={state}\n```\n\nAfter user authorization, they are redirected to your `redirect_uri` with:\n- `code`: The authorization code (use this in the token request)\n- `state`: The state parameter you provided (verify this matches)\n\n### 3. Exchange Code for Token\nCall this endpoint (`POST /oauth/token`) with the authorization code to receive an access token.\n\n## Complete OAuth Flow Diagram\n\n```\n1. App Creation (one-time setup):\n   POST /platform/v1/apps → Returns client_id, client_secret\n\n2. User Authorization (browser redirect):\n   User → /oauth/authorize → User grants permission → Redirect to app with code\n\n3. Token Exchange (server-to-server):\n   POST /oauth/token (with code) → Returns access_token\n\n4. API Access:\n   Use access_token in Authorization header for subsequent API calls\n```\n\n## Important Notes\n\n- **Authorization codes are single-use** - once exchanged, they cannot be reused\n- **Authorization codes expire quickly** - exchange them immediately after receiving\n- **This endpoint cannot be tested in isolation** - it requires an authorization code from the user authorization flow\n- **Store client_secret securely** - it is only displayed once during app creation"
       }
     },
     "/userinfo": {
@@ -83,7 +117,6 @@
         "consumes": [
           "application/json"
         ],
-
         "produces": [
           "application/json"
         ],
@@ -140,7 +173,13 @@
           "type": "http_proxy",
           "uri": "https:///oauth/userinfo"
         },
-        "x-auth-type": "None"
+        "x-auth-type": "None",
+        "description": "## Overview\nGet authenticated user info.\n\nAvailable for **Staff tokens**.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       }
     }
   },
@@ -166,5 +205,15 @@
     }
   },
   "swagger": "2.0",
-  "x-throttling-tier": "8ReqPerSec"
+  "x-throttling-tier": "8ReqPerSec",
+  "components": {
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+      }
+    }
+  }
 }

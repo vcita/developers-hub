@@ -11,15 +11,15 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Get daily sign-in records for the business's staff members within a specified date range",
+        "description": "## Overview\nGet daily sign-in records for the business's staff members within a specified date range.\n\nAvailable for **Staff and Directory Tokens**.",
         "parameters": [
           {
-            "description": "Required filter by date range. Format: YYYY-MM-DD<br /> Example: `filter[start_date][eq]=2000-01-01&filter[end_date][eq]=2000-02-01`.<br /> The results include both the start and end dates, with a maximum range of 31 days.",
+            "description": "Required filter by date range using nested query parameter format. Both start_date and end_date are required. The results include both the start and end dates.<br /><br />**Validation Rules:**<br />- Date range cannot exceed 31 days<br />- start_date must be before or equal to end_date<br /><br />**Format:** `filter[start_date][eq]=YYYY-MM-DD&filter[end_date][eq]=YYYY-MM-DD`<br /><br />**Example:** `filter[start_date][eq]=2026-01-01&filter[end_date][eq]=2026-01-15`",
             "in": "query",
             "name": "filter",
             "required": true,
             "type": "string",
-            "x-example": "YYYY-MM-DD"
+            "x-example": "filter[start_date][eq]=2026-01-01&filter[end_date][eq]=2026-01-15"
           }
         ],
         "produces": [
@@ -70,15 +70,16 @@
                             "type": "string"
                           },
                           "sign_ins_by_date": {
-                            "properties": {
-                              "date": {
-                                "items": {
-                                  "type": "string"
-                                },
-                                "type": "array"
-                              }
-                            },
-                            "type": "object"
+                            "type": "object",
+                            "description": "Object with date strings as keys (format: YYYY-MM-DD) and arrays of staff UIDs as values. The keys are dynamic dates within the requested date range.",
+                            "additionalProperties": {
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "description": "Staff UID"
+                              },
+                              "description": "Array of staff UIDs who signed in on this date"
+                            }
                           }
                         },
                         "type": "object"
@@ -168,12 +169,13 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Updates a staff's properties",
+        "description": "## Overview\nUpdates a staff's properties. Available for **Directory tokens only**.\n\n> **Note**: The `X-On-Behalf-Of` header is required to specify which business's staff member to update.\n\n> **For Staff Self-Update**: Staff members who want to update their own details should use `PUT /v3/business_administration/staff_members/{uid}` with a Staff token instead.",
         "parameters": [
           {
-            "description": "A unique identifer of the business. Can be the Business UID or nickname\\external ID",
+            "description": "Required. The business UID whose staff member is being updated. Can be the Business UID or nickname/external ID.",
             "in": "header",
             "name": "X-On-Behalf-Of",
+            "required": true,
             "type": "string"
           },
           {
@@ -305,5 +307,15 @@
     }
   },
   "swagger": "2.0",
-  "x-throttling-tier": "8ReqPerSec"
+  "x-throttling-tier": "8ReqPerSec",
+  "components": {
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+      }
+    }
+  }
 }

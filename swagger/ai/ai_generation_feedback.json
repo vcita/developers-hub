@@ -19,89 +19,81 @@
     }
   ],
   "components": {
-    "securitySchemes": {
-      "Bearer": {
-        "type": "http",
-        "scheme": "bearer",
-        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
-      }
-    },
     "schemas": {
-      "Response": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "data": {
-            "type": "object"
-          }
-        },
-        "required": [
-          "success",
-          "data"
-        ]
-      },
       "AiGenerationFeedbackRequest": {
         "type": "object",
         "properties": {
           "type": {
             "type": "string",
             "description": "The type of feedback provided",
-            "enum": ["score", "boolean", "client_message_sent", "text_feedback", "correction", "dismissal"]
+            "enum": [
+              "int",
+              "decimal",
+              "text",
+              "boolean"
+            ]
           },
           "value": {
             "type": "string",
-            "description": "The feedback value - stored as string regardless of feedback type (e.g., '4.5' for score, 'true' for boolean)"
+            "description": "The feedback value - stored as string regardless of feedback type (e.g., '4.5' for decimal, 'true' for boolean)"
           },
           "entity_type": {
             "type": "string",
-            "description": "The type of entity this feedback is related to (e.g., 'recommendation', 'chat_message')"
+            "description": "The type of entity this feedback is related to",
+            "enum": [
+              "AISmartReply",
+              "AIRecommendation",
+              "AIRecommendedAction"
+            ]
           },
           "entity_uid": {
             "type": "string",
-            "description": "The unique identifier of the related entity"
+            "format": "uuid",
+            "description": "The unique identifier of the related entity. **Important**: You must first create or retrieve an entity of the specified `entity_type`, then use its UID here. For example:\n\n1. Create an AISmartReply via `POST /v3/ai/ai_smart_replies`\n2. Use the returned `uid` as `entity_uid` with `entity_type='AISmartReply'`\n\nReturns 404 if the entity does not exist.",
+            "example": "d290f1ee-6c54-4b01-90e6-d701748f0851"
+          },
+          "name": {
+            "type": "string",
+            "description": "The specific name/identifier for the feedback type",
+            "enum": [
+              "[AISmartReply] Business Sent Message UID",
+              "[AISmartReply] Business Dismiss Reason"
+            ]
           }
         },
         "required": [
           "type",
           "value",
           "entity_type",
-          "entity_uid"
-        ]
-      },
-      "AiGenerationFeedbackUpdateRequest": {
-        "type": "object",
-        "properties": {
-          "value": {
-            "type": "string",
-            "description": "The updated feedback value"
-          }
+          "entity_uid",
+          "name"
+        ],
+        "example": {
+          "type": "text",
+          "value": "too_formal",
+          "entity_type": "AISmartReply",
+          "entity_uid": "d290f1ee-6c54-4b01-90e6-d701748f0851",
+          "name": "[AISmartReply] Business Dismiss Reason"
         }
-      },
-      "AiGenerationFeedbackListResponse": {
-        "type": "object",
-        "properties": {
-          "ai_generation_feedbacks": {
-            "type": "array",
-            "items": {
-              "$ref": "https://vcita.github.io/developers-hub/entities/ai/AiGenerationFeedback.json"
-            }
-          },
-          "total": {
-            "type": "integer",
-            "description": "Total number of feedback entries"
-          }
-        }
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
       }
     }
   },
   "paths": {
     "/v3/ai/ai_generation_feedbacks": {
       "post": {
-        "tags": ["AI Generation Feedback"],
+        "tags": [
+          "AI Generation Feedback"
+        ],
         "summary": "Create new AI generation feedback",
-        "description": "Submit feedback for AI-generated content",
+        "description": "## Overview\nSubmit feedback for AI-generated content.\n\n**Available for Staff tokens**",
         "operationId": "createAiGenerationFeedback",
         "security": [
           {
@@ -145,255 +137,9 @@
           },
           "403": {
             "description": "Forbidden"
-          }
-        }
-      },
-      "get": {
-        "tags": ["AI Generation Feedback"],
-        "summary": "List AI generation feedback",
-        "description": "Retrieve a list of AI generation feedback with optional filtering",
-        "operationId": "listAiGenerationFeedback",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "entity_type",
-            "in": "query",
-            "description": "Filter by entity type",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "entity_uid",
-            "in": "query",
-            "description": "Filter by entity UID",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "type",
-            "in": "query",
-            "description": "Filter by feedback type",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": ["score", "boolean", "client_message_sent", "text_feedback", "correction", "dismissal"]
-            }
-          },
-          {
-            "name": "from_date",
-            "in": "query",
-            "description": "Filter feedback created after this date (ISO 8601 format)",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "format": "date-time"
-            }
-          },
-          {
-            "name": "to_date",
-            "in": "query",
-            "description": "Filter feedback created before this date (ISO 8601 format)",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "format": "date-time"
-            }
-          },
-          {
-            "name": "page",
-            "in": "query",
-            "description": "Page number for pagination",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 1
-            }
-          },
-          {
-            "name": "per_page",
-            "in": "query",
-            "description": "Number of items per page",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 20,
-              "maximum": 100
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of feedback retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    },
-                    "data": {
-                      "$ref": "#/components/schemas/AiGenerationFeedbackListResponse"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          }
-        }
-      }
-    },
-    "/v3/ai/ai_generation_feedbacks/{uid}": {
-      "get": {
-        "tags": ["AI Generation Feedback"],
-        "summary": "Get AI generation feedback by UID",
-        "description": "Retrieve a specific AI generation feedback entry by its unique identifier",
-        "operationId": "getAiGenerationFeedback",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "uid",
-            "in": "path",
-            "description": "The unique identifier of the feedback",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Feedback retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    },
-                    "data": {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/ai/AiGenerationFeedback.json"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
           },
           "404": {
-            "description": "Feedback not found"
-          }
-        }
-      },
-      "put": {
-        "tags": ["AI Generation Feedback"],
-        "summary": "Update AI generation feedback",
-        "description": "Update an existing AI generation feedback value",
-        "operationId": "updateAiGenerationFeedback",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "uid",
-            "in": "path",
-            "description": "The unique identifier of the feedback",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AiGenerationFeedbackUpdateRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Feedback updated successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    },
-                    "data": {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/ai/AiGenerationFeedback.json"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request parameters"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "404": {
-            "description": "Feedback not found"
-          }
-        }
-      },
-      "delete": {
-        "tags": ["AI Generation Feedback"],
-        "summary": "Delete AI generation feedback",
-        "description": "Delete a specific AI generation feedback entry by its unique identifier",
-        "operationId": "deleteAiGenerationFeedback",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "uid",
-            "in": "path",
-            "description": "The unique identifier of the feedback",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Feedback deleted successfully"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "404": {
-            "description": "Feedback not found"
+            "description": "Entity not found - The referenced `entity_uid` does not exist for the specified `entity_type`"
           }
         }
       }

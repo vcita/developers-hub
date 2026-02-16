@@ -1,0 +1,184 @@
+{
+  "type": "object",
+  "definitions": {
+    "creditNoteLineItem": {
+      "type": "object",
+      "description": "A line item refers to each credited item in the credit note. Credit note total amount will be a sum of all line items. Line items can be pre-populated from the original invoice or added as custom items.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Line item name"
+        },
+        "quantity": {
+          "type": "number",
+          "description": "Line item quantity"
+        },
+        "unit_amount": {
+          "type": "number",
+          "description": "Unit price/amount"
+        },
+        "total_amount": {
+          "type": "number",
+          "description": "Line item total amount (quantity × unit_amount). Auto-calculated, read-only"
+        },
+        "taxes": {
+          "type": "array",
+          "description": "Tax information array",
+          "items": {
+            "$ref": "#/definitions/taxInfo"
+          }
+        }
+      },
+      "required": ["name", "quantity", "unit_amount"]
+    },
+    "taxInfo": {
+      "type": "object",
+      "description": "Tax information object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Tax name"
+        },
+        "rate": {
+          "type": "number",
+          "description": "Tax rate (e.g., 20 for 20%)"
+        },
+        "tax_total": {
+          "type": "number",
+          "description": "Tax total amount"
+        }
+      },
+      "required": ["name", "rate", "tax_total"]
+    }
+  },
+  "properties": {
+    "uid": {
+      "type": "string",
+      "description": "The credit note's unique identifier. Auto-generated UID for the credit note"
+    },
+    "invoice_uid": {
+      "type": "string",
+      "description": "The unique identifier of the invoice this credit note is issued against. Required field. Links to Core invoice"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["ISSUED", "SETTLED"],
+      "description": "Credit note status. Required field. Potential values: ISSUED, SETTLED. Issue refers to when the document is being officially issued and binding. Settled refers to the point where a monetary refund was executed per the credit value."
+    },
+    "unique_number": {
+      "type": "string",
+      "description": "Credit note unique, sequential number. Numeric value (like invoice number). Auto-generated if not provided. Format: numeric sequence (e.g., 1, 2, 3...) or yearly prefixed (e.g., 2025-0001, 2025-0002...)"
+    },
+    "total_amount": {
+      "type": "number",
+      "description": "The total amount of the credit note (sum of all items including taxes). Auto-calculated from items, read-only field"
+    },
+    "currency": {
+      "type": "string",
+      "description": "Three-letter ISO currency code (e.g., \"USD\", \"ILS\"). Required field. Must match invoice currency"
+    },
+    "issue_date": {
+      "type": "string",
+      "format": "date",
+      "description": "The date the credit note was issued. Read-only field"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Credit note notes/reason. Maximum 200 characters. Optional. Used to provide context for the credit"
+    },
+    "line_items": {
+      "type": "array",
+      "description": "Array of credit note line items. Required, at least one item required",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/definitions/creditNoteLineItem"
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Created date and time. Auto-generated timestamp"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Updated date and time. Auto-updated timestamp"
+    },
+    "net_total": {
+      "type": "number",
+      "description": "The credit note total amount excluding taxes. Auto-calculated, read-only"
+    },
+    "grand_total": {
+      "type": "number",
+      "description": "The credit note total amount including taxes. Auto-calculated, read-only (same as total_amount)"
+    },
+    "taxes": {
+      "type": "array",
+      "description": "Tax information array aggregated from all line items. Auto-calculated, read-only. Array of tax objects with structure: {name: string, rate: number, tax_total: number}. Aggregated by rate (sums tax_total for same rate + name)",
+      "items": {
+        "$ref": "#/definitions/taxInfo"
+      }
+    }
+  },
+  "required": [
+    "invoice_uid",
+    "currency",
+    "line_items"
+  ],
+  "readOnly": [
+    "uid",
+    "created_at",
+    "updated_at",
+    "status",
+    "issue_date",
+    "total_amount",
+    "net_total",
+    "grand_total",
+    "taxes"
+  ],
+  "example": {
+    "uid": "cn_abc123def456",
+    "invoice_uid": "inv_abc123",
+    "status": "ISSUED",
+    "unique_number": "2025-0001",
+    "total_amount": 75.00,
+    "currency": "USD",
+    "issue_date": "2025-11-19",
+    "notes": "Goodwill credit.",
+    "net_total": 62.50,
+    "grand_total": 75.00,
+    "taxes": [
+      {
+        "name": "VAT",
+        "rate": 20,
+        "tax_total": 12.50
+      }
+    ],
+    "line_items": [
+      {
+        "name": "Consulting Services Credit",
+        "quantity": 1,
+        "unit_amount": 50.00,
+        "total_amount": 50.00,
+        "taxes": [
+          {
+            "name": "VAT",
+            "rate": 20,
+            "tax_total": 10.00
+          }
+        ]
+      },
+      {
+        "name": "Custom Goodwill Credit",
+        "quantity": 1,
+        "unit_amount": 25.00,
+        "total_amount": 25.00,
+        "taxes": []
+      }
+    ],
+    "created_at": "2025-11-19T10:30:00Z",
+    "updated_at": "2025-11-19T10:30:00Z"
+  },
+  "description": "Credit note entity allows businesses to modify their issued invoices in a compliant invoicing flow. The credit note is a binding legal document that represents the credit factor of the invoice balance, of which the outstanding balance is being calculated from."
+}
+

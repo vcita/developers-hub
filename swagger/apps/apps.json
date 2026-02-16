@@ -1,483 +1,500 @@
 {
-    "openapi": "3.0.0",
-    "info": {
-        "title": "Apps",
-        "description": "A set of endpoints to manage inTandem's apps",
-        "version": "3.0",
-        "contact": {}
-    },
-    "tags": [],
-    "servers": [
-        {
-            "url": "https://api.vcita.biz/",
-            "description": "API Gateway server"
-        }
-    ],
-    "components": {
-        "securitySchemes": {
-            "Bearer": {
-                "type": "http",
-                "scheme": "bearer",
-                "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {directory_token}'"
-            }
-        },
-        "schemas": {
-            "Response": {
-                "type": "object",
-                "properties": {
-                    "success": {
-                        "type": "boolean"
-                    },
-                    "data": {
-                        "type": "object"
-                    }
-                },
-                "required": [
-                    "success",
-                    "data"
-                ]
-            },
-            "CreateAppAssignmentRequestDto": {
-                "type": "object",
-                "properties": {
-                    "assignee_type": {
-                        "type": "string",
-                        "description": "The type of entity this app is assigned to",
-                        "enum": ["business", "package", "directory"]
-                    },
-                    "assignee_uid": {
-                        "type": "string",
-                        "description": "The uid of the entity this app is assigned to"
-                    },
-                    "app_code_name": {
-                        "type": "string",
-                        "description": "The unique identifier of the app"
-                    },
-                    "settings": {
-                        "type": "object",
-                        "description": "Optional settings for the app assignment",
-                        "properties": {
-                            "assignment_mode": {
-                                "type": "string",
-                                "description": "App setting: 'internal' - App does not show in the app market but still available to use in all relevant integration points; 'pre_installed' - Define the app as pre-installed for all new accounts, app shows in app market as installed on first appearance. The user will be able to uninstall it later if they wish to. This is relevant only to account with platform app market",
-                                "enum": ["internal", "pre_installed"]
-                            }
-                        },
-                        "required": [
-                            "assignment_mode"
-                        ]
-                    }
-                },
-                "required": [
-                    "assignee_type",
-                    "assignee_uid",
-                    "app_code_name",
-                    "settings"
-                ]
-            },
-            "CreateBusinessAppInstallRequestDto": {
-                "type": "object",
-                "properties": {
-                    "business_uid": {
-                        "type": "string",
-                        "description": "Unique identifier of the business"
-                    },
-                    "app_code_name": {
-                        "type": "string",
-                        "description": "The unique identifier of the app"
-                    }
-                },
-                "required": [
-                    "business_uid",
-                    "app_code_name"
-                ]
-            }
-        }
-    },
-    "paths": {
-        "/v3/apps/business_app_installs": {
-            "get": {
-                "operationId": "BusinessAppInstalls_list",
-                "summary": "List Business App Installs",
-                "description": "Get a list of installed apps per business. Each item includes a uuid; use it in the show and delete paths. Optional query filters: `?business_uid={business_uid}&app_code_name={app_code_name}` (and `page`, `per_page` for pagination). Results are scoped to the token's business. **Available for Staff (user) Tokens**",
-                "parameters": [
-                    {
-                        "name": "business_uid",
-                        "in": "query",
-                        "required": false,
-                        "schema": { "type": "string" },
-                        "description": "Filter by business uid"
-                    },
-                    {
-                        "name": "app_code_name",
-                        "in": "query",
-                        "required": false,
-                        "schema": { "type": "string" },
-                        "description": "Filter by app code name"
-                    },
-                    {
-                        "name": "page",
-                        "in": "query",
-                        "required": false,
-                        "schema": { "type": "integer", "default": 1 }
-                    },
-                    {
-                        "name": "per_page",
-                        "in": "query",
-                        "required": false,
-                        "schema": { "type": "integer", "default": 25 }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Business app installs retrieved successfully",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "allOf": [
-                                        { "$ref": "#/components/schemas/Response" },
-                                        {
-                                            "properties": {
-                                                "data": {
-                                                    "type": "object",
-                                                    "properties": {
-                                                        "business_app_installs": {
-                                                            "type": "array",
-                                                            "items": { "$ref": "https://vcita.github.io/developers-hub/entities/apps/businessAppInstall.json" }
-                                                        }
-                                                    },
-                                                    "required": ["business_app_installs"]
-                                                }
-                                            }
-                                        }
-                                    ]
-                                }
-                            }
-                        }
-                    },
-                    "401": { "description": "Unauthorized." },
-                    "500": { "description": "Internal server error." }
-                },
-                "tags": ["Business App Installs"],
-                "security": [{ "Bearer": [] }]
-            },
-            "post": {
-                "operationId": "BusinessAppInstalls_create",
-                "summary": "Create a Business App Install",
-                "description": "Install an app for a business. **Available for Staff (user) Tokens**",
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/json": {
-                            "schema": { "$ref": "#/components/schemas/CreateBusinessAppInstallRequestDto" }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "Business app install created successfully",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "allOf": [
-                                        { "$ref": "#/components/schemas/Response" },
-                                        { "properties": { "data": { "$ref": "https://vcita.github.io/developers-hub/entities/apps/businessAppInstall.json" } } }
-                                    ]
-                                }
-                            }
-                        }
-                    },
-                    "400": { "description": "Bad request. Invalid input data." },
-                    "401": { "description": "Unauthorized." },
-                    "422": { "description": "Unprocessable entity. business_uid or app_code_name not found." },
-                    "500": { "description": "Internal server error." }
-                },
-                "tags": ["Business App Installs"],
-                "security": [{ "Bearer": [] }]
-            }
-        },
-        "/v3/apps/business_app_installs/{uuid}": {
-            "get": {
-                "operationId": "BusinessAppInstalls_show",
-                "summary": "Get a Business App Install",
-                "description": "Get a single business app install by uuid. **Available for Staff (user) Tokens**",
-                "parameters": [
-                    {
-                        "name": "uuid",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "type": "string" },
-                        "description": "UUID of the business app install"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Business app install retrieved successfully",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "allOf": [
-                                        { "$ref": "#/components/schemas/Response" },
-                                        { "properties": { "data": { "$ref": "https://vcita.github.io/developers-hub/entities/apps/businessAppInstall.json" } } }
-                                    ]
-                                }
-                            }
-                        }
-                    },
-                    "401": { "description": "Unauthorized." },
-                    "404": { "description": "Not found. Business app install not found." },
-                    "500": { "description": "Internal server error." }
-                },
-                "tags": ["Business App Installs"],
-                "security": [{ "Bearer": [] }]
-            },
-            "delete": {
-                "operationId": "BusinessAppInstalls_destroy",
-                "summary": "Delete a Business App Install",
-                "description": "Uninstall an app for a business. **Available for Staff (user) Tokens**",
-                "parameters": [
-                    {
-                        "name": "uuid",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "type": "string" },
-                        "description": "UUID of the business app install to delete"
-                    }
-                ],
-                "responses": {
-                    "200": { "description": "Business app install deleted successfully" },
-                    "401": { "description": "Unauthorized." },
-                    "404": { "description": "Not found. Business app install not found." },
-                    "500": { "description": "Internal server error." }
-                },
-                "tags": ["Business App Installs"],
-                "security": [{ "Bearer": [] }]
-            }
-        },
-        "/v3/apps/app_assignments": {
-            "get": {
-                "operationId": "AppAssignments_list",
-                "summary": "List App Assignments",
-                "description": "Get a list of app assignments with optional filtering. Note: assignee_uid can only be used when assignee_type is also provided. **Available for Directory and internal Tokens**",
-                "parameters": [
-                    {
-                        "name": "app_code_name",
-                        "in": "query",
-                        "required": false,
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by app code name"
-                    },
-                    {
-                        "name": "assignee_type",
-                        "in": "query",
-                        "required": false,
-                        "schema": {
-                            "type": "string",
-                            "enum": ["business", "package", "directory"]
-                        },
-                        "description": "Filter by assignee type"
-                    },
-                    {
-                        "name": "assignee_uid",
-                        "in": "query",
-                        "required": false,
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by assignee uid. Only allowed when assignee_type is also provided."
-                    },
-                    {
-                        "name": "directory_uid",
-                        "in": "query",
-                        "required": false,
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Filter by directory uid. Only available for internal Tokens."
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "App assignments retrieved successfully",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "allOf": [
-                                        {
-                                            "$ref": "#/components/schemas/Response"
-                                        },
-                                        {
-                                            "properties": {
-                                                "data": {
-                                                    "type": "object",
-                                                    "properties": {
-                                                        "app_assignments": {
-                                                            "type": "array",
-                                                            "items": {
-                                                                "$ref": "https://vcita.github.io/developers-hub/entities/apps/appAssignment.json"
-                                                            }
-                                                        }
-                                                    },
-                                                    "required": [
-                                                        "app_assignments"
-                                                    ]
-                                                }
-                                            }
-                                        }
-                                    ]
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad request. Invalid input data."
-                    },
-                    "401": {
-                        "description": "Unauthorized. The bearer token is missing or invalid."
-                    },
-                    "403": {
-                        "description": "Forbidden. You do not have access to this resource."
-                    },
-                    "500": {
-                        "description": "Internal server error."
-                    }
-                },
-                "tags": [
-                    "App Assignments"
-                ],
-                "security": [
-                    {
-                        "Bearer": []
-                    }
-                ]
-            },
-            "post": {
-                "operationId": "AppAssignments_create",
-                "summary": "Create an App Assignment",
-                "description": "Create a new app assignment to a business, package or directory. **Available for Directory and internal Tokens**",
-                "parameters": [],
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/CreateAppAssignmentRequestDto"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "201": {
-                        "description": "App assignment created successfully",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "allOf": [
-                                        {
-                                            "$ref": "#/components/schemas/Response"
-                                        },
-                                        {
-                                            "properties": {
-                                                "data": {
-                                                    "type": "object",
-                                                    "$ref": "https://vcita.github.io/developers-hub/entities/apps/appAssignment.json"
-                                                }
-                                            }
-                                        }
-                                    ]
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad request. Invalid input data."
-                    },
-                    "401": {
-                        "description": "Unauthorized. The bearer token is missing or invalid."
-                    },
-                    "403": {
-                        "description": "Forbidden. You do not have access to this resource."
-                    },
-                    "500": {
-                        "description": "Internal server error."
-                    }
-                },
-                "tags": [
-                    "App Assignments"
-                ],
-                "security": [
-                    {
-                        "Bearer": []
-                    }
-                ]
-            }
-        },
-        "/v3/apps/app_assignments/{uid}": {
-            "delete": {
-                "operationId": "AppAssignments_delete",
-                "summary": "Delete an App Assignment",
-                "description": "Delete an app assignment. **Available for Directory and internal Tokens**",
-                "parameters": [
-                    {
-                        "name": "uid",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
-                        },
-                        "description": "Unique identifier of the app assignment to delete"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "App assignment deleted successfully",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "allOf": [
-                                        {
-                                            "$ref": "#/components/schemas/Response"
-                                        },
-                                        {
-                                            "properties": {
-                                                "data": {
-                                                    "type": "object",
-                                                    "$ref": "https://vcita.github.io/developers-hub/entities/apps/appAssignment.json"
-                                                }
-                                            }
-                                        }
-                                    ]
-                                }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad request. Invalid input data."
-                    },
-                    "401": {
-                        "description": "Unauthorized. The bearer token is missing or invalid."
-                    },
-                    "403": {
-                        "description": "Forbidden. You do not have access to this resource."
-                    },
-                    "404": {
-                        "description": "Not found. App assignment not found."
-                    },
-                    "500": {
-                        "description": "Internal server error."
-                    }
-                },
-                "tags": [
-                    "App Assignments"
-                ],
-                "security": [
-                    {
-                        "Bearer": []
-                    }
-                ]
-            }
-        }
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Apps",
+    "description": "A set of endpoints to manage inTandem's apps",
+    "version": "3.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [
+    {
+      "url": "https://api.vcita.biz/",
+      "description": "API Gateway server"
     }
+  ],
+  "components": {
+    "schemas": {
+      "Response": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "CreateAppAssignmentRequestDto": {
+        "type": "object",
+        "properties": {
+          "assignee_type": {
+            "type": "string",
+            "description": "The type of entity this app is assigned to",
+            "enum": [
+              "business",
+              "package",
+              "directory"
+            ]
+          },
+          "assignee_uid": {
+            "type": "string",
+            "description": "The uid of the entity this app is assigned to"
+          },
+          "app_code_name": {
+            "type": "string",
+            "description": "The unique identifier of the app. Must use alphanumeric characters only (no spaces or special characters). The app must exist and belong to the authenticated directory.",
+            "pattern": "^[a-zA-Z0-9]+$"
+          },
+          "directory_uid": {
+            "type": "string",
+            "description": "The uid of the directory this app is assigned to. **Optional when using Directory Token** - will be auto-determined from the token if omitted. If provided, must match the directory associated with your authentication token."
+          },
+          "settings": {
+            "type": "object",
+            "description": "Optional settings for the app assignment",
+            "properties": {
+              "assignment_mode": {
+                "type": "string",
+                "description": "App setting: 'internal' - App does not show in the app market but still available to use in all relevant integration points; 'pre_installed' - Define the app as pre-installed for all new accounts, app shows in app market as installed on first appearance. The user will be able to uninstall it later if they wish to. This is relevant only to account with platform app market",
+                "enum": [
+                  "internal",
+                  "pre_installed"
+                ]
+              }
+            },
+            "required": [
+              "assignment_mode"
+            ]
+          }
+        },
+        "required": [
+          "assignee_type",
+          "assignee_uid",
+          "app_code_name",
+          "settings"
+        ]
+      },
+      "CreateBusinessAppInstallRequestDto": {
+        "type": "object",
+        "properties": {
+          "business_uid": {
+            "type": "string",
+            "description": "Unique identifier of the business"
+          },
+          "app_code_name": {
+            "type": "string",
+            "description": "The unique identifier of the app"
+          }
+        },
+        "required": [
+          "business_uid",
+          "app_code_name"
+        ]
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+      }
+    }
+  },
+  "paths": {
+    "/v3/apps/business_app_installs": {
+      "get": {
+        "operationId": "BusinessAppInstalls_list",
+        "summary": "List Business App Installs",
+        "description": "Get a list of installed apps per business. Each item includes a uid; use it in the show and delete paths. Optional query filters: business_uid, app_code_name, page, per_page. **Available for Staff (user) Tokens**",
+        "parameters": [
+          {
+            "name": "business_uid",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "Filter by business uid"
+          },
+          {
+            "name": "app_code_name",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "Filter by app code name"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 1 }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 25 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Business app installs retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/Response" },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "business_app_installs": {
+                              "type": "array",
+                              "items": { "$ref": "https://vcita.github.io/developers-hub/entities/apps/businessAppInstall.json" }
+                            }
+                          },
+                          "required": ["business_app_installs"]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized." },
+          "500": { "description": "Internal server error." }
+        },
+        "tags": ["Business App Installs"],
+        "security": [{ "Bearer": [] }]
+      },
+      "post": {
+        "operationId": "BusinessAppInstalls_create",
+        "summary": "Create a Business App Install",
+        "description": "Install an app for a business. **Available for Staff (user) Tokens**",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateBusinessAppInstallRequestDto" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Business app install created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/Response" },
+                    { "properties": { "data": { "$ref": "https://vcita.github.io/developers-hub/entities/apps/businessAppInstall.json" } } }
+                  ]
+                }
+              }
+            }
+          },
+          "400": { "description": "Bad request. Invalid input data." },
+          "401": { "description": "Unauthorized." },
+          "422": { "description": "Unprocessable entity. business_uid or app_code_name not found." },
+          "500": { "description": "Internal server error." }
+        },
+        "tags": ["Business App Installs"],
+        "security": [{ "Bearer": [] }]
+      }
+    },
+    "/v3/apps/business_app_installs/{uid}": {
+      "get": {
+        "operationId": "BusinessAppInstalls_show",
+        "summary": "Get a Business App Install",
+        "description": "Get a single business app install by uid. **Available for Staff (user) Tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Unique identifier of the business app install"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Business app install retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/Response" },
+                    { "properties": { "data": { "$ref": "https://vcita.github.io/developers-hub/entities/apps/businessAppInstall.json" } } }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized." },
+          "404": { "description": "Not found. Business app install not found." },
+          "500": { "description": "Internal server error." }
+        },
+        "tags": ["Business App Installs"],
+        "security": [{ "Bearer": [] }]
+      },
+      "delete": {
+        "operationId": "BusinessAppInstalls_destroy",
+        "summary": "Delete a Business App Install",
+        "description": "Uninstall an app for a business. **Available for Staff (user) Tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Unique identifier of the business app install to delete"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Business app install deleted successfully" },
+          "401": { "description": "Unauthorized." },
+          "404": { "description": "Not found. Business app install not found." },
+          "500": { "description": "Internal server error." }
+        },
+        "tags": ["Business App Installs"],
+        "security": [{ "Bearer": [] }]
+      }
+    },
+    "/v3/apps/app_assignments": {
+      "get": {
+        "operationId": "AppAssignments_list",
+        "summary": "List App Assignments",
+        "description": "Returns app assignments across multiple businesses within a directory, with optional filtering. Note: assignee_uid can only be used when assignee_type is also provided.\n\n**Available for Directory and Internal Tokens.**",
+        "parameters": [
+          {
+            "name": "app_code_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by app code name"
+          },
+          {
+            "name": "assignee_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "business",
+                "package",
+                "directory"
+              ]
+            },
+            "description": "Filter by assignee type"
+          },
+          {
+            "name": "assignee_uid",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by assignee uid. Only allowed when assignee_type is also provided."
+          },
+          {
+            "name": "directory_uid",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by directory uid. Only available for internal Tokens."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "App assignments retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "app_assignments": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "https://vcita.github.io/developers-hub/entities/apps/appAssignment.json"
+                              }
+                            }
+                          },
+                          "required": [
+                            "app_assignments"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request. Invalid input data."
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing or invalid."
+          },
+          "403": {
+            "description": "Forbidden. You do not have access to this resource."
+          },
+          "500": {
+            "description": "Internal server error."
+          }
+        },
+        "tags": [
+          "App Assignments"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "AppAssignments_create",
+        "summary": "Create an App Assignment",
+        "description": "## Overview\nCreate a new app assignment to a business, package or directory.\n\n**Available for Directory Tokens and Internal Tokens only.** Staff and Business tokens are not supported and will return 401 Unauthorized.\n\n## Prerequisites\n- The app specified by `app_code_name` must already exist and belong to the authenticated directory\n- The `directory_uid` parameter is **optional when using Directory Token** (auto-determined from token). If provided, must match the directory associated with your authentication token.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAppAssignmentRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "App assignment created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/appAssignment.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request. Invalid input data."
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing or invalid."
+          },
+          "403": {
+            "description": "Forbidden. You do not have access to this resource."
+          },
+          "500": {
+            "description": "Internal server error."
+          }
+        },
+        "tags": [
+          "App Assignments"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/apps/app_assignments/{uid}": {
+      "delete": {
+        "operationId": "AppAssignments_delete",
+        "summary": "Delete an App Assignment",
+        "description": "## Overview\nDelete an app assignment.\n\n**Available for Directory and internal Tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unique identifier of the app assignment to delete"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "App assignment deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/appAssignment.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request. Invalid input data."
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing or invalid."
+          },
+          "403": {
+            "description": "Forbidden. You do not have access to this resource."
+          },
+          "404": {
+            "description": "Not found. App assignment not found."
+          },
+          "500": {
+            "description": "Internal server error."
+          }
+        },
+        "tags": [
+          "App Assignments"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    }
+  }
 }
