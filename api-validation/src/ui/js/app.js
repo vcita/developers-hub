@@ -6,9 +6,12 @@
 // Application state
 const AppState = {
   endpoints: [],
+  allEndpoints: [],       // Full endpoint list (for mode switching)
+  fallbackEndpoints: [],  // Endpoints with useFallbackApi (for base URL scan mode)
   domains: [],
   selectedEndpoints: new Set(),
   expandedDomains: new Set(), // Track which domain groups are expanded
+  validationMode: 'full', // 'full' or 'base-url-scan'
   filters: {
     domain: '',
     method: '',
@@ -80,6 +83,7 @@ async function loadEndpoints() {
   
   // Flatten endpoints for easier access
   AppState.endpoints = [];
+  AppState.allEndpoints = [];
   AppState.domains = [];
   
   for (const domain of data.domains) {
@@ -87,14 +91,21 @@ async function loadEndpoints() {
     
     for (const resource of domain.resources) {
       for (const endpoint of resource.endpoints) {
-        AppState.endpoints.push(endpoint);
+        AppState.allEndpoints.push(endpoint);
       }
     }
   }
   
+  // Set active endpoints based on mode
+  AppState.endpoints = AppState.allEndpoints;
+  
   // Update domain filter
   const domainFilter = document.getElementById('domain-filter');
   if (domainFilter) {
+    // Clear existing options (except first "All")
+    while (domainFilter.options.length > 1) {
+      domainFilter.remove(1);
+    }
     for (const domain of AppState.domains) {
       const option = document.createElement('option');
       option.value = domain;
@@ -108,6 +119,83 @@ async function loadEndpoints() {
   if (countEl) {
     countEl.textContent = `Endpoints: ${AppState.endpoints.length}`;
   }
+}
+
+/**
+ * Load fallback-only endpoints for Base URL Scan mode
+ */
+async function loadFallbackEndpoints() {
+  const response = await fetch('/api/endpoints?grouped=true&fallbackOnly=true');
+  const data = await response.json();
+  
+  AppState.fallbackEndpoints = [];
+  
+  for (const domain of data.domains) {
+    for (const resource of domain.resources) {
+      for (const endpoint of resource.endpoints) {
+        AppState.fallbackEndpoints.push(endpoint);
+      }
+    }
+  }
+  
+  return AppState.fallbackEndpoints;
+}
+
+/**
+ * Set the validation mode (full or base-url-scan)
+ * @param {string} mode - 'full' or 'base-url-scan'
+ */
+async function setValidationMode(mode) {
+  AppState.validationMode = mode;
+  AppState.selectedEndpoints.clear();
+  
+  // Update toggle button states
+  document.getElementById('mode-full')?.classList.toggle('active', mode === 'full');
+  document.getElementById('mode-base-url')?.classList.toggle('active', mode === 'base-url-scan');
+  
+  // Update mode description
+  const descEl = document.getElementById('mode-description');
+  if (descEl) {
+    descEl.textContent = mode === 'full'
+      ? 'Run full API validation with schema checks and AI healing.'
+      : 'Quick scan to check if fallback URLs are still needed for endpoints.';
+  }
+  
+  // Update run button text
+  const runBtn = document.getElementById('run-btn');
+  if (runBtn) {
+    runBtn.textContent = mode === 'full' ? 'Run Selected' : 'Run Base URL Scan';
+  }
+  
+  // Show/hide full validation options
+  const fullOptions = document.getElementById('full-validation-options');
+  if (fullOptions) {
+    fullOptions.classList.toggle('hidden', mode === 'base-url-scan');
+  }
+  
+  // Show/hide rate limit section (relevant for both modes)
+  // Show/hide results sections
+  document.getElementById('results-section')?.classList.add('hidden');
+  document.getElementById('scan-results-section')?.classList.add('hidden');
+  document.getElementById('progress-section')?.classList.add('hidden');
+  
+  // Switch endpoint source
+  if (mode === 'base-url-scan') {
+    await loadFallbackEndpoints();
+    AppState.endpoints = AppState.fallbackEndpoints;
+  } else {
+    AppState.endpoints = AppState.allEndpoints;
+  }
+  
+  // Update count
+  const countEl = document.getElementById('endpoint-count');
+  if (countEl) {
+    countEl.textContent = `Endpoints: ${AppState.endpoints.length}`;
+  }
+  
+  // Re-render
+  renderEndpoints();
+  updateSelectedCount();
 }
 
 /**
@@ -375,6 +463,11 @@ async function runSetup() {
  * Run tests for selected endpoints
  */
 async function runTests() {
+  // Dispatch to base URL scan mode if active
+  if (AppState.validationMode === 'base-url-scan') {
+    return runBaseUrlScan();
+  }
+
   // Check if setup should run first
   const runSetupFirst = document.getElementById('run-setup-before')?.checked;
   
@@ -412,6 +505,7 @@ async function runTests() {
   
   progressSection?.classList.remove('hidden');
   resultsSection?.classList.add('hidden');
+  document.getElementById('scan-results-section')?.classList.add('hidden');
   
   // Smooth scroll to progress section
   progressSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -431,6 +525,41 @@ async function runTests() {
   } catch (error) {
     console.error('Test runner error:', error);
     alert('Error running tests: ' + error.message);
+  }
+}
+
+/**
+ * Run base URL scan for selected fallback endpoints
+ */
+async function runBaseUrlScan() {
+  const selectedEndpoints = AppState.endpoints.filter(e =>
+    AppState.selectedEndpoints.has(e.id)
+  );
+
+  if (selectedEndpoints.length === 0) {
+    showWarning('No endpoints selected');
+    alert('No endpoints selected for base URL scan.');
+    return;
+  }
+
+  // Show progress, hide results
+  const progressSection = document.getElementById('progress-section');
+  progressSection?.classList.remove('hidden');
+  document.getElementById('results-section')?.classList.add('hidden');
+  document.getElementById('scan-results-section')?.classList.add('hidden');
+  progressSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  try {
+    await TestRunner.runBaseUrlScan(selectedEndpoints, {
+      rateLimitPreset: AppState.rateLimit.preset,
+      rateLimit: {
+        maxConcurrent: AppState.rateLimit.concurrent,
+        retryOn429: AppState.rateLimit.retryOn429
+      }
+    });
+  } catch (error) {
+    console.error('Base URL scan error:', error);
+    alert('Error running scan: ' + error.message);
   }
 }
 
@@ -734,7 +863,8 @@ window.App = {
   runSetup,
   openPasteModal,
   closePasteModal,
-  applyPastedEndpoints
+  applyPastedEndpoints,
+  setValidationMode
 };
 
 // Initialize on DOM ready

@@ -2797,5 +2797,131 @@ ${result.swaggerFile || result.domain || 'Unknown'}`;
     } else {
       alert('Fix runner module not loaded.');
     }
+  },
+
+  // ========================
+  // Base URL Scan Results
+  // ========================
+
+  _scanResults: [],
+
+  /**
+   * Add a single scan result to the scan results list
+   * @param {Object} result - Scan result object
+   */
+  addScanResult(result) {
+    const listEl = document.getElementById('scan-results-list');
+    if (!listEl) return;
+
+    // Show scan results section
+    document.getElementById('scan-results-section')?.classList.remove('hidden');
+
+    // Remove "loading" placeholder if present
+    const loading = listEl.querySelector('.results-loading');
+    if (loading) loading.remove();
+
+    this._scanResults.push(result);
+
+    const recClass = this.getScanRecommendationClass(result.recommendation);
+    const recLabel = this.getScanRecommendationLabel(result.recommendation);
+    const recIcon = this.getScanRecommendationIcon(result.recommendation);
+
+    const card = document.createElement('div');
+    card.className = `scan-result-card scan-${recClass}`;
+    card.dataset.recommendation = result.recommendation;
+    card.innerHTML = `
+      <div class="scan-result-header">
+        <span class="scan-result-icon">${recIcon}</span>
+        <span class="scan-result-endpoint">${result.endpoint}</span>
+        <span class="scan-result-domain">${result.domain || ''}</span>
+        <span class="scan-recommendation-badge scan-badge-${recClass}">${recLabel}</span>
+      </div>
+      <div class="scan-result-comparison">
+        <div class="scan-url-result scan-url-fallback ${result.fallback.success ? 'success' : 'failure'}">
+          <span class="scan-url-label">Fallback</span>
+          <span class="scan-url-value">${result.fallback.url || ''}</span>
+          <span class="scan-url-status">${result.fallback.success ? '✓' : '✗'} ${result.fallback.status || ''}</span>
+          <span class="scan-url-duration">${result.fallback.duration || '-'}</span>
+          ${result.fallback.error ? `<span class="scan-url-error">${this.truncateText(result.fallback.error, 120)}</span>` : ''}
+        </div>
+        <div class="scan-url-separator">→</div>
+        <div class="scan-url-result scan-url-primary ${result.primary.success ? 'success' : 'failure'}">
+          <span class="scan-url-label">Primary</span>
+          <span class="scan-url-value">${result.primary.url || ''}</span>
+          <span class="scan-url-status">${result.primary.success ? '✓' : '✗'} ${result.primary.status || ''}</span>
+          <span class="scan-url-duration">${result.primary.duration || '-'}</span>
+          ${result.primary.error ? `<span class="scan-url-error">${this.truncateText(result.primary.error, 120)}</span>` : ''}
+        </div>
+      </div>
+    `;
+
+    listEl.appendChild(card);
+  },
+
+  /**
+   * Sort scan results: PRIMARY_NOW_WORKS first, then broken, then still needed
+   */
+  sortScanResults() {
+    const listEl = document.getElementById('scan-results-list');
+    if (!listEl) return;
+
+    const order = {
+      'PRIMARY_NOW_WORKS': 0,
+      'FALLBACK_BROKEN': 1,
+      'BOTH_FAILING': 2,
+      'NO_WORKFLOW': 3,
+      'FALLBACK_STILL_NEEDED': 4
+    };
+
+    const cards = Array.from(listEl.querySelectorAll('.scan-result-card'));
+    cards.sort((a, b) => {
+      return (order[a.dataset.recommendation] ?? 99) - (order[b.dataset.recommendation] ?? 99);
+    });
+
+    for (const card of cards) {
+      listEl.appendChild(card);
+    }
+  },
+
+  /**
+   * Get CSS class for a scan recommendation
+   */
+  getScanRecommendationClass(recommendation) {
+    const map = {
+      'PRIMARY_NOW_WORKS': 'primary-works',
+      'FALLBACK_STILL_NEEDED': 'fallback-needed',
+      'FALLBACK_BROKEN': 'fallback-broken',
+      'BOTH_FAILING': 'both-failing',
+      'NO_WORKFLOW': 'no-workflow'
+    };
+    return map[recommendation] || 'unknown';
+  },
+
+  /**
+   * Get human-readable label for a scan recommendation
+   */
+  getScanRecommendationLabel(recommendation) {
+    const map = {
+      'PRIMARY_NOW_WORKS': 'Primary Now Works',
+      'FALLBACK_STILL_NEEDED': 'Fallback Still Needed',
+      'FALLBACK_BROKEN': 'Fallback Broken',
+      'BOTH_FAILING': 'Both Failing',
+      'NO_WORKFLOW': 'No Workflow'
+    };
+    return map[recommendation] || recommendation;
+  },
+
+  /**
+   * Get icon for a scan recommendation
+   */
+  getScanRecommendationIcon(recommendation) {
+    const map = {
+      'PRIMARY_NOW_WORKS': '🟢',
+      'FALLBACK_STILL_NEEDED': '🟡',
+      'FALLBACK_BROKEN': '🔴',
+      'BOTH_FAILING': '🔴',
+      'NO_WORKFLOW': '⚪'
+    };
+    return map[recommendation] || '❓';
   }
 };

@@ -656,18 +656,26 @@ const TestRunner = {
   },
   
   /**
-   * Stop the currently running tests
+   * Stop the currently running tests or scan
    */
   async stop() {
-    if (!this.sessionId || !this.isRunning) {
-      console.log('No active test session to stop');
+    // Determine which session to stop
+    const activeSessionId = this.sessionId || this.scanSessionId;
+    if (!activeSessionId || !this.isRunning) {
+      console.log('No active session to stop');
       return;
     }
     
-    console.log('Stopping test session:', this.sessionId);
+    // Determine the correct stop endpoint based on session type
+    const isScan = activeSessionId.startsWith('scan-');
+    const stopUrl = isScan
+      ? `/api/validate/base-url-scan/stop/${activeSessionId}`
+      : `/api/validate/stop/${activeSessionId}`;
+    
+    console.log('Stopping session:', activeSessionId, isScan ? '(scan)' : '(validation)');
     
     try {
-      const response = await fetch(`/api/validate/stop/${this.sessionId}`, {
+      const response = await fetch(stopUrl, {
         method: 'POST'
       });
       
@@ -675,10 +683,10 @@ const TestRunner = {
       console.log('Stop response:', data);
       
       if (!data.success) {
-        console.error('Failed to stop tests:', data.message);
+        console.error('Failed to stop session:', data.message);
       }
     } catch (error) {
-      console.error('Error stopping tests:', error);
+      console.error('Error stopping session:', error);
     }
   },
   
@@ -722,5 +730,207 @@ const TestRunner = {
    */
   getSwaggerFileChanges() {
     return this.swaggerFileChanges || [];
+  },
+
+  // ========================
+  // Base URL Scan Methods
+  // ========================
+
+  scanResults: [],
+  scanSessionId: null,
+
+  /**
+   * Run base URL scan for selected fallback endpoints
+   * @param {Object[]} endpoints - Endpoints to scan
+   * @param {Object} options - Scan options
+   */
+  async runBaseUrlScan(endpoints, options = {}) {
+    console.log('TestRunner.runBaseUrlScan called with', endpoints.length, 'endpoints');
+    this.scanResults = [];
+    this.scanSessionId = null;
+    this.sessionId = null;
+    this.isRunning = true;
+    this.clearPreflightLog();
+    this.updateProgress(0, endpoints.length, 'Starting base URL scan...');
+    this.updateButtonStates();
+
+    // Clear previous scan results
+    ResultsViewer._scanResults = [];
+    const scanList = document.getElementById('scan-results-list');
+    if (scanList) scanList.innerHTML = '<div class="empty results-loading">Scan results will appear here...</div>';
+
+    // Reset scan summary counters
+    document.getElementById('scan-primary-works').textContent = '0';
+    document.getElementById('scan-fallback-needed').textContent = '0';
+    document.getElementById('scan-fallback-broken').textContent = '0';
+    document.getElementById('scan-no-workflow').textContent = '0';
+
+    // Show scan results section early
+    document.getElementById('scan-results-section')?.classList.remove('hidden');
+    document.getElementById('progress-section')?.classList.remove('hidden');
+
+    try {
+      const response = await fetch('/api/validate/base-url-scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          endpoints: endpoints.map(e => ({ path: e.path, method: e.method })),
+          options
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to start base URL scan');
+      }
+
+      this.scanSessionId = data.sessionId;
+      this.connectToScanStream(data.sessionId, endpoints.length);
+
+    } catch (error) {
+      console.error('Base URL scan error:', error);
+      this.updateProgress(0, 0, `Error: ${error.message}`);
+      this.isRunning = false;
+      this.updateButtonStates();
+      alert('Base URL scan error: ' + error.message);
+    }
+  },
+
+  /**
+   * Connect to SSE stream for base URL scan progress
+   * @param {string} sessionId - Scan session ID
+   * @param {number} total - Total endpoints
+   */
+  connectToScanStream(sessionId, total) {
+    if (this.eventSource) {
+      this.eventSource.close();
+    }
+
+    this.eventSource = new EventSource(`/api/validate/base-url-scan/stream/${sessionId}`);
+
+    this.eventSource.addEventListener('start', (event) => {
+      const data = JSON.parse(event.data);
+      this.updateProgress(0, data.total, 'Running base URL scan...');
+    });
+
+    this.eventSource.addEventListener('progress', (event) => {
+      const data = JSON.parse(event.data);
+      const phaseLabel = data.phase === 'fallback' ? '(testing fallback)' :
+                         data.phase === 'primary' ? '(testing primary)' :
+                         data.phase === 'fallback_failed' ? '(fallback failed)' : '';
+      this.updateProgress(data.index, total, `Scanning: ${data.endpoint} ${phaseLabel}`);
+      this.addProgressLog(`${data.endpoint} ${phaseLabel}`, 'running');
+    });
+
+    this.eventSource.addEventListener('scan_result', (event) => {
+      const result = JSON.parse(event.data);
+      this.scanResults.push(result);
+      
+      // Update progress log with result
+      const statusClass = result.recommendation === 'PRIMARY_NOW_WORKS' ? 'pass' :
+                          result.recommendation === 'FALLBACK_STILL_NEEDED' ? 'warn' : 'fail';
+      const icon = result.recommendation === 'PRIMARY_NOW_WORKS' ? '✓' :
+                   result.recommendation === 'FALLBACK_STILL_NEEDED' ? '⚠' : '✗';
+      this.updateProgressLog(result.endpoint, statusClass === 'pass' ? 'PASS' : statusClass === 'warn' ? 'WARN' : 'FAIL',
+        result.fallback.duration || '-');
+
+      // Render scan result immediately
+      ResultsViewer.addScanResult(result);
+      this.updateScanSummary();
+    });
+
+    this.eventSource.addEventListener('complete', (event) => {
+      const data = JSON.parse(event.data);
+      this.eventSource.close();
+      this.eventSource = null;
+      this.isRunning = false;
+      this.updateButtonStates();
+
+      this.updateProgress(total, total, 'Base URL scan complete!');
+      this.showScanResults(data);
+    });
+
+    this.eventSource.addEventListener('stopped', (event) => {
+      const data = JSON.parse(event.data);
+      this.eventSource.close();
+      this.eventSource = null;
+      this.isRunning = false;
+      this.updateButtonStates();
+
+      this.updateProgress(data.completed, data.total, 'Scan stopped by user');
+      this.showScanResults({
+        status: 'stopped',
+        ...this.getScanCounts()
+      });
+    });
+
+    this.eventSource.addEventListener('error', (event) => {
+      console.error('Scan SSE error:', event);
+      this.eventSource.close();
+      this.eventSource = null;
+      this.isRunning = false;
+      this.updateButtonStates();
+    });
+
+    this.eventSource.onerror = (error) => {
+      console.error('Scan EventSource error:', error);
+      if (this.eventSource) {
+        this.eventSource.close();
+        this.eventSource = null;
+      }
+      this.isRunning = false;
+      this.updateButtonStates();
+    };
+  },
+
+  /**
+   * Get scan result counts
+   */
+  getScanCounts() {
+    return {
+      total: this.scanResults.length,
+      primaryNowWorks: this.scanResults.filter(r => r.recommendation === 'PRIMARY_NOW_WORKS').length,
+      fallbackStillNeeded: this.scanResults.filter(r => r.recommendation === 'FALLBACK_STILL_NEEDED').length,
+      fallbackBroken: this.scanResults.filter(r => r.recommendation === 'FALLBACK_BROKEN').length,
+      noWorkflow: this.scanResults.filter(r => r.recommendation === 'NO_WORKFLOW').length
+    };
+  },
+
+  /**
+   * Update scan summary counters incrementally
+   */
+  updateScanSummary() {
+    const counts = this.getScanCounts();
+    document.getElementById('scan-primary-works').textContent = counts.primaryNowWorks;
+    document.getElementById('scan-fallback-needed').textContent = counts.fallbackStillNeeded;
+    document.getElementById('scan-fallback-broken').textContent = counts.fallbackBroken;
+    document.getElementById('scan-no-workflow').textContent = counts.noWorkflow;
+  },
+
+  /**
+   * Show final scan results
+   */
+  showScanResults(summary) {
+    const preflightSection = document.getElementById('preflight-section');
+    if (preflightSection) preflightSection.classList.add('hidden');
+
+    const scanResultsSection = document.getElementById('scan-results-section');
+    scanResultsSection?.classList.remove('hidden');
+
+    // Update summary from server
+    if (summary.primaryNowWorks !== undefined) {
+      document.getElementById('scan-primary-works').textContent = summary.primaryNowWorks;
+      document.getElementById('scan-fallback-needed').textContent = summary.fallbackStillNeeded;
+      document.getElementById('scan-fallback-broken').textContent = summary.fallbackBroken;
+      document.getElementById('scan-no-workflow').textContent = summary.noWorkflow || 0;
+    }
+
+    // Sort: PRIMARY_NOW_WORKS first, then FALLBACK_BROKEN, then FALLBACK_STILL_NEEDED
+    ResultsViewer.sortScanResults();
+
+    setTimeout(() => {
+      scanResultsSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
   }
 };
