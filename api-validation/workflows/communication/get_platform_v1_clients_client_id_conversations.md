@@ -1,8 +1,8 @@
 ---
 endpoint: "GET /platform/v1/clients/{client_id}/conversations"
-domain: clients
+domain: communication
 tags: [conversations, messaging]
-swagger: "mcp_swagger/clients.json"
+swagger: "mcp_swagger/communication.json"
 status: verified
 savedAt: "2026-02-04T08:30:00.000Z"
 verifiedAt: "2026-02-04T08:30:00.000Z"

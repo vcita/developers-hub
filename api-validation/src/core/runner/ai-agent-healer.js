@@ -136,7 +136,7 @@ const TOOLS = [
         },
         use_fallback: {
           type: "boolean",
-          description: "Use the fallback API URL instead of the primary URL. Try this if you get 404/routing errors. Default is false."
+          description: "Use the fallback API URL instead of the primary URL. Try this if you get 404/routing errors. Default is false. Note: /v1/partners/* endpoints are auto-routed to the Partners API URL with Token auth — no need to set use_fallback for those."
         },
         content_type: {
           type: "string",
@@ -603,7 +603,17 @@ async function executeTool(toolName, toolInput, context) {
       
       const primaryUrl = apiClient._config?.baseUrl || config.baseUrl;
       const fallbackUrl = apiClient._config?.fallbackUrl || config.fallbackUrl;
-      const baseUrl = use_fallback && fallbackUrl ? fallbackUrl : primaryUrl;
+      const partnersUrl = apiClient._config?.partnersUrl || config.partnersUrl;
+      
+      // Partners API endpoints use dedicated URL
+      const isPartnersEndpoint = apiPath && apiPath.includes('/partners/');
+      let baseUrl;
+      if (isPartnersEndpoint && partnersUrl) {
+        baseUrl = partnersUrl;
+        console.log(`  [Partners] Healer using Partners API URL for ${apiPath}: ${partnersUrl}`);
+      } else {
+        baseUrl = use_fallback && fallbackUrl ? fallbackUrl : primaryUrl;
+      }
       
       let queryString = '';
       if (params && typeof params === 'object' && Object.keys(params).length > 0) {
@@ -625,8 +635,17 @@ async function executeTool(toolName, toolInput, context) {
       
       try {
         const token = config.tokens?.[token_type] || config.tokens?.staff;
-        const authPrefix = token_type === 'admin' ? 'Admin' : 'Bearer';
-        const headers = { 'Authorization': `${authPrefix} ${token}` };
+        
+        // Partners API uses HTTP Token authentication: Token token="..."
+        let authHeader;
+        if (isPartnersEndpoint && partnersUrl) {
+          authHeader = `Token token="${token}"`;
+          console.log(`  [Partners] Healer switched auth to Token format`);
+        } else {
+          const authPrefix = token_type === 'admin' ? 'Admin' : 'Bearer';
+          authHeader = `${authPrefix} ${token}`;
+        }
+        const headers = { 'Authorization': authHeader };
         
         if (on_behalf_of) {
           headers['X-On-Behalf-Of'] = on_behalf_of;
@@ -657,9 +676,10 @@ async function executeTool(toolName, toolInput, context) {
           headers['Content-Type'] = 'application/json';
         }
         
+        const useDirectUrl = use_fallback || isPartnersEndpoint;
         const requestConfig = {
           method: method.toLowerCase(),
-          url: use_fallback ? `${baseUrl}${fullPath}` : fullPath,
+          url: useDirectUrl ? `${baseUrl}${fullPath}` : fullPath,
           data: requestData,
           headers
         };
@@ -668,7 +688,7 @@ async function executeTool(toolName, toolInput, context) {
           requestConfig.maxBodyLength = Infinity;
         }
         
-        const response = use_fallback 
+        const response = useDirectUrl 
           ? await require('axios').request(requestConfig)
           : await apiClient.request(requestConfig);
         
@@ -1041,6 +1061,7 @@ ${Object.entries(config.tokens || {}).map(([type, token]) => {
 ## API URLs
 - Primary: ${config.baseUrl}
 - Fallback: ${config.fallbackUrl || 'Not configured'}
+- Partners API: ${config.partnersUrl || 'Not configured'} (auto-used for /v1/partners/* endpoints with Token auth)
 
 ## Resolved Parameters
 \`\`\`json
@@ -1052,6 +1073,12 @@ You MUST only retry the EXACT endpoint path given to you (${endpoint.method} ${e
 - NEVER change the endpoint path to a different one, even if they seem related.
 - If the endpoint returns 404 on both primary and fallback, report FAIL — do NOT search for a "real" endpoint.
 - Two different paths = two different endpoints. Period.
+
+## CRITICAL: ONLY USE DOCUMENTED ENDPOINTS
+When making API calls (including prerequisite steps to fetch data like UIDs or emails), you MUST only use documented, official API paths that appear in the swagger definitions.
+- NEVER use legacy, undocumented, or shorthand paths like /v2/staffs, /v2/clients, etc.
+- Use the documented equivalents, e.g. /platform/v1/businesses/{business_id}/staffs instead of /v2/staffs.
+- If you're unsure whether a path is documented, check the Available Endpoints list below.
 
 ## Strategy
 
@@ -1145,18 +1172,34 @@ async function runAgentHealer(options) {
       const tokenType = testReq.token || 'staff';
       const authToken = config.tokens?.[tokenType];
       const useFallback = existingWorkflow.metadata?.useFallbackApi === true || existingWorkflow.metadata?.useFallbackApi === 'true';
-      const testBaseUrl = useFallback ? config.fallbackUrl : config.baseUrl;
+      
+      // Partners API endpoints use dedicated URL and Token auth format
+      const isPartnersEndpoint = resolvedPath && resolvedPath.includes('/partners/');
+      const partnersUrl = config.partnersUrl;
+      let testBaseUrl;
+      if (isPartnersEndpoint && partnersUrl) {
+        testBaseUrl = partnersUrl;
+      } else {
+        testBaseUrl = useFallback ? config.fallbackUrl : config.baseUrl;
+      }
       
       if (authToken) {
-        onProgress?.({ type: 'agent_action', action: 'workflow_test_request', details: `Testing with ${tokenType} token${useFallback ? ' (fallback)' : ''}` });
+        onProgress?.({ type: 'agent_action', action: 'workflow_test_request', details: `Testing with ${tokenType} token${useFallback ? ' (fallback)' : ''}${isPartnersEndpoint ? ' (partners)' : ''}` });
         
         try {
-          const authPrefix = tokenType === 'admin' ? 'Admin' : 'Bearer';
+          // Partners API uses HTTP Token authentication: Token token="..."
+          let authHeader;
+          if (isPartnersEndpoint && partnersUrl) {
+            authHeader = `Token token="${authToken}"`;
+          } else {
+            const authPrefix = tokenType === 'admin' ? 'Admin' : 'Bearer';
+            authHeader = `${authPrefix} ${authToken}`;
+          }
           const testResponse = await axios.request({
             method: (testReq.method || endpoint.method).toLowerCase(),
             url: `${testBaseUrl}${resolvedPath}`,
             data: resolvedBody,
-            headers: { 'Authorization': `${authPrefix} ${authToken}`, 'Content-Type': 'application/json' },
+            headers: { 'Authorization': authHeader, 'Content-Type': 'application/json' },
             validateStatus: () => true
           });
           

@@ -1,5 +1,5 @@
 ---
-endpoint: "GET /client/payments/v1/carts/{cart_uid}?matter_uid={matter_uid}"
+endpoint: "GET /client/payments/v1/carts/{cart_uid}"
 domain: clients
 tags: []
 swagger: /Users/ram.almog/Documents/GitHub/developers-hub/mcp_swagger/clients.json

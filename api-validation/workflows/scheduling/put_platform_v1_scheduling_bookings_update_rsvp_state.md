@@ -47,9 +47,8 @@ steps:
     method: PUT
     path: "/platform/v1/scheduling/bookings/{{booking_uid}}/update_rsvp_state"
     token: client
-    params:
-      new_rsvp_state: "confirmed"
     body:
+      new_rsvp_state: "confirmed"
       business_id: "{{business_id}}"
       appointment_type: "appointment"
     expect:

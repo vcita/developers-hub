@@ -1,41 +1,51 @@
 ---
 endpoint: "PUT /v3/access_control/business_roles/{uid}"
 domain: platform_administration
-tags: []
-swagger: "swagger/platform_administration/access_control.json"
+tags: [access_control, business_roles]
+swagger: "swagger/platform_administration/platform_administration.json"
 status: verified
-savedAt: "2026-01-28T11:48:22.190Z"
-verifiedAt: "2026-01-28T11:48:22.190Z"
+savedAt: 2026-02-10T16:38:15.000Z
+verifiedAt: 2026-02-10T16:38:15.000Z
 timesReused: 0
 ---
 
-# Update Business roles
+# Update Business Role
 
 ## Summary
-Test passes after resolving UID and using valid permission keys. Original test used non-existent permission keys ('read_reports', 'manage_team') which caused validation errors.
+Updates an existing business role by UID. **Token Type**: Requires a **staff token**.
 
 ## Prerequisites
 
-No prerequisites required for this endpoint.
+```yaml
+steps:
+  - id: get_business_role
+    description: "Fetch an existing business role"
+    method: GET
+    path: "/v3/access_control/business_roles"
+    params:
+      per_page: "1"
+    extract:
+      role_uid: "$.data.business_roles[0].uid"
+    expect:
+      status: 200
+    onFail: abort
+```
 
 ## Test Request
 
 ```yaml
 steps:
-  - id: put_business_roles
+  - id: main_request
     method: PUT
-    path: "/v3/access_control/business_roles/{{uid}}"
+    path: "/v3/access_control/business_roles/{{role_uid}}"
     body:
-      name: Senior Manager
-      description: Senior management role with elevated permissions for business
-        operations and team oversight
+      name: "Updated Senior Manager"
+      description: "Updated senior management role with elevated permissions for business operations and team oversight"
       permissions:
-        "0":
-          key: campaigns.manage
+        - key: "campaigns.manage"
           allow: true
-        "1":
-          key: payments.manage
+        - key: "payments.manage"  
           allow: true
     expect:
-      status: [200, 201]
+      status: 200
 ```

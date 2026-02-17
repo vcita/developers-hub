@@ -9,22 +9,35 @@ verifiedAt: "2026-01-29T09:06:49.080Z"
 timesReused: 0
 ---
 
-# Get Directory offerings
+# Get Directory Offering
 
 ## Summary
-Test passes. The original UID didn't exist, so I resolved it by fetching a valid UID from the list endpoint. The endpoint works correctly with admin token as documented.
+Retrieves a specific directory offering by UID. **Token Type**: Requires an **admin token**.
 
 ## Prerequisites
 
-No prerequisites required for this endpoint.
+```yaml
+steps:
+  - id: get_directory_offerings_list
+    description: "Fetch directory offerings to get a valid UID"
+    method: GET
+    path: "/v3/license/directory_offerings"
+    token: admin
+    extract:
+      directory_offering_uid: "$.data.directory_offerings[0].uid"
+    expect:
+      status: 200
+    onFail: abort
+```
 
 ## Test Request
 
 ```yaml
 steps:
-  - id: get_directory_offerings
+  - id: main_request
     method: GET
-    path: "/v3/license/directory_offerings/{{uid}}"
+    path: "/v3/license/directory_offerings/{{directory_offering_uid}}"
+    token: admin
     expect:
-      status: [200, 201]
+      status: 200
 ```

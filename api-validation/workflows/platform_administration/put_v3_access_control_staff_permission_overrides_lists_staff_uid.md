@@ -4,30 +4,42 @@ domain: platform_administration
 tags: [access_control, permissions]
 swagger: "swagger/platform_administration/access_control.json"
 status: verified
-savedAt: "2026-01-29T21:00:00.000Z"
-verifiedAt: "2026-01-29T21:00:00.000Z"
+savedAt: 2026-02-10T16:41:15.000Z
+verifiedAt: 2026-02-10T16:41:15.000Z
 timesReused: 0
 ---
 
 # Update Staff permission overrides lists
 
 ## Summary
-Update permission overrides for a staff member. This workflow creates a new staff, retrieves their assigned business role, extracts the permissions from that role, and then sets permission overrides for the staff member.
+Update permission overrides for a staff member. **Token Type**: Requires a **staff token**.
 
 ## Prerequisites
 
 ```yaml
 steps:
-  - id: get_staffs
-    description: "Fetch available staff members"
+  - id: get_staff_business_roles
+    description: "Get a staff member with business role assignment"
     method: GET
-    path: "/platform/v1/businesses/{{business_id}}/staffs"
+    path: "/v3/access_control/staff_business_roles"
     params:
       per_page: "1"
     extract:
-      staff_id: "$.data.staffs[0].uid"
+      staff_uid: "$.data.staff_business_roles[0].staff_uid"
     expect:
-      status: [200]
+      status: 200
+    onFail: abort
+
+  - id: get_business_role
+    description: "Get business role to find valid permission keys"
+    method: GET
+    path: "/v3/access_control/business_roles"
+    params:
+      per_page: "1"
+    extract:
+      permission_key: "$.data.business_roles[0].permissions[0].key"
+    expect:
+      status: 200
     onFail: abort
 ```
 
@@ -35,17 +47,13 @@ steps:
 
 ```yaml
 steps:
-  - id: put_staff_permission_overrides_lists
+  - id: main_request
     method: PUT
     path: "/v3/access_control/staff_permission_overrides_lists/{{staff_uid}}"
     body:
       permissions:
-        "0":
-          key: payments.invoices.export
-          state: allow
-        "1":
-          key: payments.invoices.view
-          state: deny
+        - key: "{{permission_key}}"
+          state: "allow"
     expect:
-      status: [200, 201]
+      status: 200
 ```

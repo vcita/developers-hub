@@ -3,9 +3,12 @@ endpoint: "POST /business/scheduling/v1/time_slots"
 domain: scheduling
 tags: [availability, time-slots, scheduling]
 swagger: "swagger/scheduling/legacy/scheduling.json"
-status: pending
-savedAt: "2026-02-01T22:00:00.000Z"
+status: verified
+savedAt: "2026-02-09T12:00:00.000Z"
+verifiedAt: "2026-02-09T12:00:00.000Z"
 timesReused: 0
+useFallbackApi: true
+tokens: [staff]
 ---
 
 # Create Time Slot
@@ -13,25 +16,23 @@ timesReused: 0
 ## Summary
 Create a new time slot for staff availability. This is part of the general availability management system.
 
-## Authentication
-Available for **Staff and App tokens**.
+> ⚠️ Fallback API Required
+
+**Important**: The `business_id` parameter is required in the request body for staff token authorization. Without it, the endpoint returns 401 Unauthorized because the backend cannot resolve the business context from the token alone on this endpoint.
 
 ## Prerequisites
 
-The `weekly_availability_uid` is obtained from the staff scheduling endpoint:
-
 ```yaml
 steps:
-  - id: get_staff_with_availability
-    description: "Get staff details including weekly_availability_uid"
+  - id: get_weekly_availability
+    description: "Get weekly availability to obtain weekly_availability_uid"
     method: GET
-    path: "/platform/v1/scheduling/staff/{{staff_id}}"
+    path: "/v2/weekly_availabilities"
     token: staff
     params:
-      business_id: "{{business_id}}"
-      only_active_services: "true"
+      staff_uid: "{{staff_id}}"
     extract:
-      weekly_availability_uid: "$.data.staff.weekly_availability_uid"
+      weekly_availability_uid: "$[0].uid"
     expect:
       status: [200]
     onFail: abort
@@ -50,37 +51,25 @@ steps:
       day: 1
       start_time: "09:00"
       end_time: "17:00"
+      new_api: true
+      business_id: "{{business_id}}"
     expect:
       status: [201]
 ```
+
+## Authentication
+Available for **Staff tokens**.
 
 ## Request Body Parameters
 
 | Parameter | Required | Type | Description |
 |-----------|----------|------|-------------|
-| `weekly_availability_uid` | Yes | string | The weekly availability UID. Obtained from `GET /platform/v1/scheduling/staff/{staff_uid}` response field `weekly_availability_uid` |
+| `business_id` | Yes | string | Business uid. Required for staff token authorization context resolution. |
+| `weekly_availability_uid` | Yes | string | The weekly availability UID. Obtained from `GET /v2/weekly_availabilities` response field `uid` |
 | `day` | Yes | integer | Day of week: 0=Sunday, 1=Monday, ..., 6=Saturday |
 | `start_time` | Yes | string | Start time in HH:MM format (e.g., "09:00") |
 | `end_time` | Yes | string | End time in HH:MM format (e.g., "17:00") |
-
-## How to Get weekly_availability_uid
-
-The `weekly_availability_uid` represents a staff member's weekly schedule configuration. It can be obtained from:
-
-**Option 1: GET /platform/v1/scheduling/staff/{staff_uid}**
-```json
-{
-  "data": {
-    "staff": {
-      "uid": "abc123",
-      "weekly_availability_uid": "sjq2twnw8z0h33f0",  // <-- Use this!
-      ...
-    }
-  }
-}
-```
-
-**Note**: The swagger documentation example doesn't show this field, but it IS returned by the API (verified in `StaffDecorator.api_json`).
+| `new_api` | No | boolean | Frontend compatibility flag |
 
 ## Expected Response (201)
 
@@ -93,13 +82,6 @@ The `weekly_availability_uid` represents a staff member's weekly schedule config
       "uid": "sjq2twnw8z0h33f0",
       "time_slots_by_day": [
         {
-          "day": 0,
-          "enabled": true,
-          "slots": [
-            {"id": "40ci67hckste9xax", "start_time": "20:00", "end_time": "22:00"}
-          ]
-        },
-        {
           "day": 1,
           "enabled": true,
           "slots": [
@@ -111,26 +93,3 @@ The `weekly_availability_uid` represents a staff member's weekly schedule config
   }
 }
 ```
-
-## Error Responses
-
-### 401 Unauthorized
-```json
-{
-  "status": "Error",
-  "error": "Unauthorized"
-}
-```
-
-### 400 - Missing weekly_availability_uid
-```json
-{
-  "status": "Error",
-  "error": "Mandatory parameter weekly_availability_uid is missing"
-}
-```
-
-## Related Endpoints
-
-- PUT /business/scheduling/v1/time_slots/{time_slot_uid} - Update time slot
-- DELETE /business/scheduling/v1/time_slots/{time_slot_uid} - Delete time slot

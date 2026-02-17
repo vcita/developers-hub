@@ -3,7 +3,7 @@ endpoint: "POST /platform/v1/numbers/dedicated_numbers/assign"
 domain: communication
 tags: [numbers, dedicated]
 swagger: swagger/communication/legacy/legacy_v1_communication.json
-status: skipped
+status: skip
 savedAt: 2026-01-27T21:28:12.398Z
 verifiedAt: 2026-01-27T21:28:12.398Z
 timesReused: 0

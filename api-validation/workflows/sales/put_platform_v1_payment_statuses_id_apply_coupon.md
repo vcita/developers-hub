@@ -3,7 +3,7 @@ endpoint: "PUT /platform/v1/payment_statuses/{id}/apply_coupon"
 domain: sales
 tags: [coupons, payment_statuses]
 swagger: "swagger/sales/legacy/legacy_v1_sales.json"
-status: skipped
+status: skip
 savedAt: "2026-02-08T16:00:00.000Z"
 timesReused: 0
 tokens: [staff]

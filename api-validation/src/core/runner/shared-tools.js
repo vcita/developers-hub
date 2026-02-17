@@ -240,7 +240,17 @@ function readSourceFile(repository, filePath, startLine, endLine) {
 async function executeApiCall({ method, apiPath, params, body, tokenType = 'staff', onBehalfOf, useFallback = false, contentType = 'json', formFields, fileFields }, config, apiClient) {
   const primaryUrl = config.baseUrl;
   const fallbackUrl = config.fallbackUrl;
-  const baseUrl = useFallback && fallbackUrl ? fallbackUrl : primaryUrl;
+  const partnersUrl = config.partnersUrl;
+  
+  // Partners API endpoints (/v1/partners/*) use a dedicated base URL
+  const isPartnersEndpoint = apiPath && apiPath.includes('/partners/');
+  let baseUrl;
+  if (isPartnersEndpoint && partnersUrl) {
+    baseUrl = partnersUrl;
+    console.log(`  [Partners] Using Partners API URL for ${apiPath}: ${partnersUrl}`);
+  } else {
+    baseUrl = useFallback && fallbackUrl ? fallbackUrl : primaryUrl;
+  }
 
   // Build query string
   let queryString = '';
@@ -258,9 +268,17 @@ async function executeApiCall({ method, apiPath, params, body, tokenType = 'staf
 
   try {
     const token = config.tokens?.[tokenType] || config.tokens?.staff;
-    const authPrefix = tokenType === 'admin' ? 'Admin' : 'Bearer';
+    
+    // Partners API uses HTTP Token authentication: Token token="..." 
+    let authHeader;
+    if (isPartnersEndpoint && partnersUrl) {
+      authHeader = `Token token="${token}"`;
+    } else {
+      const authPrefix = tokenType === 'admin' ? 'Admin' : 'Bearer';
+      authHeader = `${authPrefix} ${token}`;
+    }
 
-    const headers = { 'Authorization': `${authPrefix} ${token}` };
+    const headers = { 'Authorization': authHeader };
 
     if (onBehalfOf) {
       headers['X-On-Behalf-Of'] = onBehalfOf;

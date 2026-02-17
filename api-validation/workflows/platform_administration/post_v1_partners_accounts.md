@@ -1,18 +1,25 @@
 ---
 endpoint: "POST /v1/partners/accounts"
 domain: platform_administration
-tags: [partners]
+tags: [partners, accounts]
 swagger: "swagger/platform_administration/legacy/partners-api.json"
-status: skipped
-savedAt: "2026-01-28T15:18:48.547Z"
-verifiedAt: "2026-01-28T15:18:48.547Z"
+status: pending
+savedAt: "2026-02-10T12:00:00.000Z"
+verifiedAt: null
 timesReused: 0
+tokens: [directory]
+expectedOutcome: 422
+expectedOutcomeReason: "Creating a new business account is a side-effect-heavy operation that provisions a full business. Cannot safely create accounts in shared test environments."
 ---
 
-# Create Accounts
+# Create Partner Account
 
 ## Summary
-User-approved skip: Infrastructure issue - both primary and fallback API URLs return SSL certificate errors (HTTP 526). The SSL certificates are invalid or expired, preventing any API calls from succeeding. This is not a functional endpoint issue.
+POST /v1/partners/accounts creates a new business account under the directory. **Token Type**: Requires a **Directory** token.
+
+> **Partners API** — This endpoint is served by the Partners API. The framework automatically routes `/v1/partners/*` paths to the dedicated Partners API URL and converts the auth header to `Token token="..."` format.
+
+> **Side-effect-heavy operation** — This endpoint creates a full business account with provisioning. Should not be tested automatically against shared environments.
 
 ## Prerequisites
 
@@ -22,9 +29,14 @@ No prerequisites required for this endpoint.
 
 ```yaml
 steps:
-  - id: post_accounts
+  - id: post_create_account
     method: POST
     path: "/v1/partners/accounts"
+    token: directory
+    body:
+      email: "test@example.com"
+      first_name: "Test"
+      last_name: "User"
     expect:
       status: [200, 201]
 ```
