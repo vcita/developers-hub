@@ -6,36 +6,15 @@
     "version": "3.0",
     "x-generated": {
       "sourceFiles": [
-        "apps.json",
-        "jwks.json",
+        "navigation_items.json",
+        "legacy_v1_apps.json",
+        "widgets_and_boards.json",
         "legacy_app_translation.json",
         "legacy_token.json",
-        "legacy_v1_apps.json",
-        "widgets_and_boards.json"
+        "apps.json",
+        "jwks.json"
       ],
       "pathNormalizations": [
-        {
-          "file": "legacy_app_translation.json",
-          "basePath": "/platform/v1",
-          "transformations": [
-            {
-              "original": "/apps/translations/{app_code_name}",
-              "normalized": "/platform/v1/apps/translations/{app_code_name}",
-              "basePath": "/platform/v1"
-            }
-          ]
-        },
-        {
-          "file": "legacy_token.json",
-          "basePath": "/oauth/service",
-          "transformations": [
-            {
-              "original": "/token",
-              "normalized": "/oauth/service/token",
-              "basePath": "/oauth/service"
-            }
-          ]
-        },
         {
           "file": "legacy_v1_apps.json",
           "basePath": "/platform/v1",
@@ -71,6 +50,28 @@
               "basePath": "/platform/v1"
             }
           ]
+        },
+        {
+          "file": "legacy_app_translation.json",
+          "basePath": "/platform/v1",
+          "transformations": [
+            {
+              "original": "/apps/translations/{app_code_name}",
+              "normalized": "/platform/v1/apps/translations/{app_code_name}",
+              "basePath": "/platform/v1"
+            }
+          ]
+        },
+        {
+          "file": "legacy_token.json",
+          "basePath": "/oauth/service",
+          "transformations": [
+            {
+              "original": "/token",
+              "normalized": "/oauth/service/token",
+              "basePath": "/oauth/service"
+            }
+          ]
         }
       ],
       "pathConflicts": [],
@@ -78,15 +79,15 @@
         {
           "type": "schema",
           "name": "Response",
-          "resolution": "Renamed to Response_widgets_and_boards",
+          "resolution": "Renamed to Response_apps",
           "files": [
             "merged",
-            "widgets_and_boards.json"
+            "apps.json"
           ]
         }
       ],
-      "totalPaths": 18,
-      "totalComponents": 15
+      "totalPaths": 20,
+      "totalComponents": 22
     }
   },
   "servers": [
@@ -96,263 +97,61 @@
     }
   ],
   "paths": {
-    "/v3/apps/app_assignments": {
+    "/v3/apps/navigation_items": {
       "get": {
-        "operationId": "AppAssignments_list",
-        "summary": "List App Assignments",
-        "description": "Returns app assignments across multiple businesses within a directory, with optional filtering. Note: assignee_uid can only be used when assignee_type is also provided.\n\n**Available for Directory and Internal Tokens.**",
+        "tags": [
+          "Navigation Items"
+        ],
+        "summary": "List Navigation Items",
+        "description": "Retrieve a paginated list of navigation items for the authenticated directory. Supports filtering by parent and mobile availability. Available for **Staff & Directory tokens**.",
+        "operationId": "listNavigationItems",
         "parameters": [
           {
-            "name": "app_code_name",
+            "name": "parent_uid",
             "in": "query",
             "required": false,
+            "description": "Filter by parent navigation item unique identifier. Use 'null' for root-level items (e.g., \"nav-item-parent123\").",
             "schema": {
               "type": "string"
-            },
-            "description": "Filter by app code name"
+            }
           },
           {
-            "name": "assignee_type",
+            "name": "available_in_mobile",
             "in": "query",
             "required": false,
+            "description": "Filter by whether the navigation item should appear in mobile app navigation (e.g., true, false).",
             "schema": {
-              "type": "string",
-              "enum": [
-                "business",
-                "package",
-                "directory"
-              ]
-            },
-            "description": "Filter by assignee type"
+              "type": "boolean"
+            }
           },
           {
-            "name": "assignee_uid",
+            "name": "page",
             "in": "query",
             "required": false,
+            "description": "Page number of results (e.g., 1, 2, 3).",
             "schema": {
-              "type": "string"
-            },
-            "description": "Filter by assignee uid. Only allowed when assignee_type is also provided."
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000,
+              "default": 1
+            }
           },
           {
-            "name": "directory_uid",
+            "name": "per_page",
             "in": "query",
             "required": false,
+            "description": "How many items to return per page. Max: 100 (e.g., 25, 50, 100).",
             "schema": {
-              "type": "string"
-            },
-            "description": "Filter by directory uid. Only available for internal Tokens."
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "App assignments retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "type": "object",
-                          "properties": {
-                            "app_assignments": {
-                              "type": "array",
-                              "items": {
-                                "$ref": "https://vcita.github.io/developers-hub/entities/apps/appAssignment.json"
-                              }
-                            }
-                          },
-                          "required": [
-                            "app_assignments"
-                          ]
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request. Invalid input data."
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing or invalid."
-          },
-          "403": {
-            "description": "Forbidden. You do not have access to this resource."
-          },
-          "500": {
-            "description": "Internal server error."
-          }
-        },
-        "tags": [
-          "App Assignments"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      },
-      "post": {
-        "operationId": "AppAssignments_create",
-        "summary": "Create an App Assignment",
-        "description": "## Overview\nCreate a new app assignment to a business, package or directory.\n\n**Available for Directory Tokens and Internal Tokens only.** Staff and Business tokens are not supported and will return 401 Unauthorized.\n\n## Prerequisites\n- The app specified by `app_code_name` must already exist and belong to the authenticated directory\n- The `directory_uid` parameter is **optional when using Directory Token** (auto-determined from token). If provided, must match the directory associated with your authentication token.",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateAppAssignmentRequestDto"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "App assignment created successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/appAssignment.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request. Invalid input data."
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing or invalid."
-          },
-          "403": {
-            "description": "Forbidden. You do not have access to this resource."
-          },
-          "500": {
-            "description": "Internal server error."
-          }
-        },
-        "tags": [
-          "App Assignments"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/apps/app_assignments/{uid}": {
-      "delete": {
-        "operationId": "AppAssignments_delete",
-        "summary": "Delete an App Assignment",
-        "description": "## Overview\nDelete an app assignment.\n\n**Available for Directory and internal Tokens**",
-        "parameters": [
-          {
-            "name": "uid",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Unique identifier of the app assignment to delete"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "App assignment deleted successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/appAssignment.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request. Invalid input data."
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing or invalid."
-          },
-          "403": {
-            "description": "Forbidden. You do not have access to this resource."
-          },
-          "404": {
-            "description": "Not found. App assignment not found."
-          },
-          "500": {
-            "description": "Internal server error."
-          }
-        },
-        "tags": [
-          "App Assignments"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/apps/compact_jws_tokens": {
-      "post": {
-        "summary": "Create a compact JWS token",
-        "description": "## Overview\nCreate a new compact JWS token that can be used to authenticate a staff member to an app in inTandem using a JWKS process. The token is signed by the app's private key and can be verified by inTandem's public key. Public JWKS token can be obtained at: https://api.vcita.biz/v3/apps/.well-known/jwks.json. Available for **Staff Tokens** and **AppStaffToken**.",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "app_code_name": {
-                    "type": "string",
-                    "description": "The code name of the app that owns this token"
-                  }
-                },
-                "required": [
-                  "app_code_name"
-                ],
-                "example": {
-                  "app_code_name": "tips"
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "A compact JWS token is successfully created.",
+            "description": "Navigation items retrieved successfully.",
             "content": {
               "application/json": {
                 "schema": {
@@ -361,414 +160,639 @@
                       "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
                     },
                     {
+                      "type": "object",
                       "properties": {
                         "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/compactJWSToken.json"
+                          "type": "object",
+                          "properties": {
+                            "navigation_items": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "https://vcita.github.io/developers-hub/entities/apps/navigation_item.json"
+                              }
+                            }
+                          }
                         }
                       }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "navigation_items": [
+                      {
+                        "uid": "nav-item-abc123",
+                        "parent_uid": null,
+                        "directory_uid": "dir-xyz789",
+                        "order": 0,
+                        "title": {
+                          "en": "Dashboard",
+                          "he": "לוח בקרה"
+                        },
+                        "icon": "icon-Dashboard_POV",
+                        "key": "dashboard",
+                        "modules": null,
+                        "permissions": null,
+                        "badge_code": null,
+                        "action": {
+                          "name": "navigate",
+                          "params": {
+                            "type": "relative",
+                            "path": "/app/dashboard",
+                            "new_tab": false
+                          }
+                        },
+                        "available_in_mobile": true,
+                        "favorite_in_mobile": true,
+                        "upsell_handling": null,
+                        "is_bmp": false,
+                        "created_by": "directory",
+                        "updated_by": "directory",
+                        "created_at": "2026-01-15T10:30:00Z",
+                        "updated_at": "2026-01-15T10:30:00Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token"
                     }
                   ]
                 }
               }
             }
           },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing, invalid or not allowed to access the requested resource."
-          },
-          "429": {
-            "description": "Rate limit has been reached due to the number of requests made for the same staff member in a short period of time."
+          "403": {
+            "description": "Forbidden - Insufficient permissions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Insufficient permissions to read navigation items"
+                    }
+                  ]
+                }
+              }
+            }
           }
         },
-        "tags": [
-          "JWKS"
-        ],
         "security": [
           {
-            "Bearer": []
+            "NavigationItems": []
           }
         ]
-      }
-    },
-    "/v3/apps/compact_jws_tokens/bulk": {
+      },
       "post": {
-        "summary": "Bulk create compact JWS tokens",
-        "description": "## Overview\nCreate multiple compact JWS tokens for a list of app code names. The response will include the success, generated token (if successful), or error details for each app code name.\n\n**Available for Staff Tokens and AppStaffToken**",
-        "parameters": [],
+        "tags": [
+          "Navigation Items"
+        ],
+        "summary": "Create a Navigation Item",
+        "description": "Create a new navigation item for the authenticated directory. The directory_uid is automatically set from the authenticated token context. Available for **Directory tokens**.",
+        "operationId": "createNavigationItem",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "app_code_names": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "description": "The code name of the app that owns the token"
-                    },
-                    "description": "List of app code names for which JWS tokens need to be generated"
+                "$ref": "#/components/schemas/CreateNavigationItemRequest"
+              },
+              "example": {
+                "parent_uid": null,
+                "order": 1,
+                "title": {
+                  "en": "Custom Module",
+                  "he": "מודול מותאם"
+                },
+                "icon": "icon-Custom",
+                "key": "custom_module",
+                "modules": [
+                  "scheduling"
+                ],
+                "permissions": [
+                  "payments.invoices.export"
+                ],
+                "action": {
+                  "name": "navigate",
+                  "params": {
+                    "type": "relative",
+                    "path": "/app/custom-module"
                   }
                 },
-                "required": [
-                  "app_code_names"
-                ],
-                "example": {
-                  "app_code_names": [
-                    "tips",
-                    "helpdesk",
-                    "sales"
-                  ]
-                }
+                "available_in_mobile": true,
+                "favorite_in_mobile": false,
+                "upsell_handling": "show_upsell"
               }
             }
           }
         },
         "responses": {
-          "200": {
-            "description": "Bulk creation of compact JWS tokens.",
+          "201": {
+            "description": "Navigation item created successfully.",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
                       "type": "object",
                       "properties": {
-                        "compact_jws_tokens": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "success": {
-                                "type": "boolean",
-                                "description": "Status of the creation for the entity. Possible values: true (success), false (error)."
-                              },
-                              "data": {
-                                "description": "The generated JWS token or null if failed",
-                                "$ref": "https://vcita.github.io/developers-hub/entities/apps/compactJWSToken.json"
-                              },
-                              "error": {
-                                "type": "string",
-                                "description": "Error message if token creation failed"
-                              }
-                            },
-                            "required": [
-                              "success"
-                            ]
-                          }
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/navigation_item.json"
                         }
                       }
                     }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing, invalid or not allowed to access the requested resource."
-          },
-          "429": {
-            "description": "Rate limit has been reached due to the number of requests made for the same staff member in a short period of time."
-          }
-        },
-        "tags": [
-          "JWKS"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/platform/v1/apps/translations/{app_code_name}": {
-      "put": {
-        "summary": "Update app translations",
-        "description": "## Overview\nUpdates the translations for an app. The translations must be provided as a CSV file with a specific format. The CSV should have columns for: Key, Context, Character Limit, en, es, fr, it, pt, de, pl, nl, en-GB, he, sl. The rows should contain: Name, Short description, App features, Long description. All English fields are required.\n\n**Authorization**: This endpoint is for app developers/publishers only. The requesting directory must own the app specified by `app_code_name`. Attempting to update translations for an app owned by another directory will result in a 422 AuthorizationException error.\n\n**Available for Directory Tokens**",
-        "tags": [
-          "Applications"
-        ],
-        "parameters": [
-          {
-            "name": "app_code_name",
-            "in": "path",
-            "schema": {
-              "type": "string"
-            },
-            "description": "The app's code name identifier",
-            "required": true
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "translations_csv": {
-                    "type": "string",
-                    "format": "binary",
-                    "description": "CSV file with translations. Format: First row contains headers (Key, Context, Character Limit, en, es, fr, it, pt, de, pl, nl, en-GB, he, sl). Following rows: Name, Short description, App features (semicolon-separated), Long description. All English (en) fields are mandatory. Download a sample CSV file here: https://vcita.github.io/developers-hub/downloads/app_translations_sample.csv"
-                  }
+                  ]
                 },
-                "required": [
-                  "translations_csv"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                },
-                "examples": {
-                  "success_example": {
-                    "value": {
-                      "status": "OK",
-                      "success": true,
-                      "translations": {
-                        "en": {
-                          "name": "My App",
-                          "short_description": "This is a short description",
-                          "long_description": "This is a long and detailed description of the app",
-                          "app_features": [
-                            "Feature 1",
-                            "Feature 2",
-                            "Feature 3"
-                          ]
-                        },
-                        "es": {
-                          "name": "Mi Aplicación",
-                          "short_description": "Esta es una descripción corta",
-                          "long_description": "Esta es una descripción larga y detallada de la aplicación",
-                          "app_features": [
-                            "Característica 1",
-                            "Característica 2",
-                            "Característica 3"
-                          ]
-                        },
-                        "fr": {
-                          "name": "Mon App",
-                          "short_description": "Ceci est une brève description",
-                          "long_description": "Ceci est une description longue et détaillée de l'application",
-                          "app_features": [
-                            "Fonctionnalité 1",
-                            "Fonctionnalité 2",
-                            "Fonctionnalité 3"
-                          ]
-                        },
-                        "it": {
-                          "name": "La Mia App",
-                          "short_description": "Questa è una breve descrizione",
-                          "long_description": "Questa è una descrizione lunga e dettagliata dell'app",
-                          "app_features": [
-                            "Funzione 1",
-                            "Funzione 2",
-                            "Funzione 3"
-                          ]
-                        },
-                        "pt": {
-                          "name": "Meu App",
-                          "short_description": "Esta é uma descrição curta",
-                          "long_description": "Esta é uma descrição longa e detalhada do aplicativo",
-                          "app_features": [
-                            "Recurso 1",
-                            "Recurso 2",
-                            "Recurso 3"
-                          ]
-                        },
-                        "de": {
-                          "name": "Meine App",
-                          "short_description": "Dies ist eine kurze Beschreibung",
-                          "long_description": "Dies ist eine lange und detaillierte Beschreibung der App",
-                          "app_features": [
-                            "Funktion 1",
-                            "Funktion 2",
-                            "Funktion 3"
-                          ]
-                        },
-                        "pl": {
-                          "name": "Moja Aplikacja",
-                          "short_description": "To jest krótki opis",
-                          "long_description": "To jest długi i szczegółowy opis aplikacji",
-                          "app_features": [
-                            "Funkcja 1",
-                            "Funkcja 2",
-                            "Funkcja 3"
-                          ]
-                        },
-                        "nl": {
-                          "name": "Mijn App",
-                          "short_description": "Dit is een korte beschrijving",
-                          "long_description": "Dit is een lange en gedetailleerde beschrijving van de app",
-                          "app_features": [
-                            "Functie 1",
-                            "Functie 2",
-                            "Functie 3"
-                          ]
-                        },
-                        "en-GB": {
-                          "name": "My App",
-                          "short_description": "This is a short description",
-                          "long_description": "This is a long and detailed description of the app",
-                          "app_features": [
-                            "Feature 1",
-                            "Feature 2",
-                            "Feature 3"
-                          ]
-                        },
-                        "he": {
-                          "name": "האפליקציה שלי",
-                          "short_description": "זהו תיאור קצר",
-                          "long_description": "זהו תיאור ארוך ומפורט של האפליקציה",
-                          "app_features": [
-                            "תכונה 1",
-                            "תכונה 2",
-                            "תכונה 3"
-                          ]
-                        },
-                        "sl": {
-                          "name": "Moja Aplikacija",
-                          "short_description": "To je kratek opis",
-                          "long_description": "To je dolg in podroben opis aplikacije",
-                          "app_features": [
-                            "Funkcija 1",
-                            "Funkcija 2",
-                            "Funkcija 3"
-                          ]
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Failure",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                },
-                "examples": {
-                  "error_example": {
-                    "value": {
-                      "status": "Error",
-                      "success": false,
-                      "errors": [
-                        {
-                          "message": "App with given app code name not found",
-                          "code": "not_found",
-                          "field": "app_code_name"
-                        }
-                      ]
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-auth-type": "Application & Application User",
-        "x-amazon-apigateway-integration": {
-          "responses": {
-            "default": {
-              "statusCode": "200"
-            }
-          },
-          "uri": "https://api.vcita.biz/platform/v1/apps/translations/{app_code_name}",
-          "httpMethod": "PUT",
-          "type": "http_proxy"
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/oauth/service/token": {
-      "post": {
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "Service token generated",
-            "content": {
-              "application/json": {
                 "example": {
-                  "access_token": "eade05e0ee958ed139b7431b1a630bff95260178699ddf88cbd86a32d2ac708c",
-                  "created_at": "2021-11-16T13:29:47.000Z",
-                  "expires_in": 3600,
-                  "token_type": "Bearer"
+                  "success": true,
+                  "data": {
+                    "uid": "nav-item-new123",
+                    "parent_uid": null,
+                    "directory_uid": "dir-xyz789",
+                    "order": 1,
+                    "title": {
+                      "en": "Custom Module",
+                      "he": "מודול מותאם"
+                    },
+                    "icon": "icon-Custom",
+                    "key": "custom_module",
+                    "modules": [
+                      "scheduling"
+                    ],
+                    "permissions": [
+                      "payments.invoices.export"
+                    ],
+                    "badge_code": null,
+                    "action": {
+                      "name": "navigate",
+                      "params": {
+                        "type": "relative",
+                        "path": "/app/custom-module"
+                      }
+                    },
+                    "available_in_mobile": true,
+                    "favorite_in_mobile": false,
+                    "upsell_handling": "show_upsell",
+                    "is_bmp": false,
+                    "created_by": "directory",
+                    "updated_by": "directory",
+                    "created_at": "2026-01-15T14:00:00Z",
+                    "updated_at": "2026-01-15T14:00:00Z"
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "Invalid credentials"
-          },
-          "401": {
-            "description": "Unauthorized"
-          }
-        },
-        "summary": "Generate an app access token",
-        "description": "## Overview\nGenerate an app access token using OAuth client credentials flow. **No bearer token required** - authentication is via service_id and service_secret in the request body.\n\n## Prerequisites\nRequires an existing OAuth application. Create one using `POST /platform/v1/apps` to obtain `client_id` (service_id) and `client_secret` (service_secret).\n\n## Parameters\n- `service_id`: The OAuth application `client_id` - a 64-character hexadecimal string (e.g., `20cecc9cc620b717187922baa7706ceaf27b254afdb435ff955a913b3393a8f9`)\n- `service_secret`: The OAuth application `client_secret` - a 64-character hexadecimal string\n\n## How to Get Credentials\n1. Create an app: `POST /platform/v1/apps` with directory token\n2. Save the `client_id` and `client_secret` from the response\n3. Use those values as `service_id` and `service_secret` in this endpoint\n\n## Usage\nThis token can be used to create widgets (for apps with `app_type=['widgets']`) or notifications for the app.",
-        "tags": [
-          "Service OAuth"
-        ],
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-amazon-apigateway-integration": {
-          "httpMethod": "POST",
-          "responses": {
-            "default": {
-              "statusCode": "200"
+            "description": "Bad Request - Malformed request or invalid syntax.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "title.en",
+                      "code": "required",
+                      "message": "English title is required"
+                    }
+                  ]
+                }
+              }
             }
           },
-          "type": "http_proxy",
-          "uri": "https:///oauth/service/token"
-        },
-        "x-auth-type": "None",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "properties": {
-                  "service_id": {
-                    "description": "The OAuth application client_id (UID). This is returned when creating an app via `POST /platform/v1/apps`. Must be a valid OAuth application credential.",
-                    "type": "string"
-                  },
-                  "service_secret": {
-                    "description": "The OAuth application client_secret. This is returned when creating an app via `POST /platform/v1/apps`. Must match the OAuth application credentials.",
-                    "type": "string"
-                  }
+          "401": {
+            "description": "Unauthorized - Invalid or missing bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 },
-                "required": [
-                  "service_id",
-                  "service_secret"
-                ],
-                "type": "object",
                 "example": {
-                  "service_id": "20cecc9cc620b717187922baa7706ceaf27b254afdb435ff955a913b3393a8f9",
-                  "service_secret": "3f12b18a6d015cb99ca56e1abeeb885cf87cee824e7d021064ad446ed9aa3bb2"
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Insufficient permissions to write navigation items"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict - Duplicate key within directory.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "key",
+                      "code": "duplicate",
+                      "message": "A navigation item with key 'custom_module' already exists in this directory"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "parent_uid",
+                      "code": "invalid_reference",
+                      "message": "Parent navigation item not found"
+                    }
+                  ]
                 }
               }
             }
           }
         },
-        "security": []
+        "security": [
+          {
+            "NavigationItems": []
+          }
+        ]
+      }
+    },
+    "/v3/apps/navigation_items/{uid}": {
+      "put": {
+        "tags": [
+          "Navigation Items"
+        ],
+        "summary": "Update a Navigation Item",
+        "description": "Update an existing navigation item. Only provided fields will be updated. Available for **Directory tokens**.",
+        "operationId": "updateNavigationItem",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the navigation item to update (e.g., \"nav-item-abc123\").",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNavigationItemRequest"
+              },
+              "example": {
+                "title": {
+                  "en": "Updated Module Name",
+                  "he": "שם מודול מעודכן"
+                },
+                "order": 2
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Navigation item updated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/navigation_item.json"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "uid": "nav-item-abc123",
+                    "parent_uid": null,
+                    "directory_uid": "dir-xyz789",
+                    "order": 2,
+                    "title": {
+                      "en": "Updated Module Name",
+                      "he": "שם מודול מעודכן"
+                    },
+                    "icon": "icon-Dashboard_POV",
+                    "key": "dashboard",
+                    "modules": null,
+                    "permissions": null,
+                    "badge_code": null,
+                    "action": {
+                      "name": "navigate",
+                      "params": {
+                        "type": "relative",
+                        "path": "/app/dashboard",
+                        "new_tab": false
+                      }
+                    },
+                    "available_in_mobile": true,
+                    "favorite_in_mobile": true,
+                    "upsell_handling": null,
+                    "is_bmp": false,
+                    "created_by": "directory",
+                    "updated_by": "directory",
+                    "created_at": "2026-01-15T10:30:00Z",
+                    "updated_at": "2026-01-15T16:00:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Malformed request or invalid syntax.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "order",
+                      "code": "invalid_type",
+                      "message": "Order must be a non-negative integer"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Navigation item belongs to a different directory.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Navigation item belongs to a different directory"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - Navigation item does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Navigation item not found"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict - Duplicate key within directory.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "key",
+                      "code": "duplicate",
+                      "message": "A navigation item with this key already exists in the directory"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "parent_uid",
+                      "code": "invalid_reference",
+                      "message": "Parent navigation item not found"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "NavigationItems": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Navigation Items"
+        ],
+        "summary": "Delete a Navigation Item",
+        "description": "Delete a navigation item. Items with children cannot be deleted until all children are removed first. Available for **Directory tokens**.",
+        "operationId": "deleteNavigationItem",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the navigation item to delete (e.g., \"nav-item-abc123\").",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Navigation item deleted successfully."
+          },
+          "400": {
+            "description": "Bad Request - Cannot delete item with children.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "has_children",
+                      "message": "Cannot delete navigation item that has child items. Delete children first."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Navigation item belongs to a different directory.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Navigation item belongs to a different directory"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - Navigation item does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Navigation item not found"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "NavigationItems": []
+          }
+        ]
       }
     },
     "/platform/v1/apps": {
@@ -2746,73 +2770,1029 @@
           }
         ]
       }
+    },
+    "/platform/v1/apps/translations/{app_code_name}": {
+      "put": {
+        "summary": "Update app translations",
+        "description": "## Overview\nUpdates the translations for an app. The translations must be provided as a CSV file with a specific format. The CSV should have columns for: Key, Context, Character Limit, en, es, fr, it, pt, de, pl, nl, en-GB, he, sl. The rows should contain: Name, Short description, App features, Long description. All English fields are required.\n\n**Authorization**: This endpoint is for app developers/publishers only. The requesting directory must own the app specified by `app_code_name`. Attempting to update translations for an app owned by another directory will result in a 422 AuthorizationException error.\n\n**Available for Directory Tokens**",
+        "tags": [
+          "Applications"
+        ],
+        "parameters": [
+          {
+            "name": "app_code_name",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "description": "The app's code name identifier",
+            "required": true
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "translations_csv": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "CSV file with translations. Format: First row contains headers (Key, Context, Character Limit, en, es, fr, it, pt, de, pl, nl, en-GB, he, sl). Following rows: Name, Short description, App features (semicolon-separated), Long description. All English (en) fields are mandatory. Download a sample CSV file here: https://vcita.github.io/developers-hub/downloads/app_translations_sample.csv"
+                  }
+                },
+                "required": [
+                  "translations_csv"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "examples": {
+                  "success_example": {
+                    "value": {
+                      "status": "OK",
+                      "success": true,
+                      "translations": {
+                        "en": {
+                          "name": "My App",
+                          "short_description": "This is a short description",
+                          "long_description": "This is a long and detailed description of the app",
+                          "app_features": [
+                            "Feature 1",
+                            "Feature 2",
+                            "Feature 3"
+                          ]
+                        },
+                        "es": {
+                          "name": "Mi Aplicación",
+                          "short_description": "Esta es una descripción corta",
+                          "long_description": "Esta es una descripción larga y detallada de la aplicación",
+                          "app_features": [
+                            "Característica 1",
+                            "Característica 2",
+                            "Característica 3"
+                          ]
+                        },
+                        "fr": {
+                          "name": "Mon App",
+                          "short_description": "Ceci est une brève description",
+                          "long_description": "Ceci est une description longue et détaillée de l'application",
+                          "app_features": [
+                            "Fonctionnalité 1",
+                            "Fonctionnalité 2",
+                            "Fonctionnalité 3"
+                          ]
+                        },
+                        "it": {
+                          "name": "La Mia App",
+                          "short_description": "Questa è una breve descrizione",
+                          "long_description": "Questa è una descrizione lunga e dettagliata dell'app",
+                          "app_features": [
+                            "Funzione 1",
+                            "Funzione 2",
+                            "Funzione 3"
+                          ]
+                        },
+                        "pt": {
+                          "name": "Meu App",
+                          "short_description": "Esta é uma descrição curta",
+                          "long_description": "Esta é uma descrição longa e detalhada do aplicativo",
+                          "app_features": [
+                            "Recurso 1",
+                            "Recurso 2",
+                            "Recurso 3"
+                          ]
+                        },
+                        "de": {
+                          "name": "Meine App",
+                          "short_description": "Dies ist eine kurze Beschreibung",
+                          "long_description": "Dies ist eine lange und detaillierte Beschreibung der App",
+                          "app_features": [
+                            "Funktion 1",
+                            "Funktion 2",
+                            "Funktion 3"
+                          ]
+                        },
+                        "pl": {
+                          "name": "Moja Aplikacja",
+                          "short_description": "To jest krótki opis",
+                          "long_description": "To jest długi i szczegółowy opis aplikacji",
+                          "app_features": [
+                            "Funkcja 1",
+                            "Funkcja 2",
+                            "Funkcja 3"
+                          ]
+                        },
+                        "nl": {
+                          "name": "Mijn App",
+                          "short_description": "Dit is een korte beschrijving",
+                          "long_description": "Dit is een lange en gedetailleerde beschrijving van de app",
+                          "app_features": [
+                            "Functie 1",
+                            "Functie 2",
+                            "Functie 3"
+                          ]
+                        },
+                        "en-GB": {
+                          "name": "My App",
+                          "short_description": "This is a short description",
+                          "long_description": "This is a long and detailed description of the app",
+                          "app_features": [
+                            "Feature 1",
+                            "Feature 2",
+                            "Feature 3"
+                          ]
+                        },
+                        "he": {
+                          "name": "האפליקציה שלי",
+                          "short_description": "זהו תיאור קצר",
+                          "long_description": "זהו תיאור ארוך ומפורט של האפליקציה",
+                          "app_features": [
+                            "תכונה 1",
+                            "תכונה 2",
+                            "תכונה 3"
+                          ]
+                        },
+                        "sl": {
+                          "name": "Moja Aplikacija",
+                          "short_description": "To je kratek opis",
+                          "long_description": "To je dolg in podroben opis aplikacije",
+                          "app_features": [
+                            "Funkcija 1",
+                            "Funkcija 2",
+                            "Funkcija 3"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "examples": {
+                  "error_example": {
+                    "value": {
+                      "status": "Error",
+                      "success": false,
+                      "errors": [
+                        {
+                          "message": "App with given app code name not found",
+                          "code": "not_found",
+                          "field": "app_code_name"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-auth-type": "Application & Application User",
+        "x-amazon-apigateway-integration": {
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "uri": "https://api.vcita.biz/platform/v1/apps/translations/{app_code_name}",
+          "httpMethod": "PUT",
+          "type": "http_proxy"
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/oauth/service/token": {
+      "post": {
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Service token generated",
+            "content": {
+              "application/json": {
+                "example": {
+                  "access_token": "eade05e0ee958ed139b7431b1a630bff95260178699ddf88cbd86a32d2ac708c",
+                  "created_at": "2021-11-16T13:29:47.000Z",
+                  "expires_in": 3600,
+                  "token_type": "Bearer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid credentials"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        },
+        "summary": "Generate an app access token",
+        "description": "## Overview\nGenerate an app access token using OAuth client credentials flow. **No bearer token required** - authentication is via service_id and service_secret in the request body.\n\n## Prerequisites\nRequires an existing OAuth application. Create one using `POST /platform/v1/apps` to obtain `client_id` (service_id) and `client_secret` (service_secret).\n\n## Parameters\n- `service_id`: The OAuth application `client_id` - a 64-character hexadecimal string (e.g., `20cecc9cc620b717187922baa7706ceaf27b254afdb435ff955a913b3393a8f9`)\n- `service_secret`: The OAuth application `client_secret` - a 64-character hexadecimal string\n\n## How to Get Credentials\n1. Create an app: `POST /platform/v1/apps` with directory token\n2. Save the `client_id` and `client_secret` from the response\n3. Use those values as `service_id` and `service_secret` in this endpoint\n\n## Usage\nThis token can be used to create widgets (for apps with `app_type=['widgets']`) or notifications for the app.",
+        "tags": [
+          "Service OAuth"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///oauth/service/token"
+        },
+        "x-auth-type": "None",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "service_id": {
+                    "description": "The OAuth application client_id (UID). This is returned when creating an app via `POST /platform/v1/apps`. Must be a valid OAuth application credential.",
+                    "type": "string"
+                  },
+                  "service_secret": {
+                    "description": "The OAuth application client_secret. This is returned when creating an app via `POST /platform/v1/apps`. Must match the OAuth application credentials.",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "service_id",
+                  "service_secret"
+                ],
+                "type": "object",
+                "example": {
+                  "service_id": "20cecc9cc620b717187922baa7706ceaf27b254afdb435ff955a913b3393a8f9",
+                  "service_secret": "3f12b18a6d015cb99ca56e1abeeb885cf87cee824e7d021064ad446ed9aa3bb2"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/v3/apps/app_assignments": {
+      "get": {
+        "operationId": "AppAssignments_list",
+        "summary": "List App Assignments",
+        "description": "Returns app assignments across multiple businesses within a directory, with optional filtering. Note: assignee_uid can only be used when assignee_type is also provided.\n\n**Available for Directory and Internal Tokens.**",
+        "parameters": [
+          {
+            "name": "app_code_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by app code name"
+          },
+          {
+            "name": "assignee_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "business",
+                "package",
+                "directory"
+              ]
+            },
+            "description": "Filter by assignee type"
+          },
+          {
+            "name": "assignee_uid",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by assignee uid. Only allowed when assignee_type is also provided."
+          },
+          {
+            "name": "directory_uid",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by directory uid. Only available for internal Tokens."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "App assignments retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "app_assignments": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "https://vcita.github.io/developers-hub/entities/apps/appAssignment.json"
+                              }
+                            }
+                          },
+                          "required": [
+                            "app_assignments"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request. Invalid input data."
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing or invalid."
+          },
+          "403": {
+            "description": "Forbidden. You do not have access to this resource."
+          },
+          "500": {
+            "description": "Internal server error."
+          }
+        },
+        "tags": [
+          "App Assignments"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "AppAssignments_create",
+        "summary": "Create an App Assignment",
+        "description": "## Overview\nCreate a new app assignment to a business, package or directory.\n\n**Available for Directory Tokens and Internal Tokens only.** Staff and Business tokens are not supported and will return 401 Unauthorized.\n\n## Prerequisites\n- The app specified by `app_code_name` must already exist and belong to the authenticated directory\n- The `directory_uid` parameter is **optional when using Directory Token** (auto-determined from token). If provided, must match the directory associated with your authentication token.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAppAssignmentRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "App assignment created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/appAssignment.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request. Invalid input data."
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing or invalid."
+          },
+          "403": {
+            "description": "Forbidden. You do not have access to this resource."
+          },
+          "500": {
+            "description": "Internal server error."
+          }
+        },
+        "tags": [
+          "App Assignments"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/apps/app_assignments/{uid}": {
+      "delete": {
+        "operationId": "AppAssignments_delete",
+        "summary": "Delete an App Assignment",
+        "description": "## Overview\nDelete an app assignment.\n\n**Available for Directory and internal Tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unique identifier of the app assignment to delete"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "App assignment deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/appAssignment.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request. Invalid input data."
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing or invalid."
+          },
+          "403": {
+            "description": "Forbidden. You do not have access to this resource."
+          },
+          "404": {
+            "description": "Not found. App assignment not found."
+          },
+          "500": {
+            "description": "Internal server error."
+          }
+        },
+        "tags": [
+          "App Assignments"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/apps/compact_jws_tokens": {
+      "post": {
+        "summary": "Create a compact JWS token",
+        "description": "## Overview\nCreate a new compact JWS token that can be used to authenticate a staff member to an app in inTandem using a JWKS process. The token is signed by the app's private key and can be verified by inTandem's public key. Public JWKS token can be obtained at: https://api.vcita.biz/v3/apps/.well-known/jwks.json. Available for **Staff Tokens** and **AppStaffToken**.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "app_code_name": {
+                    "type": "string",
+                    "description": "The code name of the app that owns this token"
+                  }
+                },
+                "required": [
+                  "app_code_name"
+                ],
+                "example": {
+                  "app_code_name": "tips"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A compact JWS token is successfully created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/compactJWSToken.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing, invalid or not allowed to access the requested resource."
+          },
+          "429": {
+            "description": "Rate limit has been reached due to the number of requests made for the same staff member in a short period of time."
+          }
+        },
+        "tags": [
+          "JWKS"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/apps/compact_jws_tokens/bulk": {
+      "post": {
+        "summary": "Bulk create compact JWS tokens",
+        "description": "## Overview\nCreate multiple compact JWS tokens for a list of app code names. The response will include the success, generated token (if successful), or error details for each app code name.\n\n**Available for Staff Tokens and AppStaffToken**",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "app_code_names": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "description": "The code name of the app that owns the token"
+                    },
+                    "description": "List of app code names for which JWS tokens need to be generated"
+                  }
+                },
+                "required": [
+                  "app_code_names"
+                ],
+                "example": {
+                  "app_code_names": [
+                    "tips",
+                    "helpdesk",
+                    "sales"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bulk creation of compact JWS tokens.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "compact_jws_tokens": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "success": {
+                                "type": "boolean",
+                                "description": "Status of the creation for the entity. Possible values: true (success), false (error)."
+                              },
+                              "data": {
+                                "description": "The generated JWS token or null if failed",
+                                "$ref": "https://vcita.github.io/developers-hub/entities/apps/compactJWSToken.json"
+                              },
+                              "error": {
+                                "type": "string",
+                                "description": "Error message if token creation failed"
+                              }
+                            },
+                            "required": [
+                              "success"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing, invalid or not allowed to access the requested resource."
+          },
+          "429": {
+            "description": "Rate limit has been reached due to the number of requests made for the same staff member in a short period of time."
+          }
+        },
+        "tags": [
+          "JWKS"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
     }
   },
   "components": {
     "schemas": {
-      "Response": {
+      "CreateNavigationItemRequest": {
         "type": "object",
+        "description": "Request body for creating a new navigation item.",
+        "properties": {
+          "parent_uid": {
+            "type": "string",
+            "nullable": true,
+            "description": "Unique identifier of the parent navigation item. Set to null for root-level items (e.g., \"nav-item-parent123\")."
+          },
+          "order": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 0,
+            "description": "Display order within the parent level (e.g., 0, 1, 2)."
+          },
+          "title": {
+            "$ref": "#/components/schemas/TitleI18n",
+            "description": "Localized title object. Must include at least the 'en' (English) locale. Additional locales are allowed as additional keys (e.g., \"he\", \"es\", \"fr\")."
+          },
+          "icon": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255,
+            "description": "Icon identifier from the platform icon library. For a list of supported icon identifiers, refer to the inTandem UI icon library used by the platform (e.g., \"icon-Dashboard_POV\")."
+          },
+          "key": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Human-readable unique identifier within the directory (e.g., \"dashboard\", \"custom_module\")."
+          },
+          "modules": {
+            "type": "array",
+            "nullable": true,
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            },
+            "description": "Array of module identifiers required for visibility. The list of enabled modules can be retrieved from the features endpoint (e.g., \"https://developers.intandem.tech/reference/get_platform-v1-businesses-business-id-features\"). (e.g., [\"scheduling\", \"payments\"])."
+          },
+          "permissions": {
+            "type": "array",
+            "nullable": true,
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            },
+            "description": "Array of permission identifiers required for visibility. To retrieve valid permission codes, use the endpoint (GET \"/v3/access_control/permissions\"). (e.g., [\"payments.invoices.export\", \"clients.manage\"])."
+          },
+          "badge_code": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "inbox_unread",
+              null
+            ],
+            "description": "Badge code that displays a notification indicator on this navigation item. Supported values are finite and managed by the platform (e.g., \"inbox_unread\" or null)."
+          },
+          "action": {
+            "$ref": "#/components/schemas/NavigationAction",
+            "description": "Action configuration that defines the behavior when the navigation item is clicked. Actions are handled by the inTandem JS SDK. Every navigation item must have an action. Must be one of: NavigateAction or OpenModalAction."
+          },
+          "available_in_mobile": {
+            "type": "boolean",
+            "default": true,
+            "description": "Whether to show in mobile navigation (e.g., true, false)."
+          },
+          "favorite_in_mobile": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether to show in mobile favorites section (e.g., true, false)."
+          },
+          "upsell_handling": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "hide",
+              "show_upsell",
+              null
+            ],
+            "description": "Behavior when user lacks permissions. 'hide' removes the item, 'show_upsell' displays upgrade prompt. Null means default behavior (hide)."
+          }
+        },
+        "required": [
+          "title",
+          "key",
+          "action"
+        ]
+      },
+      "UpdateNavigationItemRequest": {
+        "type": "object",
+        "description": "Request body for updating an existing navigation item. All fields are optional; only provided fields will be updated.",
+        "properties": {
+          "parent_uid": {
+            "type": "string",
+            "nullable": true,
+            "description": "Unique identifier of the parent navigation item. Set to null for root-level items (e.g., \"nav-item-parent123\" or null)."
+          },
+          "order": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Display order within the parent level. Lower numbers appear first (e.g., 0, 1, 2)."
+          },
+          "title": {
+            "$ref": "#/components/schemas/TitleI18n",
+            "description": "Localized title object. Must include at least the 'en' (English) locale. Additional locales are allowed as additional keys (e.g., \"he\", \"es\", \"fr\")."
+          },
+          "icon": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255,
+            "description": "Icon identifier from the platform icon library. For a list of supported icon identifiers, refer to the inTandem UI icon library used by the platform. Set to null to remove (e.g., \"icon-Dashboard_POV\", \"icon-Settings\" or null)."
+          },
+          "key": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Human-readable unique identifier within the directory. Used by API consumers for programmatic access. Must be stable across title/translation changes (e.g., \"dashboard\", \"custom_module\")."
+          },
+          "modules": {
+            "type": "array",
+            "nullable": true,
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            },
+            "description": "Array of module identifiers required for visibility. The list of enabled modules can be retrieved from the features endpoint (e.g., \"https://developers.intandem.tech/reference/get_platform-v1-businesses-business-id-features\"). Set to null to remove (e.g., [\"scheduling\", \"payments\"] or null)."
+          },
+          "permissions": {
+            "type": "array",
+            "nullable": true,
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            },
+            "description": "Array of permission identifiers required for visibility. To retrieve valid permission codes, use the endpoint (GET \"/v3/access_control/permissions\"). Set to null to remove (e.g., [\"payments.invoices.export\", \"clients.manage\"] or null)."
+          },
+          "badge_code": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "inbox_unread",
+              null
+            ],
+            "description": "Badge code that displays a notification indicator on this navigation item. Supported values are finite and managed by the platform. Set to null to remove (e.g., \"inbox_unread\" or null)."
+          },
+          "action": {
+            "$ref": "#/components/schemas/NavigationAction",
+            "description": "Action configuration that defines the behavior when the navigation item is clicked. Actions are handled by the inTandem JS SDK. Must be one of: NavigateAction or OpenModalAction."
+          },
+          "available_in_mobile": {
+            "type": "boolean",
+            "description": "Whether this navigation item should appear in mobile app navigation. Set to false for desktop-only features (e.g., true, false)."
+          },
+          "favorite_in_mobile": {
+            "type": "boolean",
+            "description": "Whether this item appears in the mobile favorites/quick-access section. Only applicable when available_in_mobile is true (e.g., true, false)."
+          },
+          "upsell_handling": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "hide",
+              "show_upsell",
+              null
+            ],
+            "description": "Behavior when user lacks required modules/permissions. 'hide' removes the item completely, 'show_upsell' displays it with an upgrade prompt. Null means default behavior (hide)."
+          }
+        }
+      },
+      "TitleI18n": {
+        "type": "object",
+        "description": "Localized title object. English (en) is required. Supported locale codes are: de, en, es, fr, he, it, pl, pt, ru, sl, tr.",
+        "propertyNames": {
+          "type": "string",
+          "enum": [
+            "de",
+            "en",
+            "es",
+            "fr",
+            "he",
+            "it",
+            "pl",
+            "pt",
+            "ru",
+            "sl",
+            "tr"
+          ]
+        },
+        "properties": {
+          "en": {
+            "type": "string",
+            "description": "English title (required)."
+          },
+          "he": {
+            "type": "string",
+            "description": "Hebrew title (optional)."
+          }
+        },
+        "required": [
+          "en"
+        ],
+        "additionalProperties": {
+          "type": "string"
+        },
+        "example": {
+          "en": "Dashboard",
+          "he": "לוח בקרה"
+        }
+      },
+      "NavigationAction": {
+        "description": "Action configuration that defines the behavior when a navigation item is clicked. Actions are handled by the inTandem JS SDK. Must be one of: NavigateAction (navigates to a page) or OpenModalAction (opens a modal dialog).",
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/NavigateAction"
+          },
+          {
+            "$ref": "#/components/schemas/OpenModalAction"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "name",
+          "mapping": {
+            "navigate": "#/components/schemas/NavigateAction",
+            "open_modal": "#/components/schemas/OpenModalAction"
+          }
+        }
+      },
+      "NavigateAction": {
+        "type": "object",
+        "description": "Navigate action that directs the user to a page when the navigation item is clicked. Uses the inTandem JS SDK navigate function. See the [navigate documentation](https://developers.intandem.tech/docs/navigate).",
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": [
+              "navigate"
+            ],
+            "description": "Action type identifier. Must be \"navigate\" for navigation actions."
+          },
+          "params": {
+            "type": "object",
+            "description": "Parameters for the navigate action.",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "relative",
+                  "absolute"
+                ],
+                "description": "The type of navigation requested. \"relative\" indicates an internal path in the system, \"absolute\" indicates an external URL. Defaults to \"relative\" if not provided (e.g., \"relative\", \"absolute\")."
+              },
+              "path": {
+                "type": "string",
+                "maxLength": 500,
+                "description": "The navigation path. Supports three path formats: (1) Internal Route — a relative path starting with '/app/' that navigates the user within the platform (e.g., \"/app/dashboard\", \"/app/calendar\", \"/app/clients\", \"/app/payments/orders\"). (2) Embedded App — a relative path following the pattern '/app/embedded/{APP_NAME}/{PATH}', where {APP_NAME} is the app identifier and {PATH} is a navigation path appended to the app's base URL stored in the database; query parameters can also be appended (e.g., \"/app/embedded/printer/settings\", \"/app/embedded/printer/preview?app_id=123\"). (3) External URL — a full URL starting with 'https://' that navigates to an external page (e.g., \"https://help.vcita.com\")."
+              },
+              "new_tab": {
+                "type": "boolean",
+                "default": false,
+                "description": "Whether to open the navigation path in a new browser tab. Defaults to false (e.g., true, false)."
+              }
+            },
+            "required": [
+              "path"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "params"
+        ],
+        "example": {
+          "name": "navigate",
+          "params": {
+            "type": "relative",
+            "path": "/app/dashboard",
+            "new_tab": false
+          }
+        }
+      },
+      "OpenModalAction": {
+        "type": "object",
+        "description": "Open modal action that opens a modal dialog over the current page when the navigation item is clicked. Uses the inTandem JS SDK openModal function. See the [openModal documentation](https://developers.intandem.tech/docs/openmodal) for available modals and their required parameters.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": [
+              "open_modal"
+            ],
+            "description": "Action type identifier. Must be \"open_modal\" for modal actions."
+          },
+          "params": {
+            "type": "object",
+            "description": "Modal configuration parameters. Must include the modal name and any modal-specific parameters. See the [inTandem JS SDK openModal documentation](https://developers.intandem.tech/docs/openmodal) for complete parameter specifications for each modal type (e.g., {\"modalName\": \"AppMarket\"}, {\"modalName\": \"ClientPicker\"}, {\"modalName\": \"IframeModal\", \"url\": \"https://example.com\", \"title\": \"Page Title\"})."
+          }
+        },
+        "required": [
+          "name",
+          "params"
+        ],
+        "example": {
+          "name": "open_modal",
+          "params": {
+            "modalName": "AppMarket"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "description": "Standard error response format.",
         "properties": {
           "success": {
-            "type": "boolean"
+            "type": "boolean",
+            "enum": [
+              false
+            ],
+            "description": "Always false for error responses."
           },
-          "data": {
-            "type": "object"
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "Field that caused the error (for validation errors)."
+                },
+                "code": {
+                  "type": "string",
+                  "description": "Error code identifier."
+                },
+                "message": {
+                  "type": "string",
+                  "description": "Human-readable error message."
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ]
+            }
           }
         },
         "required": [
           "success",
-          "data"
-        ]
-      },
-      "CreateAppAssignmentRequestDto": {
-        "type": "object",
-        "properties": {
-          "assignee_type": {
-            "type": "string",
-            "description": "The type of entity this app is assigned to",
-            "enum": [
-              "business",
-              "package",
-              "directory"
-            ]
-          },
-          "assignee_uid": {
-            "type": "string",
-            "description": "The uid of the entity this app is assigned to"
-          },
-          "app_code_name": {
-            "type": "string",
-            "description": "The unique identifier of the app. Must use alphanumeric characters only (no spaces or special characters). The app must exist and belong to the authenticated directory.",
-            "pattern": "^[a-zA-Z0-9]+$"
-          },
-          "directory_uid": {
-            "type": "string",
-            "description": "The uid of the directory this app is assigned to. **Optional when using Directory Token** - will be auto-determined from the token if omitted. If provided, must match the directory associated with your authentication token."
-          },
-          "settings": {
-            "type": "object",
-            "description": "Optional settings for the app assignment",
-            "properties": {
-              "assignment_mode": {
-                "type": "string",
-                "description": "App setting: 'internal' - App does not show in the app market but still available to use in all relevant integration points; 'pre_installed' - Define the app as pre-installed for all new accounts, app shows in app market as installed on first appearance. The user will be able to uninstall it later if they wish to. This is relevant only to account with platform app market",
-                "enum": [
-                  "internal",
-                  "pre_installed"
-                ]
-              }
-            },
-            "required": [
-              "assignment_mode"
-            ]
-          }
-        },
-        "required": [
-          "assignee_type",
-          "assignee_uid",
-          "app_code_name",
-          "settings"
+          "errors"
         ]
       },
       "CreateWidgetRequestDto": {
@@ -2933,7 +3913,7 @@
           }
         }
       },
-      "Response_widgets_and_boards": {
+      "Response": {
         "type": "object",
         "properties": {
           "success": {
@@ -3128,6 +4108,71 @@
         "required": [
           "widget_uid"
         ]
+      },
+      "Response_apps": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "CreateAppAssignmentRequestDto": {
+        "type": "object",
+        "properties": {
+          "assignee_type": {
+            "type": "string",
+            "description": "The type of entity this app is assigned to",
+            "enum": [
+              "business",
+              "package",
+              "directory"
+            ]
+          },
+          "assignee_uid": {
+            "type": "string",
+            "description": "The uid of the entity this app is assigned to"
+          },
+          "app_code_name": {
+            "type": "string",
+            "description": "The unique identifier of the app. Must use alphanumeric characters only (no spaces or special characters). The app must exist and belong to the authenticated directory.",
+            "pattern": "^[a-zA-Z0-9]+$"
+          },
+          "directory_uid": {
+            "type": "string",
+            "description": "The uid of the directory this app is assigned to. **Optional when using Directory Token** - will be auto-determined from the token if omitted. If provided, must match the directory associated with your authentication token."
+          },
+          "settings": {
+            "type": "object",
+            "description": "Optional settings for the app assignment",
+            "properties": {
+              "assignment_mode": {
+                "type": "string",
+                "description": "App setting: 'internal' - App does not show in the app market but still available to use in all relevant integration points; 'pre_installed' - Define the app as pre-installed for all new accounts, app shows in app market as installed on first appearance. The user will be able to uninstall it later if they wish to. This is relevant only to account with platform app market",
+                "enum": [
+                  "internal",
+                  "pre_installed"
+                ]
+              }
+            },
+            "required": [
+              "assignment_mode"
+            ]
+          }
+        },
+        "required": [
+          "assignee_type",
+          "assignee_uid",
+          "app_code_name",
+          "settings"
+        ]
       }
     },
     "securitySchemes": {
@@ -3136,8 +4181,19 @@
         "scheme": "bearer",
         "bearerFormat": "JWT",
         "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+      },
+      "NavigationItems": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {token}'"
       }
     }
   },
-  "tags": []
+  "tags": [
+    {
+      "name": "Navigation Items",
+      "description": "CRUD operations for navigation menu items"
+    }
+  ]
 }
