@@ -1,0 +1,138 @@
+{
+  "type": "object",
+  "description": "Represents a file uploaded to the platform. Files go through an asynchronous processing pipeline including virus scanning, S3 storage, and thumbnail generation. Content deduplication via SHA-256 fingerprinting ensures efficient storage within each business.",
+  "properties": {
+    "uid": {
+      "type": "string",
+      "readOnly": true,
+      "description": "Unique identifier for the file record (e.g., \"file_123\")."
+    },
+    "business_uid": {
+      "type": "string",
+      "readOnly": true,
+      "description": "Unique identifier of the business that owns this file (e.g., \"biz_456\")."
+    },
+    "name": {
+      "type": "string",
+      "maxLength": 255,
+      "description": "Original filename including extension (e.g., \"document.pdf\", \"photo.jpg\"). Maximum length is 255 characters."
+    },
+    "content_type": {
+      "type": "string",
+      "description": "MIME type of the file (e.g., \"image/jpeg\", \"application/pdf\", \"video/mp4\")."
+    },
+    "size_bytes": {
+      "type": "integer",
+      "format": "int64",
+      "description": "File size in bytes. Maximum allowed size is 104857600 bytes (100MB)."
+    },
+    "content_hash": {
+      "type": "string",
+      "maxLength": 64,
+      "nullable": true,
+      "description": "SHA-256 fingerprint (64-character hexadecimal string) used for content deduplication within the same business. Files with identical content_hash skip redundant processing (e.g., \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\")."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "scanned",
+        "uploaded",
+        "unsafe",
+        "failed",
+        "linked",
+        "deleted"
+      ],
+      "description": "Current processing status of the file. **pending**: Upload received, virus scan queued. **scanned**: Virus scan passed, awaiting S3 upload. **uploaded**: S3 upload complete, thumbnails generated if applicable. **unsafe**: Malware detected, file marked for deletion. **failed**: Processing error occurred (scan or upload failure). **linked**: File has active entity relations. **deleted**: Soft deleted, scheduled for hard deletion after 30 days."
+    },
+    "metadata": {
+      "type": "object",
+      "nullable": true,
+      "description": "Optional JSON object containing arbitrary key-value pairs for additional file metadata (e.g., {\"source\": \"chat\", \"uploaded_by_name\": \"John Doe\"})."
+    },
+    "url": {
+      "type": "string",
+      "format": "uri",
+      "nullable": true,
+      "readOnly": true,
+      "description": "Pre-signed S3 URL for downloading the original file. Available when status is 'uploaded' or 'linked'. Null for pending/failed files (e.g., \"https://s3.amazonaws.com/files-bucket/path/to/original?signature=...\")."
+    },
+    "thumbnail_url": {
+      "type": "string",
+      "format": "uri",
+      "nullable": true,
+      "readOnly": true,
+      "description": "Pre-signed S3 URL for the 400x400 pixel thumbnail. Available for images and PDFs after successful upload. Null for non-image files or pending uploads (e.g., \"https://s3.amazonaws.com/files-bucket/path/to/thumb_400.jpg?signature=...\")."
+    },
+    "thumbnail_small_url": {
+      "type": "string",
+      "format": "uri",
+      "nullable": true,
+      "readOnly": true,
+      "description": "Pre-signed S3 URL for the 150x150 pixel thumbnail. Available for images and PDFs after successful upload. Null for non-image files or pending uploads (e.g., \"https://s3.amazonaws.com/files-bucket/path/to/thumb_150.jpg?signature=...\")."
+    },
+    "created_by": {
+      "type": "string",
+      "enum": ["staff", "client"],
+      "readOnly": true,
+      "description": "Type of actor who created this file. **staff**: Uploaded by a staff member. **client**: Uploaded by a client."
+    },
+    "created_by_uid": {
+      "type": "string",
+      "readOnly": true,
+      "description": "Unique identifier of the staff member or client who uploaded this file (e.g., \"staff_789\", \"client_456\")."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "description": "Timestamp when the file record was created, in ISO 8601 format (e.g., \"2026-01-27T10:30:00Z\")."
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "description": "Timestamp when the file record was last updated, in ISO 8601 format (e.g., \"2026-01-27T11:00:00Z\")."
+    },
+    "deleted_at": {
+      "type": "string",
+      "format": "date-time",
+      "nullable": true,
+      "readOnly": true,
+      "description": "Timestamp when the file was soft deleted, in ISO 8601 format (e.g., \"2026-01-27T12:00:00Z\"). Null if not deleted. Files are hard deleted from S3 after 30 days."
+    }
+  },
+  "required": [
+    "uid",
+    "business_uid",
+    "name",
+    "content_type",
+    "size_bytes",
+    "status",
+    "created_by",
+    "created_by_uid",
+    "created_at",
+    "updated_at"
+  ],
+  "example": {
+    "uid": "file_123abc456def",
+    "business_uid": "biz_789xyz",
+    "name": "invoice_2026_Q1.pdf",
+    "content_type": "application/pdf",
+    "size_bytes": 2048576,
+    "content_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "status": "uploaded",
+    "metadata": {
+      "source": "chat",
+      "conversation_id": "conv_123"
+    },
+    "url": "https://s3.amazonaws.com/files-bucket/biz_789xyz/2026/01/27/file_123abc456def/original?signature=abc123...",
+    "thumbnail_url": "https://s3.amazonaws.com/files-bucket/biz_789xyz/2026/01/27/file_123abc456def/thumb_400.jpg?signature=def456...",
+    "thumbnail_small_url": "https://s3.amazonaws.com/files-bucket/biz_789xyz/2026/01/27/file_123abc456def/thumb_150.jpg?signature=ghi789...",
+    "created_by": "staff",
+    "created_by_uid": "staff_456xyz",
+    "created_at": "2026-01-27T10:30:00Z",
+    "updated_at": "2026-01-27T10:30:45Z",
+    "deleted_at": null
+  }
+}
