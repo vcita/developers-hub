@@ -7,7 +7,6 @@ status: verified
 savedAt: 2026-01-30T21:28:12.398Z
 verifiedAt: 2026-01-30T21:28:12.398Z
 timesReused: 0
-useFallbackApi: true
 tokens: [staff]
 ---
 
@@ -16,7 +15,6 @@ tokens: [staff]
 ## Summary
 Revokes an authentication token that was previously created. The token becomes invalid after revocation. **Token Type**: Requires a **staff token**.
 
-> ⚠️ Fallback API Required
 > This endpoint requires the fallback API due to main gateway routing issues.
 
 ## Prerequisites

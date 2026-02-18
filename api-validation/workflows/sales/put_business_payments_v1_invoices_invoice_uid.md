@@ -7,16 +7,12 @@ status: pending
 savedAt: 2026-02-06T19:40:10.151Z
 verifiedAt: 2026-02-07T07:21:16.000Z
 timesReused: 0
-useFallbackApi: true
 ---
 # Update Invoices
 
 ## Summary
 
 PUT /business/payments/v1/invoices/{invoice_uid} works when a real invoice_uid is provided. The failing test sent body {"invoice":{}} but the error 422 'invoice_uid Not Found' indicates the path parameter was missing/invalid. Resolved by creating an invoice via POST /business/payments/v1/invoices (required matter_uid and billing_address) and then updating it with a minimal payload.
-
-> **⚠️ Fallback API Required**
-> This endpoint must use the fallback API URL. The main API gateway does not support this endpoint.
 
 ## Prerequisites
 

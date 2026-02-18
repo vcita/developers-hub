@@ -6,9 +6,13 @@
 // Application state
 const AppState = {
   endpoints: [],
+  allEndpoints: [],       // Full endpoint list (for mode switching)
+  fallbackEndpoints: [],  // Endpoints with useFallbackApi (for base URL scan mode)
+  noTokenInfoEndpoints: [], // Endpoints with no token documentation (for token doc fix mode)
   domains: [],
   selectedEndpoints: new Set(),
   expandedDomains: new Set(), // Track which domain groups are expanded
+  validationMode: 'full', // 'full', 'base-url-scan', or 'token-doc-fix'
   filters: {
     domain: '',
     method: '',
@@ -80,6 +84,7 @@ async function loadEndpoints() {
   
   // Flatten endpoints for easier access
   AppState.endpoints = [];
+  AppState.allEndpoints = [];
   AppState.domains = [];
   
   for (const domain of data.domains) {
@@ -87,14 +92,21 @@ async function loadEndpoints() {
     
     for (const resource of domain.resources) {
       for (const endpoint of resource.endpoints) {
-        AppState.endpoints.push(endpoint);
+        AppState.allEndpoints.push(endpoint);
       }
     }
   }
   
+  // Set active endpoints based on mode
+  AppState.endpoints = AppState.allEndpoints;
+  
   // Update domain filter
   const domainFilter = document.getElementById('domain-filter');
   if (domainFilter) {
+    // Clear existing options (except first "All")
+    while (domainFilter.options.length > 1) {
+      domainFilter.remove(1);
+    }
     for (const domain of AppState.domains) {
       const option = document.createElement('option');
       option.value = domain;
@@ -108,6 +120,103 @@ async function loadEndpoints() {
   if (countEl) {
     countEl.textContent = `Endpoints: ${AppState.endpoints.length}`;
   }
+}
+
+/**
+ * Load fallback-only endpoints for Base URL Scan mode
+ */
+async function loadFallbackEndpoints() {
+  const response = await fetch('/api/endpoints?grouped=true&fallbackOnly=true');
+  const data = await response.json();
+  
+  AppState.fallbackEndpoints = [];
+  
+  for (const domain of data.domains) {
+    for (const resource of domain.resources) {
+      for (const endpoint of resource.endpoints) {
+        AppState.fallbackEndpoints.push(endpoint);
+      }
+    }
+  }
+  
+  return AppState.fallbackEndpoints;
+}
+
+/**
+ * Load endpoints with no token documentation for Token Doc Fix mode
+ */
+function loadNoTokenInfoEndpoints() {
+  AppState.noTokenInfoEndpoints = AppState.allEndpoints.filter(e => !e.tokenInfo.found);
+  return AppState.noTokenInfoEndpoints;
+}
+
+/**
+ * Set the validation mode (full, base-url-scan, or token-doc-fix)
+ * @param {string} mode - 'full', 'base-url-scan', or 'token-doc-fix'
+ */
+async function setValidationMode(mode) {
+  AppState.validationMode = mode;
+  AppState.selectedEndpoints.clear();
+  
+  // Update toggle button states
+  document.getElementById('mode-full')?.classList.toggle('active', mode === 'full');
+  document.getElementById('mode-base-url')?.classList.toggle('active', mode === 'base-url-scan');
+  document.getElementById('mode-token-fix')?.classList.toggle('active', mode === 'token-doc-fix');
+  
+  // Update mode description
+  const modeDescriptions = {
+    'full': 'Run full API validation with schema checks and AI healing.',
+    'base-url-scan': 'Quick scan to check if fallback URLs are still needed for endpoints.',
+    'token-doc-fix': 'Fix missing token documentation: search code, test endpoints, update swagger files.'
+  };
+  const descEl = document.getElementById('mode-description');
+  if (descEl) {
+    descEl.textContent = modeDescriptions[mode] || '';
+  }
+  
+  // Update run button text
+  const runBtnLabels = {
+    'full': 'Run Selected',
+    'base-url-scan': 'Run Base URL Scan',
+    'token-doc-fix': 'Run Token Doc Fix'
+  };
+  const runBtn = document.getElementById('run-btn');
+  if (runBtn) {
+    runBtn.textContent = runBtnLabels[mode] || 'Run Selected';
+  }
+  
+  // Show/hide full validation options
+  const fullOptions = document.getElementById('full-validation-options');
+  if (fullOptions) {
+    fullOptions.classList.toggle('hidden', mode !== 'full');
+  }
+  
+  // Hide all results sections
+  document.getElementById('results-section')?.classList.add('hidden');
+  document.getElementById('scan-results-section')?.classList.add('hidden');
+  document.getElementById('token-fix-results-section')?.classList.add('hidden');
+  document.getElementById('progress-section')?.classList.add('hidden');
+  
+  // Switch endpoint source
+  if (mode === 'base-url-scan') {
+    await loadFallbackEndpoints();
+    AppState.endpoints = AppState.fallbackEndpoints;
+  } else if (mode === 'token-doc-fix') {
+    loadNoTokenInfoEndpoints();
+    AppState.endpoints = AppState.noTokenInfoEndpoints;
+  } else {
+    AppState.endpoints = AppState.allEndpoints;
+  }
+  
+  // Update count
+  const countEl = document.getElementById('endpoint-count');
+  if (countEl) {
+    countEl.textContent = `Endpoints: ${AppState.endpoints.length}`;
+  }
+  
+  // Re-render
+  renderEndpoints();
+  updateSelectedCount();
 }
 
 /**
@@ -375,6 +484,16 @@ async function runSetup() {
  * Run tests for selected endpoints
  */
 async function runTests() {
+  // Dispatch to base URL scan mode if active
+  if (AppState.validationMode === 'base-url-scan') {
+    return runBaseUrlScan();
+  }
+  
+  // Dispatch to token doc fix mode if active
+  if (AppState.validationMode === 'token-doc-fix') {
+    return runTokenDocFix();
+  }
+
   // Check if setup should run first
   const runSetupFirst = document.getElementById('run-setup-before')?.checked;
   
@@ -412,6 +531,7 @@ async function runTests() {
   
   progressSection?.classList.remove('hidden');
   resultsSection?.classList.add('hidden');
+  document.getElementById('scan-results-section')?.classList.add('hidden');
   
   // Smooth scroll to progress section
   progressSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -431,6 +551,76 @@ async function runTests() {
   } catch (error) {
     console.error('Test runner error:', error);
     alert('Error running tests: ' + error.message);
+  }
+}
+
+/**
+ * Run base URL scan for selected fallback endpoints
+ */
+async function runBaseUrlScan() {
+  const selectedEndpoints = AppState.endpoints.filter(e =>
+    AppState.selectedEndpoints.has(e.id)
+  );
+
+  if (selectedEndpoints.length === 0) {
+    showWarning('No endpoints selected');
+    alert('No endpoints selected for base URL scan.');
+    return;
+  }
+
+  // Show progress, hide results
+  const progressSection = document.getElementById('progress-section');
+  progressSection?.classList.remove('hidden');
+  document.getElementById('results-section')?.classList.add('hidden');
+  document.getElementById('scan-results-section')?.classList.add('hidden');
+  progressSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  try {
+    await TestRunner.runBaseUrlScan(selectedEndpoints, {
+      rateLimitPreset: AppState.rateLimit.preset,
+      rateLimit: {
+        maxConcurrent: AppState.rateLimit.concurrent,
+        retryOn429: AppState.rateLimit.retryOn429
+      }
+    });
+  } catch (error) {
+    console.error('Base URL scan error:', error);
+    alert('Error running scan: ' + error.message);
+  }
+}
+
+/**
+ * Run token doc fix for selected endpoints with no token info
+ */
+async function runTokenDocFix() {
+  const selectedEndpoints = AppState.endpoints.filter(e =>
+    AppState.selectedEndpoints.has(e.id)
+  );
+
+  if (selectedEndpoints.length === 0) {
+    showWarning('No endpoints selected');
+    alert('No endpoints selected for token doc fix.');
+    return;
+  }
+
+  const progressSection = document.getElementById('progress-section');
+  progressSection?.classList.remove('hidden');
+  document.getElementById('results-section')?.classList.add('hidden');
+  document.getElementById('scan-results-section')?.classList.add('hidden');
+  document.getElementById('token-fix-results-section')?.classList.add('hidden');
+  progressSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  try {
+    await TestRunner.runTokenDocFix(selectedEndpoints, {
+      rateLimitPreset: AppState.rateLimit.preset,
+      rateLimit: {
+        maxConcurrent: AppState.rateLimit.concurrent,
+        retryOn429: AppState.rateLimit.retryOn429
+      }
+    });
+  } catch (error) {
+    console.error('Token doc fix error:', error);
+    alert('Error running token doc fix: ' + error.message);
   }
 }
 
@@ -727,6 +917,141 @@ function applyPastedEndpoints() {
   console.log(`Selected ${matchedEndpoints.length} endpoints from pasted list`);
 }
 
+/**
+ * Export base URL scan results as CSV
+ * Columns: endpoint, fallback, primary
+ */
+function exportScanCsv() {
+  const scanResults = TestRunner.scanResults;
+
+  if (!scanResults || scanResults.length === 0) {
+    alert('No scan results to export. Run a base URL scan first.');
+    return;
+  }
+
+  const rows = [['endpoint', 'fallback', 'primary']];
+
+  for (const result of scanResults) {
+    const fallbackStatus = result.fallback.success
+      ? `PASS (${result.fallback.status || 'ok'})`
+      : `FAIL (${result.fallback.error || result.fallback.status || 'error'})`;
+    const primaryStatus = result.primary.success
+      ? `PASS (${result.primary.status || 'ok'})`
+      : `FAIL (${result.primary.error || result.primary.status || 'error'})`;
+
+    rows.push([
+      `"${result.endpoint}"`,
+      `"${fallbackStatus}"`,
+      `"${primaryStatus}"`
+    ]);
+  }
+
+  const csvContent = rows.map(r => r.join(',')).join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+
+  const link = document.createElement('a');
+  link.href = url;
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+  link.download = `base-url-scan-${timestamp}.csv`;
+  link.click();
+
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Quick Fix: remove useFallbackApi: true from workflows where primary now works
+ */
+async function quickFixFallbacks() {
+  const scanResults = TestRunner.scanResults;
+
+  if (!scanResults || scanResults.length === 0) {
+    alert('No scan results available. Run a base URL scan first.');
+    return;
+  }
+
+  const primaryWorksEndpoints = scanResults
+    .filter(r => r.recommendation === 'PRIMARY_NOW_WORKS' || r.recommendation === 'FALLBACK_BROKEN')
+    .map(r => r.endpoint);
+
+  if (primaryWorksEndpoints.length === 0) {
+    alert('No endpoints found where primary works. Nothing to fix.');
+    return;
+  }
+
+  const confirmed = confirm(
+    `This will remove "useFallbackApi: true" from ${primaryWorksEndpoints.length} workflow file(s) where the primary URL works (including cases where fallback is broken but primary works):\n\n` +
+    primaryWorksEndpoints.map(e => `  - ${e}`).join('\n') +
+    '\n\nProceed?'
+  );
+
+  if (!confirmed) return;
+
+  const btn = document.getElementById('scan-quick-fix-btn');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Fixing...';
+  }
+
+  try {
+    const response = await fetch('/api/validate/base-url-scan/quick-fix', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoints: primaryWorksEndpoints })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Quick fix failed');
+    }
+
+    // Show result summary below the scan results
+    const resultEl = document.createElement('div');
+    resultEl.className = 'scan-quick-fix-result success';
+
+    const fixedList = data.fixed.map(f => `<li>${f.endpoint} - ${f.file}</li>`).join('');
+    const skippedList = data.skipped.map(s => `<li>${s.endpoint} - ${s.reason}</li>`).join('');
+
+    resultEl.innerHTML = `
+      <strong>Quick Fix Complete</strong>
+      <p>${data.fixed.length} workflow(s) updated, ${data.skipped.length} skipped.</p>
+      ${fixedList ? `<details><summary>Updated files</summary><ul>${fixedList}</ul></details>` : ''}
+      ${skippedList ? `<details><summary>Skipped</summary><ul>${skippedList}</ul></details>` : ''}
+    `;
+
+    const scanSection = document.getElementById('scan-results-section');
+    const existingResult = scanSection?.querySelector('.scan-quick-fix-result');
+    if (existingResult) existingResult.remove();
+    scanSection?.querySelector('.results-header')?.after(resultEl);
+
+    if (btn) {
+      btn.textContent = 'Done!';
+      setTimeout(() => {
+        btn.textContent = 'Quick Fix';
+        btn.disabled = false;
+      }, 3000);
+    }
+
+  } catch (error) {
+    console.error('Quick fix error:', error);
+
+    const resultEl = document.createElement('div');
+    resultEl.className = 'scan-quick-fix-result error';
+    resultEl.innerHTML = `<strong>Quick Fix Failed</strong><p>${error.message}</p>`;
+
+    const scanSection = document.getElementById('scan-results-section');
+    const existingResult = scanSection?.querySelector('.scan-quick-fix-result');
+    if (existingResult) existingResult.remove();
+    scanSection?.querySelector('.results-header')?.after(resultEl);
+
+    if (btn) {
+      btn.textContent = 'Quick Fix';
+      btn.disabled = false;
+    }
+  }
+}
+
 // Expose functions to window.App for onclick handlers
 window.App = {
   reloadSwaggers,
@@ -734,7 +1059,11 @@ window.App = {
   runSetup,
   openPasteModal,
   closePasteModal,
-  applyPastedEndpoints
+  applyPastedEndpoints,
+  setValidationMode,
+  exportScanCsv,
+  quickFixFallbacks,
+  runTokenDocFix
 };
 
 // Initialize on DOM ready

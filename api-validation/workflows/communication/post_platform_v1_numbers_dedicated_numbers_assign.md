@@ -7,7 +7,6 @@ status: skip
 savedAt: 2026-01-27T21:28:12.398Z
 verifiedAt: 2026-01-27T21:28:12.398Z
 timesReused: 0
-useFallbackApi: true
 expectedOutcome: 422
 expectedOutcomeReason: "Requires valid external API key for third-party SMS service (Nexmo/Vonage) which cannot be provided in test environment"
 ---
@@ -16,8 +15,6 @@ expectedOutcomeReason: "Requires valid external API key for third-party SMS serv
 
 ## Summary
 Assigns a dedicated SMS number to an account. **Token Type**: Requires a **staff token**.
-
-> ⚠️ Fallback API Required
 
 > ⚠️ **Untestable Endpoint**: This endpoint requires a valid external API key for a third-party SMS service provider (Nexmo/Vonage). The API responds with "API KEY is not valid" error when using test keys, making it untestable in our validation environment.
 

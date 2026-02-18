@@ -4,7 +4,6 @@ domain: clients
 tags: []
 swagger: "swagger/clients/legacy/manage_clients.json"
 status: pending
-useFallbackApi: true
 ---
 
 # Bulk add tags to matters (PUT /v1/tags)

@@ -7,7 +7,6 @@ status: verified
 savedAt: 2026-02-08T18:00:00.000Z
 verifiedAt: 2026-02-08T18:00:00.000Z
 timesReused: 0
-useFallbackApi: true
 tokens: [staff]
 ---
 # List Estimates
@@ -15,8 +14,6 @@ tokens: [staff]
 ## Summary
 
 Lists all estimates for a business. **Token Type**: Requires a **staff token**.
-
-> ⚠️ Fallback API Required
 
 ## Prerequisites
 

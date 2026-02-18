@@ -7,7 +7,6 @@ status: verified
 savedAt: 2026-01-27T09:30:00.000Z
 verifiedAt: 2026-01-27T09:30:00.000Z
 timesReused: 0
-useFallbackApi: true
 tokens: [staff]
 ---
 
@@ -15,8 +14,6 @@ tokens: [staff]
 
 ## Summary
 Creates new business reviews settings. **Token Type**: Requires a **staff token**. Returns 201 on successful creation or 409 if settings already exist for the business.
-
-> ⚠️ Fallback API Required
 
 ## Prerequisites
 ```yaml

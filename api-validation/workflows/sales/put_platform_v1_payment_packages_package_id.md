@@ -7,7 +7,6 @@ status: verified
 savedAt: "2026-02-08T07:05:15.000Z"
 verifiedAt: "2026-02-08T07:05:15.000Z"
 timesReused: 0
-useFallbackApi: true
 tokens: [staff]
 ---
 
@@ -19,9 +18,6 @@ Updates a payment package by ID. The request body must be wrapped in a `package`
 
 **Token Type**: This endpoint requires a **Staff token**.
 
-> **⚠️ Fallback API Required**
-> This endpoint must use the fallback API URL. The main API gateway does not support this endpoint.
-
 ## Prerequisites
 
 ```yaml
@@ -31,7 +27,6 @@ steps:
     method: GET
     path: "/platform/v1/payment/packages"
     token: staff
-    useFallback: true
     params:
       per_page: "1"
     extract:
@@ -64,7 +59,6 @@ steps:
     method: PUT
     path: "/platform/v1/payment/packages/{{package_id}}"
     token: staff
-    useFallback: true
     body:
       package:
         name: "Updated Test Package Name"

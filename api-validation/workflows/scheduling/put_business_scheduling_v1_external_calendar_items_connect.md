@@ -8,15 +8,12 @@ savedAt: 2026-02-01T23:30:00.000Z
 verifiedAt: 2026-02-01T23:30:00.000Z
 timesReused: 0
 tokens: [staff]
-useFallbackApi: true
 ---
 
 # Connect External Calendar
 
 ## Summary
 Connect a staff member's calendar to an external calendar provider (Google, Outlook, etc.). **Token Type**: Requires a **staff token**.
-
-> ⚠️ Fallback API Required
 
 ## Prerequisites
 

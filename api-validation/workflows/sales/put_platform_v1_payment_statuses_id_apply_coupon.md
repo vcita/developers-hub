@@ -7,7 +7,6 @@ status: skip
 savedAt: "2026-02-08T16:00:00.000Z"
 timesReused: 0
 tokens: [staff]
-useFallbackApi: true
 expectedOutcome: 422
 expectedOutcomeReason: "All coupon management endpoints (/v3/sales/coupons, /v2/coupons) return 500 errors, making it impossible to create or fetch valid coupon codes required for testing this endpoint. The endpoint itself responds correctly (422 Invalid Coupon) but requires functional coupon creation/listing to obtain test data."
 ---
@@ -19,9 +18,6 @@ expectedOutcomeReason: "All coupon management endpoints (/v3/sales/coupons, /v2/
 Applies a coupon code to a payment status to reduce the amount due. The `{id}` path parameter is a **payment status UID** (same as payment request UID). Requires a `coupon_code` parameter.
 
 **Token Type**: Requires a **staff token**. The controller includes `Api::ClientAuthentication` and internally hardcodes `authorize_params: {type: 'client'}`, so staff tokens pass authorization.
-
-> **⚠️ Fallback API Required**
-> This endpoint must use the fallback API URL. The controller uses `Api::ClientAuthentication`.
 
 > **⚠️ Testing Blocked**
 > Cannot test due to broken coupon management endpoints. All coupon creation/listing endpoints return 500 "undefined method `<' for nil:NilClass".

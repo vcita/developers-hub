@@ -9,7 +9,6 @@ verifiedAt: 2026-02-08T10:02:34.000Z
 timesReused: 0
 expectedOutcome: 422
 expectedOutcomeReason: "The created client package has no booking redemptions. Cancel redemption requires an existing redemption, which cannot be created in this environment."
-useFallbackApi: true
 tokens: [staff]
 ---
 
@@ -20,9 +19,6 @@ tokens: [staff]
 Cancels a booking redemption for a client package. This endpoint requires a valid payment_status_id from a client package that has an active booking redemption. Since redemptions cannot be easily created in test environments, this endpoint typically returns 422 with "There is no booking redemption for given payment status".
 
 **Token Type**: This endpoint requires a **Staff token**.
-
-> **⚠️ Fallback API Required**
-> This endpoint must use the fallback API URL. The main API gateway does not support this endpoint.
 
 ## Prerequisites
 
@@ -47,7 +43,6 @@ steps:
     method: GET
     path: "/platform/v1/payment/packages"
     token: staff
-    useFallback: true
     extract:
       package_id: "$.data.packages[0].id"
       package_price: "$.data.packages[0].price"
@@ -60,7 +55,6 @@ steps:
     method: POST
     path: "/platform/v1/payment/client_packages"
     token: staff
-    useFallback: true
     body:
       client_id: "{{client_id}}"
       package_id: "{{package_id}}"
@@ -98,7 +92,6 @@ steps:
     method: PUT
     path: "/platform/v1/payment/client_packages/cancel_redemption"
     token: staff
-    useFallback: true
     body:
       payment_status_id: "{{payment_status_id}}"
     expect:

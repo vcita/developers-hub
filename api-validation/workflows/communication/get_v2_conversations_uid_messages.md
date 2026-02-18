@@ -8,7 +8,6 @@ savedAt: 2026-02-14T00:00:00.000Z
 verifiedAt: 2026-02-14T00:00:00.000Z
 timesReused: 0
 tokens: [staff, directory]
-useFallbackApi: true
 ---
 
 # Get Conversation Messages
@@ -18,8 +17,6 @@ useFallbackApi: true
 Retrieves a paginated list of messages within a specific conversation. Messages are returned in chronological order and include staff details, document attachments, and delivery status.
 
 Available for **Staff and Directory tokens**. Directory tokens require the `X-On-Behalf-Of` header with the target business UID.
-
-> ⚠️ Fallback API Required
 
 ## Authentication
 

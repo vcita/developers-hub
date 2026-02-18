@@ -7,7 +7,6 @@ status: verified
 savedAt: "2026-02-08T16:45:00.000Z"
 verifiedAt: "2026-02-08T16:45:00.000Z"
 timesReused: 0
-useFallbackApi: true
 ---
 
 # Get Invoices List
@@ -15,7 +14,6 @@ useFallbackApi: true
 ## Summary
 Retrieves a list of invoices for the business. **Token Type**: Requires a **staff token**.
 
-> ⚠️ Fallback API Required
 > This endpoint must use the fallback API URL. The main API gateway may return errors for Staff tokens.
 
 ## Prerequisites

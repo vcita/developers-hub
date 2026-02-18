@@ -8,7 +8,8 @@ const router = express.Router();
 
 const { filterEndpoints } = require('../../core/parser/swagger-parser');
 const { groupByDomainAndResource } = require('../../core/orchestrator/resource-grouper');
-const { loadIndex } = require('../../core/workflows/repository');
+const workflowRepo = require('../../core/workflows/repository');
+const { loadIndex } = workflowRepo;
 
 /**
  * GET /api/endpoints
@@ -34,6 +35,14 @@ router.get('/', (req, res) => {
   if (search) filters.search = search;
   
   let filtered = filterEndpoints(endpoints, filters);
+  
+  // Filter to only endpoints with useFallbackApi workflows (for Base URL Scan mode)
+  if (req.query.fallbackOnly === 'true') {
+    filtered = filtered.filter(ep => {
+      const wf = workflowRepo.get(`${ep.method} ${ep.path}`);
+      return wf && wf.useFallbackApi === true;
+    });
+  }
   
   // Formatter with workflow status context
   const format = (ep) => formatEndpoint(ep, workflowStatusMap);

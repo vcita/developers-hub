@@ -7,7 +7,6 @@ status: skip
 skipReason: "Deprecated. Use PUT /business/clients/v1/tags instead."
 savedAt: "2026-02-03T18:27:27.713Z"
 timesReused: 0
-useFallbackApi: true
 ---
 
 # [Deprecated] Create Tag

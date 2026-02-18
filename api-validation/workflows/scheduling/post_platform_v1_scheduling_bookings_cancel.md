@@ -7,7 +7,6 @@ status: pending
 savedAt: "2026-02-01T16:00:00.000Z"
 verifiedAt: "2026-02-01T16:00:00.000Z"
 timesReused: 0
-useFallbackApi: true
 ---
 
 # Cancel Booking

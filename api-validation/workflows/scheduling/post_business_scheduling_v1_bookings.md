@@ -185,8 +185,6 @@ This error occurs when `client_id` is not provided and the API attempts to creat
 - **Use Staff tokens** - Staff tokens work when client belongs to the same business as the staff
 - **Directory tokens limitation** - Only work when business is a member of the directory (has directory_member record)
 - `start_time` must be in the future and the timeslot must be available
-- The `client_id` must be an existing client for this business
-
-## Setup Requirements1. Ensure you have a valid Staff token configured in `api-validation/config/tokens.json`
+- The `client_id` must be an existing client for this business## Setup Requirements1. Ensure you have a valid Staff token configured in `api-validation/config/tokens.json`
 2. Ensure `client_id` in tokens.json is for a client belonging to the same business as the staff
 3. The `business_id`, `staff_id`, and `client_id` must all be for the same business

@@ -7,7 +7,6 @@ status: verified
 savedAt: 2026-02-08T16:43:00.000Z
 verifiedAt: 2026-02-08T16:43:00.000Z
 timesReused: 0
-useFallbackApi: true
 tokens: [staff]
 ---
 
@@ -18,9 +17,6 @@ tokens: [staff]
 Lists all payments for a business. This endpoint requires a **staff token** and must use the fallback API. The main API gateway returns 422 Unauthorized for staff tokens, but the fallback API works correctly.
 
 **Token Type**: This endpoint requires a **Staff token**.
-
-> **⚠️ Fallback API Required**
-> This endpoint must use the fallback API URL. The main API gateway does not support this endpoint.
 
 ## Authentication
 
@@ -42,7 +38,6 @@ steps:
     method: GET
     path: "/platform/v1/payments"
     token: staff
-    useFallback: true
     params:
       business_id: "{{business_id}}"
     expect:

@@ -8,7 +8,6 @@ savedAt: "2026-02-08T16:33:35.000Z"
 verifiedAt: "2026-02-08T16:33:35.000Z"
 timesReused: 0
 tokens: [staff]
-useFallbackApi: true
 ---
 
 # Get Payout by Provider ID

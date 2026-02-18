@@ -7,7 +7,6 @@ status: skip
 skipReason: "Nexmo communication-gw endpoint. Requires webhook listener for async channel/session activation -- cannot be tested in validation environment."
 savedAt: 2026-02-08T21:30:00.000Z
 timesReused: 0
-useFallbackApi: true
 ---
 
 # Update Typing Status
@@ -20,8 +19,6 @@ Update typing indicator status for a communication session. **Token Type**: Requ
 > It requires an active webhook listener to receive channel/session activation callbacks from the
 > communication-gw. Channels start as "pending" and are activated asynchronously via webhooks,
 > which cannot be simulated in the API validation environment.
-
-> ⚠️ Fallback API Required
 
 ## Prerequisites
 

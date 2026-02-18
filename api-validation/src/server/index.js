@@ -17,6 +17,8 @@ const { invalidateIndexCache } = require('../core/workflows/repository');
 const endpointsRouter = require('./routes/endpoints');
 const validateRouter = require('./routes/validate');
 const fixReportRouter = require('./routes/fix-report');
+const baseUrlScanRouter = require('./routes/base-url-scan');
+const tokenDocFixRouter = require('./routes/token-doc-fix');
 
 // Store last validation results for report generation
 let lastValidationResults = null;
@@ -48,6 +50,7 @@ let appState = {
   statistics: null,
   configValid: false,
   configErrors: [],
+  configWarnings: [],
   configWarnings: []
 };
 
@@ -85,6 +88,8 @@ app.use((req, res, next) => {
 
 // API Routes
 app.use('/api/endpoints', endpointsRouter);
+app.use('/api/validate/base-url-scan', baseUrlScanRouter);
+app.use('/api/validate/token-doc-fix', tokenDocFixRouter);
 app.use('/api/validate', validateRouter);
 app.use('/api/fix-report', fixReportRouter);
 

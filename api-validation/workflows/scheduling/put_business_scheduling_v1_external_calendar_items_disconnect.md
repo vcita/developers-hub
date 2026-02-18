@@ -6,15 +6,12 @@ swagger: "swagger/scheduling/legacy/scheduling.json"
 status: pending
 savedAt: "2026-02-03T21:28:12.398Z"
 timesReused: 0
-useFallbackApi: true
 ---
 
 # Disconnect External Calendar
 
 ## Summary
 Disconnect a staff member's calendar from an external calendar provider. **Token Type**: Requires a **staff token**.
-
-> ⚠️ Fallback API Required
 
 ## Prerequisites
 

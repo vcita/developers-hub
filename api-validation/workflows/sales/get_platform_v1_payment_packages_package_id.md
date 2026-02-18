@@ -7,7 +7,6 @@ status: verified
 savedAt: 2026-02-06T20:49:00.000Z
 verifiedAt: 2026-02-08T15:42:00.000Z
 timesReused: 0
-useFallbackApi: true
 tokens: [staff]
 ---
 # Get Package
@@ -17,9 +16,6 @@ tokens: [staff]
 Retrieves a single payment package by its ID. This endpoint requires a **staff token** and must use the fallback API URL.
 
 **Token Type**: This endpoint requires a **staff token**.
-
-> **⚠️ Fallback API Required**
-> This endpoint must use the fallback API URL. The main API gateway does not support this endpoint.
 
 ## Authentication
 
@@ -37,7 +33,6 @@ steps:
     method: GET
     path: "/platform/v1/payment/packages"
     token: staff
-    useFallback: true
     extract:
       package_id: "$.data.packages[0].id"
     expect:
@@ -69,7 +64,6 @@ steps:
     method: GET
     path: "/platform/v1/payment/packages/{{package_id}}"
     token: staff
-    useFallback: true
     expect:
       status: [200]
 ```

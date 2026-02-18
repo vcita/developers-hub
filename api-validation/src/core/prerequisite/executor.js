@@ -624,9 +624,7 @@ function createRequestFunction(baseUrl, options = {}) {
           console.log(`    [makeRequest] Switched auth to Token format for Partners API`);
         }
       } else {
-        urlBase = useFallback && fallbackUrl 
-          ? fallbackUrl 
-          : (config.baseUrl || effectiveBaseUrl);
+        urlBase = effectiveBaseUrl;
       }
       const url = `${urlBase}${requestConfig.path}`;
       console.log(`    [makeRequest] ${requestConfig.method} ${url} (useFallback=${useFallback}, base=${urlBase})`);
@@ -667,9 +665,7 @@ function createRequestFunction(baseUrl, options = {}) {
     
     return async (requestConfig, config) => {
       return new Promise((resolve, reject) => {
-        const urlBase = useFallback && fallbackUrl 
-          ? fallbackUrl 
-          : (config.baseUrl || effectiveBaseUrl);
+        const urlBase = effectiveBaseUrl;
         const url = new URL(`${urlBase}${requestConfig.path}`);
         
         // Add query params

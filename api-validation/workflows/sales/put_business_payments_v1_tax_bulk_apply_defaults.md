@@ -7,7 +7,6 @@ status: success
 savedAt: 2026-02-06T20:49:00.000Z
 verifiedAt: 2026-02-06T20:49:00.000Z
 timesReused: 0
-useFallbackApi: true
 ---
 # Apply Default Taxes
 
@@ -16,9 +15,6 @@ useFallbackApi: true
 Applies default taxes to the business in the background. Takes no body parameters; uses current staff/business context. The endpoint works via the fallback API with a staff token. Requires staff with Settings/Payments access.
 
 **Token Type**: This endpoint requires a **Staff token** with payments/settings permission.
-
-> **⚠️ Fallback API Required**
-> This endpoint must use the fallback API URL. The main API gateway returns 401.
 
 ## Prerequisites
 

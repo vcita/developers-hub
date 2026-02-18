@@ -1,38 +1,72 @@
 ---
-endpoint: GET /business/payments/v1/transactions/{provider_transaction_id}
+endpoint: "GET /business/payments/v1/transactions/{provider_transaction_id}"
 domain: sales
-tags: []
-swagger: swagger/sales/legacy/payments.json
+tags: [transactions]
+swagger: "swagger/sales/legacy/payments.json"
 status: verified
-savedAt: 2026-02-06T18:32:48.178Z
-verifiedAt: 2026-02-07T07:47:18.000Z
+savedAt: 2026-02-18T06:17:33.000Z
+verifiedAt: 2026-02-18T06:17:33.000Z
 timesReused: 0
+tokens: [staff]
 ---
-# Get Transactions
+
+# Get Transaction
 
 ## Summary
 
-PASS: Successfully retrieved a Transaction after resolving a valid provider_transaction_id by creating a transaction, then calling GET /business/payments/v1/transactions/{provider_transaction_id} -> 200.
+Retrieves a specific transaction by provider_transaction_id. This endpoint requires a **staff token**.
+
+**Token Type**: This endpoint requires a **Staff token**.
 
 ## Prerequisites
 
-No prerequisites required for this endpoint.
+```yaml
+steps:
+  - id: create_transaction
+    description: "Create a transaction to get a valid provider_transaction_id"
+    method: POST
+    path: "/business/payments/v1/transactions"
+    token: staff
+    body:
+      transaction:
+        provider_transaction_id: "test_tx_{{now_timestamp}}"
+        total_amount: "100.0"
+        currency: "USD"
+        transaction_type: "sale"
+        provider: "stripe"
+        status: "settled"
+    extract:
+      provider_transaction_id: "$.data.transaction.provider_transaction_id"
+    expect:
+      status: [201]
+    onFail: abort
+```
 
 ## Test Request
 
 ```yaml
 steps:
-  - id: main_request
-    description: "Get transactions"
+  - id: get_transaction
+    description: "Get the specific transaction by provider_transaction_id"
     method: GET
-    path: "/business/payments/v1/transactions/tx_1770399738"
+    path: "/business/payments/v1/transactions/{{provider_transaction_id}}"
+    token: staff
     expect:
-      status: [200, 201]
+      status: [200]
 ```
 
-## Swagger Discrepancies
+## Parameters Reference
 
-| Aspect | Swagger Says | Actual Behavior | Evidence |
-|--------|--------------|-----------------|----------|
-| validation_rule: provider_transaction_id | Not clear what happens when provider_transaction_id is not found / not belonging to current business | Raises Api::ValidationErrors error(code: :missing, field: :provider_transaction_id, message: I18n.t('payments-api-errors.not_found')) | - |
-| missing_field: business_uid scoping | Not explicit that lookup is scoped to business context (business_uid) | show() queries ProviderTransaction where provider_transaction_id AND business_uid | - |
+### Path Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| provider_transaction_id | string | Yes | Provider transaction identifier |
+
+## Response Codes
+
+| Status | Meaning |
+|--------|---------|
+| 200 | Success - Transaction retrieved |
+| 401 | Unauthorized - Invalid token |
+| 422 | Not Found - Transaction doesn't exist or doesn't belong to current business |
