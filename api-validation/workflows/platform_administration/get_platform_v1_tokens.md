@@ -7,7 +7,6 @@ status: verified
 savedAt: "2026-01-27T14:32:15.398Z"
 verifiedAt: "2026-01-27T14:32:15.398Z"
 timesReused: 0
-useFallbackApi: true
 tokens: [staff, directory]
 ---
 
@@ -16,7 +15,6 @@ tokens: [staff, directory]
 ## Summary
 GET /platform/v1/tokens retrieves token information. **Token Type**: Works with **staff** or **directory** tokens.
 
-> ⚠️ Fallback API Required
 > This endpoint requires the fallback API due to main gateway routing issues.
 
 ## Prerequisites

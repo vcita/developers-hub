@@ -7,7 +7,6 @@ status: verified
 savedAt: 2026-02-08T21:43:45.000Z
 verifiedAt: 2026-02-13T00:00:00.000Z
 timesReused: 0
-useFallbackApi: true
 tokens: [staff, directory]
 ---
 
@@ -21,24 +20,6 @@ Retrieves a list of all conversations for the current business. This endpoint fo
 
 > **⚠️ Fallback API Required**
 > This endpoint must use the fallback API URL (`/api2`). The main API gateway (`/apigw`) returns 422 Unauthorized due to authentication context differences between the gateways.
-
-## Response Codes
-
-| Status | Meaning |
-|--------|---------| 
-| 200 | Success - Conversations retrieved |
-| 422 | Unprocessable Entity - Upstream error (includes Unauthorized) |
-
-## Authentication
-
-Available for **Staff and Directory** tokens.
-
-| Token Type | Works | Notes |
-|------------|-------|-------|
-| Staff | ✅ | Requires staff to be associated with a business |
-| Directory | ✅ | Requires `X-On-Behalf-Of` header with business UID |
-| App | ❌ | Returns 422 Unauthorized - `authorize_action` only accepts `user` and `admin` types |
-| Internal | ✅ | Full access (admin type) |
 
 ## Test Request
 
@@ -58,6 +39,24 @@ steps:
 |-----------|------|----------|-------------|
 | page | integer | No | Page number (default: 1) |
 | per_page | integer | No | Results per page (default: 25, max: 50) |
+
+## Authentication
+
+Available for **Staff and Directory** tokens.
+
+| Token Type | Works | Notes |
+|------------|-------|-------|
+| Staff | ✅ | Requires staff to be associated with a business |
+| Directory | ✅ | Requires `X-On-Behalf-Of` header with business UID |
+| App | ❌ | Returns 422 Unauthorized - `authorize_action` only accepts `user` and `admin` types |
+| Internal | ✅ | Full access (admin type) |
+
+## Response Codes
+
+| Status | Meaning |
+|--------|---------| 
+| 200 | Success - Conversations retrieved |
+| 422 | Unprocessable Entity - Upstream error (includes Unauthorized) |
 
 ## Known Issues
 

@@ -3,6 +3,7 @@
  * POST / - Start a base URL scan for selected endpoints
  * GET /stream/:sessionId - SSE stream for real-time progress
  * POST /stop/:sessionId - Stop a running scan
+ * POST /quick-fix - Remove useFallbackApi from workflows where primary now works
  *
  * Tests endpoints that use useFallbackApi against both the fallback URL
  * and the primary URL to determine if the fallback is still needed.
@@ -302,38 +303,14 @@ async function runBaseUrlScan(session, endpoints, options = {}) {
       phase: fallbackResult.phase || null
     };
 
-    // If fallback failed, skip primary test
-    if (!fallbackResult.success) {
-      broadcastEvent(session, 'progress', {
-        index: session.completed + 1,
-        total: session.total,
-        endpoint: endpointKey,
-        phase: 'fallback_failed'
-      });
-
-      const scanResult = {
-        endpoint: endpointKey,
-        domain: endpoint.domain,
-        fallback: fallbackInfo,
-        primary: { url: config.baseUrl, success: false, status: null, duration: null, error: 'Skipped (fallback failed)' },
-        recommendation: 'FALLBACK_BROKEN',
-        workflowStatus: workflow.status || 'unknown',
-        hasWorkflowTestRequest: true
-      };
-      session.results.push(scanResult);
-      session.completed++;
-      broadcastEvent(session, 'scan_result', scanResult);
-      continue;
-    }
-
-    // Phase 2: Execute workflow against primary URL
+    // Phase 2: Always test primary URL (even if fallback failed)
     if (session.stopped) break;
 
     broadcastEvent(session, 'progress', {
       index: session.completed + 1,
       total: session.total,
       endpoint: endpointKey,
-      phase: 'primary'
+      phase: fallbackResult.success ? 'primary' : 'fallback_failed_testing_primary'
     });
 
     let primaryResult;
@@ -359,8 +336,17 @@ async function runBaseUrlScan(session, endpoints, options = {}) {
       phase: primaryResult.phase || null
     };
 
-    // Determine recommendation
-    const recommendation = primaryResult.success ? 'PRIMARY_NOW_WORKS' : 'FALLBACK_STILL_NEEDED';
+    // Determine recommendation based on both results
+    let recommendation;
+    if (fallbackResult.success && primaryResult.success) {
+      recommendation = 'PRIMARY_NOW_WORKS';
+    } else if (fallbackResult.success && !primaryResult.success) {
+      recommendation = 'FALLBACK_STILL_NEEDED';
+    } else if (!fallbackResult.success && primaryResult.success) {
+      recommendation = 'FALLBACK_BROKEN';
+    } else {
+      recommendation = 'BOTH_FAILING';
+    }
 
     const scanResult = {
       endpoint: endpointKey,
@@ -383,6 +369,108 @@ async function runBaseUrlScan(session, endpoints, options = {}) {
     const summary = buildCompleteSummary(session);
     console.log(`Base URL scan complete:`, summary);
     broadcastEvent(session, 'complete', summary);
+  }
+}
+
+/**
+ * POST /quick-fix
+ * Remove useFallbackApi: true from workflow files where primary now works
+ * Also removes useFallback: true from individual prerequisite/test steps
+ */
+router.post('/quick-fix', async (req, res) => {
+  try {
+    const { endpoints } = req.body;
+
+    if (!endpoints || endpoints.length === 0) {
+      return res.status(400).json({
+        error: 'No endpoints provided',
+        message: 'Provide an array of endpoint strings to fix'
+      });
+    }
+
+    const fixed = [];
+    const skipped = [];
+
+    for (const endpointKey of endpoints) {
+      const workflow = workflowRepo.get(endpointKey);
+
+      if (!workflow) {
+        skipped.push({ endpoint: endpointKey, reason: 'No workflow found' });
+        continue;
+      }
+
+      if (!workflow.useFallbackApi) {
+        skipped.push({ endpoint: endpointKey, reason: 'useFallbackApi not set' });
+        continue;
+      }
+
+      // Remove useFallbackApi from frontmatter and useFallback from steps
+      const success = removeFallbackFromWorkflow(endpointKey, workflow);
+
+      if (success) {
+        fixed.push({ endpoint: endpointKey, file: workflow.file });
+      } else {
+        skipped.push({ endpoint: endpointKey, reason: 'Failed to update file' });
+      }
+    }
+
+    // Invalidate workflow cache so changes are picked up
+    workflowRepo.invalidateIndexCache();
+
+    console.log(`Quick fix: ${fixed.length} updated, ${skipped.length} skipped`);
+
+    res.json({
+      success: true,
+      fixed,
+      skipped,
+      total: endpoints.length
+    });
+  } catch (error) {
+    console.error('Quick fix error:', error);
+    res.status(500).json({ error: 'Quick fix failed', message: error.message });
+  }
+});
+
+/**
+ * Remove useFallbackApi: true from workflow frontmatter
+ * and useFallback: true from prerequisite/test request steps
+ * @param {string} endpointKey - e.g. "POST /business/communication/channels"
+ * @param {Object} workflow - Parsed workflow object
+ * @returns {boolean} True if updated successfully
+ */
+function removeFallbackFromWorkflow(endpointKey, workflow) {
+  const fs = require('fs');
+  const path = require('path');
+  const WORKFLOWS_DIR = workflowRepo.WORKFLOWS_DIR;
+
+  const filePath = path.join(WORKFLOWS_DIR, workflow.file);
+
+  try {
+    if (!fs.existsSync(filePath)) {
+      console.log(`[QuickFix] File not found: ${filePath}`);
+      return false;
+    }
+
+    let content = fs.readFileSync(filePath, 'utf8');
+
+    // Remove useFallbackApi line from frontmatter
+    content = content.replace(/^useFallbackApi:\s*true\s*\n/m, '');
+
+    // Remove useFallback: true from YAML steps (prerequisite and test request)
+    // Matches lines like "    useFallback: true" inside yaml code blocks
+    content = content.replace(/^(\s*)useFallback:\s*true\s*\n/gm, '');
+
+    // Remove the fallback notice block from body if present
+    content = content.replace(/^> \*\*⚠️ Fallback API Required\*\*\n> This endpoint must use the fallback API URL\.[^\n]*\n\n?/m, '');
+    content = content.replace(/^> ⚠️ Fallback API Required\s*\n\n?/m, '');
+
+    fs.writeFileSync(filePath, content, 'utf8');
+    console.log(`[QuickFix] Updated: ${filePath}`);
+    return true;
+
+  } catch (error) {
+    console.error(`[QuickFix] Error updating ${filePath}: ${error.message}`);
+    return false;
   }
 }
 

@@ -7,7 +7,6 @@ status: success
 savedAt: 2026-02-06T09:28:34.257Z
 verifiedAt: 2026-02-06T09:28:34.257Z
 timesReused: 0
-useFallbackApi: true
 ---
 # Get Matters
 

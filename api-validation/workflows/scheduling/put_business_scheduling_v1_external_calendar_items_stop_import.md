@@ -8,15 +8,12 @@ savedAt: "2026-02-03T20:00:00.000Z"
 verifiedAt: "2026-02-03T20:00:00.000Z"
 timesReused: 0
 tokens: [staff]
-useFallbackApi: true
 ---
 
 # Stop External Calendar Import
 
 ## Summary
 Stop importing calendar items from an external calendar provider. **Token Type**: Requires a **staff token**.
-
-> ⚠️ Fallback API Required
 
 ## Prerequisites
 

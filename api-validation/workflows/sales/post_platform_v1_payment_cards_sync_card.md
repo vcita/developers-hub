@@ -7,7 +7,6 @@ status: verified
 savedAt: "2026-02-08T11:31:40.000Z"
 verifiedAt: "2026-02-08T11:31:40.000Z"
 timesReused: 0
-useFallbackApi: true
 ---
 
 # Create Sync Card
@@ -17,9 +16,6 @@ useFallbackApi: true
 Syncs a payment card from an external payment gateway (like Stripe) to the platform. This endpoint requires **payment gateway configuration** and **valid client data**. The card details must be unique - the API prevents duplicate cards based on exp_month, exp_year, and last_4 digits.
 
 **Token Type**: This endpoint requires a **Staff token** when using the fallback API.
-
-> **⚠️ Fallback API Required**
-> This endpoint must use the fallback API URL. The main API gateway returns 422 Unauthorized for Staff/Directory tokens.
 
 ## Prerequisites
 

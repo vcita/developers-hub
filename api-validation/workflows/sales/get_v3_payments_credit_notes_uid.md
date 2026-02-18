@@ -4,8 +4,8 @@ domain: sales
 tags: [credit_notes, payments]
 swagger: swagger/sales/creditNote.json
 status: verified
-savedAt: 2026-02-09T07:14:40.000Z
-verifiedAt: 2026-02-09T07:14:40.000Z
+savedAt: 2026-02-18T15:29:10.000Z
+verifiedAt: 2026-02-18T15:29:10.000Z
 timesReused: 0
 tokens: [staff]
 ---
@@ -19,8 +19,8 @@ Retrieves details of a specific credit note by its UID. **Token Type**: Requires
 
 ```yaml
 steps:
-  - id: get_client_id
-    description: "Fetch a client ID for the business"
+  - id: fetch_client
+    description: "Get a client for creating an invoice"
     method: GET
     path: "/platform/v1/clients"
     token: staff
@@ -33,8 +33,8 @@ steps:
       status: [200]
     onFail: abort
 
-  - id: get_matter_uid
-    description: "Fetch a matter UID for the configured client"
+  - id: fetch_matter
+    description: "Get a matter for the client"
     method: GET
     path: "/business/clients/v1/contacts/{{client_id}}/matters"
     token: staff
@@ -44,42 +44,38 @@ steps:
       status: [200]
     onFail: abort
 
-  - id: create_invoice
-    description: "Create an invoice to issue credit note against"
+  - id: create_invoice_for_credit_note
+    description: "Create an invoice that can receive a credit note"
     method: POST
-    path: "/platform/v1/invoices"
+    path: "/v3/payments/invoices"
     token: staff
-    useFallbackApi: true
     body:
-      address: "123 Test Street"
-      allow_online_payment: false
-      client_id: "{{client_id}}"
-      conversation_id: "{{matter_uid}}"
+      matter_uid: "{{matter_uid}}"
+      issue_date: "2026-02-18"
+      due_date: "2026-03-18"
       currency: "USD"
-      due_date: "{{next_month_date}}"
-      invoice_number: "{{now_timestamp}}"
-      issued_at: "{{today_date}}"
-      items:
-        - title: "Test item"
-          description: "Test item"
-          amount: 100
+      billing_address: "123 Test Street, Test City, TS 12345"
+      line_items:
+        - name: "Test Service for Credit Note"
+          unit_amount: 100
           quantity: 1
+          description: "Test service to credit"
     extract:
-      invoice_uid: "$.data.invoice.id"
+      invoice_uid: "$.data.uid"
     expect:
-      status: [200, 201]
+      status: [201]
     onFail: abort
 
-  - id: create_credit_note
-    description: "Create a credit note to retrieve"
+  - id: issue_credit_note
+    description: "Create the credit note to test retrieval"
     method: POST
     path: "/v3/payments/credit_notes"
     token: staff
     body:
       invoice_uid: "{{invoice_uid}}"
-      notes: "Test credit note for retrieval"
+      notes: "Test credit note for GET endpoint test"
       line_items:
-        - name: "Test Credit"
+        - name: "Test Credit Item"
           quantity: 1
           unit_amount: 50
       notify_recipient: false
@@ -94,8 +90,8 @@ steps:
 
 ```yaml
 steps:
-  - id: get_credit_note
-    description: "Retrieve the credit note by its UID"
+  - id: retrieve_credit_note
+    description: "Get the credit note by its UID"
     method: GET
     path: "/v3/payments/credit_notes/{{credit_note_uid}}"
     token: staff

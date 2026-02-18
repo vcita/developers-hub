@@ -8,15 +8,12 @@ savedAt: "2026-02-09T12:00:00.000Z"
 verifiedAt: "2026-02-09T12:00:00.000Z"
 timesReused: 0
 tokens: [staff]
-useFallbackApi: true
 ---
 
 # Bulk Create External Calendar Items
 
 ## Summary
 Create multiple external calendar items for a staff member's synced calendar. **Token Type**: Requires a **staff token**.
-
-> ⚠️ Fallback API Required
 
 ## Prerequisites
 

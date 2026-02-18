@@ -660,7 +660,7 @@ const TestRunner = {
    */
   async stop() {
     // Determine which session to stop
-    const activeSessionId = this.sessionId || this.scanSessionId;
+    const activeSessionId = this.sessionId || this.scanSessionId || this.tokenFixSessionId;
     if (!activeSessionId || !this.isRunning) {
       console.log('No active session to stop');
       return;
@@ -668,9 +668,12 @@ const TestRunner = {
     
     // Determine the correct stop endpoint based on session type
     const isScan = activeSessionId.startsWith('scan-');
-    const stopUrl = isScan
-      ? `/api/validate/base-url-scan/stop/${activeSessionId}`
-      : `/api/validate/stop/${activeSessionId}`;
+    const isTokenFix = activeSessionId.startsWith('tokenfix-');
+    const stopUrl = isTokenFix
+      ? `/api/validate/token-doc-fix/stop/${activeSessionId}`
+      : isScan
+        ? `/api/validate/base-url-scan/stop/${activeSessionId}`
+        : `/api/validate/stop/${activeSessionId}`;
     
     console.log('Stopping session:', activeSessionId, isScan ? '(scan)' : '(validation)');
     
@@ -763,6 +766,7 @@ const TestRunner = {
     document.getElementById('scan-primary-works').textContent = '0';
     document.getElementById('scan-fallback-needed').textContent = '0';
     document.getElementById('scan-fallback-broken').textContent = '0';
+    document.getElementById('scan-both-failing').textContent = '0';
     document.getElementById('scan-no-workflow').textContent = '0';
 
     // Show scan results section early
@@ -818,6 +822,7 @@ const TestRunner = {
       const data = JSON.parse(event.data);
       const phaseLabel = data.phase === 'fallback' ? '(testing fallback)' :
                          data.phase === 'primary' ? '(testing primary)' :
+                         data.phase === 'fallback_failed_testing_primary' ? '(fallback failed, testing primary)' :
                          data.phase === 'fallback_failed' ? '(fallback failed)' : '';
       this.updateProgress(data.index, total, `Scanning: ${data.endpoint} ${phaseLabel}`);
       this.addProgressLog(`${data.endpoint} ${phaseLabel}`, 'running');
@@ -893,6 +898,7 @@ const TestRunner = {
       primaryNowWorks: this.scanResults.filter(r => r.recommendation === 'PRIMARY_NOW_WORKS').length,
       fallbackStillNeeded: this.scanResults.filter(r => r.recommendation === 'FALLBACK_STILL_NEEDED').length,
       fallbackBroken: this.scanResults.filter(r => r.recommendation === 'FALLBACK_BROKEN').length,
+      bothFailing: this.scanResults.filter(r => r.recommendation === 'BOTH_FAILING').length,
       noWorkflow: this.scanResults.filter(r => r.recommendation === 'NO_WORKFLOW').length
     };
   },
@@ -905,6 +911,7 @@ const TestRunner = {
     document.getElementById('scan-primary-works').textContent = counts.primaryNowWorks;
     document.getElementById('scan-fallback-needed').textContent = counts.fallbackStillNeeded;
     document.getElementById('scan-fallback-broken').textContent = counts.fallbackBroken;
+    document.getElementById('scan-both-failing').textContent = counts.bothFailing;
     document.getElementById('scan-no-workflow').textContent = counts.noWorkflow;
   },
 
@@ -923,6 +930,7 @@ const TestRunner = {
       document.getElementById('scan-primary-works').textContent = summary.primaryNowWorks;
       document.getElementById('scan-fallback-needed').textContent = summary.fallbackStillNeeded;
       document.getElementById('scan-fallback-broken').textContent = summary.fallbackBroken;
+      document.getElementById('scan-both-failing').textContent = summary.bothFailing || 0;
       document.getElementById('scan-no-workflow').textContent = summary.noWorkflow || 0;
     }
 
@@ -931,6 +939,193 @@ const TestRunner = {
 
     setTimeout(() => {
       scanResultsSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+  },
+
+  // ========================
+  // Token Doc Fix Methods
+  // ========================
+
+  tokenFixResults: [],
+  tokenFixSessionId: null,
+
+  /**
+   * Run token doc fix for selected endpoints
+   * @param {Object[]} endpoints - Endpoints to fix
+   * @param {Object} options - Options
+   */
+  async runTokenDocFix(endpoints, options = {}) {
+    console.log('TestRunner.runTokenDocFix called with', endpoints.length, 'endpoints');
+    this.tokenFixResults = [];
+    this.tokenFixSessionId = null;
+    this.sessionId = null;
+    this.isRunning = true;
+    this.clearPreflightLog();
+    this.updateProgress(0, endpoints.length, 'Starting token doc fix...');
+    this.updateButtonStates();
+
+    ResultsViewer._tokenFixResults = [];
+    const fixList = document.getElementById('token-fix-results-list');
+    if (fixList) fixList.innerHTML = '<div class="empty results-loading">Token fix results will appear here...</div>';
+
+    document.getElementById('token-fix-updated').textContent = '0';
+    document.getElementById('token-fix-test-passed').textContent = '0';
+    document.getElementById('token-fix-test-failed').textContent = '0';
+    document.getElementById('token-fix-skipped').textContent = '0';
+    document.getElementById('token-fix-no-workflow').textContent = '0';
+
+    document.getElementById('token-fix-results-section')?.classList.remove('hidden');
+    document.getElementById('progress-section')?.classList.remove('hidden');
+
+    try {
+      const response = await fetch('/api/validate/token-doc-fix', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          endpoints: endpoints.map(e => ({ path: e.path, method: e.method })),
+          options
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to start token doc fix');
+      }
+
+      this.tokenFixSessionId = data.sessionId;
+      this.connectToTokenFixStream(data.sessionId, endpoints.length);
+
+    } catch (error) {
+      console.error('Token doc fix error:', error);
+      this.updateProgress(0, 0, `Error: ${error.message}`);
+      this.isRunning = false;
+      this.updateButtonStates();
+      alert('Token doc fix error: ' + error.message);
+    }
+  },
+
+  /**
+   * Connect to SSE stream for token doc fix progress
+   */
+  connectToTokenFixStream(sessionId, total) {
+    if (this.eventSource) {
+      this.eventSource.close();
+    }
+
+    this.eventSource = new EventSource(`/api/validate/token-doc-fix/stream/${sessionId}`);
+
+    this.eventSource.addEventListener('start', (event) => {
+      const data = JSON.parse(event.data);
+      this.updateProgress(0, data.total, 'Running token doc fix...');
+    });
+
+    this.eventSource.addEventListener('progress', (event) => {
+      const data = JSON.parse(event.data);
+      const phaseLabel = data.phase === 'code-search' ? '(searching code)' :
+                         data.phase === 'testing' ? '(testing workflow)' : '';
+      this.updateProgress(data.index, total, `Fixing: ${data.endpoint} ${phaseLabel}`);
+      this.addProgressLog(`${data.endpoint} ${phaseLabel}`, 'running');
+    });
+
+    this.eventSource.addEventListener('token_fix_result', (event) => {
+      const result = JSON.parse(event.data);
+      this.tokenFixResults.push(result);
+
+      const statusClass = result.swaggerUpdated ? 'PASS' :
+                          result.testResult === 'error' ? 'FAIL' : 'SKIP';
+      this.updateProgressLog(result.endpoint, statusClass, result.testDuration || '-');
+
+      ResultsViewer.addTokenFixResult(result);
+      this.updateTokenFixSummary();
+    });
+
+    this.eventSource.addEventListener('complete', (event) => {
+      const data = JSON.parse(event.data);
+      this.eventSource.close();
+      this.eventSource = null;
+      this.isRunning = false;
+      this.updateButtonStates();
+
+      this.updateProgress(total, total, 'Token doc fix complete!');
+      this.showTokenFixResults(data);
+    });
+
+    this.eventSource.addEventListener('stopped', (event) => {
+      const data = JSON.parse(event.data);
+      this.eventSource.close();
+      this.eventSource = null;
+      this.isRunning = false;
+      this.updateButtonStates();
+
+      this.updateProgress(data.completed, data.total, 'Token doc fix stopped by user');
+      this.showTokenFixResults({
+        status: 'stopped',
+        ...this.getTokenFixCounts()
+      });
+    });
+
+    this.eventSource.addEventListener('error', (event) => {
+      console.error('Token fix SSE error:', event);
+      this.eventSource.close();
+      this.eventSource = null;
+      this.isRunning = false;
+      this.updateButtonStates();
+    });
+
+    this.eventSource.onerror = (error) => {
+      console.error('Token fix EventSource error:', error);
+      if (this.eventSource) {
+        this.eventSource.close();
+        this.eventSource = null;
+      }
+      this.isRunning = false;
+      this.updateButtonStates();
+    };
+  },
+
+  getTokenFixCounts() {
+    return {
+      total: this.tokenFixResults.length,
+      swaggerUpdated: this.tokenFixResults.filter(r => r.swaggerUpdated).length,
+      testPassed: this.tokenFixResults.filter(r => r.testResult === '2xx').length,
+      testFailed: this.tokenFixResults.filter(r => r.testResult === 'error').length,
+      skippedNoTest: this.tokenFixResults.filter(r => r.testResult === 'skipped-no-test').length,
+      noWorkflow: this.tokenFixResults.filter(r => r.testResult === 'no-workflow').length
+    };
+  },
+
+  updateTokenFixSummary() {
+    const counts = this.getTokenFixCounts();
+    document.getElementById('token-fix-updated').textContent = counts.swaggerUpdated;
+    document.getElementById('token-fix-test-passed').textContent = counts.testPassed;
+    document.getElementById('token-fix-test-failed').textContent = counts.testFailed;
+    document.getElementById('token-fix-skipped').textContent = counts.skippedNoTest;
+    document.getElementById('token-fix-no-workflow').textContent = counts.noWorkflow;
+  },
+
+  showTokenFixResults(summary) {
+    const preflightSection = document.getElementById('preflight-section');
+    if (preflightSection) preflightSection.classList.add('hidden');
+
+    const tokenFixSection = document.getElementById('token-fix-results-section');
+    tokenFixSection?.classList.remove('hidden');
+
+    if (summary.swaggerUpdated !== undefined) {
+      document.getElementById('token-fix-updated').textContent = summary.swaggerUpdated;
+      document.getElementById('token-fix-test-passed').textContent = summary.testPassed;
+      document.getElementById('token-fix-test-failed').textContent = summary.testFailed;
+      document.getElementById('token-fix-skipped').textContent = summary.skippedNoTest || 0;
+      document.getElementById('token-fix-no-workflow').textContent = summary.noWorkflow || 0;
+    }
+
+    ResultsViewer.sortTokenFixResults();
+
+    const loading = document.querySelector('#token-fix-results-list .results-loading');
+    if (loading) loading.remove();
+
+    setTimeout(() => {
+      tokenFixSection?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 100);
   }
 };

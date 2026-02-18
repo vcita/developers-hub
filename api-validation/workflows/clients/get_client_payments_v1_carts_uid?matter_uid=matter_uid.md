@@ -7,7 +7,6 @@ status: verified
 savedAt: "2026-01-26T05:29:52.880Z"
 verifiedAt: "2026-02-04T12:00:00.000Z"
 timesReused: 0
-useFallbackApi: true
 tokens: [client]
 requiresTestData: true
 testDataDescription: "Business must have at least one cart. Carts are created via POST /client/payments/v1/carts."
@@ -19,9 +18,6 @@ testDataDescription: "Business must have at least one cart. Carts are created vi
 Retrieves details of a specific cart by its unique identifier. Carts represent shopping cart sessions containing items for purchase.
 
 **Token Type**: This endpoint requires a **Client token**.
-
-> **⚠️ Fallback API Required**
-> This endpoint must use the fallback API URL. The main API gateway does not support this endpoint.
 
 ## Prerequisites
 

@@ -1,34 +1,38 @@
 ---
 endpoint: "POST /oauth/service/token"
 domain: apps
-tags: []
+tags: [oauth]
 swagger: "swagger/apps/legacy/legacy_token.json"
 status: verified
-savedAt: "2026-01-25T05:30:54.250Z"
-verifiedAt: "2026-01-25T05:30:54.250Z"
+savedAt: "2026-01-30T19:16:12.398Z"
+verifiedAt: "2026-01-30T19:16:12.398Z"
 timesReused: 0
 ---
 
-# Create Token
+# Generate App Access Token
 
 ## Summary
-Test passed successfully after resolving OAuth credentials. The endpoint requires valid client_id and client_secret from an actual OAuth app, not test strings.
+This endpoint generates an app access token using OAuth client credentials flow. **Token Type**: **No bearer token required** - authentication is via service_id and service_secret in the request body.
 
 ## Prerequisites
 
 ```yaml
 steps:
-  - id: get_services
-    description: "Fetch available services"
-    method: GET
-    path: "/platform/v1/services"
-    params:
-      business_id: "{{business_id}}"
-      per_page: "1"
+  - id: create_oauth_app
+    description: "Create an OAuth app to get client credentials"
+    method: POST
+    path: "/platform/v1/apps"
+    token: directory
+    body:
+      name: "Test OAuth App {{now_timestamp}}"
+      redirect_uri: "https://example.com/callback"
+      app_type:
+        - widgets
     extract:
-      service_id: "$.data.services[0].id"
+      client_id: "$.data.client_id"
+      client_secret: "$.data.client_secret"
     expect:
-      status: [200]
+      status: [200, 201]
     onFail: abort
 ```
 
@@ -36,12 +40,12 @@ steps:
 
 ```yaml
 steps:
-  - id: post_token
+  - id: generate_service_token
     method: POST
     path: "/oauth/service/token"
     body:
-      service_id: "{{service_id}}"
-      service_secret: "{{uid}}"
+      service_id: "{{client_id}}"
+      service_secret: "{{client_secret}}"
     expect:
       status: [200, 201]
 ```

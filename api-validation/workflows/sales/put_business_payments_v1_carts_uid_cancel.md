@@ -7,16 +7,12 @@ status: pending
 savedAt: 2026-02-06T19:27:29.913Z
 verifiedAt: 2026-02-07T07:14:50.000Z
 timesReused: 0
-useFallbackApi: true
 ---
 # Update Cancel
 
 ## Summary
 
 PUT /business/payments/v1/carts/{uid}/cancel works when a valid sale cart UID is used. The failing test used an invalid/unknown {uid} (vy95sanetdvrvyae), leading to 422 {field: cart_uid, message: Not Found}. Retried with existing cart uid bmn2yncdcvkrgehf and body {cancel_payment_statuses_items:true} → 200 success.
-
-> **⚠️ Fallback API Required**
-> This endpoint must use the fallback API URL. The main API gateway does not support this endpoint.
 
 ## Prerequisites
 

@@ -7,7 +7,6 @@ status: verified
 savedAt: 2026-01-26T21:28:12.398Z
 verifiedAt: 2026-01-26T21:28:12.398Z
 timesReused: 0
-useFallbackApi: true
 tokens: [staff]
 ---
 

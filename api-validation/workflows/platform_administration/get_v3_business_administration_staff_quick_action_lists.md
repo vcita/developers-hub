@@ -4,7 +4,6 @@ domain: platform_administration
 tags: [staff-only]
 swagger: "swagger/platform_administration/staff.json"
 status: verified
-useFallbackApi: true
 savedAt: 2026-01-26T21:28:12.398Z
 verifiedAt: 2026-01-26T21:28:12.398Z
 timesReused: 0
@@ -14,8 +13,6 @@ timesReused: 0
 
 ## Summary
 This endpoint retrieves the quick action lists for all staff members in the business. **Token Type**: Requires a **staff token**.
-
-> ⚠️ Fallback API Required
 
 ## Prerequisites
 

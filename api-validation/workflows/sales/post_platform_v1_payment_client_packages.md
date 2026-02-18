@@ -7,7 +7,6 @@ status: verified
 savedAt: "2026-01-27T04:22:09.837Z"
 verifiedAt: 2026-02-08T09:02:05.000Z
 timesReused: 0
-useFallbackApi: true
 tokens: [staff]
 ---
 
@@ -18,9 +17,6 @@ tokens: [staff]
 Creates a client package subscription, assigning a payment package to a specific client. The package becomes active immediately with the specified validity period. This endpoint requires a **staff token** and must use the fallback API.
 
 **Token Type**: This endpoint requires a **Staff token**.
-
-> **⚠️ Fallback API Required**
-> This endpoint must use the fallback API URL. The main API gateway does not support this endpoint.
 
 ## Response Codes
 
@@ -61,7 +57,6 @@ steps:
     method: GET
     path: "/platform/v1/payment/packages"
     token: staff
-    useFallback: true
     extract:
       package_id: "$.data.packages[0].id"
       package_price: "$.data.packages[0].price"
@@ -100,7 +95,6 @@ steps:
     method: POST
     path: "/platform/v1/payment/client_packages"
     token: staff
-    useFallback: true
     body:
       client_id: "{{client_id}}"
       package_id: "{{package_id}}"

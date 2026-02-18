@@ -2799,6 +2799,109 @@ ${result.swaggerFile || result.domain || 'Unknown'}`;
     }
   },
 
+  /**
+   * Collect failed endpoints from Base URL Scan results and send to FixRunner.
+   * "Failed" = BOTH_FAILING or FALLBACK_BROKEN. Skipped (NO_WORKFLOW) are ignored.
+   */
+  autoFixScanFailed() {
+    const allResults = (typeof TestRunner !== 'undefined' && TestRunner.scanResults) ? TestRunner.scanResults : [];
+
+    if (!allResults || allResults.length === 0) {
+      alert('No scan results available. Run a base URL scan first.');
+      return;
+    }
+
+    const failedResults = allResults.filter(r =>
+      r.recommendation === 'BOTH_FAILING' || r.recommendation === 'FALLBACK_BROKEN'
+    ).map(r => {
+      const parts = r.endpoint.split(' ');
+      const method = parts[0] || 'GET';
+      const path = parts.slice(1).join(' ') || '';
+      const primaryError = r.primary?.error || '';
+      const fallbackError = r.fallback?.error || '';
+      const reason = r.recommendation === 'BOTH_FAILING'
+        ? `Both URLs failing. Primary: ${r.primary?.status || '?'} ${primaryError}. Fallback: ${r.fallback?.status || '?'} ${fallbackError}`
+        : `Fallback broken (${r.fallback?.status || '?'} ${fallbackError}), primary works`;
+
+      return {
+        endpoint: r.endpoint,
+        method,
+        path,
+        status: r.recommendation === 'BOTH_FAILING' ? 'FAIL' : 'WARN',
+        httpStatus: r.primary?.status || r.fallback?.status,
+        domain: r.domain,
+        swaggerFile: null,
+        tokenUsed: null,
+        reason,
+        details: { recommendation: r.recommendation, primary: r.primary, fallback: r.fallback },
+        healingInfo: {}
+      };
+    });
+
+    if (failedResults.length === 0) {
+      alert('No failed scan endpoints to fix. All scans passed or were skipped.');
+      return;
+    }
+
+    if (typeof FixRunner !== 'undefined') {
+      FixRunner.startFixSession(failedResults);
+    } else {
+      alert('Fix runner module not loaded.');
+    }
+  },
+
+  /**
+   * Collect failed endpoints from Token Doc Fix results and send to FixRunner.
+   * "Failed" = testResult === 'error'. Skipped/no-workflow/no-tokens are ignored.
+   */
+  autoFixTokenFixFailed() {
+    const allResults = (typeof TestRunner !== 'undefined' && TestRunner.tokenFixResults) ? TestRunner.tokenFixResults : [];
+
+    if (!allResults || allResults.length === 0) {
+      alert('No token fix results available. Run a token doc fix first.');
+      return;
+    }
+
+    const failedResults = allResults.filter(r =>
+      r.testResult === 'error'
+    ).map(r => {
+      const parts = r.endpoint.split(' ');
+      const method = parts[0] || 'GET';
+      const path = parts.slice(1).join(' ') || '';
+
+      return {
+        endpoint: r.endpoint,
+        method,
+        path,
+        status: 'FAIL',
+        httpStatus: r.testStatus,
+        domain: r.domain,
+        swaggerFile: r.swaggerFile || null,
+        tokenUsed: null,
+        reason: r.testError || `Test failed with status ${r.testStatus || 'unknown'}`,
+        details: {
+          discoveredTokens: r.discoveredTokens,
+          codeSearchSource: r.codeSearchSource,
+          codeSearchConfidence: r.codeSearchConfidence,
+          testResult: r.testResult,
+          testError: r.testError
+        },
+        healingInfo: {}
+      };
+    });
+
+    if (failedResults.length === 0) {
+      alert('No failed token-fix endpoints to fix. All tests passed or were skipped.');
+      return;
+    }
+
+    if (typeof FixRunner !== 'undefined') {
+      FixRunner.startFixSession(failedResults);
+    } else {
+      alert('Fix runner module not loaded.');
+    }
+  },
+
   // ========================
   // Base URL Scan Results
   // ========================
@@ -2869,8 +2972,8 @@ ${result.swaggerFile || result.domain || 'Unknown'}`;
       'PRIMARY_NOW_WORKS': 0,
       'FALLBACK_BROKEN': 1,
       'BOTH_FAILING': 2,
-      'NO_WORKFLOW': 3,
-      'FALLBACK_STILL_NEEDED': 4
+      'FALLBACK_STILL_NEEDED': 3,
+      'NO_WORKFLOW': 4
     };
 
     const cards = Array.from(listEl.querySelectorAll('.scan-result-card'));
@@ -2904,7 +3007,7 @@ ${result.swaggerFile || result.domain || 'Unknown'}`;
     const map = {
       'PRIMARY_NOW_WORKS': 'Primary Now Works',
       'FALLBACK_STILL_NEEDED': 'Fallback Still Needed',
-      'FALLBACK_BROKEN': 'Fallback Broken',
+      'FALLBACK_BROKEN': 'Fallback Broken, Primary Works',
       'BOTH_FAILING': 'Both Failing',
       'NO_WORKFLOW': 'No Workflow'
     };
@@ -2918,10 +3021,152 @@ ${result.swaggerFile || result.domain || 'Unknown'}`;
     const map = {
       'PRIMARY_NOW_WORKS': '🟢',
       'FALLBACK_STILL_NEEDED': '🟡',
-      'FALLBACK_BROKEN': '🔴',
+      'FALLBACK_BROKEN': '🟠',
       'BOTH_FAILING': '🔴',
       'NO_WORKFLOW': '⚪'
     };
     return map[recommendation] || '❓';
+  },
+
+  // ========================
+  // Token Doc Fix Results
+  // ========================
+
+  _tokenFixResults: [],
+
+  /**
+   * Add a single token fix result to the results list
+   * @param {Object} result - Token fix result object
+   */
+  addTokenFixResult(result) {
+    const listEl = document.getElementById('token-fix-results-list');
+    if (!listEl) return;
+
+    document.getElementById('token-fix-results-section')?.classList.remove('hidden');
+
+    const loading = listEl.querySelector('.results-loading');
+    if (loading) loading.remove();
+
+    this._tokenFixResults.push(result);
+
+    const { cssClass, icon, label } = this.getTokenFixStatusDisplay(result);
+
+    const tokensHtml = result.discoveredTokens && result.discoveredTokens.length > 0
+      ? result.discoveredTokens.map(t =>
+          `<span class="token-fix-token-badge">${t.charAt(0).toUpperCase() + t.slice(1)}</span>`
+        ).join(' ')
+      : '<span class="token-fix-no-tokens">No tokens found</span>';
+
+    const sourceHtml = result.codeSearchSource
+      ? `<span class="token-fix-source" title="${result.codeSearchSource}">${result.codeSearchRepo || '?'}/${this.truncateText(result.codeSearchSource.split('/').pop(), 30)}</span>`
+      : `<span class="token-fix-source">${result.codeSearchRepo || 'unmapped'} (${result.codeSearchConfidence || 'default'})</span>`;
+
+    const testHtml = this.getTokenFixTestHtml(result);
+
+    const card = document.createElement('div');
+    card.className = `token-fix-result-card token-fix-${cssClass}`;
+    card.dataset.status = result.testResult;
+    card.dataset.updated = result.swaggerUpdated ? 'true' : 'false';
+    card.innerHTML = `
+      <div class="token-fix-result-header">
+        <span class="token-fix-result-icon">${icon}</span>
+        <span class="token-fix-result-endpoint">${result.endpoint}</span>
+        <span class="token-fix-result-domain">${result.domain || ''}</span>
+        <span class="token-fix-status-badge token-fix-badge-${cssClass}">${label}</span>
+      </div>
+      <div class="token-fix-result-body">
+        <div class="token-fix-row">
+          <span class="token-fix-label">Discovered Tokens:</span>
+          <span class="token-fix-value">${tokensHtml}</span>
+        </div>
+        <div class="token-fix-row">
+          <span class="token-fix-label">Source:</span>
+          <span class="token-fix-value">${sourceHtml}</span>
+        </div>
+        <div class="token-fix-row">
+          <span class="token-fix-label">Test:</span>
+          <span class="token-fix-value">${testHtml}</span>
+        </div>
+        <div class="token-fix-row">
+          <span class="token-fix-label">Swagger Updated:</span>
+          <span class="token-fix-value">${result.swaggerUpdated
+            ? `<span class="token-fix-updated-yes">✅ Yes</span> <span class="token-fix-file">${result.swaggerFile || ''}</span>`
+            : `<span class="token-fix-updated-no">❌ No</span> <span class="token-fix-reason">${result.swaggerMessage || ''}</span>`
+          }</span>
+        </div>
+      </div>
+    `;
+
+    listEl.appendChild(card);
+  },
+
+  /**
+   * Get display properties for a token fix result status
+   */
+  getTokenFixStatusDisplay(result) {
+    if (result.swaggerUpdated) {
+      return { cssClass: 'updated', icon: '✅', label: 'Swagger Updated' };
+    }
+    if (result.testResult === '2xx') {
+      return { cssClass: 'passed', icon: '🧪', label: 'Test Passed' };
+    }
+    if (result.testResult === 'skipped-no-test') {
+      return { cssClass: 'skipped', icon: '⏭️', label: 'Skipped' };
+    }
+    if (result.testResult === 'no-workflow') {
+      return { cssClass: 'no-workflow', icon: '⚪', label: 'No Workflow' };
+    }
+    if (result.testResult === 'no-tokens-found') {
+      return { cssClass: 'no-tokens', icon: '❓', label: 'No Tokens Found' };
+    }
+    if (result.testResult === 'error') {
+      return { cssClass: 'failed', icon: '❌', label: 'Test Failed' };
+    }
+    return { cssClass: 'unknown', icon: '❓', label: result.testResult || 'Unknown' };
+  },
+
+  /**
+   * Get HTML for the test result column
+   */
+  getTokenFixTestHtml(result) {
+    if (result.testResult === '2xx') {
+      return `<span class="token-fix-test-pass">✓ ${result.testStatus || '2xx'}</span> <span class="token-fix-duration">${result.testDuration || ''}</span>`;
+    }
+    if (result.testResult === 'error') {
+      return `<span class="token-fix-test-fail">✗ ${this.truncateText(result.testError || 'Error', 60)}</span> <span class="token-fix-duration">${result.testDuration || ''}</span>`;
+    }
+    if (result.testResult === 'skipped-no-test') {
+      return '<span class="token-fix-test-skip">Skipped (workflow status: skip)</span>';
+    }
+    if (result.testResult === 'no-workflow') {
+      return '<span class="token-fix-test-skip">No workflow available</span>';
+    }
+    if (result.testResult === 'no-tokens-found') {
+      return '<span class="token-fix-test-skip">N/A (no tokens discovered)</span>';
+    }
+    return `<span>${result.testResult || '-'}</span>`;
+  },
+
+  /**
+   * Sort token fix results: updated first, then passed, skipped, failed, no-workflow
+   */
+  sortTokenFixResults() {
+    const listEl = document.getElementById('token-fix-results-list');
+    if (!listEl) return;
+
+    const order = { 'true': 0, 'false': 1 };
+    const testOrder = { '2xx': 0, 'skipped-no-test': 1, 'error': 2, 'no-workflow': 3, 'no-tokens-found': 4 };
+
+    const cards = Array.from(listEl.querySelectorAll('.token-fix-result-card'));
+    cards.sort((a, b) => {
+      const aUpdated = order[a.dataset.updated] ?? 99;
+      const bUpdated = order[b.dataset.updated] ?? 99;
+      if (aUpdated !== bUpdated) return aUpdated - bUpdated;
+      return (testOrder[a.dataset.status] ?? 99) - (testOrder[b.dataset.status] ?? 99);
+    });
+
+    for (const card of cards) {
+      listEl.appendChild(card);
+    }
   }
 };

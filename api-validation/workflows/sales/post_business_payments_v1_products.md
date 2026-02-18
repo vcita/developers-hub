@@ -7,7 +7,6 @@ status: success
 savedAt: "2026-01-26T21:30:28.948Z"
 verifiedAt: "2026-02-06T20:51:00.000Z"
 timesReused: 0
-useFallbackApi: true
 ---
 
 # Create Product
@@ -17,9 +16,6 @@ useFallbackApi: true
 Creates a product. The endpoint works via the fallback API; APIGW returns 401 for staff tokens because it requires OAuth Bearer token with scope business/payments.
 
 **Token Type**: This endpoint requires a **Staff token** (via fallback API).
-
-> **⚠️ Fallback API Required**
-> This endpoint must use the fallback API URL. The main API gateway requires OAuth token not available in test env.
 
 ## Prerequisites
 

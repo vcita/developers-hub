@@ -7,7 +7,6 @@ status: verified
 savedAt: "2026-01-25T19:26:45.697Z"
 verifiedAt: "2026-01-25T19:26:45.697Z"
 timesReused: 0
-useFallbackApi: true
 ---
 
 # Create Search

@@ -7,16 +7,12 @@ status: pending
 savedAt: 2026-02-06T19:38:27.859Z
 verifiedAt: 2026-02-07T07:18:40.000Z
 timesReused: 0
-useFallbackApi: true
 ---
 # Update Estimates
 
 ## Summary
 
 PUT /business/payments/v1/estimates/{estimate_uid} succeeds (200) when using a real existing estimate_uid. Initial 422 was due to invalid/nonexistent estimate_uid in test data.
-
-> **⚠️ Fallback API Required**
-> This endpoint must use the fallback API URL. The main API gateway does not support this endpoint.
 
 ## Prerequisites
 

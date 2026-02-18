@@ -7,7 +7,6 @@ status: verified
 savedAt: 2026-02-08T16:37:37.000Z
 verifiedAt: 2026-02-08T16:37:37.000Z
 timesReused: 0
-useFallbackApi: true
 ---
 
 # Create Invoices
@@ -15,7 +14,6 @@ useFallbackApi: true
 ## Summary
 Creates a new invoice for a client. **Token Type**: Requires a **staff token**.
 
-> ⚠️ Fallback API Required
 > This endpoint must use the fallback API URL. The main API gateway returns 422 Unauthorized for Staff tokens.
 
 ## Prerequisites

@@ -8,15 +8,12 @@ savedAt: "2026-02-03T21:00:00.000Z"
 verifiedAt: "2026-02-03T21:00:00.000Z"
 timesReused: 0
 tokens: [staff]
-useFallbackApi: true
 ---
 
 # Start External Calendar Export
 
 ## Summary
 Start exporting calendar items to an external calendar provider. **Token Type**: Requires a **staff token**.
-
-> ⚠️ Fallback API Required
 
 ## Prerequisites
 

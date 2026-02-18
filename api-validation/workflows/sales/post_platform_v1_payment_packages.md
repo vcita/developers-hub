@@ -7,7 +7,6 @@ status: verified
 savedAt: 2026-02-08T19:35:00.000Z
 verifiedAt: 2026-02-08T19:35:00.000Z
 timesReused: 0
-useFallbackApi: true
 tokens: [staff]
 ---
 
@@ -18,9 +17,6 @@ Creates a payment package with services and pricing. This endpoint requires a **
 
 **Token Type**: This endpoint requires a **Staff token**.
 
-> **⚠️ Fallback API Required**
-> This endpoint must use the fallback API URL. The main API gateway returns 422 Unauthorized.
-
 ## Prerequisites
 
 ```yaml
@@ -30,7 +26,6 @@ steps:
     method: POST
     path: "/v2/settings/services"
     token: staff
-    useFallback: true
     body:
       name: "Test Service {{now_timestamp}}"
       duration: 60
@@ -53,7 +48,6 @@ steps:
     method: POST
     path: "/platform/v1/payment/packages"
     token: staff
-    useFallback: true
     params:
       business_id: "{{business_id}}"
     body:

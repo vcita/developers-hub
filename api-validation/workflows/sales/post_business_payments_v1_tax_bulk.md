@@ -7,7 +7,6 @@ status: verified
 savedAt: "2026-01-26T14:18:35.613Z"
 verifiedAt: "2026-02-06T20:51:00.000Z"
 timesReused: 0
-useFallbackApi: true
 ---
 
 # Create Tax Bulk
@@ -17,9 +16,6 @@ useFallbackApi: true
 Creates taxes in bulk. The data field must be a JSON array (not a hash with numeric keys). The endpoint works via the fallback API; APIGW returns 401 for staff tokens.
 
 **Token Type**: This endpoint requires a **Staff token**.
-
-> **⚠️ Fallback API Required**
-> This endpoint must use the fallback API URL. The main API gateway returns 401 for staff tokens.
 
 ## Prerequisites
 

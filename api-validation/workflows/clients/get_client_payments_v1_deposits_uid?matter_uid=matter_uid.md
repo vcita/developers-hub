@@ -7,7 +7,6 @@ status: verified
 savedAt: "2026-01-26T05:30:19.344Z"
 verifiedAt: "2026-02-06T14:00:00.000Z"
 timesReused: 0
-useFallbackApi: true
 tokens: [client]
 ---
 
@@ -17,9 +16,6 @@ tokens: [client]
 Retrieves details of a specific deposit by its unique identifier. Deposits are associated with invoices or estimates and represent partial payment requirements. The prerequisites create an invoice on the client token's matter and then create a deposit against that invoice, ensuring the client token can access the deposit.
 
 **Token Type**: This endpoint requires a **Client token**.
-
-> **⚠️ Fallback API Required**
-> This endpoint must use the fallback API URL. The main API gateway does not support this endpoint.
 
 ## Prerequisites
 

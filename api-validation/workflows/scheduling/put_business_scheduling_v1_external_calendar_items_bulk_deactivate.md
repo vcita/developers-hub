@@ -5,7 +5,6 @@ tags: [calendar, sync, external, scheduling]
 swagger: "swagger/scheduling/legacy/scheduling.json"
 status: pending
 savedAt: "2026-02-09T12:00:00.000Z"
-useFallbackApi: true
 tokens: [staff]
 notes: "Requires a CalendarSync record for the staff member. The prerequisite creates one via POST /business/scheduling/v1/calendar_syncs before calling bulk_deactivate."
 ---
@@ -15,8 +14,6 @@ notes: "Requires a CalendarSync record for the staff member. The prerequisite cr
 ## Summary
 Deactivate multiple external calendar items for a staff member's synced calendar.
 **Token Type**: Requires a **staff token**.
-
-> ⚠️ Fallback API Required
 
 ## Prerequisites
 

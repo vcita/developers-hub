@@ -4,8 +4,8 @@ domain: sales
 tags: [credit_notes, payments]
 swagger: swagger/sales/creditNote.json
 status: verified
-savedAt: 2026-02-09T07:08:22.626Z
-verifiedAt: 2026-02-09T07:08:22.626Z
+savedAt: 2026-02-18T15:26:48.442Z
+verifiedAt: 2026-02-18T15:26:48.442Z
 timesReused: 0
 tokens: [staff]
 ---
@@ -45,29 +45,25 @@ steps:
     onFail: abort
 
   - id: create_invoice
-    description: "Create an invoice to issue credit note against"
+    description: "Create an invoice to create credit note against"
     method: POST
-    path: "/platform/v1/invoices"
+    path: "/v3/payments/invoices"
     token: staff
-    useFallbackApi: true
     body:
-      address: "123 Test Street"
-      allow_online_payment: false
-      client_id: "{{client_id}}"
-      conversation_id: "{{matter_uid}}"
-      currency: "USD"
+      matter_uid: "{{matter_uid}}"
+      issue_date: "{{today_date}}"
       due_date: "{{next_month_date}}"
-      invoice_number: "{{now_timestamp}}"
-      issued_at: "{{today_date}}"
-      items:
-        - title: "Test item"
-          description: "Test item"
-          amount: 100
+      currency: "USD"
+      billing_address: "123 Test Street, Test City, TS 12345"
+      line_items:
+        - name: "Test Service"
+          unit_amount: 100
           quantity: 1
+          description: "Test service item"
     extract:
-      invoice_uid: "$.data.invoice.id"
+      invoice_uid: "$.data.uid"
     expect:
-      status: [200, 201]
+      status: [201]
     onFail: abort
 ```
 

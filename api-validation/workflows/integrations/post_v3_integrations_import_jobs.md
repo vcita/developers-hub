@@ -3,7 +3,7 @@ endpoint: "POST /v3/integrations/import_jobs"
 domain: integrations
 tags: [integrations, import]
 swagger: swagger/integrations/import.json
-status: pending
+status: skipped
 savedAt: 2026-01-26T21:28:12.398Z
 expectedOutcome: 400
 expectedOutcomeReason: "File upload endpoint requiring multipart/form-data with actual file attachment - cannot be tested with JSON body"

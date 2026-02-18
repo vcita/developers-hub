@@ -7,7 +7,6 @@ status: success
 savedAt: 2026-02-06T20:49:00.000Z
 verifiedAt: 2026-02-06T20:49:00.000Z
 timesReused: 0
-useFallbackApi: true
 ---
 # Get Forecast Payments Report
 
@@ -16,9 +15,6 @@ useFallbackApi: true
 Returns a forecast payments report with weekly breakdowns by date. Response keys are dynamic date strings in YYYY-MM-DD format. Each entry contains total_amount, calendar_week, and week_end_date. The endpoint works via the fallback API; APIGW returns 404.
 
 **Token Type**: This endpoint requires a **Staff token**.
-
-> **⚠️ Fallback API Required**
-> This endpoint must use the fallback API URL. The main API gateway returns 404 for this endpoint.
 
 ## Prerequisites
 

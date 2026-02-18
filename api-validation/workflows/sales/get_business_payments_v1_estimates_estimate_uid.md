@@ -8,7 +8,6 @@ savedAt: "2026-02-08T16:32:45.000Z"
 verifiedAt: "2026-02-08T16:32:45.000Z"
 timesReused: 0
 tokens: [staff]
-useFallbackApi: true
 ---
 
 # Get Estimate
