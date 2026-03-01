@@ -6,17 +6,17 @@
     "version": "3.0",
     "x-generated": {
       "sourceFiles": [
+        "client_cards.json",
+        "client_payment_cards.json",
         "sales_reports.json",
         "payments.json",
         "legacy_v1_sales.json",
         "creditNote.json",
         "payment_gateway.json",
         "estimates.json",
-        "client_cards.json",
         "coupons.json",
         "invoice.json",
-        "coupon.json",
-        "client_payment_cards.json"
+        "coupon.json"
       ],
       "pathNormalizations": [
         {
@@ -347,7 +347,7 @@
           ],
           "winner": "payment_gateway.json",
           "resolution": "Used payment_gateway.json (newer modification date)",
-          "timestamp": "2026-03-01T09:05:43.446Z"
+          "timestamp": "2026-03-01T21:59:10.878Z"
         }
       ],
       "componentConflicts": [],
@@ -362,6 +362,389 @@
     }
   ],
   "paths": {
+    "/platform/v1/clients/payment/cards": {
+      "get": {
+        "summary": "Get Client Payment Cards",
+        "description": "## Overview\nRetrieve all payment cards for a client. Available for **Client Tokens only**.\n\n## Authentication\nThis endpoint requires client token authentication rather than staff token.",
+        "tags": [
+          "Client Payment Cards"
+        ],
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^Bearer .+$"
+            },
+            "description": "Client JWT Token. Format: 'Bearer CLIENT_JWT_TOKEN'",
+            "example": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbnRpdHlfdWlkIjoiQ0xJRU5UX1VJRCIsImV4dHJhIjp7ImJ1c2luZXNzX3VpZCI6IkJVU0lORVNTX1VJRCJ9LCJ0eXBlIjoiY2xpZW50IiwiZXhwIjoxNjMwMDAwMDAwfQ.SIGNATURE"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved client payment cards",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "description": "Response status indicator",
+                      "example": "OK"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "max_limit_reached": {
+                          "type": "boolean",
+                          "description": "Whether the maximum card limit has been reached",
+                          "example": false
+                        },
+                        "cards": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/PaymentCard"
+                          }
+                        }
+                      },
+                      "required": [
+                        "max_limit_reached",
+                        "cards"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "data"
+                  ]
+                },
+                "example": {
+                  "status": "OK",
+                  "data": {
+                    "max_limit_reached": false,
+                    "cards": [
+                      {
+                        "id": "card_123456",
+                        "client_id": "client_789012",
+                        "default": true,
+                        "active": true,
+                        "card_brand": "visa",
+                        "last_4": "4242",
+                        "exp_month": 12,
+                        "exp_year": 2025,
+                        "cardholder_name": "John Doe",
+                        "staff_id": null,
+                        "staff_name": "",
+                        "business_id": "business_345678",
+                        "payment_provider": "stripe",
+                        "created_at": "2023-01-15T10:30:00.000Z",
+                        "initiator": "client",
+                        "usage_permission": "client"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing JWT token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "status": "Error",
+                  "error": "Unauthorized"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Request cannot be processed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "status": "Error",
+                  "error": "Invalid request parameters"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "status": "Error",
+                  "error": "Internal server error"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/platform/v1/clients/{client_id}/payment/cards": {
+      "get": {
+        "summary": "Get Client Payment Cards (Staff Access)",
+        "description": "## Overview\nRetrieve all payment cards for a specific client. Available for **Staff Tokens**.",
+        "tags": [
+          "Client Payment Cards"
+        ],
+        "operationId": "getClientPaymentCards",
+        "parameters": [
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the client",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9]{16}$"
+            },
+            "example": "m729844bwakz8jf6"
+          },
+          {
+            "name": "filter[usage_permission]",
+            "in": "query",
+            "required": false,
+            "description": "Filter cards by usage permission scope",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "staff",
+                "client"
+              ],
+              "default": "staff"
+            },
+            "example": "all"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved client payment cards",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "description": "Response containing payment cards data",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "description": "Response status indicator",
+                      "example": "OK"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "max_limit_reached": {
+                          "type": "boolean",
+                          "description": "Whether the maximum card limit has been reached",
+                          "example": false
+                        },
+                        "cards": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "description": "Payment card object. See PaymentCard schema in components for full structure."
+                          }
+                        }
+                      },
+                      "required": [
+                        "max_limit_reached",
+                        "cards"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "data"
+                  ]
+                },
+                "example": {
+                  "status": "OK",
+                  "data": {
+                    "max_limit_reached": false,
+                    "cards": [
+                      {
+                        "id": "card_123456",
+                        "client_id": "client_789012",
+                        "default": true,
+                        "active": true,
+                        "card_brand": "visa",
+                        "last_4": "4242",
+                        "exp_month": 11,
+                        "exp_year": 2025,
+                        "cardholder_name": "John Doe",
+                        "staff_id": null,
+                        "staff_name": "Jane Smith",
+                        "business_id": "business_345678",
+                        "payment_provider": "stripe",
+                        "created_at": "2021-02-18T11:09:54.000Z",
+                        "initiator": "staff",
+                        "usage_permission": "all"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "status": "Failure",
+                  "error": "401 Unauthorized"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - Client not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "status": "Error",
+                  "error": "Record not found"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Request cannot be processed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "status": "Error",
+                  "error": "Unable to retrieve cards"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "status": "Error",
+                  "error": "Internal server error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/payments/client_payment_cards": {
+      "get": {
+        "summary": "List stored Payment Cards",
+        "description": "Returns stored payment cards for a client.\n\nAvailable for **Client and Staff tokens**.\n- For **Client tokens**, the client is inferred from the authenticated token. The `client_uid` parameter is ignored if provided.\n- For **Staff tokens**, `client_uid` is required to specify which client's cards to retrieve.",
+        "parameters": [
+          {
+            "name": "client_uid",
+            "in": "query",
+            "required": false,
+            "description": "The unique identifier (UID) of the client whose payment cards to retrieve. Required for **Staff tokens**. Ignored for **Client tokens** (the client is inferred from the authenticated token).",
+            "schema": {
+              "type": "string"
+            },
+            "example": "clt_aaabbbccc112233"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stored cards retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "client_payment_cards": {
+                              "description": "List of stored payment cards for the client.",
+                              "type": "array",
+                              "items": {
+                                "$ref": "https://vcita.github.io/developers-hub/entities/payments/client_payment_card.json"
+                              }
+                            }
+                          }
+                        },
+                        "meta": {
+                          "type": "object",
+                          "properties": {
+                            "constraints": {
+                              "type": "object",
+                              "properties": {
+                                "max_limit_reached": {
+                                  "type": "boolean",
+                                  "description": "Indicates if the client has reached the maximum number of stored cards."
+                                }
+                              },
+                              "required": [
+                                "max_limit_reached"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "constraints"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Payment Cards"
+        ],
+        "security": [
+          {
+            "ClientPaymentCards": []
+          }
+        ]
+      }
+    },
     "/v3/sales/reports/payments_widget": {
       "get": {
         "summary": "Retrieve Payments Widget Data",
@@ -12753,278 +13136,6 @@
         ]
       }
     },
-    "/platform/v1/clients/payment/cards": {
-      "get": {
-        "summary": "Get Client Payment Cards",
-        "description": "## Overview\nRetrieve all payment cards for a client. Available for **Client Tokens only**.\n\n## Authentication\nThis endpoint requires client token authentication rather than staff token.",
-        "tags": [
-          "Client Payment Cards"
-        ],
-        "parameters": [
-          {
-            "name": "Authorization",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^Bearer .+$"
-            },
-            "description": "Client JWT Token. Format: 'Bearer CLIENT_JWT_TOKEN'",
-            "example": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbnRpdHlfdWlkIjoiQ0xJRU5UX1VJRCIsImV4dHJhIjp7ImJ1c2luZXNzX3VpZCI6IkJVU0lORVNTX1VJRCJ9LCJ0eXBlIjoiY2xpZW50IiwiZXhwIjoxNjMwMDAwMDAwfQ.SIGNATURE"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successfully retrieved client payment cards",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "status": {
-                      "type": "string",
-                      "description": "Response status indicator",
-                      "example": "OK"
-                    },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "max_limit_reached": {
-                          "type": "boolean",
-                          "description": "Whether the maximum card limit has been reached",
-                          "example": false
-                        },
-                        "cards": {
-                          "type": "array",
-                          "items": {
-                            "$ref": "#/components/schemas/PaymentCard"
-                          }
-                        }
-                      },
-                      "required": [
-                        "max_limit_reached",
-                        "cards"
-                      ]
-                    }
-                  },
-                  "required": [
-                    "status",
-                    "data"
-                  ]
-                },
-                "example": {
-                  "status": "OK",
-                  "data": {
-                    "max_limit_reached": false,
-                    "cards": [
-                      {
-                        "id": "card_123456",
-                        "client_id": "client_789012",
-                        "default": true,
-                        "active": true,
-                        "card_brand": "visa",
-                        "last_4": "4242",
-                        "exp_month": 12,
-                        "exp_year": 2025,
-                        "cardholder_name": "John Doe",
-                        "staff_id": null,
-                        "staff_name": "",
-                        "business_id": "business_345678",
-                        "payment_provider": "stripe",
-                        "created_at": "2023-01-15T10:30:00.000Z",
-                        "initiator": "client",
-                        "usage_permission": "client"
-                      }
-                    ]
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing JWT token",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "status": "Error",
-                  "error": "Unauthorized"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Unprocessable Entity - Request cannot be processed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "status": "Error",
-                  "error": "Invalid request parameters"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "status": "Error",
-                  "error": "Internal server error"
-                }
-              }
-            }
-          }
-        },
-        "security": []
-      }
-    },
-    "/platform/v1/clients/{client_id}/payment/cards": {
-      "get": {
-        "summary": "Get Client Payment Cards (Staff Access)",
-        "description": "## Overview\nRetrieve all payment cards for a specific client. Available for **Staff Tokens**.",
-        "tags": [
-          "Client Payment Cards"
-        ],
-        "operationId": "getClientPaymentCards",
-        "parameters": [
-          {
-            "name": "client_id",
-            "in": "path",
-            "required": true,
-            "description": "Unique identifier of the client",
-            "schema": {
-              "type": "string",
-              "pattern": "^[a-z0-9]{16}$"
-            },
-            "example": "m729844bwakz8jf6"
-          },
-          {
-            "name": "filter[usage_permission]",
-            "in": "query",
-            "required": false,
-            "description": "Filter cards by usage permission scope",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "all",
-                "staff",
-                "client"
-              ],
-              "default": "staff"
-            },
-            "example": "all"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successfully retrieved client payment cards",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PaymentCardsResponse"
-                },
-                "example": {
-                  "status": "OK",
-                  "data": {
-                    "max_limit_reached": false,
-                    "cards": [
-                      {
-                        "id": "card_123456",
-                        "client_id": "client_789012",
-                        "default": true,
-                        "active": true,
-                        "card_brand": "visa",
-                        "last_4": "4242",
-                        "exp_month": 11,
-                        "exp_year": 2025,
-                        "cardholder_name": "John Doe",
-                        "staff_id": null,
-                        "staff_name": "Jane Smith",
-                        "business_id": "business_345678",
-                        "payment_provider": "stripe",
-                        "created_at": "2021-02-18T11:09:54.000Z",
-                        "initiator": "staff",
-                        "usage_permission": "all"
-                      }
-                    ]
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing authentication",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "status": "Failure",
-                  "error": "401 Unauthorized"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found - Client not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "status": "Error",
-                  "error": "Record not found"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Unprocessable Entity - Request cannot be processed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "status": "Error",
-                  "error": "Unable to retrieve cards"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal Server Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "status": "Error",
-                  "error": "Internal server error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
     "/v2/coupons": {
       "get": {
         "deprecated": true,
@@ -14649,246 +14760,10 @@
           }
         ]
       }
-    },
-    "/v3/payments/client_payment_cards/{client_uid}": {
-      "get": {
-        "summary": "List stored Payment Cards",
-        "description": "Returns a client's stored payment cards.\n\nAvailable for **Client Tokens** and **Staff Tokens**.\n- `client_uid` is required.\n- For **Client Tokens**, `client_uid` must match the authenticated client.\n- For **Staff Tokens** (backoffice), `client_uid` identifies which client's cards to retrieve (subject to staff permissions).",
-        "parameters": [
-          {
-            "name": "client_uid",
-            "in": "path",
-            "required": true,
-            "description": "The unique identifier (UID) of the Client.",
-            "schema": {
-              "type": "string"
-            },
-            "example": "clt_aaabbbccc112233"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Stored cards retrieved successfully.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/payments/client_payment_cards.json"
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "meta": {
-                          "type": "object",
-                          "properties": {
-                            "constraints": {
-                              "type": "object",
-                              "properties": {
-                                "max_limit_reached": {
-                                  "type": "boolean",
-                                  "description": "Indicates if the client has reached the maximum number of stored cards."
-                                }
-                              },
-                              "required": [
-                                "max_limit_reached"
-                              ]
-                            }
-                          },
-                          "required": [
-                            "constraints"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "meta"
-                      ]
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Payment Cards"
-        ],
-        "security": [
-          {
-            "ClientPaymentCards": []
-          }
-        ]
-      }
     }
   },
   "components": {
     "schemas": {
-      "PaymentsWidget": {
-        "type": "object",
-        "description": "Payments widget data containing total payments, overdue payments summary, and pending estimates. Each section is wrapped in a success/data envelope.",
-        "properties": {
-          "total_payments": {
-            "type": "object",
-            "description": "Total payments section wrapped in success/data envelope.",
-            "properties": {
-              "success": {
-                "type": "boolean",
-                "description": "Whether the total_payments sub-query succeeded."
-              },
-              "data": {
-                "type": "object",
-                "properties": {
-                  "current_year": {
-                    "type": "number",
-                    "description": "Total payment amount collected for the current year."
-                  },
-                  "last_year": {
-                    "type": "number",
-                    "description": "Total payment amount collected in the previous year."
-                  }
-                }
-              }
-            }
-          },
-          "overdue_payments_summary": {
-            "type": "object",
-            "description": "Overdue payments summary section wrapped in success/data envelope.",
-            "properties": {
-              "success": {
-                "type": "boolean",
-                "description": "Whether the overdue_payments_summary sub-query succeeded."
-              },
-              "data": {
-                "type": "object",
-                "properties": {
-                  "total_overdue": {
-                    "type": "number",
-                    "nullable": true,
-                    "description": "The total overdue amount of payment requests. Null if no overdue payments."
-                  },
-                  "total_overdue_count": {
-                    "type": "number",
-                    "description": "The total number of overdue payment requests."
-                  },
-                  "last_week": {
-                    "type": "number",
-                    "nullable": true,
-                    "description": "Total overdue payment requests amount from the last week."
-                  },
-                  "last_week_count": {
-                    "type": "number",
-                    "description": "Number of overdue payment requests from the last week."
-                  },
-                  "last_month": {
-                    "type": "number",
-                    "nullable": true,
-                    "description": "Total overdue payment requests amount from the last month."
-                  },
-                  "last_month_count": {
-                    "type": "number",
-                    "description": "Number of overdue payment requests from the last month."
-                  },
-                  "old": {
-                    "type": "number",
-                    "nullable": true,
-                    "description": "The total amount for overdue payment requests that are older than 30 days."
-                  },
-                  "old_count": {
-                    "type": "number",
-                    "description": "Count of older overdue payment request transactions that are older than 30 days."
-                  }
-                }
-              }
-            }
-          },
-          "pending_estimates": {
-            "type": "object",
-            "description": "Pending estimates section wrapped in success/data envelope.",
-            "properties": {
-              "success": {
-                "type": "boolean",
-                "description": "Whether the pending_estimates sub-query succeeded."
-              },
-              "data": {
-                "type": "object",
-                "properties": {
-                  "count": {
-                    "type": "number",
-                    "description": "The total count of pending payment estimates that have not yet been confirmed."
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "PaymentsForecast": {
-        "type": "object",
-        "description": "Forecast payments data. Response is a map where keys are date strings (YYYY-MM-DD format, representing the start of each week) and values are forecast objects for that week.",
-        "additionalProperties": {
-          "type": "object",
-          "description": "Forecast data for a specific week.",
-          "properties": {
-            "total_amount": {
-              "type": "number",
-              "format": "double",
-              "description": "The total forecasted payment amount for the given week."
-            },
-            "calendar_week": {
-              "type": "integer",
-              "description": "The ISO calendar week number (e.g., 5 for the 5th week of the year)."
-            },
-            "week_end_date": {
-              "type": "string",
-              "format": "date",
-              "description": "The end date of the week in YYYY-MM-DD format."
-            }
-          }
-        },
-        "example": {
-          "2026-02-01": {
-            "total_amount": 10,
-            "calendar_week": 5,
-            "week_end_date": "2026-02-07"
-          },
-          "2026-02-08": {
-            "total_amount": 200,
-            "calendar_week": 6,
-            "week_end_date": "2026-02-14"
-          }
-        }
-      },
-      "PaymentGatewayList": {
-        "type": "object",
-        "properties": {
-          "payment_gateways": {
-            "description": "List of Payment Gateways",
-            "type": "array",
-            "items": {
-              "$ref": "https://vcita.github.io/developers-hub/entities/payment_processing/payment_gateway.json"
-            }
-          }
-        }
-      },
-      "CreatePaymentGatewayAssignmentRequestDto": {
-        "type": "object",
-        "properties": {
-          "gateway_uid": {
-            "type": "string",
-            "description": "The unique identifier of the payment gateway to assign",
-            "x-reference-to": "sales.payment_gateway"
-          },
-          "directory_uid": {
-            "type": "string",
-            "description": "The unique identifier of the directory to assign the payment gateway to",
-            "x-reference-to": "access_control.directory"
-          }
-        },
-        "required": [
-          "gateway_uid",
-          "directory_uid"
-        ]
-      },
       "PaymentCard": {
         "type": "object",
         "description": "Payment card object containing card details and metadata",
@@ -15082,6 +14957,172 @@
           "error"
         ]
       },
+      "PaymentsWidget": {
+        "type": "object",
+        "description": "Payments widget data containing total payments, overdue payments summary, and pending estimates. Each section is wrapped in a success/data envelope.",
+        "properties": {
+          "total_payments": {
+            "type": "object",
+            "description": "Total payments section wrapped in success/data envelope.",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "description": "Whether the total_payments sub-query succeeded."
+              },
+              "data": {
+                "type": "object",
+                "properties": {
+                  "current_year": {
+                    "type": "number",
+                    "description": "Total payment amount collected for the current year."
+                  },
+                  "last_year": {
+                    "type": "number",
+                    "description": "Total payment amount collected in the previous year."
+                  }
+                }
+              }
+            }
+          },
+          "overdue_payments_summary": {
+            "type": "object",
+            "description": "Overdue payments summary section wrapped in success/data envelope.",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "description": "Whether the overdue_payments_summary sub-query succeeded."
+              },
+              "data": {
+                "type": "object",
+                "properties": {
+                  "total_overdue": {
+                    "type": "number",
+                    "nullable": true,
+                    "description": "The total overdue amount of payment requests. Null if no overdue payments."
+                  },
+                  "total_overdue_count": {
+                    "type": "number",
+                    "description": "The total number of overdue payment requests."
+                  },
+                  "last_week": {
+                    "type": "number",
+                    "nullable": true,
+                    "description": "Total overdue payment requests amount from the last week."
+                  },
+                  "last_week_count": {
+                    "type": "number",
+                    "description": "Number of overdue payment requests from the last week."
+                  },
+                  "last_month": {
+                    "type": "number",
+                    "nullable": true,
+                    "description": "Total overdue payment requests amount from the last month."
+                  },
+                  "last_month_count": {
+                    "type": "number",
+                    "description": "Number of overdue payment requests from the last month."
+                  },
+                  "old": {
+                    "type": "number",
+                    "nullable": true,
+                    "description": "The total amount for overdue payment requests that are older than 30 days."
+                  },
+                  "old_count": {
+                    "type": "number",
+                    "description": "Count of older overdue payment request transactions that are older than 30 days."
+                  }
+                }
+              }
+            }
+          },
+          "pending_estimates": {
+            "type": "object",
+            "description": "Pending estimates section wrapped in success/data envelope.",
+            "properties": {
+              "success": {
+                "type": "boolean",
+                "description": "Whether the pending_estimates sub-query succeeded."
+              },
+              "data": {
+                "type": "object",
+                "properties": {
+                  "count": {
+                    "type": "number",
+                    "description": "The total count of pending payment estimates that have not yet been confirmed."
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "PaymentsForecast": {
+        "type": "object",
+        "description": "Forecast payments data. Response is a map where keys are date strings (YYYY-MM-DD format, representing the start of each week) and values are forecast objects for that week.",
+        "additionalProperties": {
+          "type": "object",
+          "description": "Forecast data for a specific week.",
+          "properties": {
+            "total_amount": {
+              "type": "number",
+              "format": "double",
+              "description": "The total forecasted payment amount for the given week."
+            },
+            "calendar_week": {
+              "type": "integer",
+              "description": "The ISO calendar week number (e.g., 5 for the 5th week of the year)."
+            },
+            "week_end_date": {
+              "type": "string",
+              "format": "date",
+              "description": "The end date of the week in YYYY-MM-DD format."
+            }
+          }
+        },
+        "example": {
+          "2026-02-01": {
+            "total_amount": 10,
+            "calendar_week": 5,
+            "week_end_date": "2026-02-07"
+          },
+          "2026-02-08": {
+            "total_amount": 200,
+            "calendar_week": 6,
+            "week_end_date": "2026-02-14"
+          }
+        }
+      },
+      "PaymentGatewayList": {
+        "type": "object",
+        "properties": {
+          "payment_gateways": {
+            "description": "List of Payment Gateways",
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/payment_processing/payment_gateway.json"
+            }
+          }
+        }
+      },
+      "CreatePaymentGatewayAssignmentRequestDto": {
+        "type": "object",
+        "properties": {
+          "gateway_uid": {
+            "type": "string",
+            "description": "The unique identifier of the payment gateway to assign",
+            "x-reference-to": "sales.payment_gateway"
+          },
+          "directory_uid": {
+            "type": "string",
+            "description": "The unique identifier of the directory to assign the payment gateway to",
+            "x-reference-to": "access_control.directory"
+          }
+        },
+        "required": [
+          "gateway_uid",
+          "directory_uid"
+        ]
+      },
       "Response": {
         "properties": {
           "success": {
@@ -15122,7 +15163,7 @@
       "ClientPaymentCards": {
         "type": "http",
         "scheme": "bearer",
-        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {staff_token}'"
+        "description": "Provide a valid bearer token in the Authorization header."
       }
     }
   },
