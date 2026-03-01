@@ -1,0 +1,913 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Business Rules",
+    "description": "AI-powered business rules management. Enables businesses to define and manage rules that guide AI agent behavior across categories like tone of voice, policies and info, things to avoid, and FAQ.",
+    "version": "3.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [
+    {
+      "url": "https://api.vcita.biz",
+      "description": "API Gateway server"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "The name of the field that caused the error (e.g., \"category_code\", \"content\")."
+                },
+                "code": {
+                  "type": "string",
+                  "description": "A machine-readable error code (e.g., \"invalid\", \"required\", \"not_found\")."
+                },
+                "message": {
+                  "type": "string",
+                  "description": "A human-readable error message describing the issue."
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "success",
+          "errors"
+        ]
+      },
+      "CreateBusinessRuleRequestDto": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "The content or text of the business rule (e.g., \"Always use a friendly and professional tone\"). For FAQ rules, include both the question and answer.",
+            "example": "Always use a friendly and professional tone"
+          },
+          "sort_order": {
+            "type": "integer",
+            "description": "Sort order for displaying rules within a category (e.g., 0). Lower values appear first. Defaults to 0 if not provided.",
+            "example": 0
+          },
+          "category_code": {
+            "type": "string",
+            "description": "The category code of the business rule. Determines how the AI agent uses this rule.\n\nAvailable values:\n* `tone_of_voice` - Rules about communication style and tone the AI should adopt when interacting with clients.\n* `policies_and_info` - Rules about business operations, pricing, and scheduling policies.\n* `things_to_avoid` - Rules about topics, phrases, or actions the AI should not mention or perform.\n* `faq` - Frequently asked questions and their answers.",
+            "enum": [
+              "tone_of_voice",
+              "policies_and_info",
+              "things_to_avoid",
+              "faq"
+            ],
+            "example": "tone_of_voice"
+          }
+        },
+        "required": [
+          "category_code",
+          "content"
+        ]
+      },
+      "UpdateBusinessRuleRequestDto": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "The content or text of the business rule (e.g., \"Always maintain a warm, friendly, and professional tone in all client communications\")."
+          },
+          "status": {
+            "type": "string",
+            "description": "The status of the business rule.\n\nAvailable values:\n* `active` - The rule is in effect and used by the AI agent.\n* `pending_approval` - The rule is awaiting staff review.\n* `inactive` - The rule is deactivated and not used by the AI agent.",
+            "enum": [
+              "active",
+              "pending_approval",
+              "inactive"
+            ]
+          },
+          "sort_order": {
+            "type": "integer",
+            "description": "Sort order for displaying rules within a category (e.g., 0). Lower values appear first."
+          },
+          "category_code": {
+            "type": "string",
+            "description": "The category code of the business rule. Determines how the AI agent uses this rule.\n\nAvailable values:\n* `tone_of_voice` - Rules about communication style and tone.\n* `policies_and_info` - Rules about business operations and policies.\n* `things_to_avoid` - Rules about what the AI should not do or say.\n* `faq` - Frequently asked questions and their answers.",
+            "enum": [
+              "tone_of_voice",
+              "policies_and_info",
+              "things_to_avoid",
+              "faq"
+            ]
+          }
+        }
+      },
+      "BusinessRuleHistoryListResponseDto": {
+        "type": "object",
+        "properties": {
+          "business_rule_histories": {
+            "description": "List of history records",
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/ai/BusinessRuleHistory.json"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of history records matching the query"
+          }
+        },
+        "required": [
+          "business_rule_histories",
+          "total"
+        ]
+      },
+      "BusinessRuleListResponseDto": {
+        "type": "object",
+        "properties": {
+          "business_rules": {
+            "description": "List of BusinessRules",
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/ai/BusinessRule.json"
+            }
+          }
+        },
+        "required": [
+          "business_rules"
+        ]
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+      }
+    }
+  },
+  "paths": {
+    "/v3/ai/business_rules": {
+      "get": {
+        "operationId": "BusinessRulesController_getBusinessRules",
+        "summary": "Get all BusinessRules",
+        "description": "## Overview\nGet a list of all business rules for the authenticated business. Optionally filter by category.\n\nAvailable for **Staff** tokens.",
+        "parameters": [
+          {
+            "name": "category_code",
+            "required": false,
+            "in": "query",
+            "description": "Filter by rule category code",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "tone_of_voice",
+                "policies_and_info",
+                "things_to_avoid",
+                "faq"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Business rules retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/BusinessRuleListResponseDto"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "business_rules": [
+                      {
+                        "uid": "br-a1b2c3d4-5678-90ef-ghij-klmnopqrstuv",
+                        "business_uid": "biz-1234abcd-5678-90ef-ghij-klmnopqrstuv",
+                        "content": "Always use a friendly and professional tone when communicating with clients",
+                        "status": "active",
+                        "source": "system",
+                        "created_by_staff_uid": "stf-9876wxyz-5432-10ab-cdef-ghijklmnopqr",
+                        "updated_by_staff_uid": null,
+                        "sort_order": 0,
+                        "metadata": null,
+                        "created_at": "2024-12-15T10:30:00.000Z",
+                        "updated_at": "2024-12-15T10:30:00.000Z",
+                        "category_code": "tone_of_voice"
+                      },
+                      {
+                        "uid": "br-e5f6a7b8-9012-34cd-efgh-ijklmnopqrst",
+                        "business_uid": "biz-1234abcd-5678-90ef-ghij-klmnopqrstuv",
+                        "content": "Q: What are your business hours? A: We are open Monday to Friday, 9 AM to 5 PM.",
+                        "status": "active",
+                        "source": "system",
+                        "created_by_staff_uid": "stf-9876wxyz-5432-10ab-cdef-ghijklmnopqr",
+                        "updated_by_staff_uid": null,
+                        "sort_order": 1,
+                        "metadata": {
+                          "question": "What are your business hours?",
+                          "answer": "We are open Monday to Friday, 9 AM to 5 PM.",
+                          "confidence": 0.87,
+                          "reasoning": "Detected consistent business hours mentioned across multiple client conversations"
+                        },
+                        "created_at": "2024-12-15T11:00:00.000Z",
+                        "updated_at": "2024-12-15T11:00:00.000Z",
+                        "category_code": "faq"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Business Rules"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "BusinessRulesController_createBusinessRule",
+        "summary": "Create a BusinessRule",
+        "description": "## Overview\nCreate a new business rule for the authenticated business.\n\nAvailable for **Staff** tokens.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBusinessRuleRequestDto"
+              },
+              "example": {
+                "content": "Always use a friendly and professional tone",
+                "sort_order": 0,
+                "category_code": "tone_of_voice"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Business rule created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/BusinessRule.json"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "business_rule": {
+                      "uid": "br-a1b2c3d4-5678-90ef-ghij-klmnopqrstuv",
+                      "business_uid": "biz-1234abcd-5678-90ef-ghij-klmnopqrstuv",
+                      "content": "Always use a friendly and professional tone",
+                      "status": "active",
+                      "source": "user",
+                      "created_by_staff_uid": "stf-9876wxyz-5432-10ab-cdef-ghijklmnopqr",
+                      "updated_by_staff_uid": null,
+                      "sort_order": 0,
+                      "metadata": null,
+                      "created_at": "2024-12-15T10:30:00.000Z",
+                      "updated_at": "2024-12-15T10:30:00.000Z",
+                      "category_code": "tone_of_voice"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - malformed request or invalid syntax",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "category_code",
+                      "code": "required",
+                      "message": "category_code is required"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "category_code",
+                      "code": "invalid",
+                      "message": "category_code must be one of: tone_of_voice, policies_and_info, things_to_avoid, faq"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Business Rules"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/ai/business_rule_histories": {
+      "get": {
+        "operationId": "BusinessRulesController_getHistory",
+        "summary": "Get all BusinessRule History Records",
+        "description": "## Overview\nGet the change history for business rules. Supports optional filtering by rule UID and action type, with pagination.\n\nAvailable for **Staff** tokens.",
+        "parameters": [
+          {
+            "name": "rule_uid",
+            "required": false,
+            "in": "query",
+            "description": "Filter history by a specific business rule UID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "action",
+            "required": false,
+            "in": "query",
+            "description": "Filter history by the type of action performed",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "created",
+                "updated",
+                "deleted"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number for pagination (0-indexed). Defaults to 0.",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          },
+          {
+            "name": "per_page",
+            "required": false,
+            "in": "query",
+            "description": "Number of records per page. Defaults to 25.",
+            "schema": {
+              "type": "integer",
+              "default": 25
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "History records retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/BusinessRuleHistoryListResponseDto"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "business_rule_histories": [
+                      {
+                        "uid": "hist-a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                        "rule_uid": "br-a1b2c3d4-5678-90ef-ghij-klmnopqrstuv",
+                        "business_uid": "biz-1234abcd-5678-90ef-ghij-klmnopqrstuv",
+                        "content": "Always use a friendly and professional tone",
+                        "source": "user",
+                        "action": "created",
+                        "changed_by_staff_uid": "stf-9876wxyz-5432-10ab-cdef-ghijklmnopqr",
+                        "changed_at": "2024-12-15T10:30:00.000Z",
+                        "created_at": "2024-12-15T10:30:00.000Z",
+                        "updated_at": "2024-12-15T10:30:00.000Z",
+                        "category_code": "tone_of_voice"
+                      }
+                    ],
+                    "total": 1
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Business Rules"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/ai/business_rule_histories/{uid}": {
+      "get": {
+        "operationId": "BusinessRulesController_getHistoryRecord",
+        "summary": "Retrieve a BusinessRule History Record",
+        "description": "## Overview\nRetrieve a specific history record by its unique identifier (UID).\n\nAvailable for **Staff** tokens.",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the history record",
+            "schema": {
+              "type": "string"
+            },
+            "example": "hist-a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "History record retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/BusinessRuleHistory.json"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "business_rule_histories": [
+                      {
+                        "uid": "hist-a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                        "rule_uid": "br-a1b2c3d4-5678-90ef-ghij-klmnopqrstuv",
+                        "business_uid": "biz-1234abcd-5678-90ef-ghij-klmnopqrstuv",
+                        "content": "Always use a friendly and professional tone",
+                        "source": "user",
+                        "action": "updated",
+                        "changed_by_staff_uid": "stf-9876wxyz-5432-10ab-cdef-ghijklmnopqr",
+                        "changed_at": "2024-12-16T14:30:00.000Z",
+                        "created_at": "2024-12-16T14:30:00.000Z",
+                        "updated_at": "2024-12-16T14:30:00.000Z",
+                        "category_code": "tone_of_voice"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - history record belongs to another business",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "History record not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Business Rules"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/ai/business_rules/{uid}": {
+      "get": {
+        "operationId": "BusinessRulesController_getBusinessRule",
+        "summary": "Retrieve a BusinessRule",
+        "description": "## Overview\nRetrieve a specific business rule based on its unique identifier (UID).\n\nAvailable for **Staff** tokens.",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the business rule",
+            "schema": {
+              "type": "string"
+            },
+            "example": "br-a1b2c3d4-5678-90ef-ghij-klmnopqrstuv"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Business rule retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/BusinessRule.json"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "business_rule": {
+                      "uid": "br-a1b2c3d4-5678-90ef-ghij-klmnopqrstuv",
+                      "business_uid": "biz-1234abcd-5678-90ef-ghij-klmnopqrstuv",
+                      "content": "Always use a friendly and professional tone when communicating with clients",
+                      "status": "active",
+                      "source": "system",
+                      "created_by_staff_uid": "stf-9876wxyz-5432-10ab-cdef-ghijklmnopqr",
+                      "updated_by_staff_uid": null,
+                      "sort_order": 0,
+                      "metadata": null,
+                      "created_at": "2024-12-15T10:30:00.000Z",
+                      "updated_at": "2024-12-15T10:30:00.000Z",
+                      "category_code": "tone_of_voice"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - rule belongs to another business",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Business rule not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Business Rules"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "put": {
+        "operationId": "BusinessRulesController_updateBusinessRule",
+        "summary": "Update a BusinessRule",
+        "description": "## Overview\nUpdate an existing business rule by UID. All fields are optional - only provided fields will be updated.\n\nAvailable for **Staff** tokens.",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the business rule",
+            "schema": {
+              "type": "string"
+            },
+            "example": "br-a1b2c3d4-5678-90ef-ghij-klmnopqrstuv"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBusinessRuleRequestDto"
+              },
+              "example": {
+                "content": "Always maintain a warm, friendly, and professional tone in all client communications",
+                "status": "active"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Business rule updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/BusinessRule.json"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "business_rule": {
+                      "uid": "br-a1b2c3d4-5678-90ef-ghij-klmnopqrstuv",
+                      "business_uid": "biz-1234abcd-5678-90ef-ghij-klmnopqrstuv",
+                      "content": "Always maintain a warm, friendly, and professional tone in all client communications",
+                      "status": "active",
+                      "source": "system",
+                      "created_by_staff_uid": "stf-9876wxyz-5432-10ab-cdef-ghijklmnopqr",
+                      "updated_by_staff_uid": "stf-9876wxyz-5432-10ab-cdef-ghijklmnopqr",
+                      "sort_order": 0,
+                      "metadata": null,
+                      "created_at": "2024-12-15T10:30:00.000Z",
+                      "updated_at": "2024-12-16T14:00:00.000Z",
+                      "category_code": "tone_of_voice"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - malformed request or invalid syntax",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - rule belongs to another business",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Business rule not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "status",
+                      "code": "invalid",
+                      "message": "Status must be one of: active, pending_approval, inactive"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Business Rules"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "BusinessRulesController_deleteBusinessRule",
+        "summary": "Delete a BusinessRule",
+        "description": "## Overview\nDelete a business rule by UID.\n\nAvailable for **Staff** tokens.",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the business rule",
+            "schema": {
+              "type": "string"
+            },
+            "example": "br-a1b2c3d4-5678-90ef-ghij-klmnopqrstuv"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Business rule deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - rule belongs to another business",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Business rule not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Business Rules"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    }
+  }
+}
