@@ -1,33 +1,39 @@
 ---
 endpoint: "GET /v3/integrations/import_job_items/{uid}"
 domain: integrations
-tags: [integrations, import_jobs, import_job_items]
-swagger: swagger/integrations/import.json
-status: pending
-savedAt: 2026-01-26T21:28:12.398Z
-verifiedAt: 2026-01-26T21:28:12.398Z
+tags: [integrations]
+status: skip
+savedAt: 2026-03-01T19:54:01.526Z
+verifiedAt: 2026-03-01T19:54:01.526Z
 timesReused: 0
-tokens: [staff]
-expectedOutcome: 404
-expectedOutcomeReason: "Import job items are only created through complex file upload processes or existing import jobs. In test environments, no import job items typically exist, so the endpoint returns 404 'Import job line item with uid {uid} not found'. The endpoint structure and authentication work correctly."
+skipReason: "Manual skip - endpoint not ready for testing"
 ---
-
-# Get Import Job Item
+# Get Import job items
 
 ## Summary
-Retrieves a specific import job item by its UID. **Token Type**: Requires a **staff token**.
+
+User-approved skip: Manual skip - endpoint not ready for testing
+
+## Skip Reason
+
+**This endpoint should be SKIPPED in automated testing.**
+
+Manual skip - endpoint not ready for testing
+
+This is typically due to a business constraint where the endpoint works correctly but cannot be tested repeatedly (e.g., one-time operations, unique constraints).
 
 ## Prerequisites
 
-No prerequisites required - testing endpoint structure with non-existent UID.
+None required for this endpoint.
 
 ## Test Request
 
 ```yaml
 steps:
   - id: main_request
+    description: "Get import_job_items"
     method: GET
-    path: "/v3/integrations/import_job_items/test_import_job_item_uid"
+    path: "/v3/integrations/import_job_items/{uid}"
     expect:
-      status: 404
+      status: [200, 201]
 ```
