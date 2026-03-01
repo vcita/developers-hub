@@ -45,18 +45,14 @@
           "name": {
             "type": "string",
             "maxLength": 255,
-            "description": "Original filename including extension (e.g., \"document.pdf\", \"photo.jpg\"). Maximum length: 255 characters."
-          },
-          "business_uid": {
-            "type": "string",
-            "description": "Unique identifier of the business this file belongs to (e.g., \"biz_456xyz\")."
+            "description": "Optional filename override. If not provided, the original filename from the uploaded file is used. Maximum length: 255 characters (e.g., \"document.pdf\", \"photo.jpg\")."
           },
           "metadata": {
             "type": "object",
             "description": "Optional JSON object containing arbitrary key-value pairs for additional file metadata (e.g., {\"source\": \"chat\", \"conversation_id\": \"conv_123\"})."
           }
         },
-        "required": ["file", "name", "business_uid"]
+        "required": ["file"]
       },
       "MultiFileResponse": {
         "type": "object",
@@ -116,10 +112,12 @@
                   "description": "The field that caused the error (for validation errors)"
                 },
                 "code": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "The code that caused the error (for validation errors)"
                 },
                 "message": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "The message that describes the error (for validation errors)"
                 }
               }
             }
@@ -132,8 +130,8 @@
     "/v3/assets/files": {
       "post": {
         "operationId": "FilesController_upload",
-        "summary": "Upload a new file",
-        "description": "Uploads a file for the specified business. The API returns immediately with status='pending'. File processing (virus scan, S3 upload, thumbnail generation) happens asynchronously in the background.\n\nIf a duplicate file is detected via SHA-256 content hash, the existing file is returned immediately with status='uploaded'.\n\nRate limit: 10 uploads per user per 10 minutes. Maximum file size: 100MB.\n\nAvailable for **Staff and Client tokens**.",
+        "summary": "Create a new file",
+        "description": "Create a new file for the specified business. The API returns immediately with status='pending'. File processing (virus scan, S3 upload, thumbnail generation) happens asynchronously in the background.\n\nIf a duplicate file is detected via SHA-256 content hash, the existing file is returned immediately with status='uploaded'.\n\nRate limit: 10 uploads per user per 10 minutes. Maximum file size: 100MB.\n\nAvailable for **Staff and Client tokens**.",
         "tags": ["Files"],
         "security": [
           {
@@ -219,8 +217,8 @@
       },
       "get": {
         "operationId": "FilesController_findAll",
-        "summary": "Get list of files by entity",
-        "description": "Retrieves files associated with a specific entity (e.g., all files attached to an invoice).\n\nRequires entity_type and entity_uid as query parameters unless file_uids is provided. Permission checks are performed via the Core service and cached for 15 minutes. Results include pre-signed S3 URLs for file download and thumbnails.\n\nAvailable for **Staff and Client tokens**.",
+        "summary": "Get All Files",
+        "description": "Retrieves all files for the specified business. Permission checks are performed and results are cached for 15 minutes. Results include pre-signed S3 URLs for file download and thumbnails.\n\nAvailable for **Staff and Client tokens**.",
         "tags": ["Files"],
         "security": [
           {
@@ -317,8 +315,8 @@
       },
       "delete": {
         "operationId": "FilesController_deleteByEntity",
-        "summary": "Delete files of an entity",
-        "description": "Soft deletes file-entity relations for a specific entity by removing file_entity relations.\n\nIf file_uid is provided, only the relation between that specific file and the entity is deleted. If file_uid is not provided, all file relations for the entity are deleted.\n\nRequires entity_uid as query parameter. Files without any remaining relations may become eligible for cleanup. Permission checks are performed via the Core service.\n\nAvailable for **Staff tokens only**.",
+        "summary": "Delete all files",
+        "description": "Soft deletes all files for the specified business. Permission checks are performed and files are deleted asynchronously. Files without any remaining relations may become eligible for cleanup. Permission checks are performed via the Core service.\n\nAvailable for **Staff tokens only**.",
         "tags": ["Files"],
         "security": [
           {
@@ -409,10 +407,10 @@
         }
       }
     },
-    "/v3/assets/files/{file_uid}": {
+    "/v3/assets/files/{uid}": {
       "get": {
         "operationId": "FilesController_findOne",
-        "summary": "Get file by UID",
+        "summary": "Get a file by UID",
         "description": "Retrieves a specific file by its unique identifier.\n\nUsed for status polling after upload to check if processing (scan, S3 upload, thumbnails) is complete. Response includes pre-signed S3 URLs when file is ready. Permission checks are performed via the Core service and cached for 15 minutes.\n\nAvailable for **Staff and Client tokens**.",
         "tags": ["Files"],
         "security": [
@@ -422,7 +420,7 @@
         ],
         "parameters": [
           {
-            "name": "file_uid",
+            "name": "uid",
             "in": "path",
             "required": true,
             "description": "Unique identifier of the file to retrieve (e.g., \"file_123abc\").",
@@ -466,8 +464,8 @@
       },
       "delete": {
         "operationId": "FilesController_delete",
-        "summary": "Delete specific file",
-        "description": "Soft deletes a specific file and all its entity relations.\n\nThe file is marked as deleted and scheduled for hard deletion (S3 removal) after 30 days. Permission checks are performed via the Core service.\n\nAvailable for **Staff tokens only**.",
+          "summary": "Delete a file",
+          "description": "Soft deletes a specific file.\n\n File will be permanently deleted in 30 days.\n\nAvailable for **Staff tokens only**.",
         "tags": ["Files"],
         "security": [
           {
@@ -476,7 +474,7 @@
         ],
         "parameters": [
           {
-            "name": "file_uid",
+            "name": "uid",
             "in": "path",
             "required": true,
             "description": "Unique identifier of the file to delete (e.g., \"file_123abc\").",
@@ -487,7 +485,7 @@
         ],
         "responses": {
           "200": {
-            "description": "File deleted successfully (soft delete). Returns the deleted file entity.",
+            "description": "File deleted successfully (soft delete). Returns the deleted file entity.\n\nFile will be permanently deleted in 30 days.",
             "content": {
               "application/json": {
                 "schema": {
