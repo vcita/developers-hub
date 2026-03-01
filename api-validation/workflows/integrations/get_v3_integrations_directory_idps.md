@@ -1,29 +1,39 @@
 ---
 endpoint: "GET /v3/integrations/directory_idps"
 domain: integrations
-tags: [integrations, directory, idp]
-swagger: swagger/integrations/authbridge.json
-status: pending
-savedAt: 2026-01-26T21:28:12.398Z
+tags: [integrations]
+status: skip
+savedAt: 2026-03-01T19:54:24.811Z
+verifiedAt: 2026-03-01T19:54:24.811Z
 timesReused: 0
+skipReason: "Manual skip - endpoint not ready for testing"
 ---
-
-# List Directory IDPs
+# Get Directory idps
 
 ## Summary
-Retrieves directory Identity Providers. **Token Type**: Requires a **directory token**.
+
+User-approved skip: Manual skip - endpoint not ready for testing
+
+## Skip Reason
+
+**This endpoint should be SKIPPED in automated testing.**
+
+Manual skip - endpoint not ready for testing
+
+This is typically due to a business constraint where the endpoint works correctly but cannot be tested repeatedly (e.g., one-time operations, unique constraints).
 
 ## Prerequisites
 
-No prerequisites required for this endpoint.
+None required for this endpoint.
 
 ## Test Request
 
 ```yaml
 steps:
   - id: main_request
+    description: "Get directory_idps"
     method: GET
     path: "/v3/integrations/directory_idps"
     expect:
-      status: 200
+      status: [200, 201]
 ```

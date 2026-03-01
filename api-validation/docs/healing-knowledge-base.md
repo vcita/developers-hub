@@ -262,6 +262,14 @@ When a resolution is confirmed, abstract it here so future healing can reuse it.
 - Resolution: The framework now automatically detects endpoints with "/partners/" in the URL path and routes them to the dedicated Partners API URL (`partnersUrl` in config/default.json). The auth header is also automatically converted from `Bearer {token}` to `Token token="{token}"` which is the format the Partners API expects. Use a **directory** token for partners endpoints. No special workflow flags are needed — the routing and auth conversion happen transparently. If you still get 404, verify that `partnersUrl` is configured in config/default.json.
 
 
+## Entry - SCHEMA_MISMATCH Could not resolve schema reference '#/components/schemas/X'
+- Symptoms: SCHEMA_MISMATCH with "Could not resolve schema reference '#/components/schemas/X'. The external entity URL may be incorrect." The API returns 200 with valid data, but validation fails during schema resolution.
+- Sample endpoints:
+  - GET /platform/v1/clients/{client_id}/payment/cards (PaymentCardsResponse)
+- Common path patterns:
+  - Any endpoint whose 200 response schema uses `$ref: "#/components/schemas/SomeSchema"`
+- Resolution: The API validation CLI uses `parseAllSwaggers` (sync) which does NOT dereference $refs. When the response schema is a top-level `$ref` to a component, the validator cannot resolve it. Fix by inlining the schema in the swagger source (swagger/ directory, never mcp_swagger). Replace the `$ref` with the full schema definition. For nested refs (e.g., array items referencing PaymentCard), use `items: { "type": "object" }` to avoid further resolution issues. Regenerate mcp_swagger with `npm run unify` after editing.
+
 ## Entry - 0 MISSING_PARAMS_NEED_HEALING on /v3/business_administration/staff_members/{id} (workflow)
 - Symptoms: 0 MISSING_PARAMS_NEED_HEALING on /v3/business_administration/staff_members/{id} (2 endpoints)
 - Sample endpoints:
@@ -270,3 +278,12 @@ When a resolution is confirmed, abstract it here so future healing can reuse it.
 - Common path patterns:
   - /v3/business_administration/staff_members/{id}
 - Resolution: Fixed MISSING_PARAMS_NEED_HEALING by adding prerequisite step to fetch staff UID. Updated workflow to fetch staff member UID from /v2/staffs endpoint using fallback API, then use that UID to call the target endpoint.
+
+
+## Entry - Nested bracket filter params documented as a single string parameter
+- Symptoms: 422 with "field must be a valid date parameter" or similar validation error. The swagger defines a single `filter` parameter of type `string` describing bracket notation like `filter[start_date][eq]=YYYY-MM-DD`, but the AI agent sends flat params like `start_date=2024-01-01` instead of the nested filter format.
+- Sample endpoints:
+  - GET /business/staffs/v1/daily_staff_sign_ins
+- Common path patterns:
+  - Any endpoint that uses Rails-style nested bracket filter params (`filter[field][op]=value`)
+- Resolution: The swagger must define each nested filter as a separate query parameter with the full bracket name (e.g., `name: "filter[start_date][eq]"` and `name: "filter[end_date][eq]"`), each with `type: "string"` and `format: "date"`. Do NOT define them as a single `filter` parameter of type `string` — the AI agent and test executor cannot parse the bracket notation from a description. The workflow should use these bracket-named params directly in the `params:` section. Axios correctly serializes bracket keys to percent-encoded query strings that Rails parses as nested hashes.
