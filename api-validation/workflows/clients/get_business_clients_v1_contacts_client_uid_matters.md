@@ -3,11 +3,12 @@ endpoint: "GET /business/clients/v1/contacts/{client_uid}/matters"
 domain: clients
 tags: [matters]
 swagger: swagger/clients/legacy/manage_clients.json
-status: pending
+status: verified
 savedAt: 2026-02-07T07:00:00.000Z
 timesReused: 0
 useFallbackApi: true
 tokens: [staff]
+verifiedAt: 2026-03-01T22:30:55.894Z
 ---
 # Get Contact Matters
 

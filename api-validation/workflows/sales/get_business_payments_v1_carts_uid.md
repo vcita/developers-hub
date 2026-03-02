@@ -3,9 +3,9 @@ endpoint: "GET /business/payments/v1/carts/{uid}"
 domain: sales
 tags: []
 swagger: swagger/sales/legacy/payments.json
-status: pending
+status: verified
 savedAt: 2026-02-06T19:16:30.985Z
-verifiedAt: 2026-02-07T07:34:35.000Z
+verifiedAt: 2026-03-01T00:00:00.000Z
 timesReused: 0
 ---
 # Get Carts

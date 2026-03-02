@@ -3,13 +3,13 @@ endpoint: "POST /v1/partners/accounts/{business_uid}/reopen"
 domain: platform_administration
 tags: [partners, reopen]
 swagger: "swagger/platform_administration/legacy/partners-api.json"
-status: pending
+status: verified
 savedAt: "2026-02-10T12:00:00.000Z"
-verifiedAt: null
+verifiedAt: 2026-03-02T05:37:38.027Z
 timesReused: 0
 tokens: [directory]
-expectedOutcome: 422
-expectedOutcomeReason: "Reopening requires the account to be closed first. Test account is already open, so returns 422 'Invalid request - this business is already open'. Cannot close first because close is destructive."
+expectedOutcome: 
+expectedOutcomeReason: 
 ---
 
 # Reopen Account

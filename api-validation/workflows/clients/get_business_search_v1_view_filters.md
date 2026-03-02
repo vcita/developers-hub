@@ -3,9 +3,9 @@ endpoint: "GET /business/search/v1/view_filters"
 domain: clients
 tags: [views, crm, filters]
 swagger: "swagger/clients/legacy/crm_views.json"
-status: pending
+status: verified
 savedAt: "2026-02-03T23:00:00.000Z"
-verifiedAt: "2026-02-03T23:00:00.000Z"
+verifiedAt: 2026-03-01T22:30:58.850Z
 timesReused: 0
 ---
 

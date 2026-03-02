@@ -3,9 +3,10 @@ endpoint: "POST /business/clients/v1/matters/{matter_uid}/notes"
 domain: clients
 tags: []
 swagger: "swagger/clients/legacy/manage_clients.json"
-status: pending
+status: verified
 savedAt: "2026-02-03T18:27:27.712Z"
 timesReused: 0
+verifiedAt: 2026-03-02T05:37:09.532Z
 ---
 
 # Create Note

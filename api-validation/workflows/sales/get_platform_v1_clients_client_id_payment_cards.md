@@ -2,10 +2,10 @@
 endpoint: "GET /platform/v1/clients/{client_id}/payment/cards"
 domain: sales
 tags: [cards, payments]
-swagger: swagger/sales/legacy/legacy_v1_sales.json
-status: pending
+swagger: swagger/sales/legacy/client_cards.json
+status: verified
 savedAt: 2026-02-06T20:49:00.000Z
-verifiedAt: 2026-02-07T07:34:04.000Z
+verifiedAt: 2026-03-01T22:41:31.794Z
 timesReused: 0
 useFallbackApi: true
 tokens: [directory]

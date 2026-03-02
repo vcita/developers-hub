@@ -1,192 +1,533 @@
 {
-    "type": "object",
-    "properties": {
-        "app_code_name": {
-            "type": "string",
-            "description": "The app's code name. This will be used as the app's unique identifier"
-        },
-        "created_at": {
-            "type": "string",
-            "description": "The creation date and time of the entity",
-            "format": "date-time"
-        },
-        "updated_at": {
-            "type": "string",
-            "description": "The last updated date and time of the entity",
-            "format": "date-time"
-        },
-        "display_name": {
-            "type": "string",
-            "description": "The app's name. Must be 3 to 25 chars long"
-        },
-        "integration_points": {
-            "type": "array",
-            "description": "One or more integration points with the platform the app implements. {add link}",
-            "items": {
-                "type": "string",
-                "enum": [
-                    "payments",
-                    "wallets",
-                    "communication",
-                    "menu_items",
-                    "docuforms",
-                    "import_clients",
-                    "automated_flows",
-                    "signatures",
-                    "onboarding_wizard",
-                    "notifications",
-                    "internal",
-                    "billingapp"
-                    ]
-            }
-        },
-        "menu_item": {
-            "type": "object",
-            "properties": {
-                "category": {
-                "type": "string",
-                "description": "Section of the left menu in which the item will appear, requires the app to declare the **menu_item** integration point. Valid values are: [calendar,clients,payments,documents,campaigns,reputation,my-livesite,social,social_info,app_market,reports,team-chat,advertising,subscriptions]",
-                "enum":[
-                    "calendar",
-                    "clients",
-                    "payments",
-                    "documents",
-                    "campaigns",
-                    "reputation",
-                    "my-livesite",
-                    "social",
-                    "social_info",
-                    "app_market",
-                    "reports",
-                    "team-chat",
-                    "advertising",
-                    "subscriptions"
-                  ]
-                },
-                "item_name": {
-                "type": "object",
-                "description": "The name that appears for the app in the menu for each language, available languages - German, English, Spanish, French, Hebrew, Italian, Polish, Dutch.",
-                    "properties": {
-                        "de": {
-                        "type": "string",
-                        "description": "item name in German"
-                        },
-                        "en": {
-                        "type": "string",
-                        "description": "item name in English"
-                        },
-                        "es": {
-                        "type": "string",
-                        "description": "item name in Spanish"
-                        },
-                        "fr": {
-                        "type": "string",
-                        "description": "item name in French"
-                        },
-                        "he": {
-                        "type": "string",
-                        "description": "item name in Hebrew"
-                        },
-                        "it": {
-                        "type": "string",
-                        "description": "item name in Italian"
-                        },
-                        "pl": {
-                        "type": "string",
-                        "description": "item name in Polish"
-                        },
-                        "nl": {
-                        "type": "string",
-                        "description": "item name in Dutch"
-                        }
-                    }
-                }   
-            }
-        },
-        "trusted":{
-            "type":"boolean",
-            "description":"Trusted grants the app full scope permissions to the business without asking a consent from the user.",
-            "default":false
-        },
-        "scopes": {
-            "type": "array",
-            "description": "Deprecated.",
-            "items":{
-                "type":"string"
-                }
-        },
-        "demand_scopes": {
-            "type": "array",
-            "description": "Deprecated.",
-            "items":{
-                "type":"string"
-                }
-        },
-        "managable_permissions_unique_codes":{
-            "type":"array",
-            "description":"A list of permission unique codes that will appear in the user permissions management screen in case the app is installed for the business.",
-            "items":{
-                "type":"string"
-            }
-        },
-        "required_permissions_unique_codes":{
-            "type":"array",
-            "description": "A list of permission unique codes that a staff needs to be able to interact with the [application](https://developers.intandem.tech/v3.0/reference/available-permissions).",
-            "items":{
-                "type":"string"
-            }
-        },
-        "api_uri": {
-            "type": "string",
-            "description": "Link to the application's API. Used by apps that implements integration_points like Calendar."
+  "type": "object",
+  "description": "Represents an app that can be installed and used on the inTandem platform.",
+  "properties": {
+    "uid": {
+      "type": "string",
+      "readOnly": true,
+      "description": "Unique identifier of the app."
+    },
+    "app_code_name": {
+      "type": "string",
+      "description": "Unique code name of the app (e.g., \"calendar_sync\")."
+    },
+    "name": {
+      "type": "string",
+      "description": "App display name (e.g., \"Calendar Sync\")."
+    },
+    "redirect_uri": {
+      "type": "string",
+      "description": "The app main landing page. The platform uses this URI when opening the app."
+    },
+    "app_host": {
+      "type": "string",
+      "readOnly": true,
+      "description": "Computed URL used by the platform to open the app (based on `redirect_uri` plus runtime query parameters)."
+    },
+    "url_params": {
+      "type": "array",
+      "description": "A list of standard platform context parameters that the platform injects into the query string when building `app_host`. Each value is a predefined key whose value is resolved at runtime by the platform (e.g., selecting \"business_uid\" causes the caller's business UID to be appended as `?business_uid=...`).\n\nThis is different from the `additional_params` extension in `developer_info.extensions`, which defines custom, app-specific key-value pairs that are also appended to the URL.",
+      "items": {
+        "type": "string",
+        "enum": [
+          "impersonate",
+          "business_uid",
+          "staff_role",
+          "staff_uid",
+          "payment_permissions",
+          "language",
+          "package",
+          "brand_host"
+        ]
+      }
+    },
+    "app_types": {
+      "type": "array",
+      "readOnly": true,
+      "description": "A list of app types / integration points associated with the app. This mirrors core's `app_type` field and is related to (and can be derived from) entries in `developer_info.extensions`.\n\nValid values are based on core validation rules and may include internal-only values.",
+      "items": {
+        "type": "string",
+        "enum": [
+          "internal",
+          "billing_app",
+          "payments",
+          "wallets",
+          "communication",
+          "menu_items",
+          "docuforms",
+          "import_clients",
+          "automated_flows",
+          "signatures",
+          "onboarding_wizard",
+          "notifications",
+          "receipts",
+          "calendar_sync",
+          "document_signature",
+          "tips",
+          "ai_assistant",
+          "attachments",
+          "widgets",
+          "voice_calls",
+          "texting",
+          "licensing.subscription.admin.read"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "open_in_new_tab": {
+      "type": "boolean",
+      "description": "Whether the app is opened in a new browser tab instead of an in-product iframe.",
+      "default": false
+    },
+    "supported_in_mobile": {
+      "type": "boolean",
+      "description": "Whether the app is supported in mobile experiences.",
+      "default": true
+    },
+    "permissions": {
+      "type": "array",
+      "description": "A list of permission codes required for certain app capabilities or UI entries (e.g., \"can_view_payments\").",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "trusted": {
+      "type": "boolean",
+      "description": "Whether the app can skip the user consent screen when authorizing access.",
+      "default": false
+    },
+    "oauth_redirect_uris": {
+      "type": "array",
+      "description": "An array of URLs to redirect the user to after a successful OAuth login.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "assignment_type": {
+      "type": "string",
+      "readOnly": true,
+      "description": "How the app is available to the caller. Heuristics: `installed` and `internal` cannot happen at the same time. The only combination is `installed` + `directory_offering`, represented as `installed_directory_offering`.",
+      "enum": [
+        "installed",
+        "directory_offering",
+        "internal",
+        "installed_directory_offering"
+      ]
+    },
+    "owner": {
+      "type": "boolean",
+      "readOnly": true,
+      "description": "Whether the caller is the owner of the app. For Internal tokens, apps with no owning directory are returned with `owner=true`."
+    },
+    "app_market": {
+      "type": "object",
+      "description": "App market metadata shown to users in the app market.",
+      "properties": {
+        "description": {
+          "type": "object",
+          "description": "App description texts and logo.",
+          "properties": {
+            "logo": {
+              "type": "string",
+              "description": "Public URL to the app logo (e.g., \"https://cdn.example.com/apps/calendar_sync/logo.png\")."
             },
-        "require_staff_settings":{
-            "type":"boolean",
-            "description":"Whether the app requires each staff member to set the app on her account"
-        },
-        "redirect_uri":{
-            "type":"string",
-            "description":"A redirect link to take the user when opening the app in the app market"
-        },
-        "open_as":{
-            "type":"string",
-            "description":"How the open app CTA behaves. Options are 'new_tab','in_place','menu_item'"
-        },
-        "url_params":{
-            "type":"array",
-            "description":"Parameters that will be passed to the app. Valid values are: impersonate, business_uid, staff_role, staff_uid, payment_permissions, language, package, brand_host",
-            "items":{
-                "type":"string",
-                "enum": [
-                    "impersonate",
-                    "business_uid",
-                    "staff_role",
-                    "staff_uid",
-                    "payment_permissions",
-                    "language",
-                    "package",
-                    "brand_host"
-                    ]
+            "short_description": {
+              "type": "string",
+              "description": "Short description displayed in app cards (e.g., \"Two-way sync with your calendar\")."
+            },
+            "text": {
+              "type": "string",
+              "description": "Long description displayed in the app details page."
             }
+          }
         },
-        "oauth_redirect_uris":{
-            "type":"array",
-            "description":"An array of URLs to redirect the user to after a successful login."
-
+        "app_features": {
+          "type": "array",
+          "description": "A list of app features displayed in the app market.",
+          "items": {
+            "type": "string"
+          }
         },
-        "app_marketing":{
-            "type": "object",
-            "$ref": "https://vcita.github.io/developers-hub/entities/apps/appMarketing.json"
+        "app_screenshot_uris": {
+          "type": "array",
+          "description": "Links to screenshots or demo videos shown on desktop.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "app_mobile_screenshot_uris": {
+          "type": "array",
+          "description": "Links to screenshots or demo videos shown on mobile.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "supported_countries": {
+          "type": "array",
+          "description": "Countries in which the app is available. Use full country names (e.g., \"United States\"). Use an empty array for all countries.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "locales": {
+          "type": "array",
+          "description": "Locales supported by the app (e.g., \"en\", \"he\").",
+          "items": {
+            "type": "string"
+          }
+        },
+        "privacy_policy_link": {
+          "type": "string",
+          "description": "Link to the app privacy policy."
+        },
+        "contact_support_link": {
+          "type": "string",
+          "description": "Link to the app contact support page."
+        },
+        "personal_connection": {
+          "type": "boolean",
+          "description": "Whether each staff member needs to connect separately to the app."
         }
+      }
     },
-    "required": [
-        "app_code_name",
-        "display_name",
-        "redirect_uri",
-        "open_as"
-      ],
-    "example": {
-      
+    "internal": {
+      "type": "object",
+      "description": "Internal-only app metadata. Available only for Internal tokens.",
+      "properties": {
+        "api_uri": {
+          "type": "string",
+          "description": "Link to the application's API."
+        },
+        "full_screen": {
+          "type": "boolean",
+          "description": "Whether the app is opened in a full screen mode.",
+          "default": false
+        },
+        "deep_link": {
+          "type": "object",
+          "description": "Deep link to an inner product page.",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Relative path to the page (e.g., \"/app/somepath\")."
+            },
+            "path_params": {
+              "type": "object",
+              "description": "Optional query parameters to be added to the URL.",
+              "additionalProperties": true
+            }
+          }
+        }
+      }
     },
-    "description": "An app that can be installed on the inTandem platform"
+    "developer_info": {
+      "type": "object",
+      "description": "Developer-provided metadata and extension configuration. `developer_info.extensions` is the source of truth for implemented extensions.\n\nImplemented extensions are inferred from the presence of extension entries in the `extensions` array.\n\nConstraint: the array must contain **at most one entry per extension type** (e.g., a single `menu_items` entry).",
+      "properties": {
+        "extensions": {
+          "type": "array",
+          "description": "An array of extension configuration entries.\n\nEach entry has a `type` discriminator. The array must contain at most one entry per `type`.",
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "description": "Payments extension configuration.",
+                "properties": {
+                  "type": { "type": "string", "enum": ["payments"] },
+                  "config": { "type": "object", "additionalProperties": true }
+                },
+                "required": ["type"]
+              },
+              {
+                "type": "object",
+                "description": "Wallets extension configuration.",
+                "properties": {
+                  "type": { "type": "string", "enum": ["wallets"] },
+                  "config": { "type": "object", "additionalProperties": true }
+                },
+                "required": ["type"]
+              },
+              {
+                "type": "object",
+                "description": "Communication extension configuration.",
+                "properties": {
+                  "type": { "type": "string", "enum": ["communication"] },
+                  "open_channel_communication": {
+                    "type": "boolean",
+                    "description": "Whether the app enables direct, sessionless messaging without requiring pre-established channel sessions."
+                  },
+                  "config": { "type": "object", "additionalProperties": true }
+                },
+                "required": ["type"]
+              },
+              {
+                "type": "object",
+                "description": "Additional params extension configuration.\n\nDefines custom, app-specific key-value query parameters appended to `app_host` when opening the app. Unlike `url_params` (which selects standard platform context parameters resolved at runtime), these are static key-value pairs defined by the app developer.",
+                "properties": {
+                  "type": { "type": "string", "enum": ["additional_params"] },
+                  "params": {
+                    "type": "object",
+                    "description": "Custom, app-specific key-value query parameters appended to `app_host` when opening the app.",
+                    "additionalProperties": true
+                  }
+                },
+                "required": ["type", "params"]
+              },
+              {
+                "type": "object",
+                "description": "Menu items extension configuration.",
+                "properties": {
+                  "type": { "type": "string", "enum": ["menu_items"] },
+                  "subitems": {
+                    "type": "array",
+                    "description": "Menu items to be added to the left sidebar.",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "category": {
+                          "type": "string",
+                          "description": "Section of the left menu in which the item will appear (e.g., \"clients\").",
+                          "enum": [
+                            "calendar",
+                            "clients",
+                            "payments",
+                            "inbox",
+                            "documents",
+                            "campaigns",
+                            "reputation",
+                            "my-livesite",
+                            "social",
+                            "social_info",
+                            "app_market",
+                            "reports",
+                            "team-chat",
+                            "advertising",
+                            "subscriptions",
+                            "my_account",
+                            "cashflow",
+                            "workforce",
+                            "setupguide",
+                            "reviews",
+                            "social_media",
+                            "online_listing"
+                          ]
+                        },
+                        "item_name": {
+                          "type": "object",
+                          "description": "Item names per language code (e.g., `{ \"en\": \"My Page\" }`).",
+                          "additionalProperties": { "type": "string" }
+                        },
+                        "route": {
+                          "type": "string",
+                          "description": "Suffix route relative to the app domain (e.g., \"rdbms\")."
+                        },
+                        "display_order": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Display order within the category. Starts from 0."
+                        },
+                        "block_impersonation": {
+                          "type": "boolean",
+                          "description": "Whether the menu item should be blocked when an operator is impersonating as a staff member.",
+                          "default": false
+                        },
+                        "permissions": {
+                          "type": "array",
+                          "description": "Optional permissions required to see this menu item.",
+                          "items": { "type": "string" }
+                        }
+                      },
+                      "required": ["category", "item_name", "route"]
+                    }
+                  }
+                },
+                "required": ["type", "subitems"]
+              },
+              {
+                "type": "object",
+                "description": "Generic extension configuration for a supported extension type that does not currently have a dedicated structured schema.",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "internal",
+                      "billing_app",
+                      "docuforms",
+                      "import_clients",
+                      "automated_flows",
+                      "signatures",
+                      "onboarding_wizard",
+                      "notifications",
+                      "receipts",
+                      "calendar_sync",
+                      "document_signature",
+                      "tips",
+                      "ai_assistant",
+                      "attachments",
+                      "widgets",
+                      "voice_calls",
+                      "texting",
+                      "licensing.subscription.admin.read"
+                    ]
+                  },
+                  "config": {
+                    "type": "object",
+                    "description": "Extension-specific configuration payload.",
+                    "additionalProperties": true
+                  }
+                },
+                "required": ["type"]
+              },
+              {
+                "type": "object",
+                "description": "Custom extension entry for forward-compatible expansion without schema changes.",
+                "properties": {
+                  "type": { "type": "string", "enum": ["custom"] },
+                  "key": {
+                    "type": "string",
+                    "description": "Custom extension key name (e.g., \"my_team_feature\")."
+                  },
+                  "value": {
+                    "type": "object",
+                    "description": "Custom extension value payload.",
+                    "additionalProperties": true
+                  }
+                },
+                "required": ["type", "key", "value"]
+              }
+            ]
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "created_at": {
+      "type": "string",
+      "readOnly": true,
+      "description": "Timestamp indicating when the app was created.",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "readOnly": true,
+      "description": "Timestamp indicating when the app was last updated.",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "uid",
+    "app_code_name",
+    "name",
+    "redirect_uri",
+    "assignment_type",
+    "created_at",
+    "updated_at"
+  ],
+  "example": {
+    "uid": "d290f1ee-26c5-4e91-b1a0-4f8b1c2d3e4f",
+    "app_code_name": "calendar_sync",
+    "name": "Calendar Sync",
+    "redirect_uri": "https://calendar-sync.example.com/app",
+    "app_host": "https://calendar-sync.example.com/app?business_uid=d290f1ee-26c5-4e91-b1a0-4f8b1c2d3e4f&staff_uid=stf_123&language=en",
+    "url_params": [
+      "business_uid",
+      "staff_uid",
+      "language"
+    ],
+    "app_types": [
+      "communication",
+      "menu_items"
+    ],
+    "open_in_new_tab": false,
+    "supported_in_mobile": true,
+    "permissions": [
+      "can_view_payments"
+    ],
+    "trusted": false,
+    "oauth_redirect_uris": [
+      "https://calendar-sync.example.com/oauth/callback"
+    ],
+    "assignment_type": "installed_directory_offering",
+      "app_market": {
+        "description": {
+          "logo": "https://cdn.example.com/apps/calendar_sync/logo.png",
+          "short_description": "Two-way sync between your calendar and inTandem bookings.",
+          "text": "Sync bookings to your calendar automatically and avoid double-booking across devices."
+        },
+        "app_features": [
+          "Two-way sync",
+          "Conflict detection"
+        ],
+        "app_screenshot_uris": [
+          "https://cdn.example.com/apps/calendar_sync/screenshots/1.png"
+        ],
+        "app_mobile_screenshot_uris": [
+          "https://cdn.example.com/apps/calendar_sync/screenshots/mobile_1.png"
+        ],
+        "supported_countries": [
+          "United States",
+          "United Kingdom",
+          "Israel"
+        ],
+        "locales": [
+          "en",
+          "he"
+        ],
+        "privacy_policy_link": "https://calendar-sync.example.com/privacy",
+        "contact_support_link": "https://calendar-sync.example.com/support",
+        "personal_connection": true
+      },
+      "internal": {
+        "api_uri": "https://calendar-sync.example.com/api",
+        "full_screen": false,
+        "deep_link": {
+          "path": "/apps/calendar_sync/settings",
+          "path_params": {
+            "tab": "connections"
+          }
+        }
+      },
+    "owner": true,
+    "developer_info": {
+      "extensions": [
+        {
+          "type": "menu_items",
+          "subitems": [
+            {
+              "category": "clients",
+              "item_name": {
+                "en": "Calendar Sync"
+              },
+              "route": "calendar-sync",
+              "display_order": 0,
+              "block_impersonation": false
+            }
+          ]
+        },
+        {
+          "type": "communication",
+          "open_channel_communication": true
+        },
+        {
+          "type": "additional_params",
+          "params": {
+            "open_channel_communication": true
+          }
+        },
+        {
+          "type": "custom",
+          "key": "custom_extension_example",
+          "value": {
+            "enabled": true,
+            "config": {
+              "some_key": "some_value"
+            }
+          }
+        }
+      ]
+    },
+    "created_at": "2026-02-01T10:30:00Z",
+    "updated_at": "2026-02-20T09:15:00Z"
   }
+}

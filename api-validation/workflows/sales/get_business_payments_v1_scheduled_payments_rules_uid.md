@@ -3,9 +3,9 @@ endpoint: GET /business/payments/v1/scheduled_payments_rules/{uid}
 domain: sales
 tags: [payments, scheduled_payments]
 swagger: swagger/sales/legacy/payments.json
-status: pending
+status: verified
 savedAt: 2026-01-27T05:22:05.868Z
-verifiedAt: 2026-02-07T07:48:50.000Z
+verifiedAt: 2026-03-01T00:00:00.000Z
 timesReused: 0
 ---
 
