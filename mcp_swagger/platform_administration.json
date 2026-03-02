@@ -6,19 +6,34 @@
     "version": "3.0",
     "x-generated": {
       "sourceFiles": [
+        "staff.json",
         "staff_member.json",
         "legacy_v1_platform.json",
         "oauth.json",
         "license.json",
         "online_profiles.json",
         "partners-api.json",
-        "directory.json",
-        "staff.json",
         "staff.json",
         "access_control.json",
         "accounts.json"
       ],
       "pathNormalizations": [
+        {
+          "file": "staff.json",
+          "basePath": "/business/staffs",
+          "transformations": [
+            {
+              "original": "/v1/daily_staff_sign_ins",
+              "normalized": "/business/staffs/v1/daily_staff_sign_ins",
+              "basePath": "/business/staffs"
+            },
+            {
+              "original": "/v1/staffs/{uid}",
+              "normalized": "/business/staffs/v1/staffs/{uid}",
+              "basePath": "/business/staffs"
+            }
+          ]
+        },
         {
           "file": "legacy_v1_platform.json",
           "basePath": "/platform/v1",
@@ -244,22 +259,6 @@
           ]
         },
         {
-          "file": "staff.json",
-          "basePath": "/business/staffs",
-          "transformations": [
-            {
-              "original": "/v1/daily_staff_sign_ins",
-              "normalized": "/business/staffs/v1/daily_staff_sign_ins",
-              "basePath": "/business/staffs"
-            },
-            {
-              "original": "/v1/staffs/{uid}",
-              "normalized": "/business/staffs/v1/staffs/{uid}",
-              "basePath": "/business/staffs"
-            }
-          ]
-        },
-        {
           "file": "accounts.json",
           "basePath": "/business/accounts",
           "transformations": [
@@ -307,8 +306,8 @@
           ]
         }
       ],
-      "totalPaths": 70,
-      "totalComponents": 28
+      "totalPaths": 68,
+      "totalComponents": 27
     }
   },
   "servers": [
@@ -318,6 +317,294 @@
     }
   ],
   "paths": {
+    "/business/staffs/v1/daily_staff_sign_ins": {
+      "get": {
+        "description": "## Overview\nGet daily sign-in records for the business's staff members within a specified date range.\n\nAvailable for **Staff and Directory Tokens**.",
+        "parameters": [
+          {
+            "description": "Start date for the sign-in query range (inclusive). Date range cannot exceed 31 days and start_date must be before or equal to end_date (e.g., \"2026-01-01\").",
+            "in": "query",
+            "name": "filter[start_date][eq]",
+            "required": true,
+            "x-example": "2026-01-01",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "description": "End date for the sign-in query range (inclusive). Date range cannot exceed 31 days and end_date must be after or equal to start_date (e.g., \"2026-01-15\").",
+            "in": "query",
+            "name": "filter[end_date][eq]",
+            "required": true,
+            "x-example": "2026-01-15",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "properties": {
+                        "business_uid": {
+                          "type": "string"
+                        },
+                        "sign_ins_by_platform": {
+                          "items": {
+                            "properties": {
+                              "platform": {
+                                "type": "string"
+                              },
+                              "sign_ins_by_date": {
+                                "type": "object",
+                                "description": "Object with date strings as keys (format: YYYY-MM-DD) and arrays of staff UIDs as values. The keys are dynamic dates within the requested date range.",
+                                "additionalProperties": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "description": "Staff UID"
+                                  },
+                                  "description": "Array of staff UIDs who signed in on this date"
+                                }
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "success": {
+                      "type": "boolean"
+                    }
+                  },
+                  "type": "object"
+                },
+                "example": {
+                  "data": {
+                    "business_uid": "j2pur8uyc6ixpi7d",
+                    "sign_ins_by_platform": [
+                      {
+                        "platform": "mobile",
+                        "sign_ins_by_date": {
+                          "2023-11-10": [
+                            "6oyq22tigyk680xy",
+                            "519ca2f28b1a4b9a",
+                            "2f28b1atigy22tik"
+                          ]
+                        }
+                      },
+                      {
+                        "platform": "desktop",
+                        "sign_ins_by_date": {
+                          "2023-11-16": [
+                            "6oyq22tigyk680xy"
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  "success": true
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "field": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "success": {
+                      "type": "boolean"
+                    }
+                  },
+                  "type": "object"
+                },
+                "example": {
+                  "errors": [
+                    {
+                      "code": "invalid",
+                      "field": "start_date",
+                      "message": "start_date field must be a valid date parameter. Example, 2000-01-30"
+                    }
+                  ],
+                  "success": false
+                }
+              }
+            }
+          }
+        },
+        "summary": "Daily Staff Sign-ins",
+        "tags": [
+          "Staff activity"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "GET",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///business/staffs/v1/daily_staff_sign_ins"
+        },
+        "x-auth-type": "Application & Application User",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/business/staffs/v1/staffs/{uid}": {
+      "put": {
+        "description": "## Overview\nUpdates a staff's properties. Available for **Directory tokens only**.\n\n> **Note**: The `X-On-Behalf-Of` header is required to specify which business's staff member to update.\n\n> **For Staff Self-Update**: Staff members who want to update their own details should use `PUT /v3/business_administration/staff_members/{uid}` with a Staff token instead.",
+        "parameters": [
+          {
+            "description": "Required. The business UID whose staff member is being updated. Can be the Business UID or nickname/external ID.",
+            "in": "header",
+            "name": "X-On-Behalf-Of",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "User id of the staff to be updated",
+            "in": "path",
+            "name": "uid",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data": {
+                    "staff": {
+                      "business_role_display_name": null,
+                      "created_at": "2025-08-05T09:56:05.197+03:00",
+                      "display_name": "Eve Schulist",
+                      "email": "clarice.schimmel@hermann.com",
+                      "first_name": "Eve",
+                      "last_name": "Schulist",
+                      "role": "admin",
+                      "uid": "b6d0d3a246169924",
+                      "updated_at": "2025-08-05T09:56:05.280+03:00"
+                    }
+                  },
+                  "success": true
+                }
+              }
+            }
+          }
+        },
+        "summary": "Updates a staff's properties",
+        "tags": [
+          "Staff"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "PUT",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///business/staffs/v1/staffs/{uid}"
+        },
+        "x-auth-type": "Application & Application User",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "staff": {
+                    "properties": {
+                      "active": {
+                        "description": "Staff active/inactive. A valid value [true/false].",
+                        "type": "boolean"
+                      },
+                      "display_name": {
+                        "description": "Staff display name. No longer than 255 characters, no HTML or new lines.",
+                        "type": "string"
+                      },
+                      "email": {
+                        "description": "Staff email. Valid email format, unique email.",
+                        "type": "string"
+                      },
+                      "first_name": {
+                        "description": "Staff first name. No longer than 255 characters, no HTML or new lines.",
+                        "type": "string"
+                      },
+                      "last_name": {
+                        "description": "Staff last name. No longer than 255 characters, no HTML or new lines.",
+                        "type": "string"
+                      },
+                      "role": {
+                        "description": "Please use the new Access Control API: https://developers.intandem.tech/v3.0/docs/main-concepts",
+                        "type": "string"
+                      },
+                      "sms_notifications_on": {
+                        "description": "Staff SMS notifications on/off. A valid value [true/false].",
+                        "type": "boolean"
+                      }
+                    },
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "staff"
+                ],
+                "type": "object"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v3/business_administration/staff_members/{uid}": {
       "get": {
         "summary": "Retrieve a StaffMember",
@@ -8019,170 +8306,6 @@
         "security": []
       }
     },
-    "/v3/business_administration/directories": {
-      "get": {
-        "summary": "Get a list of Directories",
-        "description": "Returns a filtered, paginated list of directories.\n\nAvailable for **Internal tokens**",
-        "tags": [
-          "Directory"
-        ],
-        "parameters": [
-          {
-            "name": "is_managed",
-            "in": "query",
-            "required": false,
-            "description": "Filter by whether the directory is a managed partner",
-            "schema": {
-              "type": "boolean"
-            },
-            "example": true
-          },
-          {
-            "name": "is_deprecated",
-            "in": "query",
-            "required": false,
-            "description": "Filter by whether the directory is deprecated",
-            "schema": {
-              "type": "boolean"
-            },
-            "example": false
-          },
-          {
-            "name": "configuration_key",
-            "in": "query",
-            "required": false,
-            "description": "Filter by a specific configuration key",
-            "schema": {
-              "type": "string"
-            },
-            "example": "abc"
-          },
-          {
-            "name": "page",
-            "in": "query",
-            "required": false,
-            "description": "Page number",
-            "schema": {
-              "type": "integer",
-              "default": 1
-            }
-          },
-          {
-            "name": "per_page",
-            "in": "query",
-            "required": false,
-            "description": "Number of items per page (max 1000)",
-            "schema": {
-              "type": "integer",
-              "default": 50,
-              "maximum": 1000
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Directories retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "description": "Indicates if the request was successful",
-                      "example": true
-                    },
-                    "data": {
-                      "type": "array",
-                      "description": "Array of directory objects",
-                      "items": {
-                        "$ref": "https://vcita.github.io/developers-hub/entities/business_administration/directory.json"
-                      }
-                    },
-                    "paging": {
-                      "$ref": "#/components/schemas/Paging"
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "data",
-                    "paging"
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "Directory": []
-          }
-        ]
-      }
-    },
-    "/v3/business_administration/directories/{uid}": {
-      "get": {
-        "summary": "Retrieve a Directory",
-        "description": "Returns a specific directory based on its unique identifier.\n\nAvailable for **Internal tokens**",
-        "tags": [
-          "Directory"
-        ],
-        "parameters": [
-          {
-            "name": "uid",
-            "in": "path",
-            "required": true,
-            "description": "The unique identifier of the directory",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Directory retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/business_administration/directory.json"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
-          },
-          "404": {
-            "description": "Directory not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "Directory": []
-          }
-        ]
-      }
-    },
     "/v3/business_administration/staff_quick_action_lists": {
       "get": {
         "tags": [
@@ -8437,282 +8560,6 @@
                   "success": false,
                   "error": "Staff Not Found: The specified staff does not exist."
                 }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/business/staffs/v1/daily_staff_sign_ins": {
-      "get": {
-        "description": "## Overview\nGet daily sign-in records for the business's staff members within a specified date range.\n\nAvailable for **Staff and Directory Tokens**.",
-        "parameters": [
-          {
-            "description": "Required filter by date range using nested query parameter format. Both start_date and end_date are required. The results include both the start and end dates.<br /><br />**Validation Rules:**<br />- Date range cannot exceed 31 days<br />- start_date must be before or equal to end_date<br /><br />**Format:** `filter[start_date][eq]=YYYY-MM-DD&filter[end_date][eq]=YYYY-MM-DD`<br /><br />**Example:** `filter[start_date][eq]=2026-01-01&filter[end_date][eq]=2026-01-15`",
-            "in": "query",
-            "name": "filter",
-            "required": true,
-            "x-example": "filter[start_date][eq]=2026-01-01&filter[end_date][eq]=2026-01-15",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "data": {
-                      "properties": {
-                        "business_uid": {
-                          "type": "string"
-                        },
-                        "sign_ins_by_platform": {
-                          "items": {
-                            "properties": {
-                              "platform": {
-                                "type": "string"
-                              },
-                              "sign_ins_by_date": {
-                                "type": "object",
-                                "description": "Object with date strings as keys (format: YYYY-MM-DD) and arrays of staff UIDs as values. The keys are dynamic dates within the requested date range.",
-                                "additionalProperties": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "string",
-                                    "description": "Staff UID"
-                                  },
-                                  "description": "Array of staff UIDs who signed in on this date"
-                                }
-                              }
-                            },
-                            "type": "object"
-                          },
-                          "type": "array"
-                        }
-                      },
-                      "type": "object"
-                    },
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "type": "object"
-                },
-                "example": {
-                  "data": {
-                    "business_uid": "j2pur8uyc6ixpi7d",
-                    "sign_ins_by_platform": [
-                      {
-                        "platform": "mobile",
-                        "sign_ins_by_date": {
-                          "2023-11-10": [
-                            "6oyq22tigyk680xy",
-                            "519ca2f28b1a4b9a",
-                            "2f28b1atigy22tik"
-                          ]
-                        }
-                      },
-                      {
-                        "platform": "desktop",
-                        "sign_ins_by_date": {
-                          "2023-11-16": [
-                            "6oyq22tigyk680xy"
-                          ]
-                        }
-                      }
-                    ]
-                  },
-                  "success": true
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Failure",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "errors": {
-                      "items": {
-                        "properties": {
-                          "code": {
-                            "type": "string"
-                          },
-                          "field": {
-                            "type": "string"
-                          },
-                          "message": {
-                            "type": "string"
-                          }
-                        },
-                        "type": "object"
-                      },
-                      "type": "array"
-                    },
-                    "success": {
-                      "type": "boolean"
-                    }
-                  },
-                  "type": "object"
-                },
-                "example": {
-                  "errors": [
-                    {
-                      "code": "invalid",
-                      "field": "start_date",
-                      "message": "start_date field must be a valid date parameter. Example, 2000-01-30"
-                    }
-                  ],
-                  "success": false
-                }
-              }
-            }
-          }
-        },
-        "summary": "Daily Staff Sign-ins",
-        "tags": [
-          "Staff activity"
-        ],
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-amazon-apigateway-integration": {
-          "httpMethod": "GET",
-          "responses": {
-            "default": {
-              "statusCode": "200"
-            }
-          },
-          "type": "http_proxy",
-          "uri": "https:///business/staffs/v1/daily_staff_sign_ins"
-        },
-        "x-auth-type": "Application & Application User",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/business/staffs/v1/staffs/{uid}": {
-      "put": {
-        "description": "## Overview\nUpdates a staff's properties. Available for **Directory tokens only**.\n\n> **Note**: The `X-On-Behalf-Of` header is required to specify which business's staff member to update.\n\n> **For Staff Self-Update**: Staff members who want to update their own details should use `PUT /v3/business_administration/staff_members/{uid}` with a Staff token instead.",
-        "parameters": [
-          {
-            "description": "Required. The business UID whose staff member is being updated. Can be the Business UID or nickname/external ID.",
-            "in": "header",
-            "name": "X-On-Behalf-Of",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "User id of the staff to be updated",
-            "in": "path",
-            "name": "uid",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "example": {
-                  "data": {
-                    "staff": {
-                      "business_role_display_name": null,
-                      "created_at": "2025-08-05T09:56:05.197+03:00",
-                      "display_name": "Eve Schulist",
-                      "email": "clarice.schimmel@hermann.com",
-                      "first_name": "Eve",
-                      "last_name": "Schulist",
-                      "role": "admin",
-                      "uid": "b6d0d3a246169924",
-                      "updated_at": "2025-08-05T09:56:05.280+03:00"
-                    }
-                  },
-                  "success": true
-                }
-              }
-            }
-          }
-        },
-        "summary": "Updates a staff's properties",
-        "tags": [
-          "Staff"
-        ],
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-amazon-apigateway-integration": {
-          "httpMethod": "PUT",
-          "responses": {
-            "default": {
-              "statusCode": "200"
-            }
-          },
-          "type": "http_proxy",
-          "uri": "https:///business/staffs/v1/staffs/{uid}"
-        },
-        "x-auth-type": "Application & Application User",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "properties": {
-                  "staff": {
-                    "properties": {
-                      "active": {
-                        "description": "Staff active/inactive. A valid value [true/false].",
-                        "type": "boolean"
-                      },
-                      "display_name": {
-                        "description": "Staff display name. No longer than 255 characters, no HTML or new lines.",
-                        "type": "string"
-                      },
-                      "email": {
-                        "description": "Staff email. Valid email format, unique email.",
-                        "type": "string"
-                      },
-                      "first_name": {
-                        "description": "Staff first name. No longer than 255 characters, no HTML or new lines.",
-                        "type": "string"
-                      },
-                      "last_name": {
-                        "description": "Staff last name. No longer than 255 characters, no HTML or new lines.",
-                        "type": "string"
-                      },
-                      "role": {
-                        "description": "Please use the new Access Control API: https://developers.intandem.tech/v3.0/docs/main-concepts",
-                        "type": "string"
-                      },
-                      "sms_notifications_on": {
-                        "description": "Staff SMS notifications on/off. A valid value [true/false].",
-                        "type": "boolean"
-                      }
-                    },
-                    "type": "object"
-                  }
-                },
-                "required": [
-                  "staff"
-                ],
-                "type": "object"
               }
             }
           }
@@ -10419,6 +10266,14 @@
     }
   },
   "components": {
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+      }
+    },
     "schemas": {
       "StaffMemberUpdate": {
         "type": "object",
@@ -11020,26 +10875,6 @@
           "errors"
         ]
       },
-      "Paging": {
-        "type": "object",
-        "properties": {
-          "page": {
-            "type": "integer",
-            "description": "Current page number",
-            "example": 1
-          },
-          "per_page": {
-            "type": "integer",
-            "description": "Number of items per page",
-            "example": 50
-          },
-          "total": {
-            "type": "integer",
-            "description": "Total number of items",
-            "example": 2
-          }
-        }
-      },
       "StaffQuickActionList": {
         "type": "object",
         "properties": {
@@ -11137,19 +10972,6 @@
             }
           }
         }
-      }
-    },
-    "securitySchemes": {
-      "Bearer": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT",
-        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
-      },
-      "Directory": {
-        "type": "http",
-        "scheme": "bearer",
-        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
       }
     }
   },
