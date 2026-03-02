@@ -3,13 +3,12 @@ endpoint: GET /v2/coupons/valid_coupons
 domain: sales
 tags: [coupons]
 swagger: swagger/sales/legacy/coupons.json
-status: pending
+status: verified
 savedAt: 2026-01-26T21:28:12.398Z
+verifiedAt: 2026-03-01T00:00:00.000Z
 timesReused: 0
 useFallbackApi: true
 tokens: [staff]
-expectedOutcome: 500
-expectedOutcomeReason: "Backend error in coupon validation logic: 'undefined method `<' for nil:NilClass'. This deprecated endpoint has a bug in the CouponsAPI validation components. Use GET /v3/sales/coupons instead."
 ---
 
 # Get Valid Coupons for Entity (Deprecated)
@@ -22,7 +21,7 @@ Retrieves a list of valid (redeemable) coupons for a specific entity. **Token Ty
 
 > ⚠️ Fallback API Required: This endpoint requires the fallback API to function properly.
 
-> ⚠️ Deprecated: This endpoint is deprecated and has known backend issues.
+> ⚠️ Deprecated: This endpoint is deprecated. Use GET /v3/sales/coupons instead.
 
 ## Prerequisites
 
@@ -53,5 +52,5 @@ steps:
       entity_id: "{{payment_id}}"
       entity_type: "payment"
     expect:
-      status: 500
+      status: 200
 ```

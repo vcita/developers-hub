@@ -3,9 +3,9 @@ endpoint: "POST /platform/v1/clients"
 domain: clients
 tags: [clients, platform]
 swagger: "swagger/clients/legacy/legacy_v1_clients.json"
-status: pending
+status: verified
 savedAt: "2026-02-06T07:54:47.523Z"
-verifiedAt: "2026-02-06T07:54:47.523Z"
+verifiedAt: 2026-03-02T05:38:03.595Z
 timesReused: 0
 ---
 

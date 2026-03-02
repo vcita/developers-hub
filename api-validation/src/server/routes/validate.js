@@ -1207,6 +1207,25 @@ async function runValidation(session, endpoints, appConfig, options = {}, allEnd
                     request: fullRequestInfo,
                     response: { status: response.status, headers: response.headers, data: response.data }
                   });
+                  
+                  // Auto-promote pending workflows to verified on 2xx PASS.
+                  // If the API returned 2xx, the workflow is proven to work regardless
+                  // of any stale expectedOutcome in the metadata.
+                  const pendingWorkflow = existingWorkflow || workflowRepo.get(endpointKey);
+                  if (pendingWorkflow && pendingWorkflow.status === 'pending') {
+                    const updates = {
+                      status: 'verified',
+                      verifiedAt: new Date().toISOString()
+                    };
+                    const eo = pendingWorkflow.metadata?.expectedOutcome;
+                    if (eo && (parseInt(eo, 10) < 200 || parseInt(eo, 10) >= 300)) {
+                      console.log(`  [Auto-Verify] Clearing stale expectedOutcome ${eo} (API returned 2xx) for ${endpointKey}`);
+                      updates.expectedOutcome = '';
+                      updates.expectedOutcomeReason = '';
+                    }
+                    console.log(`  [Auto-Verify] Promoting pending workflow to verified for ${endpointKey}`);
+                    workflowRepo.updateWorkflowMetadata(endpointKey, updates);
+                  }
                 }
               } else {
                 // Non-2xx response (but status IS documented)

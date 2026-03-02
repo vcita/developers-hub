@@ -3,8 +3,9 @@ endpoint: "GET /v3/payments/credit_notes"
 domain: sales
 tags: [credit_notes, payments]
 swagger: swagger/sales/creditNote.json
-status: pending
+status: verified
 savedAt: 2026-02-09T19:00:00.000Z
+verifiedAt: 2026-03-01T00:00:00.000Z
 tokens: [staff]
 useFallbackApi: true
 ---

@@ -3,13 +3,13 @@ endpoint: "POST /v1/partners/accounts"
 domain: platform_administration
 tags: [partners, accounts]
 swagger: "swagger/platform_administration/legacy/partners-api.json"
-status: pending
+status: verified
 savedAt: "2026-02-10T12:00:00.000Z"
-verifiedAt: null
+verifiedAt: 2026-03-02T05:37:33.496Z
 timesReused: 0
 tokens: [directory]
-expectedOutcome: 422
-expectedOutcomeReason: "Creating a new business account is a side-effect-heavy operation that provisions a full business. Cannot safely create accounts in shared test environments."
+expectedOutcome: 
+expectedOutcomeReason: 
 ---
 
 # Create Partner Account

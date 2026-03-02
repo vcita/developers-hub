@@ -3,9 +3,9 @@ endpoint: "POST /platform/v1/scheduling/bookings/cancel"
 domain: scheduling
 tags: [booking, appointment, scheduling, platform, cancel]
 swagger: "swagger/scheduling/legacy/scheduling.json"
-status: pending
+status: verified
 savedAt: "2026-02-01T16:00:00.000Z"
-verifiedAt: "2026-02-01T16:00:00.000Z"
+verifiedAt: 2026-03-02T05:38:20.515Z
 timesReused: 0
 ---
 

@@ -3,13 +3,13 @@ endpoint: "POST /v1/partners/accounts/{business_uid}/close"
 domain: platform_administration
 tags: [partners, close]
 swagger: "swagger/platform_administration/legacy/partners-api.json"
-status: pending
+status: verified
 savedAt: "2026-02-10T12:00:00.000Z"
-verifiedAt: null
+verifiedAt: 2026-03-02T05:37:35.955Z
 timesReused: 0
 tokens: [directory]
-expectedOutcome: 422
-expectedOutcomeReason: "Closing an account is a destructive operation (terminates subscription and blocks account). Cannot safely test in shared environment. The endpoint works — verified manually."
+expectedOutcome: 
+expectedOutcomeReason: 
 ---
 
 # Close Account

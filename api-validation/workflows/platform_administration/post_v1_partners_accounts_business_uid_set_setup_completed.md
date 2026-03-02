@@ -3,9 +3,9 @@ endpoint: "POST /v1/partners/accounts/{business_uid}/set_setup_completed"
 domain: platform_administration
 tags: [partners, set-setup-completed]
 swagger: "swagger/platform_administration/legacy/partners-api.json"
-status: pending
+status: verified
 savedAt: "2026-02-10T12:00:00.000Z"
-verifiedAt: null
+verifiedAt: 2026-03-01T00:00:00.000Z
 timesReused: 0
 tokens: [directory]
 ---

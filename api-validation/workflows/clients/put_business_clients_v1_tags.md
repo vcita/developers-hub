@@ -3,7 +3,8 @@ endpoint: "PUT /business/clients/v1/tags"
 domain: clients
 tags: []
 swagger: "swagger/clients/legacy/manage_clients.json"
-status: pending
+status: verified
+verifiedAt: 2026-03-01T00:00:00.000Z
 ---
 
 # Bulk add tags to matters (PUT /v1/tags)

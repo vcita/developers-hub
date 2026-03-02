@@ -3,9 +3,9 @@ endpoint: "POST /business/clients/v1/matters/{matter_uid}/collaborators"
 domain: clients
 tags: [matters, collaborators]
 swagger: "swagger/clients/legacy/manage_clients.json"
-status: pending
+status: verified
 savedAt: "2026-02-06T07:50:32.112Z"
-verifiedAt: "2026-02-06T07:50:32.112Z"
+verifiedAt: 2026-03-02T05:37:05.542Z
 timesReused: 0
 ---
 

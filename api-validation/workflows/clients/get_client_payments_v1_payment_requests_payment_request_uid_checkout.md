@@ -3,9 +3,9 @@ endpoint: "GET /client/payments/v1/payment_requests/{payment_request_uid}/checko
 domain: clients
 tags: [payments, checkout, client]
 swagger: "swagger/clients/legacy/clients_payments.json"
-status: pending
+status: verified
 savedAt: "2026-02-02T20:28:51.979Z"
-verifiedAt: "2026-02-02T20:28:51.979Z"
+verifiedAt: 2026-03-01T22:31:00.749Z
 timesReused: 0
 tokens: [staff, client]
 ---
