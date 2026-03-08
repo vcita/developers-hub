@@ -6,9 +6,9 @@
     "version": "3.0",
     "x-generated": {
       "sourceFiles": [
+        "directory.json",
         "legacy_v1_platform.json",
         "license.json",
-        "directory.json",
         "staff.json",
         "staff_member.json",
         "oauth.json",
@@ -291,6 +291,15 @@
         {
           "type": "schema",
           "name": "ErrorResponse",
+          "resolution": "Renamed to ErrorResponse_license",
+          "files": [
+            "merged",
+            "license.json"
+          ]
+        },
+        {
+          "type": "schema",
+          "name": "ErrorResponse",
           "resolution": "Renamed to ErrorResponse_online_profiles",
           "files": [
             "merged",
@@ -308,7 +317,7 @@
         }
       ],
       "totalPaths": 70,
-      "totalComponents": 28
+      "totalComponents": 31
     }
   },
   "servers": [
@@ -318,6 +327,581 @@
     }
   ],
   "paths": {
+    "/v3/business_administration/directories": {
+      "post": {
+        "summary": "Create a Directory",
+        "description": "Creates a new directory with the provided configuration.\n\nAvailable for **Internal tokens**",
+        "tags": [
+          "Directory"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDirectoryRequest"
+              },
+              "example": {
+                "name": "samplepartner",
+                "partner_name": "samplepartner",
+                "admin_email": "samplepartner@vcita.com",
+                "billing_type": "manual",
+                "manual_type": "co_branded",
+                "configuration_key": "samplepartner",
+                "is_managed": true,
+                "is_deprecated": false,
+                "is_trial_allowed": false,
+                "default_package_id": 243,
+                "settings": {
+                  "managed_login_url": "https://one.samplepartner.com/authbridge/oauth/login",
+                  "change_password_url": "https://auth.samplepartner.com/forgot_password",
+                  "compliance_in_billing_app": true,
+                  "enable_upgrade_page_tab": "1",
+                  "ada_handle": "samplepartner"
+                },
+                "urls": {
+                  "home_url": "https://www.samplepartner.com/",
+                  "support_url": "https://support.samplepartner.com/help",
+                  "signup_url": "https://www.samplepartner.com/signup",
+                  "upgrade_page_url": "https://www.samplepartner.com/upgrade"
+                },
+                "domain_hosting": {
+                  "subdomain": "samplepartner",
+                  "whitelabel_subdomain": true,
+                  "host_mapping": "one.samplepartner.com",
+                  "ssl_enabled": true
+                },
+                "configs": [
+                  "is_vcita_marketing",
+                  "is_default_rollout",
+                  "is_managed_partner"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Directory created successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/business_administration/directory.json"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Malformed request or invalid syntax.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "name",
+                      "code": "required",
+                      "message": "Name is required"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "configuration_key",
+                      "code": "taken",
+                      "message": "Configuration key is already in use"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "Directory": []
+          }
+        ]
+      },
+      "get": {
+        "summary": "Get a list of Directories",
+        "description": "Returns a filtered, paginated list of directories.\n\nAvailable for **Internal tokens**, **Directory Tokens** and **Staff Tokens**",
+        "tags": [
+          "Directory"
+        ],
+        "parameters": [
+          {
+            "name": "is_managed",
+            "in": "query",
+            "required": false,
+            "description": "Filter by whether the directory is a managed partner",
+            "schema": {
+              "type": "boolean"
+            },
+            "example": true
+          },
+          {
+            "name": "is_deprecated",
+            "in": "query",
+            "required": false,
+            "description": "Filter by whether the directory is deprecated",
+            "schema": {
+              "type": "boolean"
+            },
+            "example": false
+          },
+          {
+            "name": "configuration_key",
+            "in": "query",
+            "required": false,
+            "description": "Filter by a specific configuration key",
+            "schema": {
+              "type": "string"
+            },
+            "example": "abc"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Page number",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "description": "Number of items per page (max 1000)",
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "maximum": 1000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Directories retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Indicates if the request was successful",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "directories": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "https://vcita.github.io/developers-hub/entities/business_administration/directory.json"
+                          }
+                        }
+                      }
+                    },
+                    "paging": {
+                      "$ref": "#/components/schemas/Paging"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "data",
+                    "paging"
+                  ]
+                },
+                "examples": {
+                  "Full Response": {
+                    "summary": "Full directory details (Admin/Directory Token)",
+                    "value": {
+                      "success": true,
+                      "data": {
+                        "directories": [
+                          {
+                            "id": 123,
+                            "uid": "dir-123",
+                            "name": "Example Directory",
+                            "billing_type": "manual",
+                            "manual_type": "white_label",
+                            "configuration_key": "example",
+                            "is_managed": true,
+                            "is_deprecated": false,
+                            "is_trial_allowed": true,
+                            "is_slim_register_enabled": false,
+                            "is_social_links_on": true,
+                            "locale": "en",
+                            "time_zone": "America/New_York",
+                            "paypal_email": "",
+                            "rev_share": 20,
+                            "settings": {
+                              "enable_upgrade_page_tab": "1",
+                              "enable_separate_payment_method": "0",
+                              "myaccount_page_url": "",
+                              "managed_login_url": "",
+                              "block_external_app_uninstall": false
+                            },
+                            "urls": {
+                              "home_url": "https://home.example.com",
+                              "support_url": "https://support.example.com",
+                              "faq_url": "https://faq.example.com",
+                              "login_url": "https://login.example.com",
+                              "signup_url": "https://signup.example.com",
+                              "upgrade_page_url": "https://upgrade.example.com",
+                              "cancel_page_url": "https://cancel.example.com",
+                              "sms_purchase_url": "https://sms.example.com",
+                              "backoffice_url": "https://backoffice.example.com"
+                            },
+                            "created_at": "2023-08-01T12:00:00Z",
+                            "updated_at": "2023-10-01T12:00:00Z"
+                          }
+                        ]
+                      },
+                      "paging": {
+                        "page": 1,
+                        "per_page": 50,
+                        "total": 1
+                      }
+                    }
+                  },
+                  "Staff Response": {
+                    "summary": "Reduced directory details (Staff Token)",
+                    "value": {
+                      "success": true,
+                      "data": {
+                        "directories": [
+                          {
+                            "is_managed": true,
+                            "manual_type": "white_label",
+                            "configuration_key": "example",
+                            "mobile_app_ios": "https://app.store/id",
+                            "mobile_app_android": "https://play.google/id",
+                            "settings": {
+                              "enable_upgrade_page_tab": "1",
+                              "enable_separate_payment_method": "0",
+                              "myaccount_page_url": "https://myaccount.example.com",
+                              "managed_login_url": "https://sso.example.com",
+                              "block_external_app_uninstall": false
+                            },
+                            "urls": {
+                              "upgrade_page_url": "https://upgrade.example.com",
+                              "cancel_page_url": "https://cancel.example.com",
+                              "faq_url": "https://faq.example.com",
+                              "support_url": "https://support.example.com",
+                              "login_url": "https://login.example.com",
+                              "backoffice_url": "https://backoffice.example.com"
+                            }
+                          }
+                        ]
+                      },
+                      "paging": {
+                        "page": 1,
+                        "per_page": 50,
+                        "total": 1
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "Directory": []
+          }
+        ]
+      }
+    },
+    "/v3/business_administration/directories/{uid}": {
+      "put": {
+        "summary": "Update a Directory",
+        "description": "Updates an existing directory. Only provided fields will be modified; omitted fields remain unchanged.\n\nAvailable for **Internal tokens**",
+        "tags": [
+          "Directory"
+        ],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "The unique identifier of the directory",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDirectoryRequest"
+              },
+              "example": {
+                "admin_email": "new-admin@samplepartner.com",
+                "is_trial_allowed": true,
+                "settings": {
+                  "ada_handle": "samplepartner-v2",
+                  "compliance_in_billing_app": true
+                },
+                "domain_hosting": {
+                  "host_mapping": "app.samplepartner.com",
+                  "ssl_enabled": true
+                },
+                "configs": [
+                  "is_vcita_marketing",
+                  "is_default_rollout",
+                  "is_managed_partner"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Directory updated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/business_administration/directory.json"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Malformed request or invalid syntax.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Directory not found"
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "billing_type",
+                      "code": "invalid",
+                      "message": "Billing type must be one of: recurly, manual"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "Directory": []
+          }
+        ]
+      },
+      "get": {
+        "summary": "Retrieve a Directory",
+        "description": "Returns a specific directory based on its unique identifier.\n\nAvailable for **Internal tokens**, **Directory Tokens** and **Staff Tokens**",
+        "tags": [
+          "Directory"
+        ],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "The unique identifier of the directory",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Directory retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "Whether the API request was successful"
+                    },
+                    "data": {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/business_administration/directory.json"
+                    }
+                  }
+                },
+                "examples": {
+                  "Full Response": {
+                    "summary": "Full directory details (Admin/Directory Token)",
+                    "value": {
+                      "success": true,
+                      "data": {
+                        "id": 123,
+                        "uid": "dir-123",
+                        "name": "Example Directory",
+                        "billing_type": "manual",
+                        "manual_type": "white_label",
+                        "configuration_key": "example",
+                        "is_managed": true,
+                        "is_deprecated": false,
+                        "is_trial_allowed": true,
+                        "is_slim_register_enabled": false,
+                        "is_social_links_on": true,
+                        "locale": "en",
+                        "time_zone": "America/New_York",
+                        "paypal_email": "",
+                        "rev_share": 20,
+                        "settings": {
+                          "enable_upgrade_page_tab": "1",
+                          "enable_separate_payment_method": "0",
+                          "myaccount_page_url": "",
+                          "managed_login_url": "",
+                          "block_external_app_uninstall": false
+                        },
+                        "urls": {
+                          "home_url": "https://home.example.com",
+                          "support_url": "https://support.example.com",
+                          "faq_url": "https://faq.example.com",
+                          "login_url": "https://login.example.com",
+                          "signup_url": "https://signup.example.com",
+                          "upgrade_page_url": "https://upgrade.example.com",
+                          "cancel_page_url": "https://cancel.example.com",
+                          "sms_purchase_url": "https://sms.example.com",
+                          "backoffice_url": "https://backoffice.example.com"
+                        },
+                        "created_at": "2023-08-01T12:00:00Z",
+                        "updated_at": "2023-10-01T12:00:00Z"
+                      }
+                    }
+                  },
+                  "Staff Response": {
+                    "summary": "Reduced directory details (User/Staff Token)",
+                    "value": {
+                      "success": true,
+                      "data": {
+                        "is_managed": true,
+                        "manual_type": "white_label",
+                        "configuration_key": "example",
+                        "mobile_app_ios": "https://app.store/id",
+                        "mobile_app_android": "https://play.google/id",
+                        "settings": {
+                          "enable_upgrade_page_tab": "1",
+                          "enable_separate_payment_method": "0",
+                          "myaccount_page_url": "https://myaccount.example.com",
+                          "managed_login_url": "https://sso.example.com",
+                          "block_external_app_uninstall": false
+                        },
+                        "urls": {
+                          "upgrade_page_url": "https://upgrade.example.com",
+                          "cancel_page_url": "https://cancel.example.com",
+                          "faq_url": "https://faq.example.com",
+                          "support_url": "https://support.example.com",
+                          "login_url": "https://login.example.com",
+                          "backoffice_url": "https://backoffice.example.com"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Directory not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "Directory": []
+          }
+        ]
+      }
+    },
     "/platform/v1/businesses": {
       "get": {
         "description": "## Overview\nSearch for a business by external_reference_id or email.\n\nAvailable for **Directory Tokens only**.\n\n> **Note**: At least one filter parameter (email, external_id, or external_reference_id) is required for the API to return a result.",
@@ -5867,342 +6451,6 @@
         ]
       }
     },
-    "/v3/business_administration/directories": {
-      "get": {
-        "summary": "Get a list of Directories",
-        "description": "Returns a filtered, paginated list of directories.\n\nAvailable for **Internal tokens**, **Directory Tokens** and **Staff Tokens**",
-        "tags": [
-          "Directory"
-        ],
-        "parameters": [
-          {
-            "name": "is_managed",
-            "in": "query",
-            "required": false,
-            "description": "Filter by whether the directory is a managed partner",
-            "schema": {
-              "type": "boolean"
-            },
-            "example": true
-          },
-          {
-            "name": "is_deprecated",
-            "in": "query",
-            "required": false,
-            "description": "Filter by whether the directory is deprecated",
-            "schema": {
-              "type": "boolean"
-            },
-            "example": false
-          },
-          {
-            "name": "configuration_key",
-            "in": "query",
-            "required": false,
-            "description": "Filter by a specific configuration key",
-            "schema": {
-              "type": "string"
-            },
-            "example": "abc"
-          },
-          {
-            "name": "page",
-            "in": "query",
-            "required": false,
-            "description": "Page number",
-            "schema": {
-              "type": "integer",
-              "default": 1
-            }
-          },
-          {
-            "name": "per_page",
-            "in": "query",
-            "required": false,
-            "description": "Number of items per page (max 1000)",
-            "schema": {
-              "type": "integer",
-              "default": 50,
-              "maximum": 1000
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Directories retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "description": "Indicates if the request was successful",
-                      "example": true
-                    },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "directories": {
-                          "type": "array",
-                          "items": {
-                            "$ref": "https://vcita.github.io/developers-hub/entities/business_administration/directory.json"
-                          }
-                        }
-                      }
-                    },
-                    "paging": {
-                      "$ref": "#/components/schemas/Paging"
-                    }
-                  },
-                  "required": [
-                    "success",
-                    "data",
-                    "paging"
-                  ]
-                },
-                "examples": {
-                  "Full Response": {
-                    "summary": "Full directory details (Admin/Directory Token)",
-                    "value": {
-                      "success": true,
-                      "data": {
-                        "directories": [
-                          {
-                            "id": 123,
-                            "uid": "dir-123",
-                            "name": "Example Directory",
-                            "billing_type": "manual",
-                            "manual_type": "white_label",
-                            "configuration_key": "example",
-                            "is_managed": true,
-                            "is_deprecated": false,
-                            "is_trial_allowed": true,
-                            "is_slim_register_enabled": false,
-                            "is_social_links_on": true,
-                            "locale": "en",
-                            "time_zone": "America/New_York",
-                            "paypal_email": "",
-                            "rev_share": 20,
-                            "settings": {
-                              "enable_upgrade_page_tab": "1",
-                              "enable_separate_payment_method": "0",
-                              "myaccount_page_url": "",
-                              "managed_login_url": "",
-                              "block_external_app_uninstall": false
-                            },
-                            "urls": {
-                              "home_url": "https://home.example.com",
-                              "support_url": "https://support.example.com",
-                              "faq_url": "https://faq.example.com",
-                              "login_url": "https://login.example.com",
-                              "signup_url": "https://signup.example.com",
-                              "upgrade_page_url": "https://upgrade.example.com",
-                              "cancel_page_url": "https://cancel.example.com",
-                              "sms_purchase_url": "https://sms.example.com",
-                              "backoffice_url": "https://backoffice.example.com"
-                            },
-                            "created_at": "2023-08-01T12:00:00Z",
-                            "updated_at": "2023-10-01T12:00:00Z"
-                          }
-                        ]
-                      },
-                      "paging": {
-                        "page": 1,
-                        "per_page": 50,
-                        "total": 1
-                      }
-                    }
-                  },
-                  "Staff Response": {
-                    "summary": "Reduced directory details (Staff Token)",
-                    "value": {
-                      "success": true,
-                      "data": {
-                        "directories": [
-                          {
-                            "is_managed": true,
-                            "manual_type": "white_label",
-                            "configuration_key": "example",
-                            "mobile_app_ios": "https://app.store/id",
-                            "mobile_app_android": "https://play.google/id",
-                            "settings": {
-                              "enable_upgrade_page_tab": "1",
-                              "enable_separate_payment_method": "0",
-                              "myaccount_page_url": "https://myaccount.example.com",
-                              "managed_login_url": "https://sso.example.com",
-                              "block_external_app_uninstall": false
-                            },
-                            "urls": {
-                              "upgrade_page_url": "https://upgrade.example.com",
-                              "cancel_page_url": "https://cancel.example.com",
-                              "faq_url": "https://faq.example.com",
-                              "support_url": "https://support.example.com",
-                              "login_url": "https://login.example.com",
-                              "backoffice_url": "https://backoffice.example.com"
-                            }
-                          }
-                        ]
-                      },
-                      "paging": {
-                        "page": 1,
-                        "per_page": 50,
-                        "total": 1
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "Directory": []
-          }
-        ]
-      }
-    },
-    "/v3/business_administration/directories/{uid}": {
-      "get": {
-        "summary": "Retrieve a Directory",
-        "description": "Returns a specific directory based on its unique identifier.\n\nAvailable for **Internal tokens**, **Directory Tokens** and **Staff Tokens**",
-        "tags": [
-          "Directory"
-        ],
-        "parameters": [
-          {
-            "name": "uid",
-            "in": "path",
-            "required": true,
-            "description": "The unique identifier of the directory",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Directory retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "description": "Whether the API request was successful"
-                    },
-                    "data": {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/business_administration/directory.json"
-                    }
-                  }
-                },
-                "examples": {
-                  "Full Response": {
-                    "summary": "Full directory details (Admin/Directory Token)",
-                    "value": {
-                      "success": true,
-                      "data": {
-                        "id": 123,
-                        "uid": "dir-123",
-                        "name": "Example Directory",
-                        "billing_type": "manual",
-                        "manual_type": "white_label",
-                        "configuration_key": "example",
-                        "is_managed": true,
-                        "is_deprecated": false,
-                        "is_trial_allowed": true,
-                        "is_slim_register_enabled": false,
-                        "is_social_links_on": true,
-                        "locale": "en",
-                        "time_zone": "America/New_York",
-                        "paypal_email": "",
-                        "rev_share": 20,
-                        "settings": {
-                          "enable_upgrade_page_tab": "1",
-                          "enable_separate_payment_method": "0",
-                          "myaccount_page_url": "",
-                          "managed_login_url": "",
-                          "block_external_app_uninstall": false
-                        },
-                        "urls": {
-                          "home_url": "https://home.example.com",
-                          "support_url": "https://support.example.com",
-                          "faq_url": "https://faq.example.com",
-                          "login_url": "https://login.example.com",
-                          "signup_url": "https://signup.example.com",
-                          "upgrade_page_url": "https://upgrade.example.com",
-                          "cancel_page_url": "https://cancel.example.com",
-                          "sms_purchase_url": "https://sms.example.com",
-                          "backoffice_url": "https://backoffice.example.com"
-                        },
-                        "created_at": "2023-08-01T12:00:00Z",
-                        "updated_at": "2023-10-01T12:00:00Z"
-                      }
-                    }
-                  },
-                  "Staff Response": {
-                    "summary": "Reduced directory details (User/Staff Token)",
-                    "value": {
-                      "success": true,
-                      "data": {
-                        "is_managed": true,
-                        "manual_type": "white_label",
-                        "configuration_key": "example",
-                        "mobile_app_ios": "https://app.store/id",
-                        "mobile_app_android": "https://play.google/id",
-                        "settings": {
-                          "enable_upgrade_page_tab": "1",
-                          "enable_separate_payment_method": "0",
-                          "myaccount_page_url": "https://myaccount.example.com",
-                          "managed_login_url": "https://sso.example.com",
-                          "block_external_app_uninstall": false
-                        },
-                        "urls": {
-                          "upgrade_page_url": "https://upgrade.example.com",
-                          "cancel_page_url": "https://cancel.example.com",
-                          "faq_url": "https://faq.example.com",
-                          "support_url": "https://support.example.com",
-                          "login_url": "https://login.example.com",
-                          "backoffice_url": "https://backoffice.example.com"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
-          },
-          "404": {
-            "description": "Directory not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "Directory": []
-          }
-        ]
-      }
-    },
     "/business/staffs/v1/daily_staff_sign_ins": {
       "get": {
         "description": "## Overview\nGet daily sign-in records for the business's staff members within a specified date range.\n\nAvailable for **Staff and Directory Tokens**.",
@@ -10604,21 +10852,834 @@
     }
   },
   "components": {
-    "securitySchemes": {
-      "Bearer": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT",
-        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
-      },
-      "Directory": {
-        "type": "http",
-        "scheme": "bearer",
-        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
-      }
-    },
     "schemas": {
+      "Paging": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "description": "Current page number",
+            "example": 1
+          },
+          "per_page": {
+            "type": "integer",
+            "description": "Number of items per page",
+            "example": 50
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of items",
+            "example": 2
+          }
+        }
+      },
+      "CreateDirectoryRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the directory. Used only internally."
+          },
+          "partner_name": {
+            "type": "string",
+            "description": "Partner-facing display name for the directory (e.g., \"samplepartner\")."
+          },
+          "parent_directory_id": {
+            "type": "integer",
+            "description": "ID of the parent directory, if this directory is a child of another directory.",
+            "nullable": true
+          },
+          "admin_email": {
+            "type": "string",
+            "format": "email",
+            "description": "Administrative contact email for the directory (e.g., \"samplepartner@vcita.com\")."
+          },
+          "billing_type": {
+            "type": "string",
+            "description": "Billing type for the directory.",
+            "enum": [
+              "recurly",
+              "manual"
+            ]
+          },
+          "manual_type": {
+            "type": "string",
+            "description": "Manual type of the directory. Use this to ensure Solution Provider / White Label features even if the directory owner didn't pay for it or there was a payment issue.",
+            "enum": [
+              "solution_provider",
+              "white_label",
+              "co_branded"
+            ],
+            "nullable": true
+          },
+          "configuration_key": {
+            "type": "string",
+            "description": "Configuration key for the directory."
+          },
+          "branding_theme_id": {
+            "type": "string",
+            "description": "ID of the branding theme applied to the directory.",
+            "nullable": true
+          },
+          "management_theme_id": {
+            "type": "string",
+            "description": "ID of the management theme applied to the directory.",
+            "nullable": true
+          },
+          "management_theme_attributes": {
+            "type": "object",
+            "description": "Attributes for the management theme associated with the directory.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "ID of the management theme."
+              },
+              "logo_url": {
+                "type": "string",
+                "description": "URL of the logo used in the management theme.",
+                "nullable": true
+              }
+            }
+          },
+          "is_managed": {
+            "type": "boolean",
+            "description": "Indicates if the directory is managed by a partner. Relevant for reports only."
+          },
+          "is_deprecated": {
+            "type": "boolean",
+            "description": "Indicates if the directory is deprecated."
+          },
+          "is_trial_allowed": {
+            "type": "boolean",
+            "description": "Indicates if trial accounts are allowed for this directory."
+          },
+          "is_slim_register_enabled": {
+            "type": "boolean",
+            "description": "Indicates if slim registration mode is enabled during onboarding."
+          },
+          "is_social_links_on": {
+            "type": "boolean",
+            "description": "Indicates if social links are enabled."
+          },
+          "locale": {
+            "type": "string",
+            "description": "Default locale for the directory."
+          },
+          "time_zone": {
+            "type": "string",
+            "description": "Default time zone for the directory."
+          },
+          "paypal_email": {
+            "type": "string",
+            "description": "PayPal email for the directory."
+          },
+          "rev_share": {
+            "type": "number",
+            "description": "Revenue share percentage (e.g., 20)."
+          },
+          "rev_share_tier2": {
+            "type": "number",
+            "description": "Revenue share percentage for tier 2.",
+            "nullable": true
+          },
+          "banners_visibility": {
+            "type": "string",
+            "description": "Controls banner visibility across the directory.",
+            "enum": [
+              "show",
+              "hide"
+            ],
+            "nullable": true
+          },
+          "only_owner_login_redirect": {
+            "type": "boolean",
+            "description": "When true, only the business owner is redirected to the logout URL on logout. When false and logout URL is defined, all logged-out users are redirected."
+          },
+          "custom_sms_sending_phone_number": {
+            "type": "string",
+            "description": "Custom SMS sending phone number."
+          },
+          "settings": {
+            "type": "object",
+            "description": "Directory settings and configuration options.",
+            "properties": {
+              "block_external_app_uninstall": {
+                "type": "boolean",
+                "description": "When enabled, apps purchased via API (payment_type: external) cannot be uninstalled from the App Market."
+              },
+              "disable_google_signup": {
+                "type": "integer",
+                "description": "Whether Google signup is disabled (0 = enabled, 1 = disabled)."
+              },
+              "static_page_data": {
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "url": {
+                        "type": "string"
+                      },
+                      "url_params": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                ],
+                "description": "Static page configuration data. Must use the same subdomain as the directory."
+              },
+              "myaccount_page_url": {
+                "type": "string",
+                "description": "My account page URL."
+              },
+              "managed_login_url": {
+                "type": "string",
+                "description": "Managed login URL for SSO."
+              },
+              "new_staff_url": {
+                "type": "string",
+                "description": "URL for adding new staff members."
+              },
+              "change_password_url": {
+                "type": "string",
+                "description": "URL for password change."
+              },
+              "use_login_with_code": {
+                "type": "boolean",
+                "description": "Whether login with code is enabled."
+              },
+              "facebook_pages_app_id": {
+                "type": "string",
+                "description": "Facebook Pages app ID."
+              },
+              "op_support_url": {
+                "type": "string",
+                "description": "Operator support page URL."
+              },
+              "privacy_policy": {
+                "type": "string",
+                "description": "Privacy policy URL. If left blank, the default URL is intandem.vcita.com/privacy-policy."
+              },
+              "terms_of_service": {
+                "type": "string",
+                "description": "Terms of service URL. If left blank, the default URL is intandem.vcita.com/terms-of-service."
+              },
+              "compliance_in_billing_app": {
+                "type": "boolean",
+                "description": "Whether TOS and privacy policy are visible in the billing app."
+              },
+              "enable_upgrade_page_tab": {
+                "type": "string",
+                "description": "Whether the upgrade page opens in a new tab (\"0\" = disabled, \"1\" = enabled)."
+              },
+              "enable_separate_payment_method": {
+                "type": "string",
+                "description": "Whether a separate payment method section is enabled for add-on purchases (\"0\" = disabled, \"1\" = enabled)."
+              },
+              "external_review_site": {
+                "type": "object",
+                "description": "External review site configuration.",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "description": "Review site URL."
+                  },
+                  "label": {
+                    "type": "string",
+                    "description": "Review site display name."
+                  }
+                }
+              },
+              "revshare_coupon": {
+                "type": "string",
+                "description": "Revenue share coupon code."
+              },
+              "app_market_url": {
+                "type": "string",
+                "description": "Custom app market URL."
+              },
+              "ada_handle": {
+                "type": "string",
+                "description": "ADA chatbot handle code configured in ada.support. Each partner has a separate ADA dashboard."
+              },
+              "pendo": {
+                "type": "string",
+                "description": "Pendo analytics data/configuration for the directory.",
+                "nullable": true
+              },
+              "chatbot": {
+                "type": "string",
+                "description": "Custom chatbot HTML snippet injected into the directory pages.",
+                "nullable": true
+              }
+            }
+          },
+          "welcome_engagement_params": {
+            "type": "object",
+            "description": "Welcome engagement parameters.",
+            "nullable": true
+          },
+          "is_unsubscribe_sms": {
+            "type": "boolean",
+            "description": "Indicates if unsubscribe text is added to SMS messages."
+          },
+          "is_disable_analytics": {
+            "type": "boolean",
+            "description": "Indicates if analytics are disabled."
+          },
+          "is_content_manager_enabled": {
+            "type": "boolean",
+            "description": "Indicates if the directory is added to Verticalization (content manager)."
+          },
+          "is_user_identity_manager_enabled": {
+            "type": "boolean",
+            "description": "Indicates if the directory manages user identities."
+          },
+          "default_package_id": {
+            "type": "integer",
+            "description": "Default package ID assigned to new businesses in this directory."
+          },
+          "is_default_self_paid": {
+            "type": "boolean",
+            "description": "Indicates if default self paid is enabled."
+          },
+          "mobile_app_name": {
+            "type": "string",
+            "description": "Mobile app name."
+          },
+          "mobile_app_ios": {
+            "type": "string",
+            "description": "iOS mobile app URL."
+          },
+          "mobile_app_android": {
+            "type": "string",
+            "description": "Android mobile app URL."
+          },
+          "email_template_owner_uid": {
+            "type": "string",
+            "description": "Email template owner UID."
+          },
+          "staff_widget_board_template_business_uid": {
+            "type": "string",
+            "description": "UID of the business used as the template for staff widget boards.",
+            "nullable": true
+          },
+          "urls": {
+            "type": "object",
+            "description": "Collection of setup URLs related to the directory.",
+            "properties": {
+              "home_url": {
+                "type": "string",
+                "description": "Home URL for the directory."
+              },
+              "support_url": {
+                "type": "string",
+                "description": "Support URL for the directory."
+              },
+              "faq_url": {
+                "type": "string",
+                "description": "FAQ URL for the directory."
+              },
+              "login_url": {
+                "type": "string",
+                "description": "Logout redirect URL for the directory."
+              },
+              "signup_url": {
+                "type": "string",
+                "description": "Signup URL for the directory."
+              },
+              "upgrade_page_url": {
+                "type": "string",
+                "description": "Upgrade page URL for the directory."
+              },
+              "cancel_page_url": {
+                "type": "string",
+                "description": "Cancel page URL for the directory."
+              },
+              "sms_purchase_url": {
+                "type": "string",
+                "description": "SMS purchase URL for the directory."
+              },
+              "backoffice_url": {
+                "type": "string",
+                "description": "Operator Portal Backoffice URL for the directory."
+              }
+            }
+          },
+          "domain_hosting": {
+            "type": "object",
+            "description": "Domain and hosting configuration for the directory's whitelabel setup.",
+            "properties": {
+              "subdomain": {
+                "type": "string",
+                "description": "The subdomain for the directory. Available at subdomain.vcita.com (or subdomain.myclients.io)."
+              },
+              "whitelabel_subdomain": {
+                "type": "boolean",
+                "description": "When true, forces the whitelabel domain (subdomain.myclients.io) if host mapping is not configured."
+              },
+              "host_mapping": {
+                "type": "string",
+                "description": "The whitelabel host for the directory. The vendor must configure DNS to point to the configured subdomain.",
+                "nullable": true
+              },
+              "ssl_enabled": {
+                "type": "boolean",
+                "description": "When true, an SSL certificate has been deployed for the host mapping and all traffic is force-redirected to HTTPS."
+              },
+              "old_host_mapping": {
+                "type": "string",
+                "description": "The previous whitelabel host mapping. Used to redirect to myclients.io when the host mapping is removed.",
+                "nullable": true
+              }
+            }
+          },
+          "configs": {
+            "type": "array",
+            "description": "Directory-level configuration flags that control behavior and categorization.",
+            "items": {
+              "type": "string",
+              "enum": [
+                "is_vcita_marketing",
+                "is_vcita_sales",
+                "is_vcita_cs",
+                "is_vcita_support",
+                "is_default_rollout",
+                "is_managed_partner",
+                "is_sandbox",
+                "send_confirmation_email"
+              ]
+            },
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "name",
+          "billing_type",
+          "configuration_key"
+        ]
+      },
+      "UpdateDirectoryRequest": {
+        "type": "object",
+        "description": "All fields are optional. Only provided fields will be updated.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the directory. Used only internally."
+          },
+          "partner_name": {
+            "type": "string",
+            "description": "Partner-facing display name for the directory."
+          },
+          "parent_directory_id": {
+            "type": "integer",
+            "description": "ID of the parent directory, if this directory is a child of another directory.",
+            "nullable": true
+          },
+          "admin_email": {
+            "type": "string",
+            "format": "email",
+            "description": "Administrative contact email for the directory."
+          },
+          "billing_type": {
+            "type": "string",
+            "description": "Billing type for the directory.",
+            "enum": [
+              "recurly",
+              "manual"
+            ]
+          },
+          "manual_type": {
+            "type": "string",
+            "description": "Manual type of the directory.",
+            "enum": [
+              "solution_provider",
+              "white_label",
+              "co_branded"
+            ],
+            "nullable": true
+          },
+          "configuration_key": {
+            "type": "string",
+            "description": "Configuration key for the directory."
+          },
+          "branding_theme_id": {
+            "type": "string",
+            "description": "ID of the branding theme applied to the directory.",
+            "nullable": true
+          },
+          "management_theme_id": {
+            "type": "string",
+            "description": "ID of the management theme applied to the directory.",
+            "nullable": true
+          },
+          "management_theme_attributes": {
+            "type": "object",
+            "description": "Attributes for the management theme associated with the directory.",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "ID of the management theme."
+              },
+              "logo_url": {
+                "type": "string",
+                "description": "URL of the logo used in the management theme.",
+                "nullable": true
+              }
+            }
+          },
+          "is_managed": {
+            "type": "boolean",
+            "description": "Indicates if the directory is managed by a partner."
+          },
+          "is_deprecated": {
+            "type": "boolean",
+            "description": "Indicates if the directory is deprecated."
+          },
+          "is_trial_allowed": {
+            "type": "boolean",
+            "description": "Indicates if trial accounts are allowed for this directory."
+          },
+          "is_slim_register_enabled": {
+            "type": "boolean",
+            "description": "Indicates if slim registration mode is enabled during onboarding."
+          },
+          "is_social_links_on": {
+            "type": "boolean",
+            "description": "Indicates if social links are enabled."
+          },
+          "locale": {
+            "type": "string",
+            "description": "Default locale for the directory."
+          },
+          "time_zone": {
+            "type": "string",
+            "description": "Default time zone for the directory."
+          },
+          "paypal_email": {
+            "type": "string",
+            "description": "PayPal email for the directory."
+          },
+          "rev_share": {
+            "type": "number",
+            "description": "Revenue share percentage."
+          },
+          "rev_share_tier2": {
+            "type": "number",
+            "description": "Revenue share percentage for tier 2.",
+            "nullable": true
+          },
+          "banners_visibility": {
+            "type": "string",
+            "description": "Controls banner visibility across the directory.",
+            "enum": [
+              "show",
+              "hide"
+            ],
+            "nullable": true
+          },
+          "only_owner_login_redirect": {
+            "type": "boolean",
+            "description": "When true, only the business owner is redirected to the logout URL on logout."
+          },
+          "custom_sms_sending_phone_number": {
+            "type": "string",
+            "description": "Custom SMS sending phone number."
+          },
+          "settings": {
+            "type": "object",
+            "description": "Directory settings and configuration options. Only provided sub-fields will be updated.",
+            "properties": {
+              "block_external_app_uninstall": {
+                "type": "boolean",
+                "description": "When enabled, apps purchased via API (payment_type: external) cannot be uninstalled from the App Market."
+              },
+              "disable_google_signup": {
+                "type": "integer",
+                "description": "Whether Google signup is disabled (0 = enabled, 1 = disabled)."
+              },
+              "static_page_data": {
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "url": {
+                        "type": "string"
+                      },
+                      "url_params": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                ],
+                "description": "Static page configuration data."
+              },
+              "myaccount_page_url": {
+                "type": "string",
+                "description": "My account page URL."
+              },
+              "managed_login_url": {
+                "type": "string",
+                "description": "Managed login URL for SSO."
+              },
+              "new_staff_url": {
+                "type": "string",
+                "description": "URL for adding new staff members."
+              },
+              "change_password_url": {
+                "type": "string",
+                "description": "URL for password change."
+              },
+              "use_login_with_code": {
+                "type": "boolean",
+                "description": "Whether login with code is enabled."
+              },
+              "facebook_pages_app_id": {
+                "type": "string",
+                "description": "Facebook Pages app ID."
+              },
+              "op_support_url": {
+                "type": "string",
+                "description": "Operator support page URL."
+              },
+              "privacy_policy": {
+                "type": "string",
+                "description": "Privacy policy URL."
+              },
+              "terms_of_service": {
+                "type": "string",
+                "description": "Terms of service URL."
+              },
+              "compliance_in_billing_app": {
+                "type": "boolean",
+                "description": "Whether TOS and privacy policy are visible in the billing app."
+              },
+              "enable_upgrade_page_tab": {
+                "type": "string",
+                "description": "Whether the upgrade page opens in a new tab (\"0\" or \"1\")."
+              },
+              "enable_separate_payment_method": {
+                "type": "string",
+                "description": "Whether a separate payment method section is enabled (\"0\" or \"1\")."
+              },
+              "external_review_site": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "description": "Review site URL."
+                  },
+                  "label": {
+                    "type": "string",
+                    "description": "Review site display name."
+                  }
+                }
+              },
+              "revshare_coupon": {
+                "type": "string",
+                "description": "Revenue share coupon code."
+              },
+              "app_market_url": {
+                "type": "string",
+                "description": "Custom app market URL."
+              },
+              "ada_handle": {
+                "type": "string",
+                "description": "ADA chatbot handle code."
+              },
+              "pendo": {
+                "type": "string",
+                "description": "Pendo analytics data/configuration.",
+                "nullable": true
+              },
+              "chatbot": {
+                "type": "string",
+                "description": "Custom chatbot HTML snippet.",
+                "nullable": true
+              }
+            }
+          },
+          "welcome_engagement_params": {
+            "type": "object",
+            "description": "Welcome engagement parameters.",
+            "nullable": true
+          },
+          "is_unsubscribe_sms": {
+            "type": "boolean",
+            "description": "Indicates if unsubscribe text is added to SMS messages."
+          },
+          "is_disable_analytics": {
+            "type": "boolean",
+            "description": "Indicates if analytics are disabled."
+          },
+          "is_content_manager_enabled": {
+            "type": "boolean",
+            "description": "Indicates if the directory is added to Verticalization (content manager)."
+          },
+          "is_user_identity_manager_enabled": {
+            "type": "boolean",
+            "description": "Indicates if the directory manages user identities."
+          },
+          "default_package_id": {
+            "type": "integer",
+            "description": "Default package ID assigned to new businesses in this directory."
+          },
+          "is_default_self_paid": {
+            "type": "boolean",
+            "description": "Indicates if default self paid is enabled."
+          },
+          "mobile_app_name": {
+            "type": "string",
+            "description": "Mobile app name."
+          },
+          "mobile_app_ios": {
+            "type": "string",
+            "description": "iOS mobile app URL."
+          },
+          "mobile_app_android": {
+            "type": "string",
+            "description": "Android mobile app URL."
+          },
+          "email_template_owner_uid": {
+            "type": "string",
+            "description": "Email template owner UID."
+          },
+          "staff_widget_board_template_business_uid": {
+            "type": "string",
+            "description": "UID of the business used as the template for staff widget boards.",
+            "nullable": true
+          },
+          "urls": {
+            "type": "object",
+            "description": "Collection of setup URLs. Only provided sub-fields will be updated.",
+            "properties": {
+              "home_url": {
+                "type": "string",
+                "description": "Home URL for the directory."
+              },
+              "support_url": {
+                "type": "string",
+                "description": "Support URL for the directory."
+              },
+              "faq_url": {
+                "type": "string",
+                "description": "FAQ URL for the directory."
+              },
+              "login_url": {
+                "type": "string",
+                "description": "Logout redirect URL for the directory."
+              },
+              "signup_url": {
+                "type": "string",
+                "description": "Signup URL for the directory."
+              },
+              "upgrade_page_url": {
+                "type": "string",
+                "description": "Upgrade page URL for the directory."
+              },
+              "cancel_page_url": {
+                "type": "string",
+                "description": "Cancel page URL for the directory."
+              },
+              "sms_purchase_url": {
+                "type": "string",
+                "description": "SMS purchase URL for the directory."
+              },
+              "backoffice_url": {
+                "type": "string",
+                "description": "Operator Portal Backoffice URL for the directory."
+              }
+            }
+          },
+          "domain_hosting": {
+            "type": "object",
+            "description": "Domain and hosting configuration. Only provided sub-fields will be updated.",
+            "properties": {
+              "subdomain": {
+                "type": "string",
+                "description": "The subdomain for the directory."
+              },
+              "whitelabel_subdomain": {
+                "type": "boolean",
+                "description": "When true, forces the whitelabel domain if host mapping is not configured."
+              },
+              "host_mapping": {
+                "type": "string",
+                "description": "The whitelabel host for the directory.",
+                "nullable": true
+              },
+              "ssl_enabled": {
+                "type": "boolean",
+                "description": "When true, force-redirect to HTTPS."
+              },
+              "old_host_mapping": {
+                "type": "string",
+                "description": "The previous whitelabel host mapping.",
+                "nullable": true
+              }
+            }
+          },
+          "configs": {
+            "type": "array",
+            "description": "Directory-level configuration flags.",
+            "items": {
+              "type": "string",
+              "enum": [
+                "is_vcita_marketing",
+                "is_vcita_sales",
+                "is_vcita_cs",
+                "is_vcita_support",
+                "is_default_rollout",
+                "is_managed_partner",
+                "is_sandbox",
+                "send_confirmation_email"
+              ]
+            },
+            "uniqueItems": true
+          }
+        }
+      },
       "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": false
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "The field that caused the error."
+                },
+                "code": {
+                  "type": "string",
+                  "description": "Error code."
+                },
+                "message": {
+                  "type": "string",
+                  "description": "Human-readable error message."
+                }
+              }
+            }
+          }
+        }
+      },
+      "ErrorResponse_license": {
         "type": "object",
         "description": "Standard error response format.",
         "properties": {
@@ -11048,26 +12109,6 @@
           }
         }
       },
-      "Paging": {
-        "type": "object",
-        "properties": {
-          "page": {
-            "type": "integer",
-            "description": "Current page number",
-            "example": 1
-          },
-          "per_page": {
-            "type": "integer",
-            "description": "Number of items per page",
-            "example": 50
-          },
-          "total": {
-            "type": "integer",
-            "description": "Total number of items",
-            "example": 2
-          }
-        }
-      },
       "StaffMemberUpdate": {
         "type": "object",
         "description": "Request body for updating a staff member's profile information.",
@@ -11328,6 +12369,19 @@
             }
           }
         }
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+      },
+      "Directory": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
       }
     }
   },
