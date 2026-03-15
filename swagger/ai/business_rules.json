@@ -152,7 +152,7 @@
         "properties": {
           "job_uid": {
             "type": "string",
-            "description": "Unique identifier of the created bulk import job (e.g., \"job-a1b2c3d4-5678-90ef-ghij-klmnopqrstuv\")."
+            "description": "Unique identifier of the created bulk import job in UUID format (e.g., \"550e8400-e29b-41d4-a716-446655440000\")."
           },
           "status": {
             "type": "string",
@@ -160,11 +160,17 @@
             "enum": [
               "pending"
             ]
+          },
+          "message": {
+            "type": "string",
+            "description": "Human-readable status message confirming the job creation.",
+            "example": "Bulk import job created successfully. Processing will begin shortly."
           }
         },
         "required": [
           "job_uid",
-          "status"
+          "status",
+          "message"
         ]
       }
     },
@@ -182,7 +188,7 @@
       "post": {
         "operationId": "BusinessRulesController_createBulkImportJob",
         "summary": "Bulk import business rules",
-        "description": "## Overview\nCreate an async job to extract business rules from raw text using LLM. The system analyzes content, extracts rules, classifies by category, and deduplicates against existing rules.\n\n## Webhook Notification\nWhen the job completes, a webhook notification will be sent to subscribers of the `business_rules_bulk_import/completed` event. The webhook payload includes the complete list of created business rules.\n\n**To receive notifications:**\n1. Subscribe to the webhook event: `POST /platform/v1/webhook/subscribe` with `{\"event\": \"business_rules_bulk_import/completed\", \"target_url\": \"https://your-domain.com/webhook\"}`\n2. Your webhook will receive the job results including all created business rules\n\n**Webhook Payload Structure:**\n```json\n{\n  \"event\": \"business_rules_bulk_import/completed\",\n  \"data\": {\n    \"job_uid\": \"job-xxx\",\n    \"business_uid\": \"biz-xxx\",\n    \"status\": \"completed\",\n    \"business_rules\": [\n      {\n        \"uid\": \"br-xxx\",\n        \"content\": \"Rule content\",\n        \"category_code\": \"policies_and_info\",\n        \"status\": \"pending_approval\",\n        \"created_at\": \"2026-03-01T10:30:00.000Z\"\n      }\n    ] \n }\n}\n```\n\nAvailable for **Staff** tokens.",
+        "description": "## Overview\nCreate an async job to extract business rules from raw text using LLM. The system analyzes content, extracts rules, classifies by category, and deduplicates against existing rules.\n\n**Note:** Only available for businesses without existing rules.\n\n## Webhook Notification\nWhen the job completes, a webhook notification will be sent to subscribers of the `business_rules_bulk_import/completed` event. The webhook payload includes the complete list of created business rules.\n\n**To receive notifications:**\n1. Subscribe to the webhook event: `POST /platform/v1/webhook/subscribe` with `{\"event\": \"business_rules_bulk_import/completed\", \"target_url\": \"https://your-domain.com/webhook\"}`\n2. Your webhook will receive the job results including all created business rules\n\n**Webhook Payload Structure:**\n```json\n{\n  \"event\": \"business_rules_bulk_import/completed\",\n  \"data\": {\n    \"job_uid\": \"550e8400-e29b-41d4-a716-446655440000\",\n    \"business_uid\": \"biz-1234abcd-5678-90ef-ghij-klmnopqrstuv\",\n    \"status\": \"completed\",\n    \"business_rules\": [\n      {\n        \"uid\": \"br-a1b2c3d4-5678-90ef-ghij-klmnopqrstuv\",\n        \"content\": \"Rule content\",\n        \"category_code\": \"policies_and_info\",\n        \"status\": \"pending_approval\",\n        \"created_at\": \"2026-03-01T10:30:00.000Z\"\n      }\n    ]\n  }\n}\n```\n\nAvailable for **Staff** tokens.",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -194,12 +200,12 @@
                 "properties": {
                   "content": {
                     "type": "string",
-                    "description": "Raw unstructured text content to analyze for rule extraction (e.g., business profile, email threads, policy documents). Maximum 100KB.",
-                    "maxLength": 102400
+                    "description": "Raw unstructured text content to analyze for rule extraction (e.g., business profile, email threads, policy documents). Maximum 50KB.",
+                    "maxLength": 51200
                   },
                   "category_code": {
                     "type": "string",
-                    "description": "The category of business rules to extract from the content. All extracted rules will be assigned to this category.\n\nAvailable values:\n* `tone_of_voice` - Rules about communication style and tone.\n* `policies_and_info` - Rules about business operations and policies.\n* `things_to_avoid` - Rules about what the AI should not do or say.\n* `faq` - Frequently asked questions and their answers.\n* `client_facing_bot_policies` - Rules specifically for client-facing bot interactions.",
+                    "description": "Optional category code for the business rules to be generated. When provided, all extracted rules will be assigned to this category. If omitted, the system will automatically classify rules into appropriate categories.\n\nAvailable values:\n* `tone_of_voice` - Rules about communication style and tone.\n* `policies_and_info` - Rules about business operations and policies.\n* `things_to_avoid` - Rules about what the AI should not do or say.\n* `faq` - Frequently asked questions and their answers.\n* `client_facing_bot_policies` - Rules specifically for client-facing bot interactions.",
                     "enum": [
                       "tone_of_voice",
                       "policies_and_info",
@@ -211,13 +217,13 @@
                   },
                   "schema_description": {
                     "type": "string",
-                    "description": "Optional description of the content structure to help LLM understand the format (e.g., \"Structured business profile from onboarding intake. Fields: business identity, hours, About Us narrative, services list, service area, special notes.\").",
-                    "maxLength": 1000
+                    "description": "Optional description of the content structure to help LLM understand the format (e.g., \"Structured business profile from onboarding intake\").",
+                    "maxLength": 500
                   },
                   "ingestion_prompt": {
                     "type": "string",
-                    "description": "Optional instructions for the LLM on how to extract and categorize rules from the content (e.g., \"Extract FAQ pairs from services. Infer tone from About Us. Special Notes become individual policies_and_info rules.\").",
-                    "maxLength": 2000
+                    "description": "Optional custom prompt for content ingestion, providing instructions for how to extract rules from the content (e.g., \"Extract FAQ pairs from services section\").",
+                    "maxLength": 500
                   }
                 },
                 "required": [
@@ -225,10 +231,10 @@
                 ]
               },
               "example": {
-                "content": "Business Name: Duane's Body Shop, Inc.\nPhone: (701) 223-4924\nAddress: 1107 S 18TH ST, BISMARCK, ND 58504\n\nHours:\nMon-Fri: 7:30 AM - 5:30 PM\nSat-Sun: CLOSED\n\nAbout Us:\nFamily-owned since 1983, no appointment needed estimates, lifetime warranty on repairs. I-CAR Gold Certified.\n\nServices:\n- Collision & Body Repairs\n- Paintless Dent Repair\n- Hail Damage Repair\n\nSpecial Notes:\n- 10% military and first responder discount\n- Lifetime warranty on all repairs",
+                "content": "Business Name: Acme Corp\nHours: Mon-Fri 9-5\nRefund Policy: 30 days full refund on all products.\nCustomer Service: Always respond within 24 hours.\nContact: support@acme.com",
                 "category_code": "policies_and_info",
-                "schema_description": "Structured business profile from onboarding intake. Fields: business identity, hours, About Us narrative, services list, service area, special notes.",
-                "ingestion_prompt": "Extract FAQ pairs from services. Infer tone from About Us. Special Notes become individual policies_and_info rules."
+                "schema_description": "Structured business profile from onboarding intake",
+                "ingestion_prompt": "Extract FAQ pairs from services section"
               }
             }
           }
@@ -255,8 +261,9 @@
                 "example": {
                   "success": true,
                   "data": {
-                    "job_uid": "job-a1b2c3d4-5678-90ef-ghij-klmnopqrstuv",
-                    "status": "pending"
+                    "job_uid": "550e8400-e29b-41d4-a716-446655440000",
+                    "status": "pending",
+                    "message": "Bulk import job created successfully. Processing will begin shortly."
                   }
                 }
               }
@@ -305,12 +312,12 @@
                     {
                       "field": "content",
                       "code": "string.max",
-                      "message": "content must not exceed 100KB"
+                      "message": "content must not exceed 50KB"
                     },
                     {
-                      "field": "options.deduplication_threshold",
-                      "code": "number.max",
-                      "message": "deduplication_threshold must be between 0 and 1"
+                      "field": "schema_description",
+                      "code": "string.max",
+                      "message": "schema_description must not exceed 500 characters"
                     }
                   ]
                 }
