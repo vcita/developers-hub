@@ -17,8 +17,7 @@ An Offering represents a commercial agreement in the inTandem platform, describi
 | is_active | Current status of the directory offering | boolean |  |
 | vendor | The business entity or vendor that offers this SKU. | string (enum: `partner`, `inTandem`) |  |
 | prices |  | array of objects | Yes |
-| enable_trial | Whether or not this offering supports trial period | boolean |  |
-| trial_type | Specifies how the trial option is managed. When enable_trial is false, must be no_trial. When enable_trial is true, must be expire. Future values may include automatic_charge and manually_charge. | string (enum: `expire`, `no_trial`) |  |
+| trial_type | Specifies how the trial option is managed. expire: trial is enabled and subscription will expire after trial_period days. no_trial: no trial period. Future values may include automatic_charge and manually_charge. | string (enum: `expire`, `no_trial`) |  |
 | trial_period | Number of days for the trial period. If not specified or set to 0, it indicates no trial period is offered. | number |  |
 | reporting_tags | A list of tags to be used for reporting purposes | array of strings |  |
 
@@ -48,7 +47,6 @@ JSON
       "currency": "EUR"
     }
   ],
-  "enable_trial": false,
   "trial_type": "no_trial",
   "trial_period": 0,
   "reporting_tags": [
