@@ -1569,6 +1569,143 @@
         "description": "## Overview\nGet Open Checkout For Specific url_key.\n\nAvailable for **Staff, Directory, and Client tokens**"
       }
     },
+    "/payment/client_packages": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "## Overview\nCreate a Client Package — assigns a payment package to a specific client, creating a subscription-like record with optional validity dates and custom pricing.\n\n## Authentication\n**Available for Staff, App, and Directory tokens.**\n\n## Required Parameters\n- `client_id` — the UID of the client who will receive the package.\n- `package_id` — the UID of the package catalog entry to assign.\n\n## Optional Parameters\n- `valid_from` — start date in YYYY-MM-DD format (defaults to today).\n- `valid_until` — end date in YYYY-MM-DD format (defaults based on the package's configured expiration).\n- `price` — custom price override; when omitted the package's catalog price is used.\n- `conversation_id` — matter/conversation UID to associate with this client package.\n- `tax_uids` — array of tax UIDs to apply.\n\n## Notes\n- The `package_id` must reference a valid, active package in the business's catalog (created via `POST /platform/v1/payment/packages`).\n- Returns 422 when the request is invalid or the referenced package does not exist.",
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "schema": {
+              "properties": {
+                "client_id": {
+                  "description": "The UID of the client to assign the package to (e.g., \"9yxsdkr1hdjtocpv\").",
+                  "type": "string",
+                  "x-reference-to": "clients.contact"
+                },
+                "package_id": {
+                  "description": "The UID of the package catalog entry to assign (e.g., \"v2fvy50p8gjuvnvb\"). Must reference an active package created via POST /platform/v1/payment/packages.",
+                  "type": "string",
+                  "x-reference-to": "sales.package"
+                },
+                "valid_from": {
+                  "description": "Start date in YYYY-MM-DD format (e.g., \"2026-03-21\"). Defaults to today when omitted.",
+                  "type": "string",
+                  "format": "date"
+                },
+                "valid_until": {
+                  "description": "End date in YYYY-MM-DD format (e.g., \"2026-04-21\"). Defaults based on the package's configured expiration period when omitted.",
+                  "type": "string",
+                  "format": "date"
+                },
+                "price": {
+                  "description": "Custom price override for this client package (e.g., 120). When omitted, the package's catalog price is used.",
+                  "type": "number"
+                },
+                "conversation_id": {
+                  "description": "Matter/conversation UID to associate with this client package (e.g., \"war7ow99zh14qlty\").",
+                  "type": "string",
+                  "x-reference-to": "clients.matter"
+                },
+                "tax_uids": {
+                  "description": "Array of tax UIDs to apply to the client package.",
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "client_id",
+                "package_id"
+              ],
+              "type": "object"
+            }
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "201": {
+            "description": "Client package created successfully.",
+            "examples": {
+              "application/json": {
+                "data": {
+                  "client_package": {
+                    "id": "m73jkvg4bf2z71b2",
+                    "active": "true",
+                    "amount": 100,
+                    "business_id": "vqzqruk6nyclxpp6",
+                    "client_id": "9yxsdkr1hdjtocpv",
+                    "conversation_id": "war7ow99zh14qlty",
+                    "created_at": "2026-03-21T10:00:00.000Z",
+                    "currency": "USD",
+                    "name": "Music Lessons",
+                    "package_id": "v2fvy50p8gjuvnvb",
+                    "staff_id": "mg9d91uh92bclwzg",
+                    "valid_from": "2026-03-21",
+                    "valid_until": "2026-04-21",
+                    "booking_credits": [
+                      {
+                        "id": "vu1rovse0166a9d9",
+                        "total_bookings": "10",
+                        "bookings_usage": "0",
+                        "credit_items": [
+                          {
+                            "item_id": "mzuk2kkt7vjnxdwo",
+                            "item_type": "SERVICE",
+                            "bookings_usage": 0
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "status": "OK"
+              }
+            }
+          },
+          "422": {
+            "description": "Failure — validation error or referenced package not found.",
+            "examples": {
+              "application/json": {
+                "error": "Error Message",
+                "status": "Error"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "default": [
+              "platform"
+            ]
+          }
+        ],
+        "summary": "Create Client Package",
+        "tags": [
+          "Client Packages"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "responses": {
+            "default": {
+              "statusCode": "201"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///platform/v1/payment/client_packages"
+        },
+        "x-auth-type": "Application & Application User"
+      }
+    },
     "/payment/client_packages/cancel_redemption": {
       "put": {
         "consumes": [
@@ -1581,7 +1718,7 @@
             "schema": {
               "properties": {
                 "payment_status_id": {
-                  "description": "Payment status ID",
+                  "description": "The ID of the payment status whose package credit redemption should be reversed. Must reference a payment status that was previously paid via package credit.",
                   "type": "string",
                   "x-reference-to": "sales.payment_status"
                 }
@@ -1598,11 +1735,15 @@
         ],
         "responses": {
           "200": {
-            "description": "Client package credit updated",
+            "description": "Credit redemption cancelled successfully.",
             "examples": {
               "application/json": {
-                "data": {},
-                "status": "OK"
+                "status": "OK",
+                "data": {
+                  "payment_status_uid": "ps_abc123",
+                  "booking_credit_redemption_uid": "bcr_def456",
+                  "client_uid": "cl_ghi789"
+                }
               }
             }
           },
@@ -1623,7 +1764,7 @@
             ]
           }
         ],
-        "summary": "Cancel Client Package Credit Redemption [Alpha]",
+        "summary": "Cancel Credit Redemption [Alpha]",
         "tags": [
           "Client Packages"
         ],
@@ -1641,7 +1782,7 @@
           "uri": "https:///platform/v1/clients/payment/client_packages/cancel_redemption"
         },
         "x-auth-type": "Application & Application User",
-        "description": "## Overview\nCancel Client Package Credit Redemption [Alpha] Available for **Staff, App, and Directory tokens**."
+        "description": "## Overview\nReverse a previous package credit redemption, restoring the consumed credit back to the client's package. This is the undo operation for `POST /platform/v1/payment/client_packages/update_usage`.\n\n## Authentication\nAvailable for **Staff tokens**. **Directory and App tokens** are supported with the `X-On-Behalf-Of` header set to the target business UID. Also available for **Internal tokens**.\n\n## How It Works\n1. The system finds the `PaymentStatus` by the provided ID and locates the associated `BookingCreditRedemption`.\n2. The `bookings_usage` counter on the relevant `BookingCredit` is decremented by one, making the credit available again.\n3. The `BookingCreditRedemption` record is marked as inactive.\n4. The `PaymentStatus` is reset to pending with the original price restored (no longer marked as paid-by-package).\n\n## Required Parameters\n- `payment_status_id` (string) — The ID of the payment status whose package credit redemption should be reversed. Must reference a payment status that was previously paid via package credit.\n\n## Notes\n- Returns 422 if the payment status was not paid via a package credit.\n- This endpoint is in Alpha and may change.\n- Use this when an appointment is cancelled or rescheduled and the client's package credit should be returned."
       }
     },
     "/payment/client_packages/update_usage": {
@@ -1661,7 +1802,7 @@
                   "x-reference-to": "clients.matter"
                 },
                 "payment_status_uid": {
-                  "description": "Payment status UID",
+                  "description": "The UID of the payment status record to pay using a package credit. Must reference a pending/unpaid payment status linked to an appointment.",
                   "type": "string",
                   "x-reference-to": "sales.payment_status"
                 }
@@ -1723,7 +1864,7 @@
           "uri": "https:///platform/v1/clients/payment/client_packages/update_usage"
         },
         "x-auth-type": "Application & Application User",
-        "description": "## Overview\nUse Client Package Credit [Alpha] Available for **Staff, App, and Directory tokens**."
+        "description": "## Overview\nRedeem a credit from a client's active package to pay for an appointment or service session. This marks the associated payment status as paid (price set to $0) and decrements one credit from the client's package.\n\n## Authentication\nAvailable for **Staff tokens**. **Directory and App tokens** are supported with the `X-On-Behalf-Of` header set to the target business UID.\n\n## How It Works\n1. The system finds the `PaymentStatus` referenced by `payment_status_uid`, which links to a specific appointment/event and its service.\n2. It searches for active client packages belonging to that client that have available credits for the service in question. A package is eligible when: `valid_from <= now <= valid_until`, `active = true`, and `total_bookings > bookings_usage` for a credit matching the service.\n3. If multiple packages qualify, the **soonest-expiring package** is used first (ordered by `valid_until ASC`).\n4. One credit is consumed: `bookings_usage` is incremented, a `BookingCreditRedemption` record is created, and the `PaymentStatus` is set to paid with a zero price.\n\n## Required Parameters\n- `payment_status_uid` (string) — The UID of the payment status record to pay using a package credit. Must reference a pending/unpaid payment status linked to an appointment. Already-paid statuses return a 422 error.\n\n## Optional Parameters\n- `matter_uid` (string) — The matter/conversation UID that scopes which client packages to search. If omitted, the system attempts to find the default matter for the client associated with the payment status.\n\n## Notes\n- Returns 422 \"There is no package to use\" if no active client packages with available credits exist for the relevant service.\n- Returns 422 if the payment status is already paid.\n- This endpoint is in Alpha and may change.\n- To reverse a credit redemption, use `PUT /platform/v1/payment/client_packages/cancel_redemption`."
       }
     },
     "/payment/packages": {
@@ -1733,14 +1874,14 @@
         ],
         "parameters": [
           {
-            "description": "if exists the packages returns with their items",
+            "description": "Pass \"true\" to include the package items (service/product groups and their credit allocations) in the response. When omitted, items are not returned.",
             "in": "query",
             "name": "include_items",
             "required": false,
             "type": "string"
           },
           {
-            "description": "if exists the packages returns only active packages",
+            "description": "Pass \"true\" to return only active packages (not soft-deleted or deactivated). When omitted, all packages are returned regardless of active state.",
             "in": "query",
             "name": "active_only",
             "required": false,
@@ -1752,24 +1893,32 @@
         ],
         "responses": {
           "200": {
-            "description": "Packages Info Retrieved with active packages only",
+            "description": "Packages retrieved successfully.",
             "examples": {
               "application/json": {
                 "data": {
                   "packages": [
                     {
-                      "active": true,
+                      "id": "456687634585436",
+                      "name": "Package name",
                       "currency": "USD",
-                      "description": "Package description",
-                      "discount_amount": "25",
-                      "discount_unit": "f",
+                      "price": "223.5",
+                      "total_price": "223.5",
+                      "taxes": [],
                       "expiration": 1,
                       "expiration_unit": "m",
-                      "id": "456687634585436",
+                      "description": "Package description",
                       "image_path": null,
-                      "name": "Package name",
                       "online_payment_enabled": true,
-                      "price": "223.5",
+                      "discount_amount": "25",
+                      "discount_unit": "f",
+                      "active": true,
+                      "order": 0,
+                      "created_at": "2026-01-12T10:30:00Z",
+                      "updated_at": "2026-01-12T10:30:00Z",
+                      "business_uid": "d290f1ee26c54",
+                      "deleted_at": null,
+                      "total_bookings": 10,
                       "products": [
                         {
                           "id": "03nmq2uih783ro0g",
@@ -1781,8 +1930,7 @@
                           "name": "product2_name",
                           "quantity": 4
                         }
-                      ],
-                      "total_bookings": "10"
+                      ]
                     }
                   ]
                 },
@@ -1807,7 +1955,7 @@
             ]
           }
         ],
-        "summary": "Get all package of business",
+        "summary": "List Catalog Packages",
         "tags": [
           "Packages"
         ],
@@ -1826,13 +1974,13 @@
           "uri": "https:///platform/v1/payment/packages"
         },
         "x-auth-type": "Application & Application User",
-        "description": "## Overview\nGet all package of business. Available for **Staff Tokens**."
+        "description": "## Overview\nRetrieve a list of package catalog templates for the business. A package is a reusable template that defines a bundle of services and/or products a client can purchase, including pricing, included credits, and a default validity period.\n\n## Authentication\nAvailable for **Staff tokens**. **Directory and App tokens** are supported with the `X-On-Behalf-Of` header set to the target business UID.\n\n## Query Parameters\n- `include_items` (optional, string) — Pass `\"true\"` to include the package items (service/product groups and their credit allocations) in the response. When omitted, items are not returned.\n- `active_only` (optional, string) — Pass `\"true\"` to return only active packages (not soft-deleted or deactivated). When omitted, all packages are returned regardless of active state.\n\n## Notes\n- Packages returned here are catalog templates, not client-assigned subscriptions. To see packages assigned to a specific client, use `GET /business/payments/v1/client_packages/{uid}` or `GET /client/payments/v1/client_packages`.\n- Each package may contain one or more item groups, each defining a set of services and a `total_bookings` credit count."
       },
       "post": {
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nCreate a package and its corresponding items Available for **Staff, App, and Directory tokens**.",
+        "description": "## Overview\nCreate a new package catalog template for the business. A package defines a bundle of services and/or products that can be sold to clients, including pricing, credit allocations per service group, and a default validity period that determines how long client subscriptions last.\n\n## Authentication\nAvailable for **Staff tokens**. **Directory and App tokens** are supported with the `X-On-Behalf-Of` header set to the target business UID.\n\n## Required Parameters\n- `name` — Display name of the package (e.g., \"10 Music Lessons\").\n- `price` — Base price of the package (e.g., 100 for $100).\n- `currency` — Three-letter ISO 4217 currency code (e.g., \"USD\", \"ILS\").\n- `expiration` — Integer that, combined with `expiration_unit`, defines the default validity period for client subscriptions (e.g., 3).\n- `expiration_unit` — Unit for the expiration period: \"D\" (days), \"W\" (weeks), \"M\" (months), or \"Y\" (years). Combined with `expiration`, determines how long a client package remains active (e.g., expiration=3, expiration_unit=\"M\" means 3 months).\n- `items` — Array of service/product groups included in the package. Each item must contain `services` (array of service UIDs) and `total_bookings` (number of credits for this group).\n\n## Optional Parameters\n- `description` — Free-text description of the package shown to clients.\n- `discount_amount` — Numeric discount value applied to the package price.\n- `discount_unit` — Discount type: \"F\" (fixed amount off) or \"P\" (percentage off).\n- `image_path` — URL path to the package's display image.\n- `online_payment_enabled` — Whether clients can self-purchase this package from the client portal (boolean).\n- `products` — Array of product objects included in the package (redeemed immediately at purchase, unlike service credits which are consumed per-appointment).\n\n## Notes\n- The business must have the packages feature enabled.\n- After creating a catalog package, assign it to a client using `POST /platform/v1/payment/client_packages` with the returned package `id` as `package_id`.\n- Items define the credit structure: when a client package is created from this template, each item becomes a credit pool with its own `total_bookings` count.",
         "parameters": [
           {
             "in": "body",
@@ -1861,25 +2009,27 @@
                 },
                 "expiration_unit": {
                   "description": "The expiration unit (M-Month, D-Day, W-Week, Y-Year)",
-                  "type": "string"
+                  "type": "string",
+                  "enum": ["D", "W", "M", "Y"]
                 },
                 "image_path": {
                   "description": "The package's image path",
                   "type": "string"
                 },
                 "items": {
+                  "description": "Array of service groups included in the package. Each element is an object with exactly two fields: `total_bookings` (integer, number of credits for this group) and `services` (array of objects, each with a single `id` field containing a service UID string, e.g. `[{\"id\": \"6f156jl6z3bqwn1c\"}]`). Do NOT include any other fields (no name, quantity, unit_amount, or item_index). Example item: `{\"total_bookings\": 10, \"services\": [{\"id\": \"abc123\"}]}`.",
                   "items": {
                     "properties": {
                       "services": {
+                        "description": "Array of services in this group. Each service is identified by its UID.",
                         "items": {
                           "properties": {
                             "id": {
-                              "description": "Item uid",
-                              "type": "number"
+                              "description": "The UID of the service to include in this group (e.g., \"6f156jl6z3bqwn1c\").",
+                              "type": "string"
                             }
                           },
                           "required": [
-                            "total_bookings",
                             "id"
                           ],
                           "type": "object"
@@ -1887,7 +2037,7 @@
                         "type": "array"
                       },
                       "total_bookings": {
-                        "description": "Usage number allowed for specific item within the package",
+                        "description": "Total number of bookings allowed for this service group within the package (e.g., 5).",
                         "type": "number"
                       }
                     },
@@ -1955,10 +2105,230 @@
         "responses": {
           "201": {
             "description": "Package Created",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string"
+                },
+                "data": {
+                  "type": "object",
+                  "properties": {
+                    "package": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "Unique identifier of the created package."
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "The name of the package."
+                        },
+                        "currency": {
+                          "type": "string",
+                          "description": "The currency of the package price (e.g., \"USD\")."
+                        },
+                        "price": {
+                          "type": "string",
+                          "description": "The price of the package."
+                        },
+                        "total_price": {
+                          "type": "string",
+                          "description": "The total price of the package including taxes."
+                        },
+                        "taxes": {
+                          "type": "array",
+                          "description": "List of taxes applied to the package.",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "description": "Tax identifier."
+                              },
+                              "name": {
+                                "type": "string",
+                                "description": "Tax name."
+                              },
+                              "rate": {
+                                "type": "number",
+                                "description": "Tax rate."
+                              }
+                            }
+                          }
+                        },
+                        "expiration": {
+                          "type": "number",
+                          "description": "Expiration duration value."
+                        },
+                        "expiration_unit": {
+                          "type": "string",
+                          "description": "Expiration unit (M-Month, D-Day, W-Week, Y-Year)."
+                        },
+                        "description": {
+                          "type": "string",
+                          "description": "The package description."
+                        },
+                        "image_path": {
+                          "type": "string",
+                          "description": "The package image path."
+                        },
+                        "online_payment_enabled": {
+                          "type": "boolean",
+                          "description": "Whether online payments are enabled."
+                        },
+                        "discount_amount": {
+                          "type": "string",
+                          "description": "Discount amount."
+                        },
+                        "discount_unit": {
+                          "type": "string",
+                          "description": "Discount unit (f-Fixed, p-Percentage)."
+                        },
+                        "active": {
+                          "type": "boolean",
+                          "description": "Whether the package is active."
+                        },
+                        "order": {
+                          "type": "number",
+                          "description": "Display order of the package."
+                        },
+                        "created_at": {
+                          "type": "string",
+                          "description": "Creation timestamp."
+                        },
+                        "updated_at": {
+                          "type": "string",
+                          "description": "Last update timestamp."
+                        },
+                        "business_uid": {
+                          "type": "string",
+                          "description": "UID of the owning business."
+                        },
+                        "deleted_at": {
+                          "type": "string",
+                          "description": "Deletion timestamp, null if not deleted."
+                        },
+                        "total_bookings": {
+                          "type": "number",
+                          "description": "Total bookings allowed across all items."
+                        },
+                        "items": {
+                          "type": "array",
+                          "description": "Service group items in the package.",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "total_bookings": {
+                                "type": "string",
+                                "description": "Number of bookings for this group."
+                              },
+                              "services": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string",
+                                      "description": "Service UID."
+                                    },
+                                    "name": {
+                                      "type": "string",
+                                      "description": "Service name."
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "products": {
+                          "type": "array",
+                          "description": "Products included in the package.",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "description": "Product UID."
+                              },
+                              "name": {
+                                "type": "string",
+                                "description": "Product name."
+                              },
+                              "quantity": {
+                                "type": "number",
+                                "description": "Product quantity."
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
             "examples": {
               "application/json": {
-                "data": {},
-                "status": "OK"
+                "status": "OK",
+                "data": {
+                  "package": {
+                    "id": "456687634585436",
+                    "name": "Package name",
+                    "currency": "USD",
+                    "price": "223.5",
+                    "total_price": "223.5",
+                    "taxes": [],
+                    "expiration": 1,
+                    "expiration_unit": "m",
+                    "description": "Package description",
+                    "image_path": null,
+                    "online_payment_enabled": true,
+                    "discount_amount": "25",
+                    "discount_unit": "f",
+                    "active": true,
+                    "order": 0,
+                    "created_at": "2026-01-12T10:30:00Z",
+                    "updated_at": "2026-01-12T10:30:00Z",
+                    "business_uid": "d290f1ee26c54",
+                    "deleted_at": null,
+                    "total_bookings": 10,
+                    "items": [
+                      {
+                        "total_bookings": "5",
+                        "services": [
+                          {
+                            "id": "6f156jl6z3bqwn1c",
+                            "name": "Yoga Class"
+                          }
+                        ]
+                      },
+                      {
+                        "total_bookings": "5",
+                        "services": [
+                          {
+                            "id": "eeyt3rk4vk4abl5v",
+                            "name": "Spinning Class"
+                          }
+                        ]
+                      }
+                    ],
+                    "products": [
+                      {
+                        "id": "03nmq2uih783ro0g",
+                        "name": "product1_name",
+                        "quantity": 2
+                      },
+                      {
+                        "id": "57ndq2uih503rca8",
+                        "name": "product2_name",
+                        "quantity": 4
+                      }
+                    ]
+                  }
+                }
               }
             }
           },
@@ -1979,7 +2349,7 @@
             ]
           }
         ],
-        "summary": "Create Package ",
+        "summary": "Create Catalog Package",
         "tags": [
           "Packages"
         ],
@@ -2006,6 +2376,7 @@
         ],
         "parameters": [
           {
+            "description": "The unique identifier (UID) of the catalog package to retrieve (e.g., \"v2fvy50p8gjuvnvb\").",
             "in": "path",
             "name": "package_id",
             "required": true,
@@ -2017,43 +2388,51 @@
         ],
         "responses": {
           "200": {
-            "description": "Package Info Retrieved",
+            "description": "Package details retrieved successfully.",
             "examples": {
               "application/json": {
                 "data": {
                   "package": {
-                    "active": true,
+                    "id": "456687634585436",
+                    "name": "Package name",
                     "currency": "USD",
-                    "description": "Package description",
-                    "discount_amount": "25",
-                    "discount_unit": "f",
+                    "price": "223.5",
+                    "total_price": "223.5",
+                    "taxes": [],
                     "expiration": 1,
                     "expiration_unit": "m",
-                    "id": "456687634585436",
+                    "description": "Package description",
                     "image_path": null,
+                    "online_payment_enabled": true,
+                    "discount_amount": "25",
+                    "discount_unit": "f",
+                    "active": true,
+                    "order": 0,
+                    "created_at": "2026-01-12T10:30:00Z",
+                    "updated_at": "2026-01-12T10:30:00Z",
+                    "business_uid": "d290f1ee26c54",
+                    "deleted_at": null,
+                    "total_bookings": 10,
                     "items": [
                       {
+                        "total_bookings": "5",
                         "services": [
                           {
                             "id": "6f156jl6z3bqwn1c",
                             "name": "Yoga Class"
                           }
-                        ],
-                        "total_bookings": "5"
+                        ]
                       },
                       {
+                        "total_bookings": "5",
                         "services": [
                           {
                             "id": "eeyt3rk4vk4abl5v",
                             "name": "Spinning Class"
                           }
-                        ],
-                        "total_bookings": "5"
+                        ]
                       }
                     ],
-                    "name": "Package name",
-                    "online_payment_enabled": true,
-                    "price": "223.5",
                     "products": [
                       {
                         "id": "03nmq2uih783ro0g",
@@ -2065,8 +2444,7 @@
                         "name": "product2_name",
                         "quantity": 4
                       }
-                    ],
-                    "total_bookings": 10
+                    ]
                   }
                 },
                 "status": "OK"
@@ -2090,7 +2468,7 @@
             ]
           }
         ],
-        "summary": "Show package info",
+        "summary": "Show Catalog Package Details",
         "tags": [
           "Packages"
         ],
@@ -2111,7 +2489,7 @@
           "uri": "https:///platform/v1/payment/packages/{package_id}"
         },
         "x-auth-type": "Application & Application User",
-        "description": "## Overview\nShow package info. Available for **Staff Tokens**."
+        "description": "## Overview\nRetrieve detailed information for a single package catalog template, including its items (service/product groups), pricing, expiration settings, and active status.\n\n## Authentication\nAvailable for **Staff tokens**. **Directory and App tokens** are supported with the `X-On-Behalf-Of` header set to the target business UID. Also available for **Internal tokens**.\n\n## Path Parameters\n- `package_id` (required, string) — The unique identifier (UID) of the catalog package to retrieve (e.g., \"v2fvy50p8gjuvnvb\").\n\n## Notes\n- This returns the catalog template definition, not a client-specific subscription. To view a client's assigned package, use `GET /business/payments/v1/client_packages/{uid}`.\n- Soft-deleted packages (where `active` is false and `deleted_at` is set) are still retrievable by ID but will not appear in the list endpoint with `active_only` filter."
       },
       "put": {
         "consumes": [
@@ -2119,6 +2497,7 @@
         ],
         "parameters": [
           {
+            "description": "The unique identifier (UID) of the catalog package to update (e.g., \"v2fvy50p8gjuvnvb\").",
             "in": "path",
             "name": "package_id",
             "required": true,
@@ -2244,43 +2623,51 @@
         ],
         "responses": {
           "200": {
-            "description": "Package Updated",
+            "description": "Package updated successfully.",
             "examples": {
               "application/json": {
                 "data": {
                   "package": {
-                    "active": true,
+                    "id": "456687634585436",
+                    "name": "Package name",
                     "currency": "USD",
-                    "description": "Package description",
-                    "discount_amount": "25",
-                    "discount_unit": "f",
+                    "price": "223.5",
+                    "total_price": "223.5",
+                    "taxes": [],
                     "expiration": 1,
                     "expiration_unit": "m",
-                    "id": "456687634585436",
+                    "description": "Package description",
                     "image_path": null,
+                    "online_payment_enabled": true,
+                    "discount_amount": "25",
+                    "discount_unit": "f",
+                    "active": true,
+                    "order": 0,
+                    "created_at": "2026-01-12T10:30:00Z",
+                    "updated_at": "2026-01-12T10:30:00Z",
+                    "business_uid": "d290f1ee26c54",
+                    "deleted_at": null,
+                    "total_bookings": 10,
                     "items": [
                       {
+                        "total_bookings": "5",
                         "services": [
                           {
                             "id": "6f156jl6z3bqwn1c",
                             "name": "Yoga Class"
                           }
-                        ],
-                        "total_bookings": "5"
+                        ]
                       },
                       {
+                        "total_bookings": "5",
                         "services": [
                           {
                             "id": "eeyt3rk4vk4abl5v",
                             "name": "Spinning Class"
                           }
-                        ],
-                        "total_bookings": "5"
+                        ]
                       }
                     ],
-                    "name": "Package name",
-                    "online_payment_enabled": true,
-                    "price": "223.5",
                     "products": [
                       {
                         "id": "03nmq2uih783ro0g",
@@ -2292,8 +2679,7 @@
                         "name": "product2_name",
                         "quantity": 4
                       }
-                    ],
-                    "total_bookings": 10
+                    ]
                   }
                 },
                 "status": "OK"
@@ -2317,7 +2703,7 @@
             ]
           }
         ],
-        "summary": "Update package [Alpha]",
+        "summary": "Update Catalog Package [Alpha]",
         "tags": [
           "Packages"
         ],
@@ -2338,7 +2724,7 @@
           "uri": "https:///platform/v1/payment/packages/{package_id}"
         },
         "x-auth-type": "Application & Application User",
-        "description": "## Overview\nUpdate package [Alpha] Available for **Staff, App, and Directory tokens**."
+        "description": "## Overview\nUpdate an existing package catalog template. You can modify pricing, name, description, expiration settings, items, and active status. Changes to the catalog template do NOT retroactively affect already-created client packages — those retain the values they were assigned at creation.\n\n## Authentication\nAvailable for **Staff tokens**. **Directory and App tokens** are supported with the `X-On-Behalf-Of` header set to the target business UID.\n\n## Path Parameters\n- `package_id` (required, string) — The unique identifier (UID) of the catalog package to update (e.g., \"v2fvy50p8gjuvnvb\").\n\n## Request Body\nThe request body must wrap all fields inside a `package` object. All fields are optional — only include fields you want to change.\n\n## Updatable Fields\n- `name`, `price`, `currency`, `description` — Basic package information.\n- `expiration`, `expiration_unit` — Default validity period for future client subscriptions.\n- `discount_amount`, `discount_unit` — Pricing discount.\n- `items` — Service/product groups. Each item includes `services` (array of service UIDs) and `total_bookings` (credit count). When updating items, pass the complete desired items array.\n- `online_payment_enabled` — Client self-purchase toggle.\n- `active` — Set to `false` to deactivate the package (hides from catalog listings).\n\n## Notes\n- This endpoint is in Alpha and may change.\n- Deactivating a package (`active: false`) prevents it from being assigned to new clients but does not affect existing client packages."
       }
     },
     "/payment/settings": {

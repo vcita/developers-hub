@@ -702,7 +702,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nGet a list of Client Packages.\n\n## Authentication\n**Available for Client Tokens only.**\n\n## Required Parameters\n- `matter_uid` (required): The matter UID to fetch packages for.",
+        "description": "## Overview\nRetrieve a paginated list of client packages (package subscriptions) for the authenticated client, scoped to a specific matter/conversation. Returns each package's validity dates, credit balances, and active status.\n\n## Authentication\n**Available for Client Tokens only.**\n\n## Required Parameters\n- `matter_uid` (query, string) — The UID of the matter/conversation to fetch packages for. Client packages are scoped to matters.\n\n## Optional Parameters\n- `page` (query, string) — Page number for pagination (default: 1).\n- `per_page` (query, string) — Number of results per page (default: 25).\n- `sort` (query, string) — Sort by one or more fields. Format: `field:direction`. Available fields: `created_at`, `updated_at`, `valid_from`, `valid_until`. Directions: `asc`, `desc`. Example: `sort=valid_until:asc` to show soonest-expiring first.\n- `filter` (query, string) — Filter results by state. Format: `filter[state][eq]=ACTIVE` or `filter[state][eq]=INACTIVE`. ACTIVE packages have remaining credits and valid dates; INACTIVE packages are expired or fully consumed.\n\n## Notes\n- \"About to expire\" packages can be found by sorting by `valid_until:asc` and checking which packages have `valid_until` dates in the near future.\n- An ACTIVE package has `valid_from <= now <= valid_until` and at least one booking credit with `total_bookings > bookings_usage`.",
         "parameters": [
           {
             "description": "relevant matter_uid to fetch packages for",
@@ -745,14 +745,51 @@
         ],
         "responses": {
           "200": {
-            "description": "Success",
+            "description": "Client packages retrieved successfully.",
             "examples": {
               "application/json": {
+                "success": true,
                 "data": {
-                  "error": "The API cannot be accessed. This could be because you lack permissions to use this API endpoint.",
-                  "status": "Error"
-                },
-                "success": true
+                  "client_packages": [
+                    {
+                      "id": "m73jkvg4bf2z71b2",
+                      "name": "Music Lessons",
+                      "active": true,
+                      "currency": "USD",
+                      "price": "100.0",
+                      "net_price": "100.0",
+                      "valid_from": "2026-01-01",
+                      "valid_until": "2026-04-01",
+                      "package_id": "v2fvy50p8gjuvnvb",
+                      "client_id": "9yxsdkr1hdjtocpv",
+                      "business_id": "vqzqruk6nyclxpp6",
+                      "conversation_id": "war7ow99zh14qlty",
+                      "staff_id": "mg9d91uh92bclwzg",
+                      "total_bookings": "10",
+                      "bookings_usage": "2",
+                      "booking_credits": [
+                        {
+                          "id": "vu1rovse0166a9d9",
+                          "total_bookings": "10",
+                          "bookings_usage": "2",
+                          "credit_items": [
+                            {
+                              "item_id": "mzuk2kkt7vjnxdwo",
+                              "item_type": "SERVICE",
+                              "bookings_usage": 2
+                            }
+                          ]
+                        }
+                      ],
+                      "image_path": "",
+                      "created_at": "2026-01-01T10:00:00.000Z",
+                      "updated_at": "2026-02-15T14:30:00.000Z",
+                      "products": [],
+                      "payment_request_id": "6v5ybwkavv0z9hff",
+                      "payment_request_state": "paid"
+                    }
+                  ]
+                }
               }
             }
           },
@@ -779,7 +816,7 @@
             ]
           }
         ],
-        "summary": "List of Client Packages",
+        "summary": "List Client Packages",
         "tags": [
           "Client Packages"
         ],
@@ -1211,7 +1248,7 @@
             "type": "string"
           },
           {
-            "description": "When present, returns only active packages",
+            "description": "Pass \"true\" to return only active packages. When omitted, all packages are returned.",
             "in": "query",
             "name": "active_only",
             "required": false,
@@ -1274,7 +1311,7 @@
             }
           }
         },
-        "summary": "List Packages Info [Alpha]",
+        "summary": "List Catalog Packages (Public) [Alpha]",
         "tags": [
           "Packages"
         ],
@@ -1282,7 +1319,7 @@
           "type": "NONE"
         },
         "x-auth-type": "None",
-        "description": "## Overview\nList Packages Info [Alpha].\n\n## Authentication\n**Available for Client Tokens only.**"
+        "description": "## Overview\nRetrieve the list of available package catalog templates for a business, as seen from the client perspective. Returns packages that clients can browse and potentially purchase through the client portal.\n\n## Authentication\n**No authentication required.** This is a public endpoint.\n\n## Required Parameters\n- `business_id` (query, string) — The UID of the business whose package catalog to retrieve (e.g., \"88pzdbz1hmkdoel4\"). Must be in UID format, not numeric ID.\n\n## Optional Parameters\n- `page` (query, string) — Page number for pagination.\n- `per_page` (query, string) — Number of results per page.\n- `active_only` (query, string) — Pass `\"true\"` to return only active packages. When omitted, all packages are returned.\n\n## Notes\n- This is the client-facing view of the same catalog available to staff via `GET /platform/v1/payment/packages`.\n- Only packages with `online_payment_enabled: true` are typically shown to clients for self-purchase.\n- This endpoint is in Alpha and may change."
       }
     },
     "/v1/packages/{package_id}": {
@@ -1292,6 +1329,7 @@
         ],
         "parameters": [
           {
+            "description": "The unique identifier (UID) of the catalog package to retrieve.",
             "in": "path",
             "name": "package_id",
             "required": true,
@@ -1335,11 +1373,13 @@
                     "products": [
                       {
                         "id": "03nmq2uih783ro0g",
-                        "quantity": "2"
+                        "name": "product1_name",
+                        "quantity": 2
                       },
                       {
                         "id": "57ndq2uih503rca8",
-                        "quantity": "4"
+                        "name": "product2_name",
+                        "quantity": 4
                       }
                     ],
                     "total_bookings": 10
@@ -1365,7 +1405,7 @@
             }
           }
         },
-        "summary": "Show Package Info [Alpha]",
+        "summary": "Show Catalog Package (Public) [Alpha]",
         "tags": [
           "Packages"
         ],
@@ -1386,7 +1426,7 @@
           "uri": "https:///client/payments/v1/packages/{package_id}"
         },
         "x-auth-type": "None",
-        "description": "## Overview\nShow Package Info [Alpha].\n\n## Authentication\n**Available for Client Tokens only.**\n\n## Note on Path Parameter\nThe swagger documents this as `{package_id}` but the Rails route defines `param: :uid`. Both work due to Rails routing, but internally the controller accesses `params[:uid]`."
+        "description": "## Overview\nRetrieve detailed information for a single package catalog template, as seen from the client perspective. Returns the package's pricing, included services, expiration settings, and discount information.\n\n## Authentication\n**No authentication required.** This is a public endpoint.\n\n## Path Parameters\n- `package_id` (required, string) — The unique identifier (UID) of the catalog package to retrieve.\n\n## Notes\n- This is the client-facing view of the same data available to staff via `GET /platform/v1/payment/packages/{package_id}`.\n- This endpoint is in Alpha and may change."
       }
     },
     "/v1/payment_requests": {
