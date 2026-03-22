@@ -30,7 +30,7 @@ const args = process.argv.slice(2);
 const options = {
   dryRun: args.includes('--dry-run'),
   name: getArgValue('--name') || `API Test Business ${Date.now()}`,
-  email: getArgValue('--email') || `apitest.${Date.now()}@vcita.com`,
+  email: getArgValue('--email') || `apitest+approved.${Date.now()}@vcita.com`,
   help: args.includes('--help') || args.includes('-h')
 };
 
@@ -52,7 +52,7 @@ ${colors.yellow}Usage:${colors.reset}
 
 ${colors.yellow}Options:${colors.reset}
   --name <name>     Business name (default: "API Test Business <timestamp>")
-  --email <email>   Admin email (default: "apitest+<timestamp>@vcita.com")
+  --email <email>   Admin email (default: "apitest+approved.<timestamp>@vcita.com")
   --dry-run         Show what would be done without making changes
   -h, --help        Show this help message
 
@@ -134,7 +134,7 @@ function saveConfig(config) {
  * Step 1: Create a new business
  */
 async function createBusiness(directoryToken, businessName, adminEmail) {
-  console.log(`\n${colors.blue}[1/6]${colors.reset} Creating new business...`);
+  console.log(`\n${colors.blue}[1/7]${colors.reset} Creating new business...`);
   console.log(`${colors.dim}  Name: ${businessName}${colors.reset}`);
   console.log(`${colors.dim}  Admin Email: ${adminEmail}${colors.reset}`);
 
@@ -195,7 +195,7 @@ async function createBusiness(directoryToken, businessName, adminEmail) {
  * Step 2: Create a staff token
  */
 async function createStaffToken(directoryToken, businessUid) {
-  console.log(`\n${colors.blue}[2/6]${colors.reset} Creating staff token...`);
+  console.log(`\n${colors.blue}[2/7]${colors.reset} Creating staff token...`);
 
   const body = { business_id: businessUid };
   const response = await makeRequest('POST', `${API_PATH}/platform/v1/tokens`, directoryToken, body);
@@ -212,10 +212,36 @@ async function createStaffToken(directoryToken, businessUid) {
 }
 
 /**
- * Step 3: Create a test client
+ * Step 3: Configure payment settings (PayPal test gateway)
+ */
+async function configurePaymentSettings(staffToken, businessUid) {
+  console.log(`\n${colors.blue}[3/7]${colors.reset} Configuring payment settings...`);
+
+  const body = {
+    payment_settings: {
+      payments_enabled: true,
+      ewallet_type: 'paypal',
+      paypal_email: 'test@test.com',
+      allow_credit_card: true,
+      currency: 'USD'
+    }
+  };
+
+  const response = await makeRequest('POST', `${API_PATH}/platform/v1/payment/settings`, staffToken, body);
+
+  if (response.status === 200 || response.status === 201) {
+    console.log(`${colors.green}  ✓ Payment settings configured (PayPal test gateway)${colors.reset}`);
+    return true;
+  }
+  console.log(`${colors.yellow}  ⚠ Could not configure payment settings: ${JSON.stringify(response.data)}${colors.reset}`);
+  return false;
+}
+
+/**
+ * Step 4: Create a test client
  */
 async function createClient(staffToken, staffUid) {
-  console.log(`\n${colors.blue}[3/6]${colors.reset} Creating test client...`);
+  console.log(`\n${colors.blue}[4/7]${colors.reset} Creating test client...`);
 
   const timestamp = Date.now();
   const body = {
@@ -245,10 +271,10 @@ async function createClient(staffToken, staffUid) {
 }
 
 /**
- * Step 4: Create an appointment service
+ * Step 5: Create an appointment service
  */
 async function createService(staffToken, businessUid, staffUid) {
-  console.log(`\n${colors.blue}[4/6]${colors.reset} Creating appointment service...`);
+  console.log(`\n${colors.blue}[5/7]${colors.reset} Creating appointment service...`);
 
   const body = {
     business_id: businessUid,
@@ -302,10 +328,10 @@ async function getExistingService(staffToken, businessUid) {
 }
 
 /**
- * Step 5: Get matter UID from client
+ * Step 6: Get matter UID from client
  */
 async function getMatterUid(staffToken, clientUid) {
-  console.log(`\n${colors.blue}[5/6]${colors.reset} Getting matter UID...`);
+  console.log(`\n${colors.blue}[6/7]${colors.reset} Getting matter UID...`);
 
   const response = await makeRequest('GET', `${API_PATH}/business/clients/v1/contacts/${clientUid}/matters`, staffToken);
   
@@ -328,10 +354,10 @@ async function getMatterUid(staffToken, clientUid) {
 }
 
 /**
- * Step 6: Verify staff can create bookings by testing a booking
+ * Step 7: Verify staff can create bookings by testing a booking
  */
 async function verifyBookingPermission(staffToken, businessUid, serviceId, staffUid, clientUid) {
-  console.log(`\n${colors.blue}[6/6]${colors.reset} Verifying booking permissions...`);
+  console.log(`\n${colors.blue}[7/7]${colors.reset} Verifying booking permissions...`);
 
   // Calculate a future start time (tomorrow at 10:00 AM)
   const tomorrow = new Date();
@@ -436,6 +462,7 @@ async function main() {
       console.log(`  - Business: ${options.name}`);
       console.log(`  - Admin Email: ${options.email}`);
       console.log(`  - Staff token for the business`);
+      console.log(`  - Payment settings (PayPal test gateway)`);
       console.log(`  - Test client with matter`);
       console.log(`  - Appointment service for bookings`);
       console.log(`  - Verify booking permissions`);
@@ -446,6 +473,7 @@ async function main() {
     // Execute setup steps
     const businessData = await createBusiness(directoryToken, options.name, options.email);
     const staffToken = await createStaffToken(directoryToken, businessData.businessUid);
+    await configurePaymentSettings(staffToken, businessData.businessUid);
     const clientData = await createClient(staffToken, businessData.staffUid);
     const serviceId = await createService(staffToken, businessData.businessUid, businessData.staffUid);
     const matterUid = await getMatterUid(staffToken, clientData.clientUid);

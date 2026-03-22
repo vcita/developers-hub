@@ -1,0 +1,120 @@
+{
+  "basePath": "/client/messaging",
+  "host": "api.vcita.biz",
+  "info": {
+    "title": "Client Messaging API",
+    "version": "v1.0"
+  },
+  "paths": {
+    "/v1/messages": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "## Overview\nSends a message from the authenticated client to the business. The message direction is always `client_to_business` — it is set automatically by the server based on the client token.\n\nThe staff member who receives the message is auto-assigned based on the business's assignment rules and the client's existing relationships.\n\n## Authentication\nAvailable for **Client tokens** only. The client UID and business UID are extracted from the token — no need to pass them in the request body.\n\n## Parameters\n- `message.message` (required) — The text content of the message.\n- `message.subject` (optional) — An optional subject line for the message.\n- `message.entity` (optional) — Entity attachment that controls message type. When omitted, defaults to a plain text message. Set `type` to `\"document\"` and provide `uid` to attach an existing document.\n- `matter_uid` (optional) — The UID of the conversation (matter/engagement) to add the message to. If omitted, the system uses the client's default conversation.",
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "message"
+              ],
+              "properties": {
+                "message": {
+                  "type": "object",
+                  "description": "Message payload wrapper.",
+                  "required": [
+                    "message"
+                  ],
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "description": "The text content of the message. Required."
+                    },
+                    "subject": {
+                      "type": "string",
+                      "description": "Optional subject line for the message."
+                    },
+                    "entity": {
+                      "type": "object",
+                      "description": "Optional entity attachment for the message. Controls the message type and, for document messages, attaches a file. When omitted entirely, the message type defaults to `text` (plain text message). The only supported entity type that triggers special behavior is `document` — all other values (including `text`) result in a standard text message with no attachment.",
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "description": "The entity type, which determines the message type. Supported values:\n- `\"text\"` (default) — A plain text message. No additional fields are needed.\n- `\"document\"` — Attaches an existing document to the message. Requires `uid` to reference the document. The message will be linked to the document record and the staff member who owns the document will be auto-assigned if no other staff is resolved.",
+                          "enum": ["text", "document"],
+                          "default": "text"
+                        },
+                        "uid": {
+                          "type": "string",
+                          "description": "The UID of an existing Document record to attach to the message. Required when `type` is `\"document\"`. The document must belong to the business associated with the client token."
+                        },
+                        "object": {
+                          "type": "string",
+                          "description": "Optional metadata string stored alongside the document attachment in the message data. Only used when `type` is `\"document\"`."
+                        }
+                      }
+                    }
+                  }
+                },
+                "matter_uid": {
+                  "type": "string",
+                  "description": "UID of the conversation (matter/engagement) to add the message to. If omitted, the system uses the client's default conversation."
+                }
+              }
+            }
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "201": {
+            "description": "Message sent successfully.",
+            "examples": {
+              "application/json": {
+                "success": true,
+                "data": {
+                  "message": {
+                    "business_uid": "0ka5ubzrwi7qizsx",
+                    "message_uid": null
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — invalid or missing client token."
+          },
+          "422": {
+            "description": "Unprocessable Entity — validation error (e.g., missing message text, invalid matter_uid)."
+          }
+        },
+        "summary": "Send a Client Message",
+        "tags": [
+          "Client Messages"
+        ],
+        "x-auth-type": "Client",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    }
+  },
+  "swagger": "2.0",
+  "components": {
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid client bearer token in the Authorization header. Example: 'Authorization: Bearer {client_token}'"
+      }
+    }
+  }
+}

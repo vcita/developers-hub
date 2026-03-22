@@ -413,7 +413,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nUpdate client package payment status (use a package credit).\n\n## Authentication\n**Available for Client Tokens only.**\n\n## Note\nThere is also a Staff-facing version at `/platform/v1/payment/client_packages/update_usage` that accepts **Staff, App, and Directory tokens**.\n\n## Prerequisites\nThe client must have active packages with available sessions for the service referenced in the `payment_status_id`. Returns 422 \"There is no package to use\" if no suitable packages exist.",
+        "description": "## Overview\nRedeem a credit from the authenticated client's active package to pay for an appointment or service session. This marks the associated payment status as paid (price set to $0) and decrements one credit from the client's package. If multiple packages qualify, the **soonest-expiring package** is used first.\n\n## Authentication\n**Available for Client Tokens only.**\n\n## Required Parameters\n- `payment_status_id` (string) — The ID of the payment status record to pay using a package credit. Must reference a pending/unpaid payment status linked to an appointment.\n\n## Notes\n- Returns 422 \"There is no package to use\" if no active client packages with available credits exist for the relevant service.\n- Returns 422 if the payment status is already paid.\n- There is also a Staff-facing version at `POST /platform/v1/payment/client_packages/update_usage` that accepts **Staff tokens** (and **Directory/App tokens** with the `X-On-Behalf-Of` header).\n- This endpoint is in Alpha and may change.",
         "parameters": [
           {
             "in": "body",
@@ -499,7 +499,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nValidate client package payment status. Checks if a client has an active package with available credits for the service associated with the given payment status.\n\n## Authentication\n**Available for Client Tokens only.**\n\n## Constraints\n- The `payment_status_id` must reference a pending/unpaid payment status\n- Already paid statuses return 422 error 'Payment status is already paid'",
+        "description": "## Overview\nCheck whether the authenticated client has an active package with available credits for the service associated with a given payment status. Use this to determine if the \"pay with package\" option should be shown to the client before calling the `update_usage` endpoint.\n\n## Authentication\n**Available for Client Tokens only.**\n\n## Required Parameters\n- `payment_status_id` (query, string) — The ID of the payment status to check. Must reference a pending/unpaid payment status.\n\n## Response\n- Returns `has_package: true` if a suitable active package with available credits exists for the service.\n- Returns `has_package: false` if no suitable package is available.\n\n## Notes\n- Returns 422 if the payment status is already paid.\n- This endpoint is in Alpha and may change.",
         "parameters": [
           {
             "description": "Payment status ID - must be a pending/unpaid payment status",
@@ -551,7 +551,7 @@
             ]
           }
         ],
-        "summary": "Validate Client Package has redemption [Alpha]",
+        "summary": "Validate Credit Availability [Alpha]",
         "tags": [
           "Client Packages"
         ],
@@ -882,78 +882,6 @@
           },
           "type": "http_proxy",
           "uri": "https:///platform/v1/clients/{client_id}"
-        },
-        "x-auth-type": "Application & Application User"
-      }
-    },
-    "/clients/{client_id}/documents": {
-      "get": {
-        "consumes": [
-          "application/json"
-        ],
-        "description": "## Overview\nGets a list of documents for a client.\n\n## Authentication\n**Available for Staff, App, and Directory Tokens.**",
-        "parameters": [
-          {
-            "description": "Client UID",
-            "in": "path",
-            "name": "client_id",
-            "required": true,
-            "type": "string"
-          },
-          {
-            "description": "Page number of results. Default: 1",
-            "in": "query",
-            "name": "page",
-            "required": false,
-            "type": "integer"
-          },
-          {
-            "description": "How many items to return per page. Default: 25. Max: 100",
-            "in": "query",
-            "name": "per_page",
-            "required": false,
-            "type": "integer"
-          }
-        ],
-        "produces": [
-          "application/json"
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "examples": {
-              "application/json": {
-                "data": {
-                  "documents": []
-                },
-                "status": "OK"
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "default": [
-              "platform"
-            ]
-          }
-        ],
-        "summary": "Get Documents For A Client",
-        "tags": [
-          "Documents"
-        ],
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-amazon-apigateway-integration": {
-          "httpMethod": "GET",
-          "responses": {
-            "default": {
-              "statusCode": "200"
-            }
-          },
-          "type": "http_proxy",
-          "uri": "https:///platform/v1/clients/{client_id}/documents"
         },
         "x-auth-type": "Application & Application User"
       }
