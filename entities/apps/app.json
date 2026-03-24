@@ -26,7 +26,7 @@
     },
     "url_params": {
       "type": "array",
-      "description": "A list of standard platform context parameters that the platform injects into the query string when building `app_host`. Each value is a predefined key whose value is resolved at runtime by the platform (e.g., selecting \"business_uid\" causes the caller's business UID to be appended as `?business_uid=...`).\n\nThis is different from the `additional_params` extension in `developer_info.extensions`, which defines custom, app-specific key-value pairs that are also appended to the URL.",
+      "description": "A list of standard platform context parameters that the platform injects into the query string when building `app_host`. Each value is a predefined key whose value is resolved at runtime by the platform (e.g., selecting \"business_uid\" causes the caller's business UID to be appended as `?business_uid=...`).\n\nThis is different from the `additional_params` entry in `extensions`, which defines custom, app-specific key-value pairs that are also appended to the URL.",
       "items": {
         "type": "string",
         "enum": [
@@ -44,7 +44,7 @@
     "app_types": {
       "type": "array",
       "readOnly": true,
-      "description": "A list of app types / integration points associated with the app. This mirrors core's `app_type` field and is related to (and can be derived from) entries in `developer_info.extensions`.\n\nValid values are based on core validation rules and may include internal-only values.",
+      "description": "A list of app types / integration points associated with the app. This mirrors core's `app_type` field and is related to the app's extension configuration.\n\nValid values are based on core validation rules and may include internal-only values.",
       "items": {
         "type": "string",
         "enum": [
@@ -224,186 +224,36 @@
         }
       }
     },
-    "developer_info": {
-      "type": "object",
-      "description": "Developer-provided metadata and extension configuration. `developer_info.extensions` is the source of truth for implemented extensions.\n\nImplemented extensions are inferred from the presence of extension entries in the `extensions` array.\n\nConstraint: the array must contain **at most one entry per extension type** (e.g., a single `menu_items` entry).",
-      "properties": {
-        "extensions": {
-          "type": "array",
-          "description": "An array of extension configuration entries.\n\nEach entry has a `type` discriminator. The array must contain at most one entry per `type`.",
-          "items": {
+    "extensions": {
+      "type": "array",
+      "readOnly": true,
+      "description": "Developer-provided extension configuration entries. Each entry contains a `type` key identifying the extension and a `value` key holding its configuration. Only extensions with non-empty values are included. The array contains at most one entry per `type`.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "The extension type identifier.",
+            "enum": [
+              "menu_items",
+              "old_integration_name",
+              "personal_connection",
+              "deep_link",
+              "additional_params",
+              "full_screen"
+            ]
+          },
+          "value": {
+            "description": "The extension configuration value. The structure depends on the `type`.",
             "oneOf": [
-              {
-                "type": "object",
-                "description": "Payments extension configuration.",
-                "properties": {
-                  "type": { "type": "string", "enum": ["payments"] },
-                  "config": { "type": "object", "additionalProperties": true }
-                },
-                "required": ["type"]
-              },
-              {
-                "type": "object",
-                "description": "Wallets extension configuration.",
-                "properties": {
-                  "type": { "type": "string", "enum": ["wallets"] },
-                  "config": { "type": "object", "additionalProperties": true }
-                },
-                "required": ["type"]
-              },
-              {
-                "type": "object",
-                "description": "Communication extension configuration.",
-                "properties": {
-                  "type": { "type": "string", "enum": ["communication"] },
-                  "open_channel_communication": {
-                    "type": "boolean",
-                    "description": "Whether the app enables direct, sessionless messaging without requiring pre-established channel sessions."
-                  },
-                  "config": { "type": "object", "additionalProperties": true }
-                },
-                "required": ["type"]
-              },
-              {
-                "type": "object",
-                "description": "Additional params extension configuration.\n\nDefines custom, app-specific key-value query parameters appended to `app_host` when opening the app. Unlike `url_params` (which selects standard platform context parameters resolved at runtime), these are static key-value pairs defined by the app developer.",
-                "properties": {
-                  "type": { "type": "string", "enum": ["additional_params"] },
-                  "params": {
-                    "type": "object",
-                    "description": "Custom, app-specific key-value query parameters appended to `app_host` when opening the app.",
-                    "additionalProperties": true
-                  }
-                },
-                "required": ["type", "params"]
-              },
-              {
-                "type": "object",
-                "description": "Menu items extension configuration.",
-                "properties": {
-                  "type": { "type": "string", "enum": ["menu_items"] },
-                  "subitems": {
-                    "type": "array",
-                    "description": "Menu items to be added to the left sidebar.",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "category": {
-                          "type": "string",
-                          "description": "Section of the left menu in which the item will appear (e.g., \"clients\").",
-                          "enum": [
-                            "calendar",
-                            "clients",
-                            "payments",
-                            "inbox",
-                            "documents",
-                            "campaigns",
-                            "reputation",
-                            "my-livesite",
-                            "social",
-                            "social_info",
-                            "app_market",
-                            "reports",
-                            "team-chat",
-                            "advertising",
-                            "subscriptions",
-                            "my_account",
-                            "cashflow",
-                            "workforce",
-                            "setupguide",
-                            "reviews",
-                            "social_media",
-                            "online_listing"
-                          ]
-                        },
-                        "item_name": {
-                          "type": "object",
-                          "description": "Item names per language code (e.g., `{ \"en\": \"My Page\" }`).",
-                          "additionalProperties": { "type": "string" }
-                        },
-                        "route": {
-                          "type": "string",
-                          "description": "Suffix route relative to the app domain (e.g., \"rdbms\")."
-                        },
-                        "display_order": {
-                          "type": "integer",
-                          "minimum": 0,
-                          "description": "Display order within the category. Starts from 0."
-                        },
-                        "block_impersonation": {
-                          "type": "boolean",
-                          "description": "Whether the menu item should be blocked when an operator is impersonating as a staff member.",
-                          "default": false
-                        },
-                        "permissions": {
-                          "type": "array",
-                          "description": "Optional permissions required to see this menu item.",
-                          "items": { "type": "string" }
-                        }
-                      },
-                      "required": ["category", "item_name", "route"]
-                    }
-                  }
-                },
-                "required": ["type", "subitems"]
-              },
-              {
-                "type": "object",
-                "description": "Generic extension configuration for a supported extension type that does not currently have a dedicated structured schema.",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": [
-                      "internal",
-                      "billing_app",
-                      "docuforms",
-                      "import_clients",
-                      "automated_flows",
-                      "signatures",
-                      "onboarding_wizard",
-                      "notifications",
-                      "receipts",
-                      "calendar_sync",
-                      "document_signature",
-                      "tips",
-                      "ai_assistant",
-                      "attachments",
-                      "widgets",
-                      "voice_calls",
-                      "texting",
-                      "licensing.subscription.admin.read"
-                    ]
-                  },
-                  "config": {
-                    "type": "object",
-                    "description": "Extension-specific configuration payload.",
-                    "additionalProperties": true
-                  }
-                },
-                "required": ["type"]
-              },
-              {
-                "type": "object",
-                "description": "Custom extension entry for forward-compatible expansion without schema changes.",
-                "properties": {
-                  "type": { "type": "string", "enum": ["custom"] },
-                  "key": {
-                    "type": "string",
-                    "description": "Custom extension key name (e.g., \"my_team_feature\")."
-                  },
-                  "value": {
-                    "type": "object",
-                    "description": "Custom extension value payload.",
-                    "additionalProperties": true
-                  }
-                },
-                "required": ["type", "key", "value"]
-              }
+              { "type": "object", "additionalProperties": true },
+              { "type": "string" },
+              { "type": "boolean" }
             ]
           }
-        }
-      },
-      "additionalProperties": true
+        },
+        "required": ["type", "value"]
+      }
     },
     "created_at": {
       "type": "string",
@@ -492,44 +342,30 @@
         }
       },
     "owner": true,
-    "developer_info": {
-      "extensions": [
-        {
-          "type": "menu_items",
+    "extensions": [
+      {
+        "type": "menu_items",
+        "value": {
           "subitems": [
             {
               "category": "clients",
-              "item_name": {
-                "en": "Calendar Sync"
-              },
+              "item_name": { "en": "Calendar Sync" },
               "route": "calendar-sync",
               "display_order": 0,
               "block_impersonation": false
             }
           ]
-        },
-        {
-          "type": "communication",
-          "open_channel_communication": true
-        },
-        {
-          "type": "additional_params",
-          "params": {
-            "open_channel_communication": true
-          }
-        },
-        {
-          "type": "custom",
-          "key": "custom_extension_example",
-          "value": {
-            "enabled": true,
-            "config": {
-              "some_key": "some_value"
-            }
-          }
         }
-      ]
-    },
+      },
+      {
+        "type": "additional_params",
+        "value": { "open_channel_communication": true }
+      },
+      {
+        "type": "full_screen",
+        "value": true
+      }
+    ],
     "created_at": "2026-02-01T10:30:00Z",
     "updated_at": "2026-02-20T09:15:00Z"
   }
