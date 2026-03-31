@@ -51,6 +51,293 @@
   },
   "paths": {
     "/v3/communication/activity_messages": {
+      "get": {
+        "operationId": "getActivityMessages",
+        "summary": "List Activity Messages",
+        "description": "## Overview\nRetrieve a paginated list of activity messages for the authenticated business. Activity messages represent all communication sent to or received from clients, including appointment confirmations, invoice notifications, payment updates, and more.\n\n## Authentication\nThis endpoint supports multiple authentication methods. The system checks tokens in the following order:\n\n### 1. JWT Tokens (checked first)\nJSON Web Tokens for service-to-service authentication. Used internally by platform services.\n\n### 2. Admin Tokens\nSpecial tokens for administrative operations with elevated privileges.\n\n### 3. Internal Tokens (API Gateway)\nTokens issued by the API Gateway after introspection. Used when requests come through the gateway infrastructure.\n\n### 4. Doorkeeper OAuth 2.0 Tokens\nStandard OAuth 2.0 tokens for external API access. This is the most common method for third-party integrations.\n\n| Token Type | Description | How to Obtain |\n|------------|-------------|---------------|\n| **Staff Token** | Authenticates as a specific staff member of a business | OAuth 2.0 flow via `/oauth/token` with user credentials |\n| **App Token** | Authenticates as an installed app on a business | OAuth 2.0 client credentials flow with app credentials |\n| **Directory Token** | Authenticates as a directory (partner/reseller) | OAuth 2.0 flow with directory credentials |\n\nAll OAuth 2.0 tokens are managed by [Doorkeeper](https://github.com/doorkeeper-gem/doorkeeper) and should be passed in the `Authorization` header as `Bearer <token>`.\n\n## Filtering\nUse query parameters to filter results by activity type, client, staff, date range, and more. All filters are optional and can be combined.\n\n## Activity Types\nThe `activity_type` parameter accepts the following values:\n- `meeting` - Appointment/meeting related messages\n- `appointment_series` - Recurring appointment messages\n- `invoice` - Invoice notifications\n- `estimate` - Estimate/quote messages\n- `payment` - Payment confirmations\n- `payment_status` - Payment status updates\n- `payment_card` - Card on file updates\n- `card_request` - Card request messages\n- `scheduled_payments_rule` - Scheduled payment messages\n- `payout` - Payout notifications\n- `announcement` - Business announcements\n- `event` - Event attendance messages\n- `event_series` - Recurring event messages\n- `event_instance` - Single event instance messages\n- `waitlist` - Waitlist updates\n- `linked_booking` - Linked booking messages\n- `client_booking_package` - Booking package messages\n- `product_order` - Product order notifications\n- `review` - Review request/response messages\n- `document` - Document sharing messages\n- `voice_call` - Voice call records\n- `assignment` - Assignment update messages",
+        "parameters": [
+          {
+            "name": "activity_type",
+            "in": "query",
+            "description": "Filter by activity type (e.g., meeting, invoice, payment). See the full list of supported types in the description above.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "meeting",
+                "appointment_series",
+                "invoice",
+                "estimate",
+                "payment",
+                "payment_status",
+                "payment_card",
+                "card_request",
+                "scheduled_payments_rule",
+                "payout",
+                "announcement",
+                "event",
+                "event_series",
+                "event_instance",
+                "waitlist",
+                "linked_booking",
+                "client_booking_package",
+                "product_order",
+                "review",
+                "document",
+                "voice_call",
+                "assignment"
+              ]
+            }
+          },
+          {
+            "name": "activity_action",
+            "in": "query",
+            "description": "Filter by activity action (e.g., confirmation, reminder, cancellation)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "client_uid",
+            "in": "query",
+            "description": "Filter messages for a specific client by their unique identifier",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "staff_uid",
+            "in": "query",
+            "description": "Filter messages sent by a specific staff member",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "conversation_uid",
+            "in": "query",
+            "description": "Filter messages belonging to a specific conversation/engagement",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "description": "Filter by message direction",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "client_to_business",
+                "business_to_client"
+              ]
+            }
+          },
+          {
+            "name": "was_read",
+            "in": "query",
+            "description": "Filter by read status (true or false)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          },
+          {
+            "name": "created_after",
+            "in": "query",
+            "description": "Filter messages created after this date (ISO8601 format, e.g., 2024-01-01T00:00:00Z)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "created_before",
+            "in": "query",
+            "description": "Filter messages created before this date (ISO8601 format, e.g., 2024-12-31T23:59:59Z)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number for pagination (default: 1)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "Number of results per page (default: 25, max: 100)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 25,
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Sort order for results (e.g., created_at:asc or created_at:desc)",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "created_at:desc"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "activity_messages": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "https://vcita.github.io/developers-hub/entities/communication/activityMessage.json"
+                          }
+                        },
+                        "page": {
+                          "type": "integer",
+                          "description": "Current page number",
+                          "example": 1
+                        },
+                        "per_page": {
+                          "type": "integer",
+                          "description": "Number of results per page",
+                          "example": 25
+                        },
+                        "total_count": {
+                          "type": "integer",
+                          "description": "Total number of activity messages matching the filters",
+                          "example": 150
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "activity_messages": [
+                      {
+                        "uid": "abc123def456",
+                        "business_uid": "biz789xyz",
+                        "staff_uid": "staff123",
+                        "client_uid": "client456",
+                        "activity_type": "meeting",
+                        "activity_action": "confirmation",
+                        "direction": "business_to_client",
+                        "channels": ["email"],
+                        "message_text": {
+                          "body": "Your appointment has been confirmed.",
+                          "subject": "Appointment Confirmation"
+                        },
+                        "cta_button_text": "View Appointment",
+                        "link_url_params": null,
+                        "created_at": "2024-03-20T12:34:56Z",
+                        "updated_at": "2024-03-20T12:34:56Z"
+                      }
+                    ],
+                    "page": 1,
+                    "per_page": 25,
+                    "total_count": 150
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request. Invalid filter parameters.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "invalid",
+                      "message": "activity_type: unknown activity_type"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing, invalid, or not allowed to access the requested resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "401 Unauthorized"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found. The referenced resource (e.g., conversation) was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": "Conversation not found"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Activity Message"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
       "post": {
         "operationId": "sendActivityMessage",
         "summary": "Create an ActivityMessage",
