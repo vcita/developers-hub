@@ -6,6 +6,7 @@
     "version": "3.0",
     "x-generated": {
       "sourceFiles": [
+        "legacy_v2_settings_categories.json",
         "legacy_v2_settings_services.json",
         "payment_gateway.json",
         "legacy_v1_sales.json",
@@ -346,7 +347,7 @@
       ],
       "pathConflicts": [],
       "componentConflicts": [],
-      "totalPaths": 83,
+      "totalPaths": 84,
       "totalComponents": 9
     }
   },
@@ -357,6 +358,95 @@
     }
   ],
   "paths": {
+    "/v2/settings/categories": {
+      "get": {
+        "description": "Returns all service categories for the business, each with its nested services. Use this to retrieve category UIDs needed when creating services via POST /v2/settings/services.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "List of categories with their services.",
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "uid": "cat_abc123",
+                    "name": "Consultations",
+                    "position": 0,
+                    "services": [
+                      {
+                        "id": "svc_def456",
+                        "name": "Strategy Session",
+                        "service_type": "appointment",
+                        "duration": 60
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "summary": "List Categories",
+        "tags": [
+          "Categories"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "post": {
+        "description": "Creates a new service category for the business.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Category created successfully.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "uid": "cat_abc123",
+                  "name": "Consultations",
+                  "position": 0,
+                  "services": []
+                }
+              }
+            }
+          }
+        },
+        "summary": "Create Category",
+        "tags": [
+          "Categories"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Display name of the category (e.g., \"Consultations\", \"Workshops\")."
+                  },
+                  "position": {
+                    "type": "integer",
+                    "description": "Sort order position. Lower values appear first. Defaults to the end of the list."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v2/settings/services": {
       "post": {
         "description": "## Overview\nCreates a new service for the business. This is the write endpoint for services — the read-only list is at `GET /platform/v1/services`.\n\nAvailable for **Staff tokens**.\n\n## Important\n`POST /platform/v1/services` does NOT exist (returns 404). Always use this endpoint (`POST /v2/settings/services`) to create services.",
@@ -372,6 +462,7 @@
                     "id": "svc_abc123def456",
                     "name": "Executive Strategy Consultation",
                     "type": "AppointmentService",
+                    "service_type": "appointment",
                     "duration": 60,
                     "charge_type": "no_price",
                     "price": 0,
@@ -379,7 +470,8 @@
                     "interaction_type": "in_person",
                     "description": "A focused consultation for business planning.",
                     "display": true,
-                    "approval_mode": "immediate"
+                    "approval_mode": "immediate",
+                    "category_id": "cat_abc123"
                   }
                 }
               }
@@ -466,6 +558,19 @@
                       "type": "string"
                     },
                     "description": "Array of staff member UIDs who can provide this service."
+                  },
+                  "category": {
+                    "type": "object",
+                    "description": "The category to assign the service to. Services without a category will not appear in the settings UI. If omitted, the service is uncategorized.",
+                    "properties": {
+                      "uid": {
+                        "type": "string",
+                        "description": "UID of an existing category. Can be obtained from GET /v2/settings/categories."
+                      }
+                    },
+                    "required": [
+                      "uid"
+                    ]
                   }
                 }
               }
