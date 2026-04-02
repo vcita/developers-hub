@@ -1,0 +1,807 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Web AI Widget — Widget configurations",
+    "description": "Manage embedded Web AI Widget configurations per business (CRUD, main upsert, public resolved config for embed, AI guidance markdown). Successful JSON responses use the standard `{ success, data }` envelope from the API gateway + `@vcita/infra-nestjs` response interceptor, except where noted (markdown body). Service: **webaiwidgetmgr**.",
+    "version": "3.0.0",
+    "contact": {}
+  },
+  "tags": [
+    {
+      "name": "Web AI Widget",
+      "description": "Widget configuration resources under `/v3/web_ai_widget/widget_configurations`."
+    }
+  ],
+  "servers": [
+    {
+      "url": "https://api.vcita.biz",
+      "description": "API Gateway server"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "required": ["success", "errors"]
+      },
+      "NestHttpException": {
+        "type": "object",
+        "description": "Typical NestJS HTTP exception body",
+        "properties": {
+          "statusCode": { "type": "integer" },
+          "message": {
+            "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }]
+          },
+          "error": { "type": "string" }
+        }
+      },
+      "WelcomeButton": {
+        "type": "object",
+        "properties": {
+          "label": { "type": "string", "maxLength": 200 },
+          "message": { "type": "string", "maxLength": 1000 }
+        },
+        "required": ["label", "message"]
+      },
+      "ActionConfigItem": {
+        "type": "object",
+        "properties": {
+          "action": { "type": "string" },
+          "label": { "type": "string", "nullable": true, "maxLength": 200 },
+          "availability": { "type": "boolean" }
+        },
+        "required": ["action", "availability"]
+      },
+      "RequestCreateWidgetConfiguration": {
+        "type": "object",
+        "properties": {
+          "business_uid": { "type": "string", "description": "Business scope; must match the authenticated Business token." },
+          "widget_title": { "type": "string", "nullable": true, "maxLength": 200 },
+          "faq_and_guidance": { "type": "string", "nullable": true, "maxLength": 50000 },
+          "business_hours": { "type": "string", "nullable": true, "maxLength": 1000 },
+          "welcome_message": { "type": "string", "nullable": true, "maxLength": 1000 },
+          "brand_color": { "type": "string", "nullable": true, "description": "Hex color" },
+          "text_color": { "type": "string", "nullable": true, "description": "Hex color" },
+          "logo_url": { "type": "string", "nullable": true, "format": "uri" },
+          "actions": {
+            "type": "array",
+            "nullable": true,
+            "items": { "$ref": "#/components/schemas/ActionConfigItem" }
+          },
+          "auto_popup_enabled": { "type": "boolean", "nullable": true },
+          "auto_popup_delay": { "type": "number", "nullable": true, "minimum": 0, "maximum": 3600 },
+          "welcome_buttons": {
+            "type": "array",
+            "nullable": true,
+            "items": { "$ref": "#/components/schemas/WelcomeButton" }
+          },
+          "lead_capture_text": { "type": "string", "nullable": true, "maxLength": 1000 },
+          "button_text": { "type": "string", "nullable": true, "maxLength": 200 },
+          "include_contact_info": { "type": "boolean", "nullable": true },
+          "include_services": { "type": "boolean", "nullable": true },
+          "include_products": { "type": "boolean", "nullable": true },
+          "include_booking_policies": { "type": "boolean", "nullable": true },
+          "include_terms_of_service": { "type": "boolean", "nullable": true },
+          "guidance_urls": {
+            "type": "array",
+            "nullable": true,
+            "items": { "type": "string", "format": "uri", "maxLength": 2048 }
+          }
+        },
+        "required": ["business_uid"]
+      },
+      "RequestUpdateWidgetConfiguration": {
+        "type": "object",
+        "description": "Partial update; all fields optional. `business_uid` may be sent for validation.",
+        "properties": {
+          "business_uid": { "type": "string" },
+          "widget_title": { "type": "string", "nullable": true, "maxLength": 200 },
+          "faq_and_guidance": { "type": "string", "nullable": true, "maxLength": 50000 },
+          "business_hours": { "type": "string", "nullable": true, "maxLength": 1000 },
+          "welcome_message": { "type": "string", "nullable": true, "maxLength": 1000 },
+          "brand_color": { "type": "string", "nullable": true },
+          "text_color": { "type": "string", "nullable": true },
+          "logo_url": { "type": "string", "nullable": true, "format": "uri" },
+          "actions": {
+            "type": "array",
+            "nullable": true,
+            "items": { "$ref": "#/components/schemas/ActionConfigItem" }
+          },
+          "auto_popup_enabled": { "type": "boolean", "nullable": true },
+          "auto_popup_delay": { "type": "number", "nullable": true, "minimum": 0, "maximum": 3600 },
+          "welcome_buttons": {
+            "type": "array",
+            "nullable": true,
+            "items": { "$ref": "#/components/schemas/WelcomeButton" }
+          },
+          "lead_capture_text": { "type": "string", "nullable": true, "maxLength": 1000 },
+          "button_text": { "type": "string", "nullable": true, "maxLength": 200 },
+          "include_contact_info": { "type": "boolean", "nullable": true },
+          "include_services": { "type": "boolean", "nullable": true },
+          "include_products": { "type": "boolean", "nullable": true },
+          "include_booking_policies": { "type": "boolean", "nullable": true },
+          "include_terms_of_service": { "type": "boolean", "nullable": true },
+          "guidance_urls": {
+            "type": "array",
+            "nullable": true,
+            "items": { "type": "string", "format": "uri", "maxLength": 2048 }
+          }
+        }
+      },
+      "WidgetConfigurationResource": {
+        "type": "object",
+        "description": "Single configuration row merged with stored config blob (sparse fields).",
+        "properties": {
+          "uid": { "type": "string" },
+          "business_uid": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" },
+          "owner_id": { "type": "string", "nullable": true, "description": "Staff uid of last editor" },
+          "widget_title": { "type": "string" },
+          "faq_and_guidance": { "type": "string" },
+          "business_hours": { "type": "string", "nullable": true },
+          "welcome_message": { "type": "string" },
+          "brand_color": { "type": "string" },
+          "text_color": { "type": "string" },
+          "logo_url": { "type": "string", "nullable": true },
+          "actions": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ActionConfigItem" }
+          },
+          "auto_popup_enabled": { "type": "boolean" },
+          "auto_popup_delay": { "type": "number" },
+          "welcome_buttons": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/WelcomeButton" }
+          },
+          "lead_capture_text": { "type": "string" },
+          "button_text": { "type": "string" },
+          "include_contact_info": { "type": "boolean" },
+          "include_services": { "type": "boolean" },
+          "include_products": { "type": "boolean" },
+          "include_booking_policies": { "type": "boolean" },
+          "include_terms_of_service": { "type": "boolean" },
+          "guidance_urls": {
+            "type": "array",
+            "items": { "type": "string", "format": "uri" }
+          }
+        }
+      },
+      "SingleWidgetConfigurationPayload": {
+        "type": "object",
+        "properties": {
+          "widget_configuration": {
+            "$ref": "#/components/schemas/WidgetConfigurationResource"
+          }
+        },
+        "required": ["widget_configuration"]
+      },
+      "ListWidgetConfigurationsPayload": {
+        "type": "object",
+        "properties": {
+          "widget_configurations": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/WidgetConfigurationResource" }
+          },
+          "total": { "type": "integer", "minimum": 0 }
+        },
+        "required": ["widget_configurations", "total"]
+      },
+      "ResolvedPublicConfigAction": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "action": { "type": "string" },
+          "text": { "type": "string" },
+          "uid": { "type": "string" },
+          "options": {},
+          "icon": { "type": "string" },
+          "url": { "type": "string" },
+          "target": { "type": "string" },
+          "lightbox": {},
+          "order": { "type": "integer" }
+        }
+      },
+      "ResolvedPublicConfig": {
+        "type": "object",
+        "description": "Merged public-facing config for embed (snake_case). `Cache-Control: public, max-age=60` on success.",
+        "properties": {
+          "uid": { "type": "string" },
+          "business_uid": { "type": "string" },
+          "widget_title": { "type": "string" },
+          "brand_color": { "type": "string" },
+          "text_color": { "type": "string" },
+          "logo_url": { "type": "string", "nullable": true },
+          "button_text": { "type": "string" },
+          "auto_popup_enabled": { "type": "boolean" },
+          "auto_popup_delay": { "type": "integer", "description": "Milliseconds" },
+          "actions": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ResolvedPublicConfigAction" }
+          },
+          "welcome_message": { "type": "string" },
+          "welcome_buttons": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/WelcomeButton" }
+          },
+          "portal_host": {
+            "type": "string",
+            "description": "Optional portal host injected by the service for action URLs"
+          }
+        },
+        "required": [
+          "uid",
+          "business_uid",
+          "widget_title",
+          "brand_color",
+          "text_color",
+          "logo_url",
+          "button_text",
+          "auto_popup_enabled",
+          "auto_popup_delay",
+          "actions",
+          "welcome_message",
+          "welcome_buttons"
+        ]
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Business token (and optional Staff token where the API supports attribution). `business_uid` in query/body must match the authenticated business."
+      }
+    }
+  },
+  "paths": {
+    "/v3/web_ai_widget/widget_configurations": {
+      "get": {
+        "operationId": "listWidgetConfigurations",
+        "summary": "Get all widget configurations",
+        "description": "Lists configurations for a business. **Business token** required; `business_uid` query must match the token. Pagination: 1-based `page`, `per_page` (1–100). Optional `sort=field:asc|desc` (first segment only); allowed fields: `created_at`, `updated_at`, `business_uid`. Legacy `order_by` / `order_dir` are rejected.",
+        "tags": ["Web AI Widget"],
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "business_uid",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "1-based page index",
+            "schema": { "type": "integer", "minimum": 1, "default": 1 }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 25 }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "e.g. `created_at:desc` or `updated_at:asc`. Direction defaults to `asc` if omitted.",
+            "schema": { "type": "string", "example": "created_at:desc" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "https://vcita.github.io/developers-hub/entities/response.json" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/ListWidgetConfigurationsPayload" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or bad query (e.g. legacy sort params)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden — business mismatch",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found (masked as 404 for business mismatch in some cases)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createWidgetConfiguration",
+        "summary": "Create widget configuration",
+        "description": "Creates a configuration row. **Business token** required; optional **Staff token** for attribution (`owner_id`).",
+        "tags": ["Web AI Widget"],
+        "security": [{ "Bearer": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RequestCreateWidgetConfiguration" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "https://vcita.github.io/developers-hub/entities/response.json" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/SingleWidgetConfigurationPayload" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/web_ai_widget/widget_configurations/main": {
+      "get": {
+        "operationId": "getMainWidgetConfiguration",
+        "summary": "Retrieve main widget configuration",
+        "description": "Returns the primary widget configuration for the business. **Business token** required.",
+        "tags": ["Web AI Widget"],
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "business_uid",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Main configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "https://vcita.github.io/developers-hub/entities/response.json" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/SingleWidgetConfigurationPayload" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+              }
+            }
+          },
+          "404": {
+            "description": "No main widget configuration for this business",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "putMainWidgetConfiguration",
+        "summary": "Create or update main widget configuration",
+        "description": "Upserts the main configuration for a business. **Business token** required; optional **Staff token** for attribution.",
+        "tags": ["Web AI Widget"],
+        "security": [{ "Bearer": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RequestCreateWidgetConfiguration" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Upserted configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "https://vcita.github.io/developers-hub/entities/response.json" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/SingleWidgetConfigurationPayload" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/web_ai_widget/widget_configurations/public/{widget_uid}": {
+      "get": {
+        "operationId": "getResolvedPublicWidgetConfiguration",
+        "summary": "Get resolved public widget config",
+        "description": "Public embed endpoint (no end-user bearer). Resolved merged config for live site / widget by `widget_uid`. **Cache-Control: public, max-age=60.** Gateway may whitelist this path without introspection.",
+        "tags": ["Web AI Widget"],
+        "security": [],
+        "parameters": [
+          {
+            "name": "widget_uid",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resolved public configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "https://vcita.github.io/developers-hub/entities/response.json" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/ResolvedPublicConfig" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown widget uid",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/web_ai_widget/widget_configurations/ai_guidance": {
+      "get": {
+        "operationId": "getAiGuidanceMarkdown",
+        "summary": "Get AI guidance markdown",
+        "description": "Returns markdown guidance for the widget. **Not JSON:** body is raw markdown. `Content-Type: text/markdown; charset=utf-8`. Authentication and gateway policy vary by environment (may be whitelisted). Optional query: `widget_uid`, `business_uid`.",
+        "tags": ["Web AI Widget"],
+        "security": [],
+        "parameters": [
+          {
+            "name": "widget_uid",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "business_uid",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Markdown document",
+            "content": {
+              "text/markdown": {
+                "schema": { "type": "string", "description": "Markdown document body" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/web_ai_widget/widget_configurations/{uid}": {
+      "get": {
+        "operationId": "getWidgetConfigurationByUid",
+        "summary": "Retrieve a widget configuration",
+        "description": "Returns one configuration by uid scoped to the authenticated business. **Business token** required.",
+        "tags": ["Web AI Widget"],
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "https://vcita.github.io/developers-hub/entities/response.json" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/SingleWidgetConfigurationPayload" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateWidgetConfiguration",
+        "summary": "Update widget configuration",
+        "description": "Updates an existing configuration. **Business token** required; optional **Staff token**.",
+        "tags": ["Web AI Widget"],
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RequestUpdateWidgetConfiguration" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "https://vcita.github.io/developers-hub/entities/response.json" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/SingleWidgetConfigurationPayload" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteWidgetConfiguration",
+        "summary": "Delete widget configuration",
+        "description": "Deletes a configuration by uid for the authenticated business. **Business token** required. **204** with empty body on success.",
+        "tags": ["Web AI Widget"],
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted (no response body)"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
