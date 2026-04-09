@@ -6,6 +6,7 @@
     "version": "3.0",
     "x-generated": {
       "sourceFiles": [
+        "activity_message.json",
         "legacy_v1_communication.json",
         "communication.json",
         "notification_template.json",
@@ -13,8 +14,7 @@
         "legacy_v2_communication.json",
         "communication.json",
         "staff_notification.json",
-        "messages.json",
-        "activity_message.json"
+        "messages.json"
       ],
       "pathNormalizations": [
         {
@@ -141,6 +141,15 @@
         {
           "type": "schema",
           "name": "ErrorResponse",
+          "resolution": "Renamed to ErrorResponse_business_phone_numbers",
+          "files": [
+            "merged",
+            "business_phone_numbers.json"
+          ]
+        },
+        {
+          "type": "schema",
+          "name": "ErrorResponse",
           "resolution": "Renamed to ErrorResponse_communication",
           "files": [
             "merged",
@@ -155,15 +164,6 @@
             "merged",
             "communication.json"
           ]
-        },
-        {
-          "type": "schema",
-          "name": "ErrorResponse",
-          "resolution": "Renamed to ErrorResponse_activity_message",
-          "files": [
-            "merged",
-            "activity_message.json"
-          ]
         }
       ],
       "totalPaths": 32,
@@ -177,6 +177,514 @@
     }
   ],
   "paths": {
+    "/v3/communication/activity_messages": {
+      "get": {
+        "operationId": "listActivityMessages",
+        "summary": "List Activity Messages",
+        "description": "## Overview\nRetrieves a paginated list of activity messages for a business. Activity messages represent communications tied to business activities such as meetings, invoices, payments, and more. Use the available query parameters to filter results by activity type, client, staff, direction, read status, and date range.\n\nAvailable for **Staff tokens**.",
+        "tags": [
+          "Activity Message"
+        ],
+        "parameters": [
+          {
+            "name": "activity_type",
+            "in": "query",
+            "required": false,
+            "description": "Filter by activity type. Limits results to messages associated with a specific type of business activity (e.g., \"meeting\", \"invoice\", \"payment\", \"announcement\").",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "meeting",
+                "appointment_series",
+                "invoice",
+                "estimate",
+                "payment",
+                "payment_status",
+                "payment_card",
+                "card_request",
+                "scheduled_payments_rule",
+                "payout",
+                "announcement",
+                "invite",
+                "event",
+                "event_series",
+                "event_instance",
+                "waitlist",
+                "linked_booking",
+                "client_booking_package",
+                "product_order",
+                "review",
+                "document",
+                "voice_call",
+                "assignment"
+              ]
+            }
+          },
+          {
+            "name": "activity_action",
+            "in": "query",
+            "required": false,
+            "description": "Filter by the specific action or status of the activity (e.g., \"scheduled\", \"created\", \"cancelled\"). Available values depend on the activity_type.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "client_uid",
+            "in": "query",
+            "required": false,
+            "description": "Filter by client unique identifier. Returns only activity messages associated with the specified client.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "staff_uid",
+            "in": "query",
+            "required": false,
+            "description": "Filter by staff unique identifier. Returns only activity messages associated with the specified staff member.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "conversation_uid",
+            "in": "query",
+            "required": false,
+            "description": "Filter by conversation unique identifier. Returns only activity messages that belong to the specified conversation thread.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "required": false,
+            "description": "Filter by message direction. Use \"business_to_client\" for messages sent from the business to the client, or \"client_to_business\" for messages sent from the client to the business.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "business_to_client",
+                "client_to_business"
+              ]
+            }
+          },
+          {
+            "name": "was_read",
+            "in": "query",
+            "required": false,
+            "description": "Filter by read status. Set to \"true\" to return only messages that have been read, or \"false\" for unread messages.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "created_after",
+            "in": "query",
+            "required": false,
+            "description": "Filter messages created on or after this date. Must be a valid ISO 8601 date-time string (e.g., \"2026-01-01T00:00:00Z\").",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "created_before",
+            "in": "query",
+            "required": false,
+            "description": "Filter messages created on or before this date. Must be a valid ISO 8601 date-time string (e.g., \"2026-03-01T23:59:59Z\").",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "Sort order for results in the format \"field:direction\" (e.g., \"created_at:desc\" or \"created_at:asc\"). Defaults to \"created_at:desc\" if not specified.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "created_at:desc"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Page number for pagination. Starts at 1.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "description": "Number of results to return per page. Maximum value is 100.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Activity messages retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "activity_messages": {
+                              "type": "array",
+                              "description": "List of activity message records matching the query filters.",
+                              "items": {
+                                "$ref": "https://vcita.github.io/developers-hub/entities/communication/activityMessage.json"
+                              }
+                            },
+                            "page": {
+                              "type": "integer",
+                              "description": "The current page number."
+                            },
+                            "per_page": {
+                              "type": "integer",
+                              "description": "The number of results per page."
+                            },
+                            "total_count": {
+                              "type": "integer",
+                              "description": "The total number of activity messages matching the query filters."
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "activity_messages": [
+                      {
+                        "uid": "msg_a1b2c3d4e5f6",
+                        "business_uid": "d290f1ee26c54",
+                        "staff_uid": "5ya4gbwm2c3qoic8",
+                        "client_uid": "0c4ac9717ab26f56",
+                        "activity_type": "meeting",
+                        "activity_action": "scheduled",
+                        "direction": "business_to_client",
+                        "channels": [
+                          "email"
+                        ],
+                        "message_text": {
+                          "body": "Your appointment has been scheduled.",
+                          "subject": "Initial Consultation"
+                        },
+                        "cta_button_text": "View Appointment",
+                        "link_url_params": null,
+                        "meeting_data": {
+                          "service_uid": "svc_x7y8z9",
+                          "service_name": "Initial Consultation",
+                          "start_time": "2026-03-15T14:00:00Z",
+                          "duration": 60,
+                          "interaction_type": "video"
+                        },
+                        "created_at": "2026-03-10T09:00:00Z",
+                        "updated_at": "2026-03-10T09:00:00Z"
+                      },
+                      {
+                        "uid": "msg_g7h8i9j0k1l2",
+                        "business_uid": "d290f1ee26c54",
+                        "staff_uid": "5ya4gbwm2c3qoic8",
+                        "client_uid": "0c4ac9717ab26f56",
+                        "activity_type": "invoice",
+                        "activity_action": "created",
+                        "direction": "business_to_client",
+                        "channels": [
+                          "email",
+                          "sms"
+                        ],
+                        "message_text": {
+                          "body": "A new invoice has been created for your recent service.",
+                          "subject": "Invoice #1042"
+                        },
+                        "cta_button_text": "View Invoice",
+                        "link_url_params": null,
+                        "created_at": "2026-03-08T11:30:00Z",
+                        "updated_at": "2026-03-08T11:30:00Z"
+                      }
+                    ],
+                    "page": 1,
+                    "per_page": 25,
+                    "total_count": 2
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request. The request contains invalid parameters.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "invalid",
+                      "message": "unknown activity_type"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing, invalid or not allowed to access the requested resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "401 Unauthorized"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found. A referenced resource was not found (e.g., conversation_uid does not exist).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": "Conversation not found"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "sendActivityMessage",
+        "summary": "Create an ActivityMessage",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "business_uid": {
+                    "type": "string",
+                    "description": "The unique identifier of the business that is sending the message"
+                  },
+                  "staff_uid": {
+                    "type": "string",
+                    "description": "The unique identifier of the staff that is sending the message"
+                  },
+                  "client_uid": {
+                    "type": "string",
+                    "description": "The unique identifier of the client the message is sent to"
+                  },
+                  "activity_type": {
+                    "type": "string",
+                    "enum": [
+                      "invite"
+                    ],
+                    "description": "Activity category type from a closed list."
+                  },
+                  "activity_action": {
+                    "type": "string",
+                    "enum": [
+                      "schedule"
+                    ],
+                    "description": "Action related to the activity type property."
+                  },
+                  "channels": {
+                    "type": "array",
+                    "description": "Determines if the message should be sent via email or/and SMS.",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "email",
+                        "sms"
+                      ]
+                    }
+                  },
+                  "message_text": {
+                    "type": "object",
+                    "properties": {
+                      "body": {
+                        "type": "string",
+                        "description": "The main content of the message."
+                      },
+                      "subject": {
+                        "type": "string",
+                        "description": "A summary of the message content (limited to 200 characters)"
+                      }
+                    }
+                  },
+                  "cta_button_text": {
+                    "type": "string",
+                    "description": "In the Email, this text will appear on the button embedded in the email message"
+                  },
+                  "link_url_params": {
+                    "type": "object",
+                    "description": "The parameters for the Email action button or SMS link. for example: {\n\"utm_source\": \"newsletter\",\n\"utm_campaign\": \"summer_sale\"\n}"
+                  }
+                },
+                "required": [
+                  "client_uid",
+                  "activity_type",
+                  "activity_action",
+                  "channels"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/activityMessage.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error. The request is invalid. (missing required fields, invalid values, etc.)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "missing_field",
+                      "message": "Missing mandatory field."
+                    },
+                    {
+                      "code": "invalid",
+                      "message": "activity_type value is invalid."
+                    },
+                    {
+                      "code": "too_long",
+                      "message": "Sms body text is too long. Maximum length is 550 characters."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing, invalid or not allowed to access the requested resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "401 Unauthorized"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found. The requested resource was not found. (staff, client or business)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": "Client Not Found: The specified client ID does not exist."
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate Limit Reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "too_many_requests",
+                      "message": "Rate limit exceeded"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Activity Message"
+        ],
+        "description": "## Overview\nCreate an ActivityMessage Available for **Staff, App, and Directory tokens**.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/platform/v1/conversations": {
       "get": {
         "description": "## Overview\nGets a list of conversations.\n\nAvailable for **Staff and Directory tokens**. Directory tokens require the `X-On-Behalf-Of` header with the target business UID.",
@@ -3181,212 +3689,36 @@
           }
         ]
       }
-    },
-    "/v3/communication/activity_messages": {
-      "post": {
-        "operationId": "sendActivityMessage",
-        "summary": "Create an ActivityMessage",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "business_uid": {
-                    "type": "string",
-                    "description": "The unique identifier of the business that is sending the message"
-                  },
-                  "staff_uid": {
-                    "type": "string",
-                    "description": "The unique identifier of the staff that is sending the message"
-                  },
-                  "client_uid": {
-                    "type": "string",
-                    "description": "The unique identifier of the client the message is sent to"
-                  },
-                  "activity_type": {
-                    "type": "string",
-                    "enum": [
-                      "invite"
-                    ],
-                    "description": "Activity category type from a closed list."
-                  },
-                  "activity_action": {
-                    "type": "string",
-                    "enum": [
-                      "schedule"
-                    ],
-                    "description": "Action related to the activity type property."
-                  },
-                  "channels": {
-                    "type": "array",
-                    "description": "Determines if the message should be sent via email or/and SMS.",
-                    "items": {
-                      "type": "string",
-                      "enum": [
-                        "email",
-                        "sms"
-                      ]
-                    }
-                  },
-                  "message_text": {
-                    "type": "object",
-                    "properties": {
-                      "body": {
-                        "type": "string",
-                        "description": "The main content of the message."
-                      },
-                      "subject": {
-                        "type": "string",
-                        "description": "A summary of the message content (limited to 200 characters)"
-                      }
-                    }
-                  },
-                  "cta_button_text": {
-                    "type": "string",
-                    "description": "In the Email, this text will appear on the button embedded in the email message"
-                  },
-                  "link_url_params": {
-                    "type": "object",
-                    "description": "The parameters for the Email action button or SMS link. for example: {\n\"utm_source\": \"newsletter\",\n\"utm_campaign\": \"summer_sale\"\n}"
-                  }
-                },
-                "required": [
-                  "client_uid",
-                  "activity_type",
-                  "activity_action",
-                  "channels"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/activityMessage.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Error. The request is invalid. (missing required fields, invalid values, etc.)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "missing_field",
-                      "message": "Missing mandatory field."
-                    },
-                    {
-                      "code": "invalid",
-                      "message": "activity_type value is invalid."
-                    },
-                    {
-                      "code": "too_long",
-                      "message": "Sms body text is too long. Maximum length is 550 characters."
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing, invalid or not allowed to access the requested resource.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "unauthorized",
-                      "message": "401 Unauthorized"
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found. The requested resource was not found. (staff, client or business)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "error": "Client Not Found: The specified client ID does not exist."
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate Limit Reached",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "too_many_requests",
-                      "message": "Rate limit exceeded"
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Activity Message"
-        ],
-        "description": "## Overview\nCreate an ActivityMessage Available for **Staff, App, and Directory tokens**.",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
     }
   },
   "components": {
-    "securitySchemes": {
-      "Bearer": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT",
-        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
-      }
-    },
     "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "success",
+          "error"
+        ]
+      },
       "Response": {
         "type": "object",
         "properties": {
@@ -4189,7 +4521,7 @@
           "verification_request_data"
         ]
       },
-      "ErrorResponse": {
+      "ErrorResponse_business_phone_numbers": {
         "type": "object",
         "properties": {
           "success": {
@@ -4627,32 +4959,14 @@
             }
           }
         }
-      },
-      "ErrorResponse_activity_message": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "errors": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "code": {
-                  "type": "string"
-                },
-                "message": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        },
-        "required": [
-          "success",
-          "error"
-        ]
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
       }
     }
   },
