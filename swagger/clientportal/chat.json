@@ -2,8 +2,8 @@
   "openapi": "3.0.0",
   "info": {
     "title": "Client portal — Web AI chat & conversations",
-    "description": "Public/embed **chat** session APIs (`/v3/clientportal/chat`) and **Staff**-scoped **conversations** CRUD (`/v3/clientportal/chat/conversations`).\n\n**Response envelopes:** These routes use `@UnwrappedResponse()` in **webaiwidgetserver**. They **do not** wrap JSON in the standard `{ success, data }` envelope from `@vcita/infra-nestjs`. Chat JSON bodies are returned as-is; conversations list/get/create/update return `{ \"data\": ... }` (no `success` field). The SSE chat stream returns `text/event-stream`, not JSON.",
-    "version": "3.0.0",
+    "description": "Public/embed **chat** session APIs (`/v3/clientportal/chat`) and **Staff**-scoped **conversations** CRUD (`/v3/clientportal/chat/conversations`).\n\n**Session resume:** `POST /sessions` accepts optional `resume_session_id` to reconnect to an active Redis session for the same `business_uid`. On success, the response includes `resumed: true` and `messages` for client-side replay. If the id is stale or missing, a new session is created (`resumed: false`) — same as omitting the field.\n\n**Response envelopes:** These routes use `@UnwrappedResponse()` in **webaiwidgetserver**. They **do not** wrap JSON in the standard `{ success, data }` envelope from `@vcita/infra-nestjs`. Chat JSON bodies are returned as-is; conversations list/get/create/update return `{ \"data\": ... }` (no `success` field). The SSE chat stream returns `text/event-stream`, not JSON.",
+    "version": "3.0.1",
     "contact": {}
   },
   "tags": [
@@ -66,6 +66,11 @@
           "from_widget_editor": {
             "type": "boolean",
             "description": "When true, page context is stored as Widget Editor"
+          },
+          "resume_session_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Optional. When set, reconnects to an existing Redis chat session for the same `business_uid` if it still exists (not idle-closed, same business). If the session cannot be resumed, the server creates a **new** session and returns `resumed: false` — no extra error for a stale id."
           }
         }
       },
@@ -73,8 +78,20 @@
         "type": "object",
         "properties": {
           "session_id": { "type": "string", "format": "uuid" },
+          "resumed": {
+            "type": "boolean",
+            "description": "True when `resume_session_id` matched an active session. False for a newly created session (including fallback when resume was not possible)."
+          },
+          "messages": {
+            "type": "array",
+            "description": "Visitor-visible history for replay when `resumed` is true. Omitted or empty when starting a fresh session.",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/clientportal/ChatVisitorMessage.json"
+            }
+          },
           "greeting": {
             "type": "object",
+            "description": "Welcome message for new sessions when configured. Typically omitted when `resumed` is true and the first assistant turn is already in `messages`.",
             "properties": {
               "content": { "type": "string" },
               "buttons": {
@@ -135,7 +152,16 @@
         "properties": {
           "session_id": { "type": "string", "maxLength": 255 },
           "business_uid": { "type": "string", "maxLength": 255 },
-          "transcript": { "type": "string", "nullable": true },
+          "transcript": {
+            "description": "Structured transcript JSON (`ChatTranscriptDocument`) when closing a session; optional JSON string encoding for compatibility.",
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "https://vcita.github.io/developers-hub/entities/clientportal/ChatTranscriptDocument.json"
+              },
+              { "type": "string" }
+            ]
+          },
           "summary": { "type": "string", "nullable": true },
           "contact_full_name": { "type": "string", "nullable": true, "maxLength": 255 },
           "contact_email": { "type": "string", "nullable": true, "maxLength": 255 },
@@ -151,7 +177,16 @@
       "UpdateConversationRequest": {
         "type": "object",
         "properties": {
-          "transcript": { "type": "string", "nullable": true },
+          "transcript": {
+            "description": "Structured transcript or JSON string; optional staff edits.",
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "https://vcita.github.io/developers-hub/entities/clientportal/ChatTranscriptDocument.json"
+              },
+              { "type": "string" }
+            ]
+          },
           "summary": { "type": "string", "nullable": true },
           "contact_full_name": { "type": "string", "nullable": true, "maxLength": 255 },
           "contact_email": { "type": "string", "nullable": true, "maxLength": 255 },
@@ -194,8 +229,8 @@
     "/v3/clientportal/chat/sessions": {
       "post": {
         "operationId": "createChatSession",
-        "summary": "Create chat session",
-        "description": "Creates a chat session for the embedded widget / client portal flow (not Staff tokens). `business_uid` is required for the website widget. **No bearer auth** in typical embed flows (gateway policy may vary).",
+        "summary": "Create or resume chat session",
+        "description": "Creates a chat session for the embedded widget / client portal flow (not Staff tokens), or **resumes** an existing one when `resume_session_id` is provided and still valid in Redis. `business_uid` is required for the website widget. Successful resume returns `resumed: true` and `messages` for client replay; usage counters treat resume differently from a brand-new session (see product docs). **No bearer auth** in typical embed flows (gateway policy may vary).",
         "tags": ["Client portal chat"],
         "security": [],
         "requestBody": {
@@ -208,10 +243,42 @@
         },
         "responses": {
           "200": {
-            "description": "Session created",
+            "description": "Session created or resumed",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/CreateSessionResponse" }
+                "schema": { "$ref": "#/components/schemas/CreateSessionResponse" },
+                "examples": {
+                  "newSession": {
+                    "summary": "New session",
+                    "value": {
+                      "session_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                      "resumed": false,
+                      "greeting": {
+                        "content": "Hi! How can we help?",
+                        "buttons": []
+                      }
+                    }
+                  },
+                  "resumedSession": {
+                    "summary": "Resumed session",
+                    "value": {
+                      "session_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                      "resumed": true,
+                      "messages": [
+                        {
+                          "role": "assistant",
+                          "content": "Hi! How can we help?",
+                          "at": "2026-04-19T12:00:00.000Z"
+                        },
+                        {
+                          "role": "user",
+                          "content": "I need pricing.",
+                          "at": "2026-04-19T12:00:15.000Z"
+                        }
+                      ]
+                    }
+                  }
+                }
               }
             }
           },
