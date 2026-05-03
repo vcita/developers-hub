@@ -104,11 +104,11 @@
           },
           "payment_type": {
             "type": "string",
-            "description": "The payment type field defines the payment options available for an offering. Possible values:\n- **external**: Payment is managed outside the platform (typically via partner API). When using this type, the `prices` array must be empty (`[]`).\n- **free**: No payment is required. When using this type, the `price` value in the `prices` array must be `0` or `-1`.\n- **single_charge**: A single, one-time payment is required to obtain the offering.\n- **monthly**: A recurring payment made on a monthly basis.\n- **annual**: A recurring payment made on a yearly basis.\n- **bundle**: A subscription bundled with another subscription. Bundled offerings cannot be sold separately.",
+            "description": "The payment type field defines the payment options available for an offering. Possible values:\n- **external**: Payment is managed outside the platform (typically via partner API). When using this type, the `prices` array must be empty (`[]`).\n- **free**: No payment is required. When using this type, the `price` value in the `prices` array must be `0` or `-1`.\n- **single_charge**: A single, one-time payment is required to obtain the offering.\n- **monthly**: A recurring payment made on a monthly basis.\n- **annually**: A recurring payment made on a yearly basis.\n- **bundle**: A subscription bundled with another subscription. Bundled offerings cannot be sold separately.",
             "enum": [
               "free",
               "monthly",
-              "annual",
+              "annually",
               "single_charge",
               "external",
               "bundle"
@@ -135,6 +135,10 @@
             "description": "Array of price objects for different currencies. **For `external` payment type**: Must be an empty array (`[]`). The system will automatically populate default prices with `-1.00` for all supported currencies, indicating that pricing is managed externally by the partner. **For `free` payment type**: The `price` value must be `0` or `-1`.",
             "items": {
               "type": "object",
+              "required": [
+                "price",
+                "currency"
+              ],
               "properties": {
                 "price": {
                   "type": "number",
@@ -220,12 +224,17 @@
           },
           "prices": {
             "type": "array",
+            "description": "Complete desired set of currencies for the offering. Any currency not present is removed (replace-all), along with its pay-per-unit prices and bundles. Omit the field to keep the existing prices unchanged. Sending an empty array is rejected with `400`.",
             "items": {
               "type": "object",
+              "required": [
+                "price",
+                "currency"
+              ],
               "properties": {
                 "price": {
                   "type": "number",
-                  "description": "Cost of the directory offering"
+                  "description": "Cost of the offering for the given currency. Required for every entry; use `-1` for no-charge payment types."
                 },
                 "currency": {
                   "type": "string",
@@ -233,11 +242,22 @@
                   "enum": [
                     "USD",
                     "EUR",
-                    "GBP"
+                    "GBP",
+                    "CHF"
                   ]
                 }
               }
-            }
+            },
+            "example": [
+              {
+                "price": 5.00,
+                "currency": "USD"
+              },
+              {
+                "price": 4.50,
+                "currency": "EUR"
+              }
+            ]
           },
           "trial_type": {
             "type": "string",
@@ -761,7 +781,7 @@
           }
         },
         "summary": "Update an Offering",
-        "description": "## Overview\nUpdate an Offering. Available for **Admin tokens only**.",
+        "description": "## Overview\nUpdate an Offering. Available for **Admin tokens only**.\n\n### Replace-all `prices` semantics\nThe `prices` array represents the **complete desired set of currencies** for the offering. Any currency not present in the request will be **removed** from the offering, along with its pay-per-unit prices and bundles. To edit a single currency, send the full list of currencies you want to keep, including the unchanged ones. Omit `prices` entirely to leave the existing prices untouched. Sending an empty array is rejected with `400`.",
         "security": [
           {
             "Bearer": []
