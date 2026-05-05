@@ -1,5 +1,5 @@
 {
-  "openapi": "3.0.0",
+  "openapi": "3.0.3",
   "info": {
     "title": "Web AI Widget — Widget configurations",
     "description": "Manage embedded Web AI Widget configurations per business (CRUD, main upsert, public resolved config for embed, AI guidance markdown). Successful JSON responses use the standard `{ success, data }` envelope from the API gateway + `@vcita/infra-nestjs` response interceptor, except where noted (markdown body). Service: **webaiwidgetmgr**.",
@@ -9,7 +9,7 @@
   "tags": [
     {
       "name": "Web AI Widget",
-      "description": "Widget configuration resources under `/v3/web_ai_widget/widget_configurations`."
+      "description": "Widget configuration resources under `/v3/clientportal/web_ai_widget/widget_configurations`."
     }
   ],
   "servers": [
@@ -48,14 +48,26 @@
       },
       "NestHttpException": {
         "type": "object",
-        "description": "Typical NestJS HTTP exception body",
+        "description": "Standard v3 error envelope.",
         "properties": {
-          "statusCode": { "type": "integer" },
-          "message": {
-            "oneOf": [{ "type": "string" }, { "type": "array", "items": { "type": "string" } }]
+          "success": {
+            "type": "boolean",
+            "enum": [false]
           },
-          "error": { "type": "string" }
-        }
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": { "type": "string", "nullable": true },
+                "code": { "type": "string" },
+                "message": { "type": "string" }
+              },
+              "required": ["code", "message"]
+            }
+          }
+        },
+        "required": ["success", "errors"]
       },
       "WelcomeButton": {
         "$ref": "https://vcita.github.io/developers-hub/entities/web_ai_widget/WidgetWelcomeButton.json"
@@ -196,7 +208,7 @@
     }
   },
   "paths": {
-    "/v3/web_ai_widget/widget_configurations": {
+    "/v3/clientportal/web_ai_widget/widget_configurations": {
       "get": {
         "operationId": "listWidgetConfigurations",
         "summary": "Get all widget configurations",
@@ -246,15 +258,45 @@
                       }
                     }
                   ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "widget_configurations": [
+                      {
+                        "uid": "widcfg_48b3f7a2",
+                        "business_uid": "biz_2f8f7ab1",
+                        "created_at": "2026-04-22T10:30:00.000Z",
+                        "updated_at": "2026-04-22T11:12:45.000Z",
+                        "widget_title": "Acme Plumbing AI Assistant",
+                        "brand_color": "#1f7ae0",
+                        "text_color": "#ffffff",
+                        "auto_popup_enabled": true,
+                        "auto_popup_delay": 8,
+                        "button_text": "Chat with us"
+                      }
+                    ],
+                    "total": 1
+                  }
                 }
               }
             }
           },
-          "400": {
-            "description": "Validation or bad query (e.g. legacy sort params)",
+          "422": {
+            "description": "Semantic validation or bad query (e.g. legacy sort params)",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+                "schema": { "$ref": "#/components/schemas/NestHttpException" },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "sort",
+                      "code": "invalid",
+                      "message": "sort field must be one of: created_at, updated_at, business_uid"
+                    }
+                  ]
+                }
               }
             }
           },
@@ -313,12 +355,36 @@
                       }
                     }
                   ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "widget_configuration": {
+                      "uid": "widcfg_48b3f7a2",
+                      "business_uid": "biz_2f8f7ab1",
+                      "created_at": "2026-04-22T10:30:00.000Z",
+                      "updated_at": "2026-04-22T10:30:00.000Z",
+                      "widget_title": "Acme Plumbing AI Assistant",
+                      "welcome_message": "Hi! Need help with plumbing services?",
+                      "brand_color": "#1f7ae0",
+                      "text_color": "#ffffff",
+                      "button_text": "Chat with us"
+                    }
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Malformed request syntax (e.g., invalid JSON payload)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+              }
+            }
+          },
+          "422": {
+            "description": "Semantic validation or business-rule failure",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/NestHttpException" }
@@ -344,7 +410,7 @@
         }
       }
     },
-    "/v3/web_ai_widget/widget_configurations/main": {
+    "/v3/clientportal/web_ai_widget/widget_configurations/main": {
       "get": {
         "operationId": "getMainWidgetConfiguration",
         "summary": "Retrieve main widget configuration",
@@ -374,6 +440,22 @@
                       }
                     }
                   ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "widget_configuration": {
+                      "uid": "widcfg_48b3f7a2",
+                      "business_uid": "biz_2f8f7ab1",
+                      "widget_title": "Acme Plumbing AI Assistant",
+                      "welcome_message": "Hi! Need help with plumbing services?",
+                      "brand_color": "#1f7ae0",
+                      "text_color": "#ffffff",
+                      "button_text": "Chat with us",
+                      "created_at": "2026-04-22T10:30:00.000Z",
+                      "updated_at": "2026-04-22T11:12:45.000Z"
+                    }
+                  }
                 }
               }
             }
@@ -438,7 +520,15 @@
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Malformed request syntax (e.g., invalid JSON payload)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+              }
+            }
+          },
+          "422": {
+            "description": "Semantic validation or business-rule failure",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/NestHttpException" }
@@ -464,7 +554,7 @@
         }
       }
     },
-    "/v3/web_ai_widget/widget_configurations/public/{widget_uid}": {
+    "/v3/clientportal/web_ai_widget/widget_configurations/public/{widget_uid}": {
       "get": {
         "operationId": "getResolvedPublicWidgetConfiguration",
         "summary": "Get resolved public widget config",
@@ -494,6 +584,26 @@
                       }
                     }
                   ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "uid": "widcfg_48b3f7a2",
+                    "business_uid": "biz_2f8f7ab1",
+                    "widget_title": "Acme Plumbing AI Assistant",
+                    "brand_color": "#1f7ae0",
+                    "text_color": "#ffffff",
+                    "logo_url": "https://cdn.example.com/acme/logo.png",
+                    "button_text": "Chat with us",
+                    "auto_popup_enabled": true,
+                    "auto_popup_delay": 8000,
+                    "actions": [],
+                    "welcome_message": "Hi! Need help with plumbing services?",
+                    "welcome_buttons": [
+                      { "label": "Book an appointment", "message": "I want to book an appointment." }
+                    ],
+                    "portal_host": "clients.vcita.com"
+                  }
                 }
               }
             }
@@ -509,13 +619,66 @@
         }
       }
     },
-    "/v3/web_ai_widget/widget_configurations/ai_guidance": {
+    "/v3/clientportal/web_ai_widget/widget_configurations/public": {
+      "get": {
+        "operationId": "getResolvedPublicMainWidgetConfigurationByBusinessUid",
+        "summary": "Get resolved public main widget config by business",
+        "description": "Public embed endpoint (no end-user bearer). Returns merged main widget config for a business using `business_uid`. **Cache-Control: public, max-age=60.**",
+        "tags": ["Web AI Widget"],
+        "security": [],
+        "parameters": [
+          {
+            "name": "business_uid",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resolved public main configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "https://vcita.github.io/developers-hub/entities/response.json" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/ResolvedPublicConfig" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Missing or invalid `business_uid` query parameter",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+              }
+            }
+          },
+          "404": {
+            "description": "No widget configuration found for business",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/clientportal/web_ai_widget/widget_configurations/ai_guidance": {
       "get": {
         "operationId": "getAiGuidanceMarkdown",
         "summary": "Get AI guidance markdown",
-        "description": "Returns markdown guidance for the widget. **Not JSON:** body is raw markdown. `Content-Type: text/markdown; charset=utf-8`. Authentication and gateway policy vary by environment (may be whitelisted). Optional query: `widget_uid`, `business_uid`.",
+        "description": "Returns markdown guidance for the widget. **Not JSON:** body is raw markdown. `Content-Type: text/markdown; charset=utf-8`. **Business token** required. Optional query: `widget_uid`, `business_uid`.",
         "tags": ["Web AI Widget"],
-        "security": [],
+        "security": [{ "Bearer": [] }],
         "parameters": [
           {
             "name": "widget_uid",
@@ -535,14 +698,47 @@
             "description": "Markdown document",
             "content": {
               "text/markdown": {
-                "schema": { "type": "string", "description": "Markdown document body" }
+                "schema": { "type": "string", "description": "Markdown document body" },
+                "example": "# Business profile\n\n## Business contact information\n- **Phone:** +15551234567\n"
+              }
+            }
+          },
+          "422": {
+            "description": "Semantic validation/business-rule failure (e.g. neither `widget_uid` nor `business_uid` was provided, or widget app is inactive)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden (business authentication required)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+              }
+            }
+          },
+          "404": {
+            "description": "Widget configuration not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
               }
             }
           }
         }
       }
     },
-    "/v3/web_ai_widget/widget_configurations/{uid}": {
+    "/v3/clientportal/web_ai_widget/widget_configurations/{uid}": {
       "get": {
         "operationId": "getWidgetConfigurationByUid",
         "summary": "Retrieve a widget configuration",
@@ -572,6 +768,21 @@
                       }
                     }
                   ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "widget_configuration": {
+                      "uid": "widcfg_48b3f7a2",
+                      "business_uid": "biz_2f8f7ab1",
+                      "widget_title": "Acme Plumbing AI Assistant",
+                      "brand_color": "#1f7ae0",
+                      "text_color": "#ffffff",
+                      "button_text": "Chat with us",
+                      "created_at": "2026-04-22T10:30:00.000Z",
+                      "updated_at": "2026-04-22T11:12:45.000Z"
+                    }
+                  }
                 }
               }
             }
@@ -639,12 +850,36 @@
                       }
                     }
                   ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "widget_configuration": {
+                      "uid": "widcfg_48b3f7a2",
+                      "business_uid": "biz_2f8f7ab1",
+                      "widget_title": "Acme Plumbing Assistant",
+                      "welcome_message": "Hi! How can we help today?",
+                      "brand_color": "#1f7ae0",
+                      "text_color": "#ffffff",
+                      "button_text": "Chat now",
+                      "created_at": "2026-04-22T10:30:00.000Z",
+                      "updated_at": "2026-04-22T12:41:10.000Z"
+                    }
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request",
+            "description": "Malformed request syntax (e.g., invalid JSON payload)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NestHttpException" }
+              }
+            }
+          },
+          "422": {
+            "description": "Semantic validation or business-rule failure",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/NestHttpException" }
