@@ -10,7 +10,7 @@
 - [x] Runtime status mapping aligned (`400` malformed syntax, `422` semantic/business-rule failures).
 - [x] Legacy/root controller routes removed from runtime registration (`ChatController` removed from module).
 - [x] Unit tests added/updated for filter behavior, status semantics, and module registration.
-- [x] `developers-hub/swagger/clientportal/chat.json` updated to v3 error envelope + 422 responses/examples.
+- [x] `developers-hub/swagger/online_presence/chat.json` updated to v3 error envelope + 422 responses/examples.
 - [x] `REPORT-webaiwidgetserver-api-v3-gaps.md` updated with GAP-02 and GAP-03 closed.
 - [ ] Post-change rollout checks completed in deployed environment (observability + client compatibility).
 
@@ -118,7 +118,7 @@
 4. Run full relevant test suites and regression checks.
 
 ### Phase 5 - Documentation sync
-1. Update `developers-hub/swagger/clientportal/chat.json`:
+1. Update `developers-hub/swagger/online_presence/chat.json`:
    - Replace `NestHttpException` usage with v3 `ErrorResponse` schema on v3 routes
    - Add/adjust 422 responses where applicable
    - Remove legacy/root route references if present

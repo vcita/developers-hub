@@ -1,0 +1,1040 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Online Presence \u2014 Chat Widget Conversations",
+    "description": "CRUD APIs for chat widget conversations under `/v3/online_presence/chat_widget_conversations`.",
+    "version": "3.0.2",
+    "contact": {}
+  },
+  "tags": [
+    {
+      "name": "Online Presence conversations",
+      "description": "Persisted chat widget conversations for the authenticated business (**Staff tokens**)."
+    }
+  ],
+  "servers": [
+    {
+      "url": "https://api.vcita.biz",
+      "description": "API Gateway server"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "ChatTranscriptDocument": {
+        "type": "object",
+        "description": "Structured transcript written to MySQL when a chat session **closes** (`chat_widget_conversations.transcript` JSON column). Same visitor-safe message list as returned on session **resume** (`POST /v3/online_presence/chat/sessions` with `resume_session_id`). Staff and integrations should render from `messages` or derive plain text as needed.",
+        "properties": {
+          "schemaVersion": {
+            "type": "integer",
+            "enum": [
+              1
+            ],
+            "description": "Document format version."
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatVisitorMessage"
+            },
+            "description": "Ordered visitor-visible turns."
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "messages"
+        ],
+        "example": {
+          "schemaVersion": 1,
+          "messages": [
+            {
+              "role": "assistant",
+              "content": "Hi! How can I help?",
+              "at": "2026-04-19T12:34:56.789Z"
+            },
+            {
+              "role": "user",
+              "content": "I need to book an appointment.",
+              "at": "2026-04-19T12:35:01.000Z"
+            }
+          ]
+        }
+      },
+      "ChatVisitorMessage": {
+        "type": "object",
+        "description": "Visitor-visible chat line (**user** or **assistant**). Returned in `messages` from `POST /v3/online_presence/chat/sessions` when a session is **resumed**, and stored inside `ChatTranscriptDocument` for persisted conversations. System prompts and internal tool rows are not included.",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant"
+            ],
+            "description": "Who sent the message."
+          },
+          "content": {
+            "type": "string",
+            "description": "Message text (may include markdown)."
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Optional ISO 8601 UTC timestamp when the server recorded the turn. May be omitted on older Redis session blobs; clients may use it for ordering or display outside the embeddable widget."
+          }
+        },
+        "required": [
+          "role",
+          "content"
+        ],
+        "example": {
+          "role": "assistant",
+          "content": "Hi! How can I help you today?",
+          "at": "2026-04-19T12:34:56.789Z"
+        }
+      },
+      "ChatWidgetConversation": {
+        "$ref": "https://vcita.github.io/developers-hub/entities/online_presence/ChatWidgetConversation.json"
+      },
+      "CreateConversationRequest": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "business_uid": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "transcript": {
+            "description": "Structured transcript JSON (`ChatTranscriptDocument`) when closing a session; optional JSON string encoding for compatibility.",
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ChatTranscriptDocument"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "summary": {
+            "type": "string",
+            "nullable": true
+          },
+          "contact_full_name": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255
+          },
+          "contact_email": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255
+          },
+          "contact_phone": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255
+          },
+          "page_url": {
+            "type": "string",
+            "nullable": true
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "ended_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "matter_uid": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255
+          },
+          "client_uid": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255,
+            "description": "Optional CRM client UID linked to this conversation."
+          },
+          "message_count": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0
+          },
+          "lead_intent": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255,
+            "description": "Lead intent extracted or assigned for this conversation (e.g., \"General inquiry\")."
+          },
+          "lead_information": {
+            "type": "object",
+            "nullable": true,
+            "description": "Lead key/value data captured from the conversation.",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "session_id",
+          "business_uid",
+          "started_at",
+          "ended_at"
+        ]
+      },
+      "ListConversationsPayload": {
+        "type": "object",
+        "properties": {
+          "conversations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatWidgetConversation"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "conversations",
+          "total"
+        ]
+      },
+      "NestHttpException": {
+        "type": "object",
+        "description": "Standard v3 error envelope for online_presence chat APIs.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ]
+            }
+          }
+        },
+        "required": [
+          "success",
+          "errors"
+        ]
+      },
+      "UpdateConversationRequest": {
+        "type": "object",
+        "properties": {
+          "transcript": {
+            "description": "Structured transcript or JSON string; optional staff edits.",
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ChatTranscriptDocument"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "summary": {
+            "type": "string",
+            "nullable": true
+          },
+          "contact_full_name": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255
+          },
+          "contact_email": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255
+          },
+          "contact_phone": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255
+          },
+          "page_url": {
+            "type": "string",
+            "nullable": true
+          },
+          "matter_uid": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255
+          },
+          "lead_intent": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255,
+            "description": "Lead intent value for staff edits."
+          },
+          "lead_information": {
+            "type": "object",
+            "nullable": true,
+            "description": "Lead key/value data for staff edits.",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "**Staff tokens** \u2014 business context is taken from the token for conversations."
+      }
+    }
+  },
+  "paths": {
+    "/v3/online_presence/chat_widget_conversations": {
+      "get": {
+        "operationId": "listChatWidgetConversations",
+        "summary": "Get all conversations",
+        "description": "Returns conversations for the authenticated business. **Staff tokens** required. Supports `page`, `per_page`, `q`, `from_date`, `to_date`, and optional `sort=field:asc|desc` (allowed fields: `ended_at`, `started_at`, `created_at`, `updated_at`; default sort `ended_at:desc`).",
+        "tags": [
+          "Online Presence conversations"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Search in transcript and summary",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "e.g. `ended_at:desc`",
+            "schema": {
+              "type": "string",
+              "example": "ended_at:desc"
+            }
+          },
+          {
+            "name": "from_date",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to_date",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List result (`{ success: true, data: { conversations, total } }`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/ListConversationsPayload"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "conversations": [
+                      {
+                        "id": 981,
+                        "uid": "8d31f5fe-9c6d-4a6a-b0a2-9d10a9f1c01a",
+                        "business_uid": "biz_2f8f7ab1",
+                        "session_id": "4f609f56-cb57-43c5-956c-252f20d67cb0",
+                        "transcript": {
+                          "schemaVersion": 1,
+                          "messages": [
+                            {
+                              "role": "user",
+                              "content": "Hi, I need a quote for plumbing work.",
+                              "at": "2026-04-04T12:43:25.000Z"
+                            },
+                            {
+                              "role": "assistant",
+                              "content": "Sure. Could you share your name and phone number?",
+                              "at": "2026-04-04T12:43:28.000Z"
+                            }
+                          ]
+                        },
+                        "summary": "Visitor asked for plumbing quote and shared contact details.",
+                        "contact_full_name": "John Doe",
+                        "contact_email": null,
+                        "contact_phone": "+15551234567",
+                        "page_url": "https://example.com/services/plumbing",
+                        "started_at": "2026-04-04T12:43:21.000Z",
+                        "ended_at": "2026-04-04T12:49:58.000Z",
+                        "matter_uid": "mtr_991ac2",
+                        "client_uid": "cli_1872baf9",
+                        "message_count": 18,
+                        "lead_intent": "General inquiry",
+                        "lead_information": {
+                          "Name": "John Doe",
+                          "Phone": "+15551234567",
+                          "Reason for inquiry": "Quote for plumbing work"
+                        },
+                        "created_at": "2026-04-04T12:50:00.000Z",
+                        "updated_at": "2026-04-04T12:50:00.000Z"
+                      }
+                    ],
+                    "total": 1
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request syntax",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failure (e.g., invalid sort parameter)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "sort",
+                      "code": "invalid",
+                      "message": "sort field must be one of: ended_at, started_at, created_at, updated_at"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Authentication required"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Business context required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Business context required"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createChatWidgetConversation",
+        "summary": "Create a conversation",
+        "description": "Creates a conversation for the authenticated business. `business_uid` must match the staff token business. **Staff tokens** required.",
+        "tags": [
+          "Online Presence conversations"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateConversationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created (`{ success: true, data: conversation }`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/ChatWidgetConversation"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "id": 982,
+                    "uid": "2d7472a0-76ee-4d9b-bebf-b27b7ebc7285",
+                    "business_uid": "biz_2f8f7ab1",
+                    "session_id": "f7f177f0-3242-4bb4-95ac-5f7ea8e5f8a0",
+                    "transcript": {
+                      "schemaVersion": 1,
+                      "messages": [
+                        {
+                          "role": "assistant",
+                          "content": "Hi! How can I help?",
+                          "at": "2026-04-19T12:34:56.789Z"
+                        },
+                        {
+                          "role": "user",
+                          "content": "I need to book an appointment.",
+                          "at": "2026-04-19T12:35:01.000Z"
+                        }
+                      ]
+                    },
+                    "summary": "Visitor asked to schedule an appointment.",
+                    "contact_full_name": "Jane Doe",
+                    "contact_email": "jane@example.com",
+                    "contact_phone": "+15557654321",
+                    "page_url": "https://example.com/contact",
+                    "started_at": "2026-04-19T12:34:56.789Z",
+                    "ended_at": "2026-04-19T12:40:10.000Z",
+                    "matter_uid": null,
+                    "client_uid": "cli_17d0b233",
+                    "message_count": 12,
+                    "lead_intent": "Book appointment",
+                    "lead_information": {
+                      "Name": "Jane Doe",
+                      "Email": "jane@example.com"
+                    },
+                    "created_at": "2026-04-19T12:40:11.000Z",
+                    "updated_at": "2026-04-19T12:40:11.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request syntax",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "ended_at",
+                      "code": "invalid",
+                      "message": "ended_at must be a valid ISO 8601 date string"
+                    },
+                    {
+                      "field": "started_at",
+                      "code": "invalid",
+                      "message": "started_at must be a valid ISO 8601 date string"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Authentication required"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden \u2014 business mismatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "business_uid",
+                      "code": "forbidden",
+                      "message": "business_uid does not match authenticated business"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/online_presence/chat_widget_conversations/{uid}": {
+      "get": {
+        "operationId": "getChatWidgetConversation",
+        "summary": "Retrieve a conversation",
+        "description": "Returns a single conversation by uid for the authenticated business. **Staff tokens** required.",
+        "tags": [
+          "Online Presence conversations"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversation (`{ success: true, data: conversation }`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/ChatWidgetConversation"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "id": 981,
+                    "uid": "8d31f5fe-9c6d-4a6a-b0a2-9d10a9f1c01a",
+                    "business_uid": "biz_2f8f7ab1",
+                    "session_id": "4f609f56-cb57-43c5-956c-252f20d67cb0",
+                    "transcript": {
+                      "schemaVersion": 1,
+                      "messages": [
+                        {
+                          "role": "assistant",
+                          "content": "Hi! How can I help?",
+                          "at": "2026-04-19T12:34:56.789Z"
+                        },
+                        {
+                          "role": "user",
+                          "content": "I need help with pricing.",
+                          "at": "2026-04-19T12:35:01.000Z"
+                        }
+                      ]
+                    },
+                    "summary": "Visitor asked for pricing information.",
+                    "contact_full_name": null,
+                    "contact_email": null,
+                    "contact_phone": null,
+                    "page_url": "https://example.com/pricing",
+                    "started_at": "2026-04-19T12:34:56.789Z",
+                    "ended_at": "2026-04-19T12:40:10.000Z",
+                    "matter_uid": null,
+                    "client_uid": null,
+                    "message_count": 6,
+                    "lead_intent": "General inquiry",
+                    "lead_information": null,
+                    "created_at": "2026-04-19T12:40:11.000Z",
+                    "updated_at": "2026-04-19T12:40:11.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Authentication required"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Access denied"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Conversation not found"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateChatWidgetConversation",
+        "summary": "Update a conversation",
+        "description": "Updates a conversation by uid. **Staff tokens** required.",
+        "tags": [
+          "Online Presence conversations"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateConversationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated conversation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/ChatWidgetConversation"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "id": 981,
+                    "uid": "8d31f5fe-9c6d-4a6a-b0a2-9d10a9f1c01a",
+                    "business_uid": "biz_2f8f7ab1",
+                    "session_id": "4f609f56-cb57-43c5-956c-252f20d67cb0",
+                    "transcript": {
+                      "schemaVersion": 1,
+                      "messages": [
+                        {
+                          "role": "assistant",
+                          "content": "Hi! How can I help?",
+                          "at": "2026-04-19T12:34:56.789Z"
+                        },
+                        {
+                          "role": "user",
+                          "content": "Please call me back.",
+                          "at": "2026-04-19T12:35:01.000Z"
+                        }
+                      ]
+                    },
+                    "summary": "Visitor requested a callback.",
+                    "contact_full_name": "Jane Doe",
+                    "contact_email": "jane@example.com",
+                    "contact_phone": "+15557654321",
+                    "page_url": "https://example.com/contact",
+                    "started_at": "2026-04-19T12:34:56.789Z",
+                    "ended_at": "2026-04-19T12:40:10.000Z",
+                    "matter_uid": "mtr_991ac2",
+                    "client_uid": "cli_17d0b233",
+                    "message_count": 12,
+                    "lead_intent": "Request callback",
+                    "lead_information": {
+                      "Name": "Jane Doe",
+                      "Phone": "+15557654321"
+                    },
+                    "created_at": "2026-04-19T12:40:11.000Z",
+                    "updated_at": "2026-04-19T12:44:01.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Authentication required"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Access denied"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Conversation not found"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteChatWidgetConversation",
+        "summary": "Delete a conversation",
+        "description": "Soft-deletes a conversation. **204 No Content** with empty body on success. **Staff tokens** required.",
+        "tags": [
+          "Online Presence conversations"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted (no response body)"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

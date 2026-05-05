@@ -1,0 +1,525 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Online Presence \u2014 Web AI chat sessions",
+    "description": "Public/embed **chat** session APIs (`/v3/online_presence/chat`).\n\n**Session resume:** `POST /sessions` accepts optional `resume_session_id` to reconnect to an active Redis session for the same `business_uid`. On success, the response includes `resumed: true` and `messages` for client-side replay. If the id is stale or missing, a new session is created (`resumed: false`) \u2014 same as omitting the field.\n\n**Response envelopes:** JSON success responses follow the standard v3 envelope `{ \"success\": true, \"data\": ... }`. The SSE chat stream (`POST /sessions/{sessionId}/chat`) returns `text/event-stream`, not JSON.\n\nSession APIs are internal/private (non-CRUD) and are not part of the public entity CRUD contract.",
+    "version": "3.0.2",
+    "contact": {}
+  },
+  "tags": [
+    {
+      "name": "Online Presence chat",
+      "description": "Session create/close, resume, and SSE streaming for the embedded widget / client portal flow."
+    }
+  ],
+  "servers": [
+    {
+      "url": "https://api.vcita.biz",
+      "description": "API Gateway server"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "NestHttpException": {
+        "type": "object",
+        "description": "Standard v3 error envelope for online_presence chat APIs.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ]
+            }
+          }
+        },
+        "required": [
+          "success",
+          "errors"
+        ]
+      },
+      "CreateSessionRequest": {
+        "type": "object",
+        "description": "Create session for website widget (`setup` must resolve to client).",
+        "properties": {
+          "setup": {
+            "type": "string",
+            "default": "client",
+            "description": "Only `client` is supported for the website widget."
+          },
+          "business_uid": {
+            "type": "string",
+            "description": "Required for widget flow \u2014 loads business-specific guidance."
+          },
+          "welcome_message": {
+            "type": "string"
+          },
+          "welcome_buttons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WidgetWelcomeButton"
+            }
+          },
+          "page_url": {
+            "type": "string",
+            "description": "Page URL where the conversation started"
+          },
+          "from_widget_editor": {
+            "type": "boolean",
+            "description": "When true, page context is stored as Widget Editor"
+          },
+          "resume_session_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Optional. When set, reconnects to an existing Redis chat session for the same `business_uid` if it still exists (not idle-closed, same business). If the session cannot be resumed, the server creates a **new** session and returns `resumed: false` \u2014 no extra error for a stale id."
+          }
+        }
+      },
+      "CreateSessionResponse": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "resumed": {
+            "type": "boolean",
+            "description": "True when `resume_session_id` matched an active session. False for a newly created session (including fallback when resume was not possible)."
+          },
+          "messages": {
+            "type": "array",
+            "description": "Visitor-visible history for replay when `resumed` is true. Omitted or empty when starting a fresh session.",
+            "items": {
+              "$ref": "#/components/schemas/ChatVisitorMessage"
+            }
+          },
+          "greeting": {
+            "type": "object",
+            "description": "Welcome message for new sessions when configured. Typically omitted when `resumed` is true and the first assistant turn is already in `messages`.",
+            "properties": {
+              "content": {
+                "type": "string"
+              },
+              "buttons": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/WidgetWelcomeButton"
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "session_id"
+        ]
+      },
+      "CloseSessionResponse": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        },
+        "required": [
+          "ok"
+        ]
+      },
+      "ChatMessageRequest": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "User message; must be non-empty after trim"
+          }
+        },
+        "required": [
+          "message"
+        ]
+      },
+      "WidgetWelcomeButton": {
+        "type": "object",
+        "description": "Quick-reply button shown under the welcome message in the Web AI Widget.",
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "Button label shown to the visitor."
+          },
+          "message": {
+            "type": "string",
+            "description": "Message text sent to the assistant when the button is clicked."
+          }
+        },
+        "required": [
+          "label",
+          "message"
+        ]
+      },
+      "ChatVisitorMessage": {
+        "type": "object",
+        "description": "Visitor-visible chat line (**user** or **assistant**). Returned in `messages` from `POST /v3/online_presence/chat/sessions` when a session is **resumed**, and stored inside `ChatTranscriptDocument` for persisted conversations. System prompts and internal tool rows are not included.",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant"
+            ],
+            "description": "Who sent the message."
+          },
+          "content": {
+            "type": "string",
+            "description": "Message text (may include markdown)."
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Optional ISO 8601 UTC timestamp when the server recorded the turn. May be omitted on older Redis session blobs; clients may use it for ordering or display outside the embeddable widget."
+          }
+        },
+        "required": [
+          "role",
+          "content"
+        ],
+        "example": {
+          "role": "assistant",
+          "content": "Hi! How can I help you today?",
+          "at": "2026-04-19T12:34:56.789Z"
+        }
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "**Staff tokens** \u2014 business context is taken from the token for conversations."
+      }
+    }
+  },
+  "paths": {
+    "/v3/online_presence/chat/sessions": {
+      "post": {
+        "operationId": "createChatSession",
+        "summary": "Create or resume chat session",
+        "description": "[Internal use only] Creates a chat session for the embedded widget / client portal flow (not Staff tokens), or **resumes** an existing one when `resume_session_id` is provided and still valid in Redis. `business_uid` is required for the website widget. Successful resume returns `resumed: true` and `messages` for client replay; usage counters treat resume differently from a brand-new session (see product docs). **No bearer auth** in typical embed flows (gateway policy may vary).",
+        "tags": [
+          "Online Presence chat"
+        ],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSessionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Session created or resumed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/CreateSessionResponse"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "examples": {
+                  "newSession": {
+                    "summary": "New session",
+                    "value": {
+                      "success": true,
+                      "data": {
+                        "session_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                        "resumed": false,
+                        "greeting": {
+                          "content": "Hi! How can we help?",
+                          "buttons": []
+                        }
+                      }
+                    }
+                  },
+                  "resumedSession": {
+                    "summary": "Resumed session",
+                    "value": {
+                      "success": true,
+                      "data": {
+                        "session_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                        "resumed": true,
+                        "messages": [
+                          {
+                            "role": "assistant",
+                            "content": "Hi! How can we help?",
+                            "at": "2026-04-19T12:00:00.000Z"
+                          },
+                          {
+                            "role": "user",
+                            "content": "I need pricing.",
+                            "at": "2026-04-19T12:00:15.000Z"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request syntax (e.g., invalid JSON payload)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "invalid",
+                      "message": "Unexpected token } in JSON at position 24"
+                    }
+                  ]
+                },
+                "examples": {
+                  "malformedJson": {
+                    "summary": "Malformed JSON body",
+                    "value": {
+                      "success": false,
+                      "errors": [
+                        {
+                          "code": "invalid",
+                          "message": "Unexpected token } in JSON at position 24"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Semantic validation or business-rule failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                },
+                "examples": {
+                  "missingBusinessUid": {
+                    "summary": "Missing required business_uid",
+                    "value": {
+                      "success": false,
+                      "errors": [
+                        {
+                          "field": "business_uid",
+                          "code": "required",
+                          "message": "business_uid is required. Provide the business UID to load business-specific guidance from the ai_guidance endpoint."
+                        }
+                      ]
+                    }
+                  },
+                  "usageGateBlocked": {
+                    "summary": "Business exceeded chat quota",
+                    "value": {
+                      "success": false,
+                      "errors": [
+                        {
+                          "code": "usage_limit_reached",
+                          "message": "Monthly chat session quota reached for this business."
+                        }
+                      ]
+                    }
+                  },
+                  "appUnavailable": {
+                    "summary": "Widget app not available/active",
+                    "value": {
+                      "success": false,
+                      "errors": [
+                        {
+                          "code": "invalid",
+                          "message": "AI assistant is no longer available, please contact the business directly."
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-internal": true
+      }
+    },
+    "/v3/online_presence/chat/sessions/{sessionId}/close": {
+      "post": {
+        "operationId": "closeChatSession",
+        "summary": "Close chat session",
+        "description": "[Internal use only] Closes an active session. Returns `{ \"success\": true, \"data\": { \"ok\": true } }` or **404** if unknown. **No bearer auth** in typical embed flows.",
+        "tags": [
+          "Online Presence chat"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session closed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/CloseSessionResponse"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "ok": true
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          }
+        },
+        "x-internal": true
+      }
+    },
+    "/v3/online_presence/chat/sessions/{sessionId}/chat": {
+      "post": {
+        "operationId": "streamChatSse",
+        "summary": "Stream chat response (SSE)",
+        "description": "[Internal use only] Streams assistant output as **Server-Sent Events** (`Content-Type: text/event-stream`). Requires a non-empty `message`. Response body is **not JSON** \u2014 it is an SSE stream. **No bearer auth** in typical embed flows.",
+        "tags": [
+          "Online Presence chat"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatMessageRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "SSE stream (assistant tokens/events). Headers typically include `Cache-Control: no-cache`, `Connection: keep-alive`, `X-Accel-Buffering: no`.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "text/event-stream body (SSE), not a single JSON object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request syntax (e.g., invalid JSON payload)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Semantic validation failure (e.g., empty message)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "message",
+                      "code": "required",
+                      "message": "message is required"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "x-internal": true
+      }
+    }
+  }
+}

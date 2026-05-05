@@ -7,7 +7,7 @@
 
 ## Scope
 - Service codebase: `webaiwidgetserver` (`/src/chat`, `/src/conversations`).
-- Docs: `swagger/clientportal/chat.json`, related entity schemas under `entities/clientportal/`.
+- Docs: `swagger/online_presence/chat.json`, related entity schemas under `entities/online_presence/`.
 - No backend code changes in this task.
 
 ## Steps

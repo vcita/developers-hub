@@ -6,8 +6,8 @@
   - `v3/clientportal/chat/*` (health, sessions, close, SSE chat)
   - `v3/clientportal/chat/conversations/*` (list/get/create/update/delete)
 - Docs reviewed/updated:
-  - `swagger/clientportal/chat.json`
-  - `entities/clientportal/ChatWidgetConversation.json`
+  - `swagger/online_presence/chat.json`
+  - `entities/online_presence/ChatWidgetConversation.json`
 
 ## Summary
 - **Open, documentation quality/standards gaps:** 0 gaps

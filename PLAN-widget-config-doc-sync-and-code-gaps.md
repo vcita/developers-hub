@@ -5,7 +5,7 @@
 - Produce a clear implementation plan for remaining v3 gaps that require code changes.
 
 ## Scope
-- Update `swagger/web_ai_widget/widget_configurations.json` only.
+- Update `swagger/online_presence/widget_configurations.json` only.
 - Keep service/runtime behavior unchanged.
 - No commit/push in this task.
 

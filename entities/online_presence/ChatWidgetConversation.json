@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "Persisted website chat widget conversation (`chat_widget_conversations`). Returned inside `{ data }` for Staff-scoped list/get/create/update APIs (`/v3/clientportal/chat/conversations`). Dates are ISO 8601 strings in JSON. `deleted_at` is omitted from normal API responses (soft delete).",
+  "description": "Persisted website chat widget conversation (`chat_widget_conversations`). Returned inside `{ data }` for Staff-scoped list/get/create/update APIs (`/v3/online_presence/chat_widget_conversations`). Dates are ISO 8601 strings in JSON. `deleted_at` is omitted from normal API responses (soft delete).",
   "properties": {
     "id": {
       "type": "integer",
@@ -18,14 +18,79 @@
     },
     "session_id": {
       "type": "string",
-      "description": "Chat session id from the client portal chat service."
+      "description": "Chat session id from the online_presence chat service."
     },
     "transcript": {
-      "description": "Chat transcript. **New rows** store a structured JSON document (`schemaVersion` + `messages`, see `ChatTranscriptDocument`). Older rows may contain legacy plain text only; do not rely on plain text for new integrations.",
+      "description": "Chat transcript. **New rows** store a structured JSON document (`schemaVersion` + `messages`). Older rows may contain legacy plain text only; do not rely on plain text for new integrations.",
       "nullable": true,
       "oneOf": [
         {
-          "$ref": "https://vcita.github.io/developers-hub/entities/clientportal/ChatTranscriptDocument.json"
+          "type": "object",
+          "description": "Structured transcript written to MySQL when a chat session **closes** (`chat_widget_conversations.transcript` JSON column). Same visitor-safe message list as returned on session **resume** (`POST /v3/online_presence/chat/sessions` with `resume_session_id`). Staff and integrations should render from `messages` or derive plain text as needed.",
+          "properties": {
+            "schemaVersion": {
+              "type": "integer",
+              "enum": [
+                1
+              ],
+              "description": "Document format version."
+            },
+            "messages": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "description": "Visitor-visible chat line (**user** or **assistant**). Returned in `messages` from `POST /v3/online_presence/chat/sessions` when a session is **resumed**, and stored inside the transcript document for persisted conversations. System prompts and internal tool rows are not included.",
+                "properties": {
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "user",
+                      "assistant"
+                    ],
+                    "description": "Who sent the message."
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "Message text (may include markdown)."
+                  },
+                  "at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Optional ISO 8601 UTC timestamp when the server recorded the turn. May be omitted on older Redis session blobs; clients may use it for ordering or display outside the embeddable widget."
+                  }
+                },
+                "required": [
+                  "role",
+                  "content"
+                ],
+                "example": {
+                  "role": "assistant",
+                  "content": "Hi! How can I help you today?",
+                  "at": "2026-04-19T12:34:56.789Z"
+                }
+              },
+              "description": "Ordered visitor-visible turns."
+            }
+          },
+          "required": [
+            "schemaVersion",
+            "messages"
+          ],
+          "example": {
+            "schemaVersion": 1,
+            "messages": [
+              {
+                "role": "assistant",
+                "content": "Hi! How can I help?",
+                "at": "2026-04-19T12:34:56.789Z"
+              },
+              {
+                "role": "user",
+                "content": "I need to book an appointment.",
+                "at": "2026-04-19T12:35:01.000Z"
+              }
+            ]
+          }
         },
         {
           "type": "string",

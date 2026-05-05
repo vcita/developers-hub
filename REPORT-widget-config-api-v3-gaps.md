@@ -4,8 +4,8 @@
 - Compared `webaiwidgetmgr` widget configuration API behavior and `developers-hub` contract docs against current v3 standards/skills.
 - Sources reviewed:
   - `webaiwidgetmgr` controller/services/DTO behavior
-  - `developers-hub/swagger/web_ai_widget/widget_configurations.json`
-  - `developers-hub/entities/web_ai_widget/*.json`
+  - `developers-hub/swagger/online_presence/widget_configurations.json`
+  - `developers-hub/entities/online_presence/*.json`
   - v3 skills and standards notes (`ddd-v3`, `sync-developers-hub`, API/entity v3 guidelines)
 
 ## Executive Summary
