@@ -6,6 +6,7 @@
     "version": "3.0",
     "x-generated": {
       "sourceFiles": [
+        "conversations.json",
         "legacy_v1_communication.json",
         "activity_message.json",
         "communication.json",
@@ -17,6 +18,17 @@
         "messages.json"
       ],
       "pathNormalizations": [
+        {
+          "file": "conversations.json",
+          "basePath": "/v2",
+          "transformations": [
+            {
+              "original": "/conversations/{id}",
+              "normalized": "/v2/conversations/{id}",
+              "basePath": "/v2"
+            }
+          ]
+        },
         {
           "file": "legacy_v1_communication.json",
           "basePath": "/platform/v1",
@@ -131,6 +143,15 @@
       "componentConflicts": [
         {
           "type": "schema",
+          "name": "ErrorResponse",
+          "resolution": "Renamed to ErrorResponse_activity_message",
+          "files": [
+            "merged",
+            "activity_message.json"
+          ]
+        },
+        {
+          "type": "schema",
           "name": "Response",
           "resolution": "Renamed to Response_business_phone_numbers",
           "files": [
@@ -166,8 +187,8 @@
           ]
         }
       ],
-      "totalPaths": 32,
-      "totalComponents": 38
+      "totalPaths": 33,
+      "totalComponents": 42
     }
   },
   "servers": [
@@ -177,6 +198,232 @@
     }
   ],
   "paths": {
+    "/v2/conversations/{id}": {
+      "put": {
+        "summary": "Update a conversation (archive, spam, business_unread, follow-up, soft delete)",
+        "description": "## Overview\nUpdates a single conversation (engagement). This endpoint is used by the Frontage UI for several distinct operations against the same conversation resource:\n\n- Archive / unarchive\n- Mark as spam / not spam\n- Mark as read / unread for the business side (`business_unread`)\n- Soft delete (`deleted`)\n- **Create, update, complete, or remove a follow-up reminder for the requesting staff member**\n\nAll fields are optional in the request body — send only the fields you want to change. Only fields that are present in the request body are evaluated.\n\nAvailable for **Staff tokens**.\n\n## Follow-up flow\n\nFollow-ups in vcita are scoped to a single staff member on a single conversation, and are stored on the underlying `Collaborator` record (per staff/conversation), not on the conversation itself. Sending follow-up fields on this endpoint always operates on the follow-up record of the **staff identified by the bearer token**.\n\nThe endpoint branches based on the combination of `follow_up` and `archived` in the request body:\n\n| Sent fields | Behavior |\n|---|---|\n| `follow_up: true`, no `archived` (or `archived: false`) | **Create or update** a follow-up for the requesting staff. Creates a Collaborator if one does not already exist. Sets `follow_up=true`, `follow_up_message`, and optionally `follow_up_date`. If the conversation was archived, it is automatically unarchived. If a `follow_up_message` is provided without a `follow_up_date`, an internal text message is added to the conversation. |\n| `follow_up: true`, `archived: true` | **Remove** the follow-up (used to dismiss/snooze). If `complete_follow_up: true` is also sent, the follow-up is marked as completed. |\n| `follow_up: false` | **Remove** the follow-up. If `complete_follow_up: true` is also sent, the follow-up is marked as completed. |\n\nNote: The follow-up branch only fires when the request body actually contains a `follow_up` key, and the add/remove logic only fires when the new `follow_up` value differs from the current one (with the exception of the `follow_up: true, archived: true` case, which always removes).\n\n## Permitted update fields\n\nFields outside of the follow-up flow are permitted via `Conversation::READ_WRITE_PARAMS`: `archived`, `business_unread`, `spam`, `deleted`, `campaign`, `source_type`, `mobile`. The follow-up fields (`follow_up`, `follow_up_date`, `follow_up_message`, `complete_follow_up`) are read separately from the request body and are not part of the permitted attributes list.",
+        "tags": [
+          "Conversations"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier (uid) of the conversation to update (e.g., \"89m2pnabgozdvd9f\"). If the uid points to a conversation that has been merged into another, the request is automatically routed to the merged target conversation.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "full_client",
+            "in": "query",
+            "required": false,
+            "description": "When set to a truthy value, the response client object is rendered in its full representation (instead of the default summary), and the conversation is rendered in its deep representation (adds source/source_data/source_type/sourceable fields and sets `depth` to \"deep\").",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversation updated successfully. Returns the updated conversation as decorated by ConversationDecorator. Note that `follow_up_date` and `follow_up_message` on the response reflect the values sent in the request (they are exposed on the conversation via accessors but persisted on the per-staff Collaborator record).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Conversation"
+                },
+                "example": {
+                  "uid": "89m2pnabgozdvd9f",
+                  "title": "Jane Smith",
+                  "follow_up": true,
+                  "follow_up_date": "2026-05-06T10:31:21Z",
+                  "follow_up_message": "just a test",
+                  "follow_up_text": "Reminder set for tomorrow at 1:31 PM",
+                  "business_unread": false,
+                  "spam": false,
+                  "archived": false,
+                  "sent": true,
+                  "received": true,
+                  "deleted": false,
+                  "matter_searchable": true,
+                  "last_user_action_at": "2026-05-05T10:30:00Z",
+                  "last_user_action_at_h": "Today, 10:30 AM",
+                  "last_client_action_at": "2026-05-04T16:12:00Z",
+                  "last_client_action_at_h": "Yesterday, 4:12 PM",
+                  "last_message": {
+                    "title": "Re: Initial consultation",
+                    "text": "Sounds good, see you then.",
+                    "message_of": "client",
+                    "extra_data": {}
+                  },
+                  "depth": "shallow",
+                  "message_count": 7,
+                  "client": {
+                    "uid": "0c4ac9717ab26f56",
+                    "first_name": "Jane",
+                    "last_name": "Smith",
+                    "email": "jane@example.com"
+                  },
+                  "staff": {
+                    "uid": "5ya4gbwm2c3qoic8",
+                    "display_name": "Ram Almog"
+                  },
+                  "has_matter": false,
+                  "matter": null
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing, invalid, expired, or not a staff token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "401 Unauthorized"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden. The authenticated staff is not allowed to update this conversation (Pundit policy denied access).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "You are not authorized to perform this action."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found. No conversation with the given uid exists, or the conversation belongs to a different business than the one resolved from the bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "invalid",
+                      "field": "id",
+                      "message": "Invalid conversation_uid"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity. The follow-up validation failed. The most common cause is `follow_up_date` being in the past; the staff resolved from the bearer token could not be found is also possible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "follow_up_date",
+                      "code": "invalid",
+                      "message": "Time has already passed."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "x-auth-type": "Application User",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Partial update payload. All fields are optional; send only the fields you want to change.",
+                "properties": {
+                  "follow_up": {
+                    "type": "boolean",
+                    "description": "Whether a follow-up should be active on this conversation for the requesting staff. Setting this field is what triggers the follow-up branch. Set to `true` to create/update a follow-up, or `false` to remove it. When combined with `archived: true`, `follow_up: true` removes the follow-up (used to dismiss it from the inbox)."
+                  },
+                  "follow_up_date": {
+                    "type": "string",
+                    "description": "When the follow-up reminder should fire. Accepts any string parseable by Ruby's Time parser, including the JavaScript-style format the UI sends (e.g., \"Wed May 06 2026 13:31:21 GMT+0300 (Israel Daylight Time)\") and ISO 8601 (e.g., \"2026-05-06T10:31:21Z\"). Must be in the future. Only consumed when creating/updating a follow-up."
+                  },
+                  "follow_up_message": {
+                    "type": "string",
+                    "description": "Free-text note attached to the follow-up (e.g., \"just a test\", \"call back about pricing\"). Defaults to an empty string. When a non-empty `follow_up_message` is sent without a `follow_up_date`, an internal text message is automatically added to the conversation as a record of the follow-up note."
+                  },
+                  "complete_follow_up": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Only meaningful when removing a follow-up (i.e., `follow_up: false`, or `follow_up: true` with `archived: true`). When `true`, the follow-up is marked as completed rather than simply dismissed."
+                  },
+                  "archived": {
+                    "type": "boolean",
+                    "description": "Archive (`true`) or unarchive (`false`) the conversation. When sent together with `follow_up: true`, it instead removes the follow-up (see the follow-up branching table above)."
+                  },
+                  "business_unread": {
+                    "type": "boolean",
+                    "description": "Mark the conversation as unread (`true`) or read (`false`) for the business side. When this field is present, the read state is propagated to the relevant staff collaboration record."
+                  },
+                  "spam": {
+                    "type": "boolean",
+                    "description": "Mark the conversation as spam (`true`) or not spam (`false`). When set, the spam state is also applied to the associated client."
+                  },
+                  "deleted": {
+                    "type": "boolean",
+                    "description": "Soft-delete (`true`) the conversation (sets `deleted_at` to the current time). Hard deletion is performed via the DELETE endpoint, not via this field."
+                  },
+                  "campaign": {
+                    "type": "string",
+                    "description": "Free-form campaign tag stored on the conversation."
+                  },
+                  "source_type": {
+                    "type": "string",
+                    "description": "Source classifier of the conversation (e.g., \"contact_form\", \"profile_page\", \"email_campaign\")."
+                  },
+                  "mobile": {
+                    "type": "boolean",
+                    "description": "Internal flag indicating whether the conversation originated from a mobile device."
+                  }
+                },
+                "example": {
+                  "follow_up": true,
+                  "follow_up_date": "Wed May 06 2026 13:31:21 GMT+0300 (Israel Daylight Time)",
+                  "follow_up_message": "just a test"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Conversations": []
+          }
+        ]
+      }
+    },
     "/platform/v1/conversations": {
       "get": {
         "description": "## Overview\nGets a list of conversations.\n\nAvailable for **Staff and Directory tokens**. Directory tokens require the `X-On-Behalf-Of` header with the target business UID.",
@@ -3710,16 +3957,210 @@
     }
   },
   "components": {
-    "securitySchemes": {
-      "Bearer": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT",
-        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
-      }
-    },
     "schemas": {
       "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "The name of the field that failed validation, when applicable."
+                },
+                "code": {
+                  "type": "string",
+                  "description": "Machine-readable error code (e.g., \"invalid\", \"forbidden\")."
+                },
+                "message": {
+                  "type": "string",
+                  "description": "Human-readable error message."
+                }
+              }
+            }
+          }
+        }
+      },
+      "ConversationStaff": {
+        "type": "object",
+        "description": "Lightweight staff reference embedded in a conversation.",
+        "properties": {
+          "uid": {
+            "type": "string",
+            "description": "Unique identifier of the staff member that owns the conversation (e.g., \"5ya4gbwm2c3qoic8\")."
+          },
+          "display_name": {
+            "type": "string",
+            "description": "Display name of the staff member (e.g., \"Jane Doe\")."
+          }
+        }
+      },
+      "ConversationLastMessage": {
+        "type": "object",
+        "description": "Compact representation of the most recent message in the conversation. May be null when the conversation has no messages, or when the requesting staff has no collaboration on the conversation and the last message is restricted.",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Title of the last message (subject line, meeting title, invoice header, etc.)."
+          },
+          "text": {
+            "type": "string",
+            "description": "Decorated text of the last message."
+          },
+          "message_of": {
+            "type": "string",
+            "description": "Identifies who the message is from in the API context (e.g., \"client\", \"staff\", \"system\")."
+          },
+          "extra_data": {
+            "type": "object",
+            "description": "Additional message metadata. Shape depends on message type. For voice calls includes \"call_status\" and \"recording_duration\"."
+          }
+        }
+      },
+      "Conversation": {
+        "type": "object",
+        "description": "Represents a conversation (engagement) between a business and a client. Returned by the conversation endpoints via ConversationDecorator.",
+        "properties": {
+          "uid": {
+            "type": "string",
+            "description": "Unique identifier of the conversation (e.g., \"89m2pnabgozdvd9f\")."
+          },
+          "title": {
+            "type": "string",
+            "description": "Title of the conversation. May be redacted to a placeholder when the requesting staff does not have view permission on the client."
+          },
+          "follow_up": {
+            "type": "boolean",
+            "description": "Whether a follow-up is currently set on this conversation for the requesting staff. The follow-up is stored per staff on the underlying Collaborator record."
+          },
+          "follow_up_date": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the follow-up reminder is scheduled. Null when no scheduled date was set or when no follow-up is active."
+          },
+          "follow_up_message": {
+            "type": "string",
+            "description": "Free-text note attached to the follow-up (e.g., \"call back about pricing\")."
+          },
+          "follow_up_text": {
+            "type": "string",
+            "description": "Pre-formatted, localized human-readable string describing the follow-up state (e.g., \"Reminder set for tomorrow at 1:31 PM\"). Empty string when no follow-up is active."
+          },
+          "business_unread": {
+            "type": "boolean",
+            "description": "True when the conversation is marked as unread for the business side."
+          },
+          "spam": {
+            "type": "boolean",
+            "description": "Whether the conversation is marked as spam."
+          },
+          "archived": {
+            "type": "boolean",
+            "description": "Whether the conversation is archived."
+          },
+          "sent": {
+            "type": "boolean",
+            "description": "True if the conversation contains at least one outgoing message sent by the business."
+          },
+          "received": {
+            "type": "boolean",
+            "description": "True if the conversation contains at least one incoming message from the client."
+          },
+          "deleted": {
+            "type": "boolean",
+            "description": "True when the conversation has been soft-deleted (i.e., deleted_at is not null)."
+          },
+          "matter_searchable": {
+            "type": "boolean",
+            "description": "Internal flag controlling whether the conversation participates in matter-based search."
+          },
+          "last_user_action_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp of the most recent action performed by the business side on this conversation."
+          },
+          "last_user_action_at_h": {
+            "type": "string",
+            "description": "Human-friendly representation of last_user_action_at (e.g., \"Today, 10:30 AM\" or a date string)."
+          },
+          "last_client_action_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp of the most recent action performed by the client on this conversation."
+          },
+          "last_client_action_at_h": {
+            "type": "string",
+            "description": "Human-friendly representation of last_client_action_at."
+          },
+          "last_message": {
+            "$ref": "#/components/schemas/ConversationLastMessage"
+          },
+          "depth": {
+            "type": "string",
+            "enum": [
+              "shallow",
+              "deep"
+            ],
+            "description": "Indicates how much detail is included in the response. \"deep\" is returned when the request asks for the full representation (e.g., \"full_client=true\")."
+          },
+          "message_count": {
+            "type": "integer",
+            "description": "Total number of messages associated with this conversation."
+          },
+          "client": {
+            "type": "object",
+            "description": "Summary representation of the client participating in the conversation. Includes uid, display name, contact info, and other summary fields produced by ClientDecorator (version: :summary)."
+          },
+          "staff": {
+            "$ref": "#/components/schemas/ConversationStaff"
+          },
+          "has_matter": {
+            "type": "boolean",
+            "description": "True when a matter is associated with this conversation."
+          },
+          "matter": {
+            "type": "object",
+            "description": "Slim representation of the associated matter, when has_matter is true."
+          },
+          "require_attention": {
+            "type": "boolean",
+            "description": "Only present in the deep representation. True when the conversation is unread for the business or has meetings in business-pending states."
+          },
+          "source": {
+            "type": "string",
+            "description": "Only present in the deep representation. Original source of the conversation (e.g., URL of the page from which it was created)."
+          },
+          "source_data": {
+            "type": "object",
+            "description": "Only present in the deep representation. Decorated source metadata."
+          },
+          "source_type": {
+            "type": "string",
+            "description": "Only present in the deep representation. Normalized source type (e.g., \"profile_page\", \"email_campaign\", \"contact_form\")."
+          },
+          "source_type_h": {
+            "type": "string",
+            "description": "Only present in the deep representation. Human-readable, localized source type label."
+          },
+          "sourceable_type": {
+            "type": "string",
+            "description": "Only present in the deep representation. Class name of the polymorphic source object (when applicable)."
+          },
+          "sourceable_id": {
+            "type": "string",
+            "description": "Only present in the deep representation. UID of the polymorphic source object (when applicable)."
+          }
+        }
+      },
+      "ErrorResponse_activity_message": {
         "type": "object",
         "properties": {
           "success": {
@@ -4985,6 +5426,20 @@
             }
           }
         }
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+      },
+      "Conversations": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid staff bearer token in the Authorization header. Example: 'Authorization: Bearer {staff_token}'."
       }
     }
   },
