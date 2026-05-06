@@ -24,6 +24,37 @@
             }
           }
         }
+      },
+      "BulkUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "client_settings": {
+            "type": "array",
+            "description": "Array of client settings to update (max 1000)",
+            "maxItems": 1000,
+            "items": {
+              "type": "object",
+              "required": [
+                "client_uid",
+                "opt_out_transactional_sms"
+              ],
+              "properties": {
+                "client_uid": {
+                  "type": "string",
+                  "description": "Unique identifier of the client",
+                  "example": "cmf62p00w2ns3chq"
+                },
+                "opt_out_transactional_sms": {
+                  "type": "boolean",
+                  "description": "Opt out from transactional SMS. Must be an explicit boolean value (true or false). Null values are not allowed."
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "client_settings"
+        ]
       }
     },
     "securitySchemes": {
@@ -49,7 +80,7 @@
             "schema": {
               "type": "string"
             },
-            "example": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
+            "example": "cmf62p00w2ns3chq"
           }
         ],
         "responses": {
@@ -97,7 +128,7 @@
             "schema": {
               "type": "string"
             },
-            "example": "94ca2054-3bb0-4788-8e9e-ee2442975cdd"
+            "example": "cmf62p00w2ns3chq"
           }
         ],
         "requestBody": {
@@ -138,6 +169,210 @@
                       }
                     }
                   ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Client Settings"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/clients/client_settings/bulk": {
+      "put": {
+        "summary": "Bulk Update Client Settings",
+        "description": "## Overview\nBulk update client settings for multiple clients in a single operation. Supports partial success - individual clients can fail while others succeed.\n\n## Currently Supported Field\nThis endpoint currently supports updating **only** the `opt_out_transactional_sms` field. Any request containing other fields will be rejected with a validation error.\n\n## Field Requirements\n- `opt_out_transactional_sms` must be an explicit boolean value (`true` or `false`)\n- `null` values are **not allowed**\n- Missing the field will cause validation failure\n\n## Limits\n- Maximum 1000 clients per request\n- Duplicate client UIDs are not allowed\n\n## Authentication\n**Available for Staff Tokens only.**\n\nClient tokens should use the single update endpoint `/v3/clients/client_settings/{client_uid}` instead.\n\n## Response Behavior\n- Returns HTTP 200 with an array of results (one per client)\n- Each result includes a `success` boolean and either `data` (on success) or `errors` (on failure)\n- Individual client failures (e.g., not found) do not prevent other clients from being updated",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkUpdateRequest"
+              },
+              "example": {
+                "client_settings": [
+                  {
+                    "client_uid": "cmf62p00w2ns3chq",
+                    "opt_out_transactional_sms": true
+                  },
+                  {
+                    "client_uid": "cmf62p10x3ot4dir",
+                    "opt_out_transactional_sms": false
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bulk update completed (may contain partial failures)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "client_settings": {
+                              "type": "array",
+                              "description": "Array of results for each client (all items have success indicator)",
+                              "items": {
+                                "type": "object",
+                                "required": [
+                                  "success"
+                                ],
+                                "properties": {
+                                  "success": {
+                                    "type": "boolean",
+                                    "description": "Indicates if the operation succeeded for this client"
+                                  },
+                                  "data": {
+                                    "description": "Client settings data (only present when success is true)",
+                                    "$ref": "https://vcita.github.io/developers-hub/entities/clients/clientSettings.json"
+                                  },
+                                  "errors": {
+                                    "type": "array",
+                                    "description": "Error details (only present when success is false)",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "code": {
+                                          "type": "string",
+                                          "example": "not_found"
+                                        },
+                                        "message": {
+                                          "type": "string",
+                                          "example": "Client not found"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "client_settings": [
+                      {
+                        "success": true,
+                        "data": {
+                          "client_uid": "cmf62p00w2ns3chq",
+                          "opt_out_transactional_sms": true,
+                          "preferred_language": null,
+                          "effective_language": "en",
+                          "created_at": "2026-04-29T13:56:58.123Z",
+                          "updated_at": "2026-04-29T13:56:58.123Z"
+                        }
+                      },
+                      {
+                        "success": false,
+                        "errors": [
+                          {
+                            "code": "not_found",
+                            "message": "Client not found"
+                          }
+                        ]
+                      },
+                      {
+                        "success": true,
+                        "data": {
+                          "client_uid": "cmf62p10x3ot4dir",
+                          "opt_out_transactional_sms": false,
+                          "preferred_language": "es",
+                          "effective_language": "es",
+                          "created_at": "2026-04-29T13:56:58.123Z",
+                          "updated_at": "2026-04-29T13:56:58.123Z"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error (invalid fields, missing required field, duplicates, or exceeds max batch size)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string",
+                            "example": "invalid"
+                          },
+                          "field": {
+                            "type": "string",
+                            "example": "opt_out_transactional_sms"
+                          },
+                          "message": {
+                            "type": "string",
+                            "example": "Only 'client_uid' and 'opt_out_transactional_sms' fields are allowed"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - only staff tokens allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string",
+                            "example": "unauthorized"
+                          },
+                          "message": {
+                            "type": "string",
+                            "example": "Only staff tokens are allowed for bulk operations"
+                          }
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }

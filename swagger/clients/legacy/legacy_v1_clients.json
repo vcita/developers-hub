@@ -276,6 +276,152 @@
         "x-auth-type": "Application & Application User"
       }
     },
+    "/clients/bulk": {
+      "put": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "## Overview\nBulk update client marketing opt-in status for multiple clients in a single operation.\n\n## Currently Supported Field\nThis endpoint currently supports updating **only** the `opt_in` field. Any request containing other fields will be rejected with a validation error.\n\n## Field Format\n- `opt_in` - Marketing opt-in status. Accepts:\n  - String values: `\"1\"` (opted-in) or `\"0\"` (opted-out)\n  - Boolean values: `true` or `false` (automatically converted to `\"1\"` or `\"0\"`)\n\n## Limits\n- Maximum 1000 clients per request\n- All clients must belong to the authenticated business\n- Duplicate client IDs are not allowed\n\n## Authentication\n**Available for Staff, App, and Directory tokens.**\n\n## Behavior\n- Atomic operation - either all clients update successfully or the request fails\n- If any client is not found or validation fails, no clients are updated\n- If the business doesn't have an opt-in field configured, returns success with `updated: false`",
+        "operationId": "bulkUpdateClients",
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": ["clients"],
+              "properties": {
+                "clients": {
+                  "type": "array",
+                  "description": "Array of client updates. Maximum 1000 clients.",
+                  "minItems": 1,
+                  "maxItems": 1000,
+                  "items": {
+                    "type": "object",
+                    "required": ["id", "opt_in"],
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "description": "Client UID",
+                        "example": "czpvt3f246p4cw9i"
+                      },
+                      "opt_in": {
+                        "description": "Marketing opt-in status. Accepts \"1\", \"0\", true, or false.",
+                        "example": true
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "examples": {
+              "application/json": {
+                "clients": [
+                  {
+                    "id": "czpvt3f246p4cw9i",
+                    "opt_in": true
+                  },
+                  {
+                    "id": "d1qwu4g357q5dx0j",
+                    "opt_in": false
+                  }
+                ]
+              }
+            }
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success - All clients updated, operation skipped (no opt-in field), or empty request",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "example": "OK"
+                },
+                "data": {
+                  "type": "object",
+                  "properties": {
+                    "updated": {
+                      "type": "boolean",
+                      "description": "True if clients were updated. False when opt-in field not configured or empty request."
+                    },
+                    "count": {
+                      "type": "integer",
+                      "description": "Number of client records updated"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable status message"
+                    }
+                  },
+                  "required": ["updated", "count", "message"]
+                }
+              }
+            },
+            "examples": {
+              "application/json": {
+                "status": "OK",
+                "data": {
+                  "updated": true,
+                  "count": 2,
+                  "message": "Clients updated successfully"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error (invalid field, duplicates, exceeds max size, or clients not found)",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "example": "Error"
+                },
+                "error": {
+                  "type": "string",
+                  "example": "Only 'opt_in' field is allowed in bulk updates"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          }
+        },
+        "security": [
+          {
+            "default": [
+              "platform"
+            ]
+          }
+        ],
+        "summary": "Bulk Update Clients",
+        "tags": [
+          "Clients"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "PUT",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///platform/v1/clients/bulk"
+        },
+        "x-auth-type": "Application & Application User"
+      }
+    },
     "/clients/merges/merge_clients": {
       "put": {
         "consumes": [
