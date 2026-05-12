@@ -6,10 +6,10 @@
     "version": "3.0",
     "x-generated": {
       "sourceFiles": [
-        "conversations.json",
         "legacy_v1_communication.json",
-        "activity_message.json",
         "communication.json",
+        "conversations.json",
+        "activity_message.json",
         "notification_template.json",
         "business_phone_numbers.json",
         "legacy_v2_communication.json",
@@ -18,17 +18,6 @@
         "messages.json"
       ],
       "pathNormalizations": [
-        {
-          "file": "conversations.json",
-          "basePath": "/v2",
-          "transformations": [
-            {
-              "original": "/conversations/{id}",
-              "normalized": "/v2/conversations/{id}",
-              "basePath": "/v2"
-            }
-          ]
-        },
         {
           "file": "legacy_v1_communication.json",
           "basePath": "/platform/v1",
@@ -67,6 +56,17 @@
               "original": "/numbers/twilio/{sub_account_id}",
               "normalized": "/platform/v1/numbers/twilio/{sub_account_id}",
               "basePath": "/platform/v1"
+            }
+          ]
+        },
+        {
+          "file": "conversations.json",
+          "basePath": "/v2",
+          "transformations": [
+            {
+              "original": "/conversations/{id}",
+              "normalized": "/v2/conversations/{id}",
+              "basePath": "/v2"
             }
           ]
         },
@@ -198,232 +198,6 @@
     }
   ],
   "paths": {
-    "/v2/conversations/{id}": {
-      "put": {
-        "summary": "Update a conversation (archive, spam, business_unread, follow-up, soft delete)",
-        "description": "## Overview\nUpdates a single conversation. This endpoint is used for several distinct operations against the same conversation resource:\n\n- Archive / unarchive\n- Mark as spam / not spam\n- Mark as read / unread for the business side (`business_unread`)\n- Soft delete (`deleted`)\n- **Create, update, complete, or remove a follow-up reminder for the requesting staff member**\n\nAll fields are optional in the request body — send only the fields you want to change. Only fields that are present in the request body are evaluated.\n\nAvailable for **Staff tokens**.\n\n## Follow-up flow\n\nFollow-ups in vcita are scoped to a single staff member on a single conversation, and are stored on the underlying `Collaborator` record (per staff/conversation), not on the conversation itself. Sending follow-up fields on this endpoint always operates on the follow-up record of the **staff identified by the bearer token**.\n\nThe endpoint branches based on the combination of `follow_up` and `archived` in the request body:\n\n| Sent fields | Behavior |\n|---|---|\n| `follow_up: true`, no `archived` (or `archived: false`) | **Create or update** a follow-up for the requesting staff. Creates a Collaborator if one does not already exist. Sets `follow_up=true`, `follow_up_message`, and optionally `follow_up_date`. If the conversation was archived, it is automatically unarchived. If a `follow_up_message` is provided without a `follow_up_date`, an internal text message is added to the conversation. |\n| `follow_up: true`, `archived: true` | **Remove** the follow-up (used to dismiss/snooze). If `complete_follow_up: true` is also sent, the follow-up is marked as completed. |\n| `follow_up: false` | **Remove** the follow-up. If `complete_follow_up: true` is also sent, the follow-up is marked as completed. |\n\nNote: The follow-up branch only fires when the request body actually contains a `follow_up` key, and the add/remove logic only fires when the new `follow_up` value differs from the current one (with the exception of the `follow_up: true, archived: true` case, which always removes).\n\n## Permitted update fields\n\nFields outside of the follow-up flow are permitted via `Conversation::READ_WRITE_PARAMS`: `archived`, `business_unread`, `spam`, `deleted`, `campaign`, `source_type`, `mobile`. The follow-up fields (`follow_up`, `follow_up_date`, `follow_up_message`, `complete_follow_up`) are read separately from the request body and are not part of the permitted attributes list.",
-        "tags": [
-          "Conversations"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "description": "Unique identifier (uid) of the conversation to update (e.g., \"89m2pnabgozdvd9f\"). If the uid points to a conversation that has been merged into another, the request is automatically routed to the merged target conversation.",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "full_client",
-            "in": "query",
-            "required": false,
-            "description": "When set to a truthy value, the response client object is rendered in its full representation (instead of the default summary), and the conversation is rendered in its deep representation (adds source/source_data/source_type/sourceable fields and sets `depth` to \"deep\").",
-            "schema": {
-              "type": "boolean"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Conversation updated successfully. Returns the updated conversation as decorated by ConversationDecorator. Note that `follow_up_date` and `follow_up_message` on the response reflect the values sent in the request (they are exposed on the conversation via accessors but persisted on the per-staff Collaborator record).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Conversation"
-                },
-                "example": {
-                  "uid": "89m2pnabgozdvd9f",
-                  "title": "Jane Smith",
-                  "follow_up": true,
-                  "follow_up_date": "2026-05-06T10:31:21Z",
-                  "follow_up_message": "just a test",
-                  "follow_up_text": "Reminder set for tomorrow at 1:31 PM",
-                  "business_unread": false,
-                  "spam": false,
-                  "archived": false,
-                  "sent": true,
-                  "received": true,
-                  "deleted": false,
-                  "matter_searchable": true,
-                  "last_user_action_at": "2026-05-05T10:30:00Z",
-                  "last_user_action_at_h": "Today, 10:30 AM",
-                  "last_client_action_at": "2026-05-04T16:12:00Z",
-                  "last_client_action_at_h": "Yesterday, 4:12 PM",
-                  "last_message": {
-                    "title": "Re: Initial consultation",
-                    "text": "Sounds good, see you then.",
-                    "message_of": "client",
-                    "extra_data": {}
-                  },
-                  "depth": "shallow",
-                  "message_count": 7,
-                  "client": {
-                    "uid": "0c4ac9717ab26f56",
-                    "first_name": "Jane",
-                    "last_name": "Smith",
-                    "email": "jane@example.com"
-                  },
-                  "staff": {
-                    "uid": "5ya4gbwm2c3qoic8",
-                    "display_name": "Ram Almog"
-                  },
-                  "has_matter": false,
-                  "matter": null
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing, invalid, expired, or not a staff token.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "unauthorized",
-                      "message": "401 Unauthorized"
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden. The authenticated staff is not allowed to update this conversation (Pundit policy denied access).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "forbidden",
-                      "message": "You are not authorized to perform this action."
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found. No conversation with the given uid exists, or the conversation belongs to a different business than the one resolved from the bearer token.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "invalid",
-                      "field": "id",
-                      "message": "Invalid conversation_uid"
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Unprocessable Entity. The follow-up validation failed. The most common cause is `follow_up_date` being in the past; the staff resolved from the bearer token could not be found is also possible.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "field": "follow_up_date",
-                      "code": "invalid",
-                      "message": "Time has already passed."
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "x-auth-type": "Application User",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "description": "Partial update payload. All fields are optional; send only the fields you want to change.",
-                "properties": {
-                  "follow_up": {
-                    "type": "boolean",
-                    "description": "Whether a follow-up should be active on this conversation for the requesting staff. Setting this field is what triggers the follow-up branch. Set to `true` to create/update a follow-up, or `false` to remove it. When combined with `archived: true`, `follow_up: true` removes the follow-up (used to dismiss it from the inbox)."
-                  },
-                  "follow_up_date": {
-                    "type": "string",
-                    "description": "When the follow-up reminder should fire. Accepts any string parseable by Ruby's Time parser, including the JavaScript-style format the UI sends (e.g., \"Wed May 06 2026 13:31:21 GMT+0300 (Israel Daylight Time)\") and ISO 8601 (e.g., \"2026-05-06T10:31:21Z\"). Must be in the future. Only consumed when creating/updating a follow-up."
-                  },
-                  "follow_up_message": {
-                    "type": "string",
-                    "description": "Free-text note attached to the follow-up (e.g., \"just a test\", \"call back about pricing\"). Defaults to an empty string. When a non-empty `follow_up_message` is sent without a `follow_up_date`, an internal text message is automatically added to the conversation as a record of the follow-up note."
-                  },
-                  "complete_follow_up": {
-                    "type": "boolean",
-                    "default": false,
-                    "description": "Only meaningful when removing a follow-up (i.e., `follow_up: false`, or `follow_up: true` with `archived: true`). When `true`, the follow-up is marked as completed rather than simply dismissed."
-                  },
-                  "archived": {
-                    "type": "boolean",
-                    "description": "Archive (`true`) or unarchive (`false`) the conversation. When sent together with `follow_up: true`, it instead removes the follow-up (see the follow-up branching table above)."
-                  },
-                  "business_unread": {
-                    "type": "boolean",
-                    "description": "Mark the conversation as unread (`true`) or read (`false`) for the business side. When this field is present, the read state is propagated to the relevant staff collaboration record."
-                  },
-                  "spam": {
-                    "type": "boolean",
-                    "description": "Mark the conversation as spam (`true`) or not spam (`false`). When set, the spam state is also applied to the associated client."
-                  },
-                  "deleted": {
-                    "type": "boolean",
-                    "description": "Soft-delete (`true`) the conversation (sets `deleted_at` to the current time). Hard deletion is performed via the DELETE endpoint, not via this field."
-                  },
-                  "campaign": {
-                    "type": "string",
-                    "description": "Free-form campaign tag stored on the conversation."
-                  },
-                  "source_type": {
-                    "type": "string",
-                    "description": "Source classifier of the conversation (e.g., \"contact_form\", \"profile_page\", \"email_campaign\")."
-                  },
-                  "mobile": {
-                    "type": "boolean",
-                    "description": "Internal flag indicating whether the conversation originated from a mobile device."
-                  }
-                },
-                "example": {
-                  "follow_up": true,
-                  "follow_up_date": "Wed May 06 2026 13:31:21 GMT+0300 (Israel Daylight Time)",
-                  "follow_up_message": "just a test"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "Conversations": []
-          }
-        ]
-      }
-    },
     "/platform/v1/conversations": {
       "get": {
         "description": "## Overview\nGets a list of conversations.\n\nAvailable for **Staff and Directory tokens**. Directory tokens require the `X-On-Behalf-Of` header with the target business UID.",
@@ -998,514 +772,6 @@
           "uri": "https:///platform/v1/numbers/twilio/{sub_account_id}"
         },
         "x-auth-type": "Application & Application User",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/communication/activity_messages": {
-      "get": {
-        "operationId": "listActivityMessages",
-        "summary": "List Activity Messages",
-        "description": "## Overview\nRetrieves a paginated list of activity messages for a business. Activity messages represent communications tied to business activities such as meetings, invoices, payments, and more. Use the available query parameters to filter results by activity type, client, staff, direction, read status, and date range.\n\nAvailable for **Staff tokens**.\n\n### Message Types Reference\n\n| Activity Type | Message Type | Direction | Meaning |\n|---|---|---|---|\n| Meeting | `schedule_invitation` | `pivot_to_client` | Staff scheduled a new appointment with the client. |\n| Meeting | `schedule` | `client_to_pivot` | Client online scheduled a new appointment, and it was auto-approved. |\n| Meeting | `request` | `client_to_pivot` | Client scheduled a meeting online and it is pending business approval. |\n| Meeting | `request_notification` | `pivot_to_client` | Business sent an automatic reply acknowledging the client's meeting request is being handled. |\n| Meeting | `schedule_update` | `pivot_to_client` | Staff updated the meeting details. |\n| Meeting | `updated` | `pivot_to_client` | Staff updated the meeting details. |\n| Meeting | `updated` | `to_pivot` | Business is notified that meeting details were updated. |\n| Meeting | `cancelled` | `pivot_to_client` | Staff cancelled a meeting with the client. |\n| Meeting | `cancelled` | `client_to_pivot` | Client cancelled a meeting online. |\n| Meeting | `accepted` | `pivot_to_client` | Staff approved a pending meeting request from the client. |\n| Meeting | `accepted` | `client_to_pivot` | Client accepted a tentative meeting scheduled by the staff. |\n| Meeting | `rejected` | `pivot_to_client` | Staff declined a meeting request the client made online. |\n| Meeting | `rejected` | `client_to_pivot` | Client declined a meeting. |\n| Meeting | `completed` | `to_pivot` | The appointment was marked as completed. |\n| Meeting | `reschedule` | `client_to_pivot` | Client rescheduled an appointment online. |\n| Meeting | `reschedule` | `to_pivot` | Business is notified that a meeting was rescheduled. |\n| Meeting | `schedule_client_update` | `client_to_pivot` | Client changed the meeting time online. |\n| Meeting | `schedule_client_update_notification` | `pivot_to_client` | Staff is notified of a change the client made to the appointment online. |\n| Meeting | `propose_time` | `pivot_to_client` | Staff is proposing a new time for the appointment to the client. |\n| Meeting | `please_reschedule` | `pivot_to_client` | Business is asking the client to reschedule the appointment online. |\n| Meeting | `invite` | `pivot_to_client` | Business is inviting the client to schedule online. |\n| Meeting | `rsvp_confirmation` | `client_to_pivot` | Client confirmed attendance to a future meeting. |\n| Meeting | `thank_you_note` | `pivot_to_client` | Staff sent a follow-up thank you message after the meeting. |\n| Meeting | `missed_note` | `pivot_to_client` | Client did not attend the meeting, so staff sends a follow-up message. |\n| Meeting | `expired` | `client_to_pivot` | Client's meeting request expired before the business responded — staff is notified. |\n| Meeting | `expired` | `pivot_to_client` | Client's meeting request expired before the business responded — client is notified. |\n| Meeting | `request_cancelled` | `client_to_pivot` | Client cancelled a meeting request they made online. |\n| Meeting | `request_cancelled` | `pivot_to_client` | Business cancelled a meeting invitation that was not yet approved by the client. |\n| Meeting | `tentative` | `to_client` | Client is notified of a tentatively scheduled meeting pending their confirmation. |\n| Meeting | `meeting_reminder` | `to_pivot` | System sends an upcoming appointment reminder to the business. |\n| Meeting | `meeting_reminder` | `to_client` | System sends an upcoming appointment reminder to the client. |\n| Meeting | `meeting_request_reminder` | `to_client` | Client receives a reminder about their pending meeting request. |\n| Meeting | `meeting_request_reminder` | `to_pivot` | Business receives a reminder about a pending meeting request awaiting approval. |\n| Meeting | `schedule_notification` | `to_client` | Client receives a confirmation notification that a meeting was scheduled. |\n| Meeting | `schedule_update_notification` | `to_pivot` | Business receives a notification that meeting details were updated. |\n| Meeting | `cancelled_notification` | `to_pivot` | Business receives a notification that a meeting was cancelled. |\n| Meeting | `cancelled_notification` | `to_client` | Client receives a notification that a meeting was cancelled. |\n| Meeting | `accepted_notification` | `to_pivot` | Business receives a notification that a meeting request was accepted. |\n| Meeting | `accepted_notification` | `to_client` | Client receives a notification that their meeting was accepted. |\n| Meeting | `add_additional_staff` | `to_pivot` | An additional staff member was assigned to the meeting. |\n| Meeting | `remove_additional_staff` | `to_pivot` | An additional staff member was removed from the meeting. |\n| Meeting | `booking_reassigned` | `to_pivot` | The meeting was reassigned to a different staff member. |\n| Meeting | `dispatch_schedule` | `to_pivot` | A meeting was dispatched and assigned to a staff member. |\n| Meeting | `dispatch_cancel` | `to_pivot` | A dispatched meeting assignment was cancelled. |\n| AppointmentSeries | `scheduled` | `pivot_to_client` | Business scheduled a recurring appointment series with the client. |\n| AppointmentSeries | `scheduled_notification` | `to_pivot` | Business is notified that a recurring appointment series was scheduled. |\n| AppointmentSeries | `schedule_update` | `pivot_to_client` | A recurring appointment series time was updated. |\n| AppointmentSeries | `schedule_update_notification` | `to_pivot` | Business is notified that a recurring appointment series was updated. |\n| AppointmentSeries | `updated` | `pivot_to_client` | Business updated the details of a recurring appointment series. |\n| AppointmentSeries | `updated` | `to_pivot` | Business is notified that a recurring appointment series was updated. |\n| AppointmentSeries | `cancelled` | `pivot_to_client` | Business cancelled a series of appointments. |\n| AppointmentSeries | `cancelled_notification` | `to_pivot` | Business is notified that a recurring appointment series was cancelled. |\n| AppointmentSeries | `add_additional_staff` | `to_pivot` | An additional staff member was assigned to the appointment series. |\n| AppointmentSeries | `remove_additional_staff` | `to_pivot` | An additional staff member was removed from the appointment series. |\n| AppointmentSeries | `booking_reassigned` | `to_pivot` | The appointment series was reassigned to a different staff member. |\n| AppointmentSeries | `dispatch_schedule` | `to_pivot` | An appointment series was dispatched and assigned to a staff member. |\n| AppointmentSeries | `dispatch_cancel` | `to_pivot` | A dispatched appointment series assignment was cancelled. |\n| LinkedBooking | `schedule_invitation` | `pivot_to_client` | Business scheduled several appointments with the client. |\n| LinkedBooking | `cancelled` | `pivot_to_client` | Business cancelled multiple linked meetings with the client. |\n| Invoice | `message_request` | `pivot_to_client` | Staff sent an invoice to the client. |\n| Invoice | `reminder` | `to_pivot` | Business receives a reminder to follow up on an open invoice. |\n| Invoice | `client_reminder` | `to_client` | System sends the client a reminder about an unpaid invoice. |\n| Invoice | `client_reminder` | `pivot_to_client` | Business sends a reminder to the client to pay for an invoice. |\n| Estimate | `request` | `pivot_to_client` | Business sent a new price estimate to the client. |\n| Estimate | `approved` | `client_to_pivot` | Client approved the price estimate. |\n| Estimate | `approved` | `pivot_to_client` | Business sends a confirmed estimate to the client. |\n| Estimate | `rejected` | `client_to_pivot` | Client rejected the price estimate. |\n| Estimate | `rejected` | `pivot_to_client` | Business cancelled a price estimate. |\n| Estimate | `expiring` | `pivot_to_client` | A price estimate is about to expire. |\n| Estimate | `expired` | `to_pivot` | Business is notified that a price estimate has expired. |\n| Payment | `payment_received` | `client_to_pivot` | Client paid online. |\n| Payment | `payment_received` | `to_pivot` | Business is notified that a payment was received. |\n| Payment | `payment_received_notification` | `pivot_to_client` | Client received confirmation of their payment. |\n| Payment | `payment_received_notification` | `to_client` | Client receives a system notification confirming their payment. |\n| Payment | `receipt_sent` | `to_client` | System notification that a receipt was sent to the client. |\n| Payment | `receipt_sent` | `pivot_to_client` | A receipt was sent to the client. |\n| Payment | `receipt_sent` | `to_pivot` | Business is notified that a receipt was sent. |\n| Payment | `bank_payment` | `to_client` | Client receives confirmation of a bank transfer payment. |\n| Payment | `payment_refunded_notification` | `to_client` | System notification that a payment refund was processed. |\n| Payment | `payment_refunded_notification` | `pivot_to_client` | Business refunded a payment to the client. |\n| Payment | `cancelled` | `to_pivot` | Business is notified that a payment was cancelled. |\n| Payment | `payment_pending` | `to_pivot` | Business is notified of a pending payment. |\n| Payment | `payment_failed` | `to_pivot` | Business is notified that a payment attempt failed. |\n| Payment | `payment_offline_refunded_notification` | `to_pivot` | Business is notified of an offline payment refund. |\n| Payment | `archived` | `to_pivot` | Business is notified that a payment was archived. |\n| Payment | `undo_archived` | `to_pivot` | Business is notified that a payment was unarchived. |\n| Payment | `pending_payment_failed` | `to_pivot` | Business is notified that a pending payment failed. |\n| Payment | `scheduled_payment_failed` | `to_pivot` | Business is notified that a scheduled payment failed. |\n| PaymentStatus | `send_link` | `pivot_to_client` | Business sent a payment request link to the client. |\n| PaymentCard | `payment_method_added` | `to_pivot` | Business is notified that a client added a payment method on file. |\n| CardRequest | `card_requested` | `to_client` | Client receives a request to provide their payment card details. |\n| ScheduledPaymentsRule | `scheduled_payments_rule_created` | `pivot_to_client` | Business created a subscription or scheduled payment plan for the client. |\n| EventAttendance | `event_attendance_invite` | `pivot_to_client` | Staff invited the client to register for an event or class. |\n| EventAttendance | `event_attendance_register_notification` | `pivot_to_client` | Staff registered a client for an event or class. |\n| EventAttendance | `event_attendance_client_register` | `client_to_pivot` | Client registered for an event or class online. |\n| EventAttendance | `event_attendance_business_cancel` | `pivot_to_client` | Staff cancelled a client's registration to an event or class. |\n| EventAttendance | `event_attendance_client_cancel` | `client_to_pivot` | Client cancelled their registration to an event or class online. |\n| EventAttendance | `event_attendance_client_cancel_notification` | `pivot_to_client` | Staff is notified that a client cancelled their event or class registration. |\n| EventAttendance | `event_attendance_rescheduled` | `pivot_to_client` | Business changed the time of an event or class. |\n| EventAttendance | `event_attendance_event_cancelled` | `pivot_to_client` | Business cancelled an event or class. |\n| EventAttendance | `rsvp_confirmation` | `client_to_pivot` | Client confirmed arrival to an event or class. |\n| EventAttendance | `event_attendance_reminder` | `to_client` | Client receives a reminder about an upcoming event or class. |\n| EventAttendance | `booking_reassigned` | `to_pivot` | An event registration was reassigned to a different staff member. |\n| EventSeriesAttendance | `event_series_attendance_invite` | `pivot_to_client` | Business invited the client to join a series of events or classes. |\n| EventSeriesAttendance | `event_series_attendance_updated` | `pivot_to_client` | Business updated the details of a series of events or classes. |\n| EventSeriesAttendance | `event_series_attendance_cancelled` | `pivot_to_client` | Business cancelled a client's attendance to a series of events or classes. |\n| EventSeriesAttendance | `booking_reassigned` | `to_pivot` | An event series registration was reassigned to a different staff member. |\n| Waitlist | `register_to_event_waitlist` | `client_to_pivot` | Client requested to join a waitlist for an upcoming event or class. |\n| Waitlist | `register_to_event_waitlist` | `to_client` | Client receives confirmation of their waitlist registration. |\n| Waitlist | `register_to_event_waitlist` | `pivot_to_client` | Business registered a client to a waitlist for an event or class. |\n| Waitlist | `register_to_event_waitlist` | `to_pivot` | Business is notified that a client registered to a waitlist. |\n| Waitlist | `text` | `pivot_to_client` | Business offers a waitlisted client a spot in the event or class. |\n| Waitlist | `cancel_waitlist_registration` | `to_pivot` | Business is notified that a client cancelled their waitlist registration. |\n| ClientBookingPackage | `package_added` | `pivot_to_client` | Business added a package of services to the client's profile. |\n| ClientBookingPackage | `package_purchased` | `client_to_pivot` | Client purchased a package of services online. |\n| ClientBookingPackage | `resend_link` | `pivot_to_client` | Business sent a link to purchase a package to the client. |\n| ProductOrder | `product_added` | `pivot_to_client` | Business added a new product to the client's CRM card. |\n| Announcement | `custom` | `pivot_to_client` | Business sent an invitation to take online actions through the client portal. |\n| Announcement | `close_open_payments` | `pivot_to_client` | Business sent a link to the client portal for payment. |\n| Announcement | `livesite` | `pivot_to_client` | Business is inviting the client to take online actions on their website. |\n| Announcement | `recover_document` | `pivot_to_client` | Business invites the client to re-share a document online. |\n| Document | `document` | `client_to_pivot` | Client shared a document with the business. |\n| Review | `submit_review` | `client_to_pivot` | Client submitted an online review for the business. |\n| VoiceCall | `call` | `client_to_pivot` | Client called the business over the phone (regardless of the call outcome). |\n| General | `text` | `client_to_pivot` | Client replied to the staff. |\n| General | `text` | `pivot_to_client` | Staff replied to the client. |\n| General | `text` | `to_pivot` | A text message was received via an external messaging channel (e.g., Facebook, WhatsApp). |\n| General | `api` | `client_to_pivot` | Client contacted the business (via API-initiated communication). |\n| General | `general_question` | `client_to_pivot` | Client submitted a contact form. |\n| General | `business_text` | `client_to_pivot` | Client replied via SMS to the business. |\n| General | `document` | `client_to_pivot` | Client shared a file with the business. |\n| General | `document` | `pivot_to_client` | Business shared a file with the client. |\n| General | `close_open_payments` | `pivot_to_client` | Business sent a request to the client to pay all open payments. |\n| General | `document_client_pending_approval` | `pivot_to_client` | Business sent a document for client approval. |\n| General | `system` | `client_to_pivot` | Internal CRM activity update. |\n| General | `activity` | `client_to_pivot` | Internal CRM activity recorded for the client. |\n| General | `matter_assigned` | `to_pivot` | A client conversation was assigned to a staff member. |\n| General | `sent_notification` | `to_client` | System notification confirming that a message was sent. |\n| General | `document_client_notification` | `to_client` | Client receives a notification that a document was shared with them. |\n| General | `engagement_reminder` | `to_pivot` | Business receives a reminder to follow up on a client conversation. |",
-        "tags": [
-          "Activity Message"
-        ],
-        "parameters": [
-          {
-            "name": "activity_type",
-            "in": "query",
-            "required": false,
-            "description": "Filter by activity type. Limits results to messages associated with a specific type of business activity (e.g., \"meeting\", \"invoice\", \"payment\", \"announcement\").",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "meeting",
-                "appointment_series",
-                "invoice",
-                "estimate",
-                "payment",
-                "payment_status",
-                "payment_card",
-                "card_request",
-                "scheduled_payments_rule",
-                "payout",
-                "announcement",
-                "invite",
-                "event",
-                "event_series",
-                "event_instance",
-                "waitlist",
-                "linked_booking",
-                "client_booking_package",
-                "product_order",
-                "review",
-                "document",
-                "voice_call",
-                "assignment"
-              ]
-            }
-          },
-          {
-            "name": "activity_action",
-            "in": "query",
-            "required": false,
-            "description": "Filter by the specific action or status of the activity (e.g., \"scheduled\", \"created\", \"cancelled\"). Available values depend on the activity_type.",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "client_uid",
-            "in": "query",
-            "required": false,
-            "description": "Filter by client unique identifier. Returns only activity messages associated with the specified client.",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "staff_uid",
-            "in": "query",
-            "required": false,
-            "description": "Filter by staff unique identifier. Returns only activity messages associated with the specified staff member.",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "conversation_uid",
-            "in": "query",
-            "required": false,
-            "description": "Filter by conversation unique identifier. Returns only activity messages that belong to the specified conversation thread.",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "direction",
-            "in": "query",
-            "required": false,
-            "description": "Filter by message direction. Use \"business_to_client\" for messages sent from the business to the client, or \"client_to_business\" for messages sent from the client to the business. Note: the response returns the raw direction values which include four possible values: \"pivot_to_client\" (business sent to client), \"client_to_pivot\" (client sent to business), \"to_pivot\" (system notification to the business side), and \"to_client\" (system notification to the client side). The filter values \"business_to_client\" and \"client_to_business\" match against \"pivot_to_client\" and \"client_to_pivot\" respectively.",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "business_to_client",
-                "client_to_business"
-              ]
-            }
-          },
-          {
-            "name": "was_read",
-            "in": "query",
-            "required": false,
-            "description": "Filter by read status. Set to \"true\" to return only messages that have been read, or \"false\" for unread messages.",
-            "schema": {
-              "type": "boolean"
-            }
-          },
-          {
-            "name": "created_after",
-            "in": "query",
-            "required": false,
-            "description": "Filter messages created on or after this date. Must be a valid ISO 8601 date-time string (e.g., \"2026-01-01T00:00:00Z\").",
-            "schema": {
-              "type": "string",
-              "format": "date-time"
-            }
-          },
-          {
-            "name": "created_before",
-            "in": "query",
-            "required": false,
-            "description": "Filter messages created on or before this date. Must be a valid ISO 8601 date-time string (e.g., \"2026-03-01T23:59:59Z\").",
-            "schema": {
-              "type": "string",
-              "format": "date-time"
-            }
-          },
-          {
-            "name": "sort",
-            "in": "query",
-            "required": false,
-            "description": "Sort order for results in the format \"field:direction\" (e.g., \"created_at:desc\" or \"created_at:asc\"). Defaults to \"created_at:desc\" if not specified.",
-            "schema": {
-              "type": "string"
-            },
-            "example": "created_at:desc"
-          },
-          {
-            "name": "page",
-            "in": "query",
-            "required": false,
-            "description": "Page number for pagination. Starts at 1.",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "default": 1
-            }
-          },
-          {
-            "name": "per_page",
-            "in": "query",
-            "required": false,
-            "description": "Number of results to return per page. Maximum value is 100.",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100,
-              "default": 25
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Activity messages retrieved successfully.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "type": "object",
-                          "properties": {
-                            "activity_messages": {
-                              "type": "array",
-                              "description": "List of activity message records matching the query filters.",
-                              "items": {
-                                "$ref": "https://vcita.github.io/developers-hub/entities/communication/activityMessage.json"
-                              }
-                            },
-                            "page": {
-                              "type": "integer",
-                              "description": "The current page number."
-                            },
-                            "per_page": {
-                              "type": "integer",
-                              "description": "The number of results per page."
-                            },
-                            "total_count": {
-                              "type": "integer",
-                              "description": "The total number of activity messages matching the query filters."
-                            }
-                          }
-                        }
-                      }
-                    }
-                  ]
-                },
-                "example": {
-                  "success": true,
-                  "data": {
-                    "activity_messages": [
-                      {
-                        "uid": "msg_a1b2c3d4e5f6",
-                        "business_uid": "d290f1ee26c54",
-                        "staff_uid": "5ya4gbwm2c3qoic8",
-                        "client_uid": "0c4ac9717ab26f56",
-                        "activity_type": "meeting",
-                        "activity_action": "scheduled",
-                        "direction": "business_to_client",
-                        "channels": [
-                          "email"
-                        ],
-                        "message_text": {
-                          "body": "Your appointment has been scheduled.",
-                          "subject": "Initial Consultation"
-                        },
-                        "cta_button_text": "View Appointment",
-                        "link_url_params": null,
-                        "meeting_data": {
-                          "service_uid": "svc_x7y8z9",
-                          "service_name": "Initial Consultation",
-                          "start_time": "2026-03-15T14:00:00Z",
-                          "duration": 60,
-                          "interaction_type": "video"
-                        },
-                        "created_at": "2026-03-10T09:00:00Z",
-                        "updated_at": "2026-03-10T09:00:00Z"
-                      },
-                      {
-                        "uid": "msg_g7h8i9j0k1l2",
-                        "business_uid": "d290f1ee26c54",
-                        "staff_uid": "5ya4gbwm2c3qoic8",
-                        "client_uid": "0c4ac9717ab26f56",
-                        "activity_type": "invoice",
-                        "activity_action": "created",
-                        "direction": "business_to_client",
-                        "channels": [
-                          "email",
-                          "sms"
-                        ],
-                        "message_text": {
-                          "body": "A new invoice has been created for your recent service.",
-                          "subject": "Invoice #1042"
-                        },
-                        "cta_button_text": "View Invoice",
-                        "link_url_params": null,
-                        "created_at": "2026-03-08T11:30:00Z",
-                        "updated_at": "2026-03-08T11:30:00Z"
-                      }
-                    ],
-                    "page": 1,
-                    "per_page": 25,
-                    "total_count": 2
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request. The request contains invalid parameters.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "invalid",
-                      "message": "unknown activity_type"
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing, invalid or not allowed to access the requested resource.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "unauthorized",
-                      "message": "401 Unauthorized"
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found. A referenced resource was not found (e.g., conversation_uid does not exist).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "error": "Conversation not found"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      },
-      "post": {
-        "operationId": "sendActivityMessage",
-        "summary": "Create an ActivityMessage",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "business_uid": {
-                    "type": "string",
-                    "description": "The unique identifier of the business that is sending the message"
-                  },
-                  "staff_uid": {
-                    "type": "string",
-                    "description": "The unique identifier of the staff that is sending the message"
-                  },
-                  "client_uid": {
-                    "type": "string",
-                    "description": "The unique identifier of the client the message is sent to"
-                  },
-                  "activity_type": {
-                    "type": "string",
-                    "enum": [
-                      "invite"
-                    ],
-                    "description": "Activity category type from a closed list."
-                  },
-                  "activity_action": {
-                    "type": "string",
-                    "enum": [
-                      "schedule"
-                    ],
-                    "description": "Action related to the activity type property."
-                  },
-                  "channels": {
-                    "type": "array",
-                    "description": "Determines if the message should be sent via email or/and SMS.",
-                    "items": {
-                      "type": "string",
-                      "enum": [
-                        "email",
-                        "sms"
-                      ]
-                    }
-                  },
-                  "message_text": {
-                    "type": "object",
-                    "properties": {
-                      "body": {
-                        "type": "string",
-                        "description": "The main content of the message."
-                      },
-                      "subject": {
-                        "type": "string",
-                        "description": "A summary of the message content (limited to 200 characters)"
-                      }
-                    }
-                  },
-                  "cta_button_text": {
-                    "type": "string",
-                    "description": "In the Email, this text will appear on the button embedded in the email message"
-                  },
-                  "link_url_params": {
-                    "type": "object",
-                    "description": "The parameters for the Email action button or SMS link. for example: {\n\"utm_source\": \"newsletter\",\n\"utm_campaign\": \"summer_sale\"\n}"
-                  }
-                },
-                "required": [
-                  "client_uid",
-                  "activity_type",
-                  "activity_action",
-                  "channels"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/activityMessage.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Error. The request is invalid. (missing required fields, invalid values, etc.)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "missing_field",
-                      "message": "Missing mandatory field."
-                    },
-                    {
-                      "code": "invalid",
-                      "message": "activity_type value is invalid."
-                    },
-                    {
-                      "code": "too_long",
-                      "message": "Sms body text is too long. Maximum length is 550 characters."
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing, invalid or not allowed to access the requested resource.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "unauthorized",
-                      "message": "401 Unauthorized"
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found. The requested resource was not found. (staff, client or business)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "error": "Client Not Found: The specified client ID does not exist."
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate Limit Reached",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "too_many_requests",
-                      "message": "Rate limit exceeded"
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Activity Message"
-        ],
-        "description": "## Overview\nCreate an ActivityMessage Available for **Staff, App, and Directory tokens**.",
         "security": [
           {
             "Bearer": []
@@ -2104,6 +1370,740 @@
         "tags": [
           "Voice Call Reports"
         ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/conversations/{id}": {
+      "put": {
+        "summary": "Update a conversation (archive, spam, business_unread, follow-up, soft delete)",
+        "description": "## Overview\nUpdates a single conversation. This endpoint is used for several distinct operations against the same conversation resource:\n\n- Archive / unarchive\n- Mark as spam / not spam\n- Mark as read / unread for the business side (`business_unread`)\n- Soft delete (`deleted`)\n- **Create, update, complete, or remove a follow-up reminder for the requesting staff member**\n\nAll fields are optional in the request body — send only the fields you want to change. Only fields that are present in the request body are evaluated.\n\nAvailable for **Staff tokens**.\n\n## Follow-up flow\n\nFollow-ups in vcita are scoped to a single staff member on a single conversation, and are stored on the underlying `Collaborator` record (per staff/conversation), not on the conversation itself. Sending follow-up fields on this endpoint always operates on the follow-up record of the **staff identified by the bearer token**.\n\nThe endpoint branches based on the combination of `follow_up` and `archived` in the request body:\n\n| Sent fields | Behavior |\n|---|---|\n| `follow_up: true`, no `archived` (or `archived: false`) | **Create or update** a follow-up for the requesting staff. Creates a Collaborator if one does not already exist. Sets `follow_up=true`, `follow_up_message`, and optionally `follow_up_date`. If the conversation was archived, it is automatically unarchived. If a `follow_up_message` is provided without a `follow_up_date`, an internal text message is added to the conversation. |\n| `follow_up: true`, `archived: true` | **Remove** the follow-up (used to dismiss/snooze). If `complete_follow_up: true` is also sent, the follow-up is marked as completed. |\n| `follow_up: false` | **Remove** the follow-up. If `complete_follow_up: true` is also sent, the follow-up is marked as completed. |\n\nNote: The follow-up branch only fires when the request body actually contains a `follow_up` key, and the add/remove logic only fires when the new `follow_up` value differs from the current one (with the exception of the `follow_up: true, archived: true` case, which always removes).\n\n## Permitted update fields\n\nFields outside of the follow-up flow are permitted via `Conversation::READ_WRITE_PARAMS`: `archived`, `business_unread`, `spam`, `deleted`, `campaign`, `source_type`, `mobile`. The follow-up fields (`follow_up`, `follow_up_date`, `follow_up_message`, `complete_follow_up`) are read separately from the request body and are not part of the permitted attributes list.",
+        "tags": [
+          "Conversations"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier (uid) of the conversation to update (e.g., \"89m2pnabgozdvd9f\"). If the uid points to a conversation that has been merged into another, the request is automatically routed to the merged target conversation.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "full_client",
+            "in": "query",
+            "required": false,
+            "description": "When set to a truthy value, the response client object is rendered in its full representation (instead of the default summary), and the conversation is rendered in its deep representation (adds source/source_data/source_type/sourceable fields and sets `depth` to \"deep\").",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Conversation updated successfully. Returns the updated conversation as decorated by ConversationDecorator. Note that `follow_up_date` and `follow_up_message` on the response reflect the values sent in the request (they are exposed on the conversation via accessors but persisted on the per-staff Collaborator record).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Conversation"
+                },
+                "example": {
+                  "uid": "89m2pnabgozdvd9f",
+                  "title": "Jane Smith",
+                  "follow_up": true,
+                  "follow_up_date": "2026-05-06T10:31:21Z",
+                  "follow_up_message": "just a test",
+                  "follow_up_text": "Reminder set for tomorrow at 1:31 PM",
+                  "business_unread": false,
+                  "spam": false,
+                  "archived": false,
+                  "sent": true,
+                  "received": true,
+                  "deleted": false,
+                  "matter_searchable": true,
+                  "last_user_action_at": "2026-05-05T10:30:00Z",
+                  "last_user_action_at_h": "Today, 10:30 AM",
+                  "last_client_action_at": "2026-05-04T16:12:00Z",
+                  "last_client_action_at_h": "Yesterday, 4:12 PM",
+                  "last_message": {
+                    "title": "Re: Initial consultation",
+                    "text": "Sounds good, see you then.",
+                    "message_of": "client",
+                    "extra_data": {}
+                  },
+                  "depth": "shallow",
+                  "message_count": 7,
+                  "client": {
+                    "uid": "0c4ac9717ab26f56",
+                    "first_name": "Jane",
+                    "last_name": "Smith",
+                    "email": "jane@example.com"
+                  },
+                  "staff": {
+                    "uid": "5ya4gbwm2c3qoic8",
+                    "display_name": "Ram Almog"
+                  },
+                  "has_matter": false,
+                  "matter": null
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing, invalid, expired, or not a staff token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "401 Unauthorized"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden. The authenticated staff is not allowed to update this conversation (Pundit policy denied access).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "You are not authorized to perform this action."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found. No conversation with the given uid exists, or the conversation belongs to a different business than the one resolved from the bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "invalid",
+                      "field": "id",
+                      "message": "Invalid conversation_uid"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity. The follow-up validation failed. The most common cause is `follow_up_date` being in the past; the staff resolved from the bearer token could not be found is also possible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "follow_up_date",
+                      "code": "invalid",
+                      "message": "Time has already passed."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "x-auth-type": "Application User",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Partial update payload. All fields are optional; send only the fields you want to change.",
+                "properties": {
+                  "follow_up": {
+                    "type": "boolean",
+                    "description": "Whether a follow-up should be active on this conversation for the requesting staff. Setting this field is what triggers the follow-up branch. Set to `true` to create/update a follow-up, or `false` to remove it. When combined with `archived: true`, `follow_up: true` removes the follow-up (used to dismiss it from the inbox)."
+                  },
+                  "follow_up_date": {
+                    "type": "string",
+                    "description": "When the follow-up reminder should fire. Accepts any string parseable by Ruby's Time parser, including the JavaScript-style format the UI sends (e.g., \"Wed May 06 2026 13:31:21 GMT+0300 (Israel Daylight Time)\") and ISO 8601 (e.g., \"2026-05-06T10:31:21Z\"). Must be in the future. Only consumed when creating/updating a follow-up."
+                  },
+                  "follow_up_message": {
+                    "type": "string",
+                    "description": "Free-text note attached to the follow-up (e.g., \"just a test\", \"call back about pricing\"). Defaults to an empty string. When a non-empty `follow_up_message` is sent without a `follow_up_date`, an internal text message is automatically added to the conversation as a record of the follow-up note."
+                  },
+                  "complete_follow_up": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Only meaningful when removing a follow-up (i.e., `follow_up: false`, or `follow_up: true` with `archived: true`). When `true`, the follow-up is marked as completed rather than simply dismissed."
+                  },
+                  "archived": {
+                    "type": "boolean",
+                    "description": "Archive (`true`) or unarchive (`false`) the conversation. When sent together with `follow_up: true`, it instead removes the follow-up (see the follow-up branching table above)."
+                  },
+                  "business_unread": {
+                    "type": "boolean",
+                    "description": "Mark the conversation as unread (`true`) or read (`false`) for the business side. When this field is present, the read state is propagated to the relevant staff collaboration record."
+                  },
+                  "spam": {
+                    "type": "boolean",
+                    "description": "Mark the conversation as spam (`true`) or not spam (`false`). When set, the spam state is also applied to the associated client."
+                  },
+                  "deleted": {
+                    "type": "boolean",
+                    "description": "Soft-delete (`true`) the conversation (sets `deleted_at` to the current time). Hard deletion is performed via the DELETE endpoint, not via this field."
+                  },
+                  "campaign": {
+                    "type": "string",
+                    "description": "Free-form campaign tag stored on the conversation."
+                  },
+                  "source_type": {
+                    "type": "string",
+                    "description": "Source classifier of the conversation (e.g., \"contact_form\", \"profile_page\", \"email_campaign\")."
+                  },
+                  "mobile": {
+                    "type": "boolean",
+                    "description": "Internal flag indicating whether the conversation originated from a mobile device."
+                  }
+                },
+                "example": {
+                  "follow_up": true,
+                  "follow_up_date": "Wed May 06 2026 13:31:21 GMT+0300 (Israel Daylight Time)",
+                  "follow_up_message": "just a test"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Conversations": []
+          }
+        ]
+      }
+    },
+    "/v3/communication/activity_messages": {
+      "get": {
+        "operationId": "listActivityMessages",
+        "summary": "List Activity Messages",
+        "description": "## Overview\nRetrieves a paginated list of activity messages for a business. Activity messages represent communications tied to business activities such as meetings, invoices, payments, and more. Use the available query parameters to filter results by activity type, client, staff, direction, read status, and date range.\n\nAvailable for **Staff tokens**.\n\n### Message Types Reference\n\n| Activity Type | Message Type | Direction | Meaning |\n|---|---|---|---|\n| Meeting | `schedule_invitation` | `pivot_to_client` | Staff scheduled a new appointment with the client. |\n| Meeting | `schedule` | `client_to_pivot` | Client online scheduled a new appointment, and it was auto-approved. |\n| Meeting | `request` | `client_to_pivot` | Client scheduled a meeting online and it is pending business approval. |\n| Meeting | `request_notification` | `pivot_to_client` | Business sent an automatic reply acknowledging the client's meeting request is being handled. |\n| Meeting | `schedule_update` | `pivot_to_client` | Staff updated the meeting details. |\n| Meeting | `updated` | `pivot_to_client` | Staff updated the meeting details. |\n| Meeting | `updated` | `to_pivot` | Business is notified that meeting details were updated. |\n| Meeting | `cancelled` | `pivot_to_client` | Staff cancelled a meeting with the client. |\n| Meeting | `cancelled` | `client_to_pivot` | Client cancelled a meeting online. |\n| Meeting | `accepted` | `pivot_to_client` | Staff approved a pending meeting request from the client. |\n| Meeting | `accepted` | `client_to_pivot` | Client accepted a tentative meeting scheduled by the staff. |\n| Meeting | `rejected` | `pivot_to_client` | Staff declined a meeting request the client made online. |\n| Meeting | `rejected` | `client_to_pivot` | Client declined a meeting. |\n| Meeting | `completed` | `to_pivot` | The appointment was marked as completed. |\n| Meeting | `reschedule` | `client_to_pivot` | Client rescheduled an appointment online. |\n| Meeting | `reschedule` | `to_pivot` | Business is notified that a meeting was rescheduled. |\n| Meeting | `schedule_client_update` | `client_to_pivot` | Client changed the meeting time online. |\n| Meeting | `schedule_client_update_notification` | `pivot_to_client` | Staff is notified of a change the client made to the appointment online. |\n| Meeting | `propose_time` | `pivot_to_client` | Staff is proposing a new time for the appointment to the client. |\n| Meeting | `please_reschedule` | `pivot_to_client` | Business is asking the client to reschedule the appointment online. |\n| Meeting | `invite` | `pivot_to_client` | Business is inviting the client to schedule online. |\n| Meeting | `rsvp_confirmation` | `client_to_pivot` | Client confirmed attendance to a future meeting. |\n| Meeting | `thank_you_note` | `pivot_to_client` | Staff sent a follow-up thank you message after the meeting. |\n| Meeting | `missed_note` | `pivot_to_client` | Client did not attend the meeting, so staff sends a follow-up message. |\n| Meeting | `expired` | `client_to_pivot` | Client's meeting request expired before the business responded — staff is notified. |\n| Meeting | `expired` | `pivot_to_client` | Client's meeting request expired before the business responded — client is notified. |\n| Meeting | `request_cancelled` | `client_to_pivot` | Client cancelled a meeting request they made online. |\n| Meeting | `request_cancelled` | `pivot_to_client` | Business cancelled a meeting invitation that was not yet approved by the client. |\n| Meeting | `tentative` | `to_client` | Client is notified of a tentatively scheduled meeting pending their confirmation. |\n| Meeting | `meeting_reminder` | `to_pivot` | System sends an upcoming appointment reminder to the business. |\n| Meeting | `meeting_reminder` | `to_client` | System sends an upcoming appointment reminder to the client. |\n| Meeting | `meeting_request_reminder` | `to_client` | Client receives a reminder about their pending meeting request. |\n| Meeting | `meeting_request_reminder` | `to_pivot` | Business receives a reminder about a pending meeting request awaiting approval. |\n| Meeting | `schedule_notification` | `to_client` | Client receives a confirmation notification that a meeting was scheduled. |\n| Meeting | `schedule_update_notification` | `to_pivot` | Business receives a notification that meeting details were updated. |\n| Meeting | `cancelled_notification` | `to_pivot` | Business receives a notification that a meeting was cancelled. |\n| Meeting | `cancelled_notification` | `to_client` | Client receives a notification that a meeting was cancelled. |\n| Meeting | `accepted_notification` | `to_pivot` | Business receives a notification that a meeting request was accepted. |\n| Meeting | `accepted_notification` | `to_client` | Client receives a notification that their meeting was accepted. |\n| Meeting | `add_additional_staff` | `to_pivot` | An additional staff member was assigned to the meeting. |\n| Meeting | `remove_additional_staff` | `to_pivot` | An additional staff member was removed from the meeting. |\n| Meeting | `booking_reassigned` | `to_pivot` | The meeting was reassigned to a different staff member. |\n| Meeting | `dispatch_schedule` | `to_pivot` | A meeting was dispatched and assigned to a staff member. |\n| Meeting | `dispatch_cancel` | `to_pivot` | A dispatched meeting assignment was cancelled. |\n| AppointmentSeries | `scheduled` | `pivot_to_client` | Business scheduled a recurring appointment series with the client. |\n| AppointmentSeries | `scheduled_notification` | `to_pivot` | Business is notified that a recurring appointment series was scheduled. |\n| AppointmentSeries | `schedule_update` | `pivot_to_client` | A recurring appointment series time was updated. |\n| AppointmentSeries | `schedule_update_notification` | `to_pivot` | Business is notified that a recurring appointment series was updated. |\n| AppointmentSeries | `updated` | `pivot_to_client` | Business updated the details of a recurring appointment series. |\n| AppointmentSeries | `updated` | `to_pivot` | Business is notified that a recurring appointment series was updated. |\n| AppointmentSeries | `cancelled` | `pivot_to_client` | Business cancelled a series of appointments. |\n| AppointmentSeries | `cancelled_notification` | `to_pivot` | Business is notified that a recurring appointment series was cancelled. |\n| AppointmentSeries | `add_additional_staff` | `to_pivot` | An additional staff member was assigned to the appointment series. |\n| AppointmentSeries | `remove_additional_staff` | `to_pivot` | An additional staff member was removed from the appointment series. |\n| AppointmentSeries | `booking_reassigned` | `to_pivot` | The appointment series was reassigned to a different staff member. |\n| AppointmentSeries | `dispatch_schedule` | `to_pivot` | An appointment series was dispatched and assigned to a staff member. |\n| AppointmentSeries | `dispatch_cancel` | `to_pivot` | A dispatched appointment series assignment was cancelled. |\n| LinkedBooking | `schedule_invitation` | `pivot_to_client` | Business scheduled several appointments with the client. |\n| LinkedBooking | `cancelled` | `pivot_to_client` | Business cancelled multiple linked meetings with the client. |\n| Invoice | `message_request` | `pivot_to_client` | Staff sent an invoice to the client. |\n| Invoice | `reminder` | `to_pivot` | Business receives a reminder to follow up on an open invoice. |\n| Invoice | `client_reminder` | `to_client` | System sends the client a reminder about an unpaid invoice. |\n| Invoice | `client_reminder` | `pivot_to_client` | Business sends a reminder to the client to pay for an invoice. |\n| Estimate | `request` | `pivot_to_client` | Business sent a new price estimate to the client. |\n| Estimate | `approved` | `client_to_pivot` | Client approved the price estimate. |\n| Estimate | `approved` | `pivot_to_client` | Business sends a confirmed estimate to the client. |\n| Estimate | `rejected` | `client_to_pivot` | Client rejected the price estimate. |\n| Estimate | `rejected` | `pivot_to_client` | Business cancelled a price estimate. |\n| Estimate | `expiring` | `pivot_to_client` | A price estimate is about to expire. |\n| Estimate | `expired` | `to_pivot` | Business is notified that a price estimate has expired. |\n| Payment | `payment_received` | `client_to_pivot` | Client paid online. |\n| Payment | `payment_received` | `to_pivot` | Business is notified that a payment was received. |\n| Payment | `payment_received_notification` | `pivot_to_client` | Client received confirmation of their payment. |\n| Payment | `payment_received_notification` | `to_client` | Client receives a system notification confirming their payment. |\n| Payment | `receipt_sent` | `to_client` | System notification that a receipt was sent to the client. |\n| Payment | `receipt_sent` | `pivot_to_client` | A receipt was sent to the client. |\n| Payment | `receipt_sent` | `to_pivot` | Business is notified that a receipt was sent. |\n| Payment | `bank_payment` | `to_client` | Client receives confirmation of a bank transfer payment. |\n| Payment | `payment_refunded_notification` | `to_client` | System notification that a payment refund was processed. |\n| Payment | `payment_refunded_notification` | `pivot_to_client` | Business refunded a payment to the client. |\n| Payment | `cancelled` | `to_pivot` | Business is notified that a payment was cancelled. |\n| Payment | `payment_pending` | `to_pivot` | Business is notified of a pending payment. |\n| Payment | `payment_failed` | `to_pivot` | Business is notified that a payment attempt failed. |\n| Payment | `payment_offline_refunded_notification` | `to_pivot` | Business is notified of an offline payment refund. |\n| Payment | `archived` | `to_pivot` | Business is notified that a payment was archived. |\n| Payment | `undo_archived` | `to_pivot` | Business is notified that a payment was unarchived. |\n| Payment | `pending_payment_failed` | `to_pivot` | Business is notified that a pending payment failed. |\n| Payment | `scheduled_payment_failed` | `to_pivot` | Business is notified that a scheduled payment failed. |\n| PaymentStatus | `send_link` | `pivot_to_client` | Business sent a payment request link to the client. |\n| PaymentCard | `payment_method_added` | `to_pivot` | Business is notified that a client added a payment method on file. |\n| CardRequest | `card_requested` | `to_client` | Client receives a request to provide their payment card details. |\n| ScheduledPaymentsRule | `scheduled_payments_rule_created` | `pivot_to_client` | Business created a subscription or scheduled payment plan for the client. |\n| EventAttendance | `event_attendance_invite` | `pivot_to_client` | Staff invited the client to register for an event or class. |\n| EventAttendance | `event_attendance_register_notification` | `pivot_to_client` | Staff registered a client for an event or class. |\n| EventAttendance | `event_attendance_client_register` | `client_to_pivot` | Client registered for an event or class online. |\n| EventAttendance | `event_attendance_business_cancel` | `pivot_to_client` | Staff cancelled a client's registration to an event or class. |\n| EventAttendance | `event_attendance_client_cancel` | `client_to_pivot` | Client cancelled their registration to an event or class online. |\n| EventAttendance | `event_attendance_client_cancel_notification` | `pivot_to_client` | Staff is notified that a client cancelled their event or class registration. |\n| EventAttendance | `event_attendance_rescheduled` | `pivot_to_client` | Business changed the time of an event or class. |\n| EventAttendance | `event_attendance_event_cancelled` | `pivot_to_client` | Business cancelled an event or class. |\n| EventAttendance | `rsvp_confirmation` | `client_to_pivot` | Client confirmed arrival to an event or class. |\n| EventAttendance | `event_attendance_reminder` | `to_client` | Client receives a reminder about an upcoming event or class. |\n| EventAttendance | `booking_reassigned` | `to_pivot` | An event registration was reassigned to a different staff member. |\n| EventSeriesAttendance | `event_series_attendance_invite` | `pivot_to_client` | Business invited the client to join a series of events or classes. |\n| EventSeriesAttendance | `event_series_attendance_updated` | `pivot_to_client` | Business updated the details of a series of events or classes. |\n| EventSeriesAttendance | `event_series_attendance_cancelled` | `pivot_to_client` | Business cancelled a client's attendance to a series of events or classes. |\n| EventSeriesAttendance | `booking_reassigned` | `to_pivot` | An event series registration was reassigned to a different staff member. |\n| Waitlist | `register_to_event_waitlist` | `client_to_pivot` | Client requested to join a waitlist for an upcoming event or class. |\n| Waitlist | `register_to_event_waitlist` | `to_client` | Client receives confirmation of their waitlist registration. |\n| Waitlist | `register_to_event_waitlist` | `pivot_to_client` | Business registered a client to a waitlist for an event or class. |\n| Waitlist | `register_to_event_waitlist` | `to_pivot` | Business is notified that a client registered to a waitlist. |\n| Waitlist | `text` | `pivot_to_client` | Business offers a waitlisted client a spot in the event or class. |\n| Waitlist | `cancel_waitlist_registration` | `to_pivot` | Business is notified that a client cancelled their waitlist registration. |\n| ClientBookingPackage | `package_added` | `pivot_to_client` | Business added a package of services to the client's profile. |\n| ClientBookingPackage | `package_purchased` | `client_to_pivot` | Client purchased a package of services online. |\n| ClientBookingPackage | `resend_link` | `pivot_to_client` | Business sent a link to purchase a package to the client. |\n| ProductOrder | `product_added` | `pivot_to_client` | Business added a new product to the client's CRM card. |\n| Announcement | `custom` | `pivot_to_client` | Business sent an invitation to take online actions through the client portal. |\n| Announcement | `close_open_payments` | `pivot_to_client` | Business sent a link to the client portal for payment. |\n| Announcement | `livesite` | `pivot_to_client` | Business is inviting the client to take online actions on their website. |\n| Announcement | `recover_document` | `pivot_to_client` | Business invites the client to re-share a document online. |\n| Document | `document` | `client_to_pivot` | Client shared a document with the business. |\n| Review | `submit_review` | `client_to_pivot` | Client submitted an online review for the business. |\n| VoiceCall | `call` | `client_to_pivot` | Client called the business over the phone (regardless of the call outcome). |\n| General | `text` | `client_to_pivot` | Client replied to the staff. |\n| General | `text` | `pivot_to_client` | Staff replied to the client. |\n| General | `text` | `to_pivot` | A text message was received via an external messaging channel (e.g., Facebook, WhatsApp). |\n| General | `api` | `client_to_pivot` | Client contacted the business (via API-initiated communication). |\n| General | `general_question` | `client_to_pivot` | Client submitted a contact form. |\n| General | `business_text` | `client_to_pivot` | Client replied via SMS to the business. |\n| General | `document` | `client_to_pivot` | Client shared a file with the business. |\n| General | `document` | `pivot_to_client` | Business shared a file with the client. |\n| General | `close_open_payments` | `pivot_to_client` | Business sent a request to the client to pay all open payments. |\n| General | `document_client_pending_approval` | `pivot_to_client` | Business sent a document for client approval. |\n| General | `system` | `client_to_pivot` | Internal CRM activity update. |\n| General | `activity` | `client_to_pivot` | Internal CRM activity recorded for the client. |\n| General | `matter_assigned` | `to_pivot` | A client conversation was assigned to a staff member. |\n| General | `sent_notification` | `to_client` | System notification confirming that a message was sent. |\n| General | `document_client_notification` | `to_client` | Client receives a notification that a document was shared with them. |\n| General | `engagement_reminder` | `to_pivot` | Business receives a reminder to follow up on a client conversation. |",
+        "tags": [
+          "Activity Message"
+        ],
+        "parameters": [
+          {
+            "name": "activity_type",
+            "in": "query",
+            "required": false,
+            "description": "Filter by activity type. Limits results to messages associated with a specific type of business activity (e.g., \"meeting\", \"invoice\", \"payment\", \"announcement\").",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "meeting",
+                "appointment_series",
+                "invoice",
+                "estimate",
+                "payment",
+                "payment_status",
+                "payment_card",
+                "card_request",
+                "scheduled_payments_rule",
+                "payout",
+                "announcement",
+                "invite",
+                "event",
+                "event_series",
+                "event_instance",
+                "waitlist",
+                "linked_booking",
+                "client_booking_package",
+                "product_order",
+                "review",
+                "document",
+                "voice_call",
+                "assignment"
+              ]
+            }
+          },
+          {
+            "name": "activity_action",
+            "in": "query",
+            "required": false,
+            "description": "Filter by the specific action or status of the activity (e.g., \"scheduled\", \"created\", \"cancelled\"). Available values depend on the activity_type.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "client_uid",
+            "in": "query",
+            "required": false,
+            "description": "Filter by client unique identifier. Returns only activity messages associated with the specified client.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "staff_uid",
+            "in": "query",
+            "required": false,
+            "description": "Filter by staff unique identifier. Returns only activity messages associated with the specified staff member.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "conversation_uid",
+            "in": "query",
+            "required": false,
+            "description": "Filter by conversation unique identifier. Returns only activity messages that belong to the specified conversation thread.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "required": false,
+            "description": "Filter by message direction. Use \"business_to_client\" for messages sent from the business to the client, or \"client_to_business\" for messages sent from the client to the business. Note: the response returns the raw direction values which include four possible values: \"pivot_to_client\" (business sent to client), \"client_to_pivot\" (client sent to business), \"to_pivot\" (system notification to the business side), and \"to_client\" (system notification to the client side). The filter values \"business_to_client\" and \"client_to_business\" match against \"pivot_to_client\" and \"client_to_pivot\" respectively.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "business_to_client",
+                "client_to_business"
+              ]
+            }
+          },
+          {
+            "name": "was_read",
+            "in": "query",
+            "required": false,
+            "description": "Filter by read status. Set to \"true\" to return only messages that have been read, or \"false\" for unread messages.",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "created_after",
+            "in": "query",
+            "required": false,
+            "description": "Filter messages created on or after this date. Must be a valid ISO 8601 date-time string (e.g., \"2026-01-01T00:00:00Z\").",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "created_before",
+            "in": "query",
+            "required": false,
+            "description": "Filter messages created on or before this date. Must be a valid ISO 8601 date-time string (e.g., \"2026-03-01T23:59:59Z\").",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "Sort order for results in the format \"field:direction\" (e.g., \"created_at:desc\" or \"created_at:asc\"). Defaults to \"created_at:desc\" if not specified.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "created_at:desc"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Page number for pagination. Starts at 1.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "description": "Number of results to return per page. Maximum value is 100.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Activity messages retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "activity_messages": {
+                              "type": "array",
+                              "description": "List of activity message records matching the query filters.",
+                              "items": {
+                                "$ref": "https://vcita.github.io/developers-hub/entities/communication/activityMessage.json"
+                              }
+                            },
+                            "page": {
+                              "type": "integer",
+                              "description": "The current page number."
+                            },
+                            "per_page": {
+                              "type": "integer",
+                              "description": "The number of results per page."
+                            },
+                            "total_count": {
+                              "type": "integer",
+                              "description": "The total number of activity messages matching the query filters."
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "activity_messages": [
+                      {
+                        "uid": "msg_a1b2c3d4e5f6",
+                        "business_uid": "d290f1ee26c54",
+                        "staff_uid": "5ya4gbwm2c3qoic8",
+                        "client_uid": "0c4ac9717ab26f56",
+                        "activity_type": "meeting",
+                        "activity_action": "scheduled",
+                        "direction": "business_to_client",
+                        "channels": [
+                          "email"
+                        ],
+                        "message_text": {
+                          "body": "Your appointment has been scheduled.",
+                          "subject": "Initial Consultation"
+                        },
+                        "cta_button_text": "View Appointment",
+                        "link_url_params": null,
+                        "meeting_data": {
+                          "service_uid": "svc_x7y8z9",
+                          "service_name": "Initial Consultation",
+                          "start_time": "2026-03-15T14:00:00Z",
+                          "duration": 60,
+                          "interaction_type": "video"
+                        },
+                        "created_at": "2026-03-10T09:00:00Z",
+                        "updated_at": "2026-03-10T09:00:00Z"
+                      },
+                      {
+                        "uid": "msg_g7h8i9j0k1l2",
+                        "business_uid": "d290f1ee26c54",
+                        "staff_uid": "5ya4gbwm2c3qoic8",
+                        "client_uid": "0c4ac9717ab26f56",
+                        "activity_type": "invoice",
+                        "activity_action": "created",
+                        "direction": "business_to_client",
+                        "channels": [
+                          "email",
+                          "sms"
+                        ],
+                        "message_text": {
+                          "body": "A new invoice has been created for your recent service.",
+                          "subject": "Invoice #1042"
+                        },
+                        "cta_button_text": "View Invoice",
+                        "link_url_params": null,
+                        "created_at": "2026-03-08T11:30:00Z",
+                        "updated_at": "2026-03-08T11:30:00Z"
+                      }
+                    ],
+                    "page": 1,
+                    "per_page": 25,
+                    "total_count": 2
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request. The request contains invalid parameters.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "invalid",
+                      "message": "unknown activity_type"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing, invalid or not allowed to access the requested resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "401 Unauthorized"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found. A referenced resource was not found (e.g., conversation_uid does not exist).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": "Conversation not found"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "sendActivityMessage",
+        "summary": "Create an ActivityMessage",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "business_uid": {
+                    "type": "string",
+                    "description": "The unique identifier of the business that is sending the message"
+                  },
+                  "staff_uid": {
+                    "type": "string",
+                    "description": "The unique identifier of the staff that is sending the message"
+                  },
+                  "client_uid": {
+                    "type": "string",
+                    "description": "The unique identifier of the client the message is sent to"
+                  },
+                  "activity_type": {
+                    "type": "string",
+                    "enum": [
+                      "invite"
+                    ],
+                    "description": "Activity category type from a closed list."
+                  },
+                  "activity_action": {
+                    "type": "string",
+                    "enum": [
+                      "schedule"
+                    ],
+                    "description": "Action related to the activity type property."
+                  },
+                  "channels": {
+                    "type": "array",
+                    "description": "Determines if the message should be sent via email or/and SMS.",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "email",
+                        "sms"
+                      ]
+                    }
+                  },
+                  "message_text": {
+                    "type": "object",
+                    "properties": {
+                      "body": {
+                        "type": "string",
+                        "description": "The main content of the message."
+                      },
+                      "subject": {
+                        "type": "string",
+                        "description": "A summary of the message content (limited to 200 characters)"
+                      }
+                    }
+                  },
+                  "cta_button_text": {
+                    "type": "string",
+                    "description": "In the Email, this text will appear on the button embedded in the email message"
+                  },
+                  "link_url_params": {
+                    "type": "object",
+                    "description": "The parameters for the Email action button or SMS link. for example: {\n\"utm_source\": \"newsletter\",\n\"utm_campaign\": \"summer_sale\"\n}"
+                  }
+                },
+                "required": [
+                  "client_uid",
+                  "activity_type",
+                  "activity_action",
+                  "channels"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/activityMessage.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error. The request is invalid. (missing required fields, invalid values, etc.)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "missing_field",
+                      "message": "Missing mandatory field."
+                    },
+                    {
+                      "code": "invalid",
+                      "message": "activity_type value is invalid."
+                    },
+                    {
+                      "code": "too_long",
+                      "message": "Sms body text is too long. Maximum length is 550 characters."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing, invalid or not allowed to access the requested resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "401 Unauthorized"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found. The requested resource was not found. (staff, client or business)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": "Client Not Found: The specified client ID does not exist."
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate Limit Reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "too_many_requests",
+                      "message": "Rate limit exceeded"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Activity Message"
+        ],
+        "description": "## Overview\nCreate an ActivityMessage Available for **Staff, App, and Directory tokens**.",
         "security": [
           {
             "Bearer": []
@@ -3957,235 +3957,21 @@
     }
   },
   "components": {
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+      },
+      "Conversations": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid staff bearer token in the Authorization header. Example: 'Authorization: Bearer {staff_token}'."
+      }
+    },
     "schemas": {
-      "ErrorResponse": {
-        "type": "object",
-        "required": [
-          "success"
-        ],
-        "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "errors": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "field": {
-                  "type": "string",
-                  "description": "The name of the field that failed validation, when applicable."
-                },
-                "code": {
-                  "type": "string",
-                  "description": "Machine-readable error code (e.g., \"invalid\", \"forbidden\")."
-                },
-                "message": {
-                  "type": "string",
-                  "description": "Human-readable error message."
-                }
-              }
-            }
-          }
-        }
-      },
-      "ConversationStaff": {
-        "type": "object",
-        "description": "Lightweight staff reference embedded in a conversation.",
-        "properties": {
-          "uid": {
-            "type": "string",
-            "description": "Unique identifier of the staff member that owns the conversation (e.g., \"5ya4gbwm2c3qoic8\")."
-          },
-          "display_name": {
-            "type": "string",
-            "description": "Display name of the staff member (e.g., \"Jane Doe\")."
-          }
-        }
-      },
-      "ConversationLastMessage": {
-        "type": "object",
-        "description": "Compact representation of the most recent message in the conversation. May be null when the conversation has no messages, or when the requesting staff has no collaboration on the conversation and the last message is restricted.",
-        "properties": {
-          "title": {
-            "type": "string",
-            "description": "Title of the last message (subject line, meeting title, invoice header, etc.)."
-          },
-          "text": {
-            "type": "string",
-            "description": "Decorated text of the last message."
-          },
-          "message_of": {
-            "type": "string",
-            "description": "Identifies who the message is from in the API context (e.g., \"client\", \"staff\", \"system\")."
-          },
-          "extra_data": {
-            "type": "object",
-            "description": "Additional message metadata. Shape depends on message type. For voice calls includes \"call_status\" and \"recording_duration\"."
-          }
-        }
-      },
-      "Conversation": {
-        "type": "object",
-        "description": "Represents a conversation (engagement) between a business and a client. Returned by the conversation endpoints via ConversationDecorator.",
-        "properties": {
-          "uid": {
-            "type": "string",
-            "description": "Unique identifier of the conversation (e.g., \"89m2pnabgozdvd9f\")."
-          },
-          "title": {
-            "type": "string",
-            "description": "Title of the conversation. May be redacted to a placeholder when the requesting staff does not have view permission on the client."
-          },
-          "follow_up": {
-            "type": "boolean",
-            "description": "Whether a follow-up is currently set on this conversation for the requesting staff. The follow-up is stored per staff on the underlying Collaborator record."
-          },
-          "follow_up_date": {
-            "type": "string",
-            "format": "date-time",
-            "description": "When the follow-up reminder is scheduled. Null when no scheduled date was set or when no follow-up is active."
-          },
-          "follow_up_message": {
-            "type": "string",
-            "description": "Free-text note attached to the follow-up (e.g., \"call back about pricing\")."
-          },
-          "follow_up_text": {
-            "type": "string",
-            "description": "Pre-formatted, localized human-readable string describing the follow-up state (e.g., \"Reminder set for tomorrow at 1:31 PM\"). Empty string when no follow-up is active."
-          },
-          "business_unread": {
-            "type": "boolean",
-            "description": "True when the conversation is marked as unread for the business side."
-          },
-          "spam": {
-            "type": "boolean",
-            "description": "Whether the conversation is marked as spam."
-          },
-          "archived": {
-            "type": "boolean",
-            "description": "Whether the conversation is archived."
-          },
-          "sent": {
-            "type": "boolean",
-            "description": "True if the conversation contains at least one outgoing message sent by the business."
-          },
-          "received": {
-            "type": "boolean",
-            "description": "True if the conversation contains at least one incoming message from the client."
-          },
-          "deleted": {
-            "type": "boolean",
-            "description": "True when the conversation has been soft-deleted (i.e., deleted_at is not null)."
-          },
-          "matter_searchable": {
-            "type": "boolean",
-            "description": "Internal flag controlling whether the conversation participates in matter-based search."
-          },
-          "last_user_action_at": {
-            "type": "string",
-            "format": "date-time",
-            "description": "Timestamp of the most recent action performed by the business side on this conversation."
-          },
-          "last_user_action_at_h": {
-            "type": "string",
-            "description": "Human-friendly representation of last_user_action_at (e.g., \"Today, 10:30 AM\" or a date string)."
-          },
-          "last_client_action_at": {
-            "type": "string",
-            "format": "date-time",
-            "description": "Timestamp of the most recent action performed by the client on this conversation."
-          },
-          "last_client_action_at_h": {
-            "type": "string",
-            "description": "Human-friendly representation of last_client_action_at."
-          },
-          "last_message": {
-            "$ref": "#/components/schemas/ConversationLastMessage"
-          },
-          "depth": {
-            "type": "string",
-            "enum": [
-              "shallow",
-              "deep"
-            ],
-            "description": "Indicates how much detail is included in the response. \"deep\" is returned when the request asks for the full representation (e.g., \"full_client=true\")."
-          },
-          "message_count": {
-            "type": "integer",
-            "description": "Total number of messages associated with this conversation."
-          },
-          "client": {
-            "type": "object",
-            "description": "Summary representation of the client participating in the conversation. Includes uid, display name, contact info, and other summary fields produced by ClientDecorator (version: :summary)."
-          },
-          "staff": {
-            "$ref": "#/components/schemas/ConversationStaff"
-          },
-          "has_matter": {
-            "type": "boolean",
-            "description": "True when a matter is associated with this conversation."
-          },
-          "matter": {
-            "type": "object",
-            "description": "Slim representation of the associated matter, when has_matter is true."
-          },
-          "require_attention": {
-            "type": "boolean",
-            "description": "Only present in the deep representation. True when the conversation is unread for the business or has meetings in business-pending states."
-          },
-          "source": {
-            "type": "string",
-            "description": "Only present in the deep representation. Original source of the conversation (e.g., URL of the page from which it was created)."
-          },
-          "source_data": {
-            "type": "object",
-            "description": "Only present in the deep representation. Decorated source metadata."
-          },
-          "source_type": {
-            "type": "string",
-            "description": "Only present in the deep representation. Normalized source type (e.g., \"profile_page\", \"email_campaign\", \"contact_form\")."
-          },
-          "source_type_h": {
-            "type": "string",
-            "description": "Only present in the deep representation. Human-readable, localized source type label."
-          },
-          "sourceable_type": {
-            "type": "string",
-            "description": "Only present in the deep representation. Class name of the polymorphic source object (when applicable)."
-          },
-          "sourceable_id": {
-            "type": "string",
-            "description": "Only present in the deep representation. UID of the polymorphic source object (when applicable)."
-          }
-        }
-      },
-      "ErrorResponse_activity_message": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "errors": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "code": {
-                  "type": "string"
-                },
-                "message": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        },
-        "required": [
-          "success",
-          "error"
-        ]
-      },
       "Response": {
         "type": "object",
         "properties": {
@@ -4707,6 +4493,234 @@
           "total_voice_calls",
           "start_date",
           "end_date"
+        ]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "The name of the field that failed validation, when applicable."
+                },
+                "code": {
+                  "type": "string",
+                  "description": "Machine-readable error code (e.g., \"invalid\", \"forbidden\")."
+                },
+                "message": {
+                  "type": "string",
+                  "description": "Human-readable error message."
+                }
+              }
+            }
+          }
+        }
+      },
+      "ConversationStaff": {
+        "type": "object",
+        "description": "Lightweight staff reference embedded in a conversation.",
+        "properties": {
+          "uid": {
+            "type": "string",
+            "description": "Unique identifier of the staff member that owns the conversation (e.g., \"5ya4gbwm2c3qoic8\")."
+          },
+          "display_name": {
+            "type": "string",
+            "description": "Display name of the staff member (e.g., \"Jane Doe\")."
+          }
+        }
+      },
+      "ConversationLastMessage": {
+        "type": "object",
+        "description": "Compact representation of the most recent message in the conversation. May be null when the conversation has no messages, or when the requesting staff has no collaboration on the conversation and the last message is restricted.",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Title of the last message (subject line, meeting title, invoice header, etc.)."
+          },
+          "text": {
+            "type": "string",
+            "description": "Decorated text of the last message."
+          },
+          "message_of": {
+            "type": "string",
+            "description": "Identifies who the message is from in the API context (e.g., \"client\", \"staff\", \"system\")."
+          },
+          "extra_data": {
+            "type": "object",
+            "description": "Additional message metadata. Shape depends on message type. For voice calls includes \"call_status\" and \"recording_duration\"."
+          }
+        }
+      },
+      "Conversation": {
+        "type": "object",
+        "description": "Represents a conversation (engagement) between a business and a client. Returned by the conversation endpoints via ConversationDecorator.",
+        "properties": {
+          "uid": {
+            "type": "string",
+            "description": "Unique identifier of the conversation (e.g., \"89m2pnabgozdvd9f\")."
+          },
+          "title": {
+            "type": "string",
+            "description": "Title of the conversation. May be redacted to a placeholder when the requesting staff does not have view permission on the client."
+          },
+          "follow_up": {
+            "type": "boolean",
+            "description": "Whether a follow-up is currently set on this conversation for the requesting staff. The follow-up is stored per staff on the underlying Collaborator record."
+          },
+          "follow_up_date": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the follow-up reminder is scheduled. Null when no scheduled date was set or when no follow-up is active."
+          },
+          "follow_up_message": {
+            "type": "string",
+            "description": "Free-text note attached to the follow-up (e.g., \"call back about pricing\")."
+          },
+          "follow_up_text": {
+            "type": "string",
+            "description": "Pre-formatted, localized human-readable string describing the follow-up state (e.g., \"Reminder set for tomorrow at 1:31 PM\"). Empty string when no follow-up is active."
+          },
+          "business_unread": {
+            "type": "boolean",
+            "description": "True when the conversation is marked as unread for the business side."
+          },
+          "spam": {
+            "type": "boolean",
+            "description": "Whether the conversation is marked as spam."
+          },
+          "archived": {
+            "type": "boolean",
+            "description": "Whether the conversation is archived."
+          },
+          "sent": {
+            "type": "boolean",
+            "description": "True if the conversation contains at least one outgoing message sent by the business."
+          },
+          "received": {
+            "type": "boolean",
+            "description": "True if the conversation contains at least one incoming message from the client."
+          },
+          "deleted": {
+            "type": "boolean",
+            "description": "True when the conversation has been soft-deleted (i.e., deleted_at is not null)."
+          },
+          "matter_searchable": {
+            "type": "boolean",
+            "description": "Internal flag controlling whether the conversation participates in matter-based search."
+          },
+          "last_user_action_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp of the most recent action performed by the business side on this conversation."
+          },
+          "last_user_action_at_h": {
+            "type": "string",
+            "description": "Human-friendly representation of last_user_action_at (e.g., \"Today, 10:30 AM\" or a date string)."
+          },
+          "last_client_action_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp of the most recent action performed by the client on this conversation."
+          },
+          "last_client_action_at_h": {
+            "type": "string",
+            "description": "Human-friendly representation of last_client_action_at."
+          },
+          "last_message": {
+            "$ref": "#/components/schemas/ConversationLastMessage"
+          },
+          "depth": {
+            "type": "string",
+            "enum": [
+              "shallow",
+              "deep"
+            ],
+            "description": "Indicates how much detail is included in the response. \"deep\" is returned when the request asks for the full representation (e.g., \"full_client=true\")."
+          },
+          "message_count": {
+            "type": "integer",
+            "description": "Total number of messages associated with this conversation."
+          },
+          "client": {
+            "type": "object",
+            "description": "Summary representation of the client participating in the conversation. Includes uid, display name, contact info, and other summary fields produced by ClientDecorator (version: :summary)."
+          },
+          "staff": {
+            "$ref": "#/components/schemas/ConversationStaff"
+          },
+          "has_matter": {
+            "type": "boolean",
+            "description": "True when a matter is associated with this conversation."
+          },
+          "matter": {
+            "type": "object",
+            "description": "Slim representation of the associated matter, when has_matter is true."
+          },
+          "require_attention": {
+            "type": "boolean",
+            "description": "Only present in the deep representation. True when the conversation is unread for the business or has meetings in business-pending states."
+          },
+          "source": {
+            "type": "string",
+            "description": "Only present in the deep representation. Original source of the conversation (e.g., URL of the page from which it was created)."
+          },
+          "source_data": {
+            "type": "object",
+            "description": "Only present in the deep representation. Decorated source metadata."
+          },
+          "source_type": {
+            "type": "string",
+            "description": "Only present in the deep representation. Normalized source type (e.g., \"profile_page\", \"email_campaign\", \"contact_form\")."
+          },
+          "source_type_h": {
+            "type": "string",
+            "description": "Only present in the deep representation. Human-readable, localized source type label."
+          },
+          "sourceable_type": {
+            "type": "string",
+            "description": "Only present in the deep representation. Class name of the polymorphic source object (when applicable)."
+          },
+          "sourceable_id": {
+            "type": "string",
+            "description": "Only present in the deep representation. UID of the polymorphic source object (when applicable)."
+          }
+        }
+      },
+      "ErrorResponse_activity_message": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "success",
+          "error"
         ]
       },
       "Response_business_phone_numbers": {
@@ -5426,20 +5440,6 @@
             }
           }
         }
-      }
-    },
-    "securitySchemes": {
-      "Bearer": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT",
-        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
-      },
-      "Conversations": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT",
-        "description": "Provide a valid staff bearer token in the Authorization header. Example: 'Authorization: Bearer {staff_token}'."
       }
     }
   },
