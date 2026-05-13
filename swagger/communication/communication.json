@@ -76,6 +76,15 @@
           "app_status": {
             "type": "string",
             "description": "The status of the app"
+          },
+          "feature": {
+            "type": "string",
+            "enum": ["VOICE", "SMS", "VOICE_SMS"],
+            "description": "The feature type for this setting (e.g., \"VOICE\")"
+          },
+          "transcript_enabled": {
+            "type": "boolean",
+            "description": "Whether automatic transcript processing is enabled for voice calls in this business (e.g., true)"
           }
         },
         "required": [
@@ -141,6 +150,15 @@
           "app_status": {
             "type": "string",
             "description": "The app's status"
+          },
+          "feature": {
+            "type": "string",
+            "enum": ["VOICE", "SMS", "VOICE_SMS"],
+            "description": "The feature type for this setting (e.g., \"VOICE\")"
+          },
+          "transcript_enabled": {
+            "type": "boolean",
+            "description": "Whether automatic transcript processing is enabled for voice calls (e.g., true)"
           }
         },
         "required": [
@@ -206,20 +224,17 @@
           "app_status": {
             "type": "string",
             "description": "The app's status"
+          },
+          "feature": {
+            "type": "string",
+            "enum": ["VOICE", "SMS", "VOICE_SMS"],
+            "description": "The feature type for this setting (e.g., \"VOICE\")"
+          },
+          "transcript_enabled": {
+            "type": "boolean",
+            "description": "Whether automatic transcript processing is enabled for voice calls (e.g., true)"
           }
-        },
-        "required": [
-          "staff_uid",
-          "forward_number",
-          "staff_weekly_availability_uid",
-          "forwarding_enabled",
-          "dedicated_number",
-          "call_forwarding_policy",
-          "call_timeout_sec",
-          "voice_scripts",
-          "external_app_name",
-          "app_status"
-        ]
+        }
       },
       "MultiResponseEntity": {
         "type": "object",
@@ -284,9 +299,9 @@
               "MISSED",
               "ANSWERED_BY_CALLS_PROVIDER",
               "MISSED_CALL_HANDLED",
-              "VOICEMAIL_RECEIVED"
+              "VOICEMAIL"
             ],
-            "description": "The status of the call. Must be one of the allowed enum values: INCOMING_CALL (call is ringing), ANSWERED_BY_STAFF (staff picked up), MISSED (no one answered), ANSWERED_BY_CALLS_PROVIDER (handled by provider IVR), MISSED_CALL_HANDLED (missed call was followed up), VOICEMAIL_RECEIVED (caller left a voicemail). Values are case-sensitive and must be uppercase (e.g., \"MISSED\")."
+            "description": "The status of the call. Must be one of the allowed enum values: INCOMING_CALL (call is ringing), ANSWERED_BY_STAFF (staff picked up), MISSED (no one answered), ANSWERED_BY_CALLS_PROVIDER (handled by provider IVR), MISSED_CALL_HANDLED (missed call was followed up), VOICEMAIL (caller left a voicemail). Values are case-sensitive and must be uppercase (e.g., \"MISSED\")."
           },
           "rate": {
             "type": "string",
@@ -358,11 +373,15 @@
       "UpdateVoiceCallRecording": {
         "type": "object",
         "properties": {
-          "record_played": {
+          "recording_played": {
             "type": "boolean",
-            "description": "Whether the call recording has been played"
+            "description": "Whether the call recording has been played (e.g., true)"
           }
         }
+      },
+      "TranscriptResponse": {
+        "type": "object",
+        "$ref": "https://vcita.github.io/developers-hub/entities/communication/voiceCallTranscript.json"
       },
       "CreateVoiceCall": {
         "type": "object",
@@ -399,9 +418,9 @@
               "MISSED",
               "ANSWERED_BY_CALLS_PROVIDER",
               "MISSED_CALL_HANDLED",
-              "VOICEMAIL_RECEIVED"
+              "VOICEMAIL"
             ],
-            "description": "The status of the call. Must be one of the allowed enum values: INCOMING_CALL (call is ringing), ANSWERED_BY_STAFF (staff picked up), MISSED (no one answered), ANSWERED_BY_CALLS_PROVIDER (handled by provider IVR), MISSED_CALL_HANDLED (missed call was followed up), VOICEMAIL_RECEIVED (caller left a voicemail). Values are case-sensitive and must be uppercase (e.g., \"MISSED\")."
+            "description": "The status of the call. Must be one of the allowed enum values: INCOMING_CALL (call is ringing), ANSWERED_BY_STAFF (staff picked up), MISSED (no one answered), ANSWERED_BY_CALLS_PROVIDER (handled by provider IVR), MISSED_CALL_HANDLED (missed call was followed up), VOICEMAIL (caller left a voicemail). Values are case-sensitive and must be uppercase (e.g., \"MISSED\")."
           },
           "rate": {
             "type": "string",
@@ -494,7 +513,7 @@
               "MISSED",
               "ANSWERED_BY_CALLS_PROVIDER",
               "MISSED_CALL_HANDLED",
-              "VOICEMAIL_RECEIVED"
+              "VOICEMAIL"
             ]
           },
           "count": {
@@ -601,7 +620,37 @@
       "get": {
         "operationId": "SettingsController_get",
         "summary": "Get all VoiceCallSettings",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "feature",
+            "required": false,
+            "in": "query",
+            "description": "Filter by feature type (e.g., \"VOICE\", \"SMS\", \"VOICE_SMS\")",
+            "schema": {
+              "type": "string",
+              "enum": ["VOICE", "SMS", "VOICE_SMS"]
+            }
+          },
+          {
+            "name": "dedicated_number",
+            "required": false,
+            "in": "query",
+            "description": "Filter by dedicated number",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "app_status",
+            "required": false,
+            "in": "query",
+            "description": "Filter by app status (e.g., \"INSTALLED\", \"UNINSTALLED\", \"PAYMENT_ISSUE\")",
+            "schema": {
+              "type": "string",
+              "enum": ["INSTALLED", "UNINSTALLED", "PAYMENT_ISSUE"]
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "",
@@ -638,6 +687,53 @@
       }
     },
     "/v3/communication/voice_call_settings/{uid}": {
+      "delete": {
+        "operationId": "SettingsController_delete",
+        "summary": "Delete VoiceCallSetting",
+        "description": "## Overview\nDelete a VoiceCallSetting.\n\nAvailable for **Admin tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/voiceCallSetting.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Voice Call Settings"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
       "put": {
         "operationId": "SettingsController_update",
         "summary": "Update VoiceCallSetting",
@@ -946,6 +1042,59 @@
         "description": "## Overview\nUpdate a VoiceCall Available for **Staff, App, and Directory tokens**."
       }
     },
+    "/v3/communication/voice_calls/{uid}/transcript": {
+      "get": {
+        "operationId": "TranscriptController_getTranscript",
+        "summary": "Get transcript for a voice call",
+        "description": "## Overview\nRetrieves the transcript for a specific voice call. Returns the processing status and, when status is DONE, the full transcript entries.\n\nAvailable for **Staff, Directory, and Client tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "The unique identifier of the voice call",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transcript retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "https://vcita.github.io/developers-hub/entities/communication/voiceCallTranscript.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Transcript not found for the given voice call"
+          }
+        },
+        "tags": [
+          "Voice Call Transcripts"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v3/communication/voice_call_recordings/{uid}": {
       "put": {
         "operationId": "RecordingsController_updateVoiceCallRecording",
@@ -1134,7 +1283,7 @@
                 "MISSED",
                 "ANSWERED_BY_CALLS_PROVIDER",
                 "MISSED_CALL_HANDLED",
-                "VOICEMAIL_RECEIVED"
+                "VOICEMAIL"
               ]
             }
           }
