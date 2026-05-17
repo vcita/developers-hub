@@ -39,6 +39,8 @@ JSON
     "contact_last_name": "Doe",
     "tax_number": "123456789",
     "website_url": "https://www.acmecorp.com",
+    "terms_and_conditions_url": "https://www.acmecorp.com/terms",
+    "privacy_policy_url": "https://www.acmecorp.com/privacy",
     "country_code": "US",
     "postal_code": "10001",
     "street": "123 Business Ave",
