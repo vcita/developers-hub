@@ -22,7 +22,7 @@
     "schemas": {
       "ChatTranscriptDocument": {
         "type": "object",
-        "description": "Structured transcript written to MySQL when a chat session **closes** (`chat_widget_conversations.transcript` JSON column). Same visitor-safe message list as returned on session **resume** (`POST /v3/online_presence/chat/sessions` with `resume_session_id`). Staff and integrations should render from `messages` or derive plain text as needed.",
+        "description": "Structured transcript object captured when a session ends. Uses the same visitor-visible message list shape returned by chat session resume APIs.",
         "properties": {
           "schemaVersion": {
             "type": "integer",
@@ -61,7 +61,7 @@
       },
       "ChatVisitorMessage": {
         "type": "object",
-        "description": "Visitor-visible chat line (**user** or **assistant**). Returned in `messages` from `POST /v3/online_presence/chat/sessions` when a session is **resumed**, and stored inside `ChatTranscriptDocument` for persisted conversations. System prompts and internal tool rows are not included.",
+        "description": "Visitor-visible chat line (**user** or **assistant**). Used in chat resume responses and stored inside `ChatTranscriptDocument` for persisted conversations. System prompts and internal tool rows are not included.",
         "properties": {
           "role": {
             "type": "string",
@@ -99,11 +99,13 @@
         "properties": {
           "session_id": {
             "type": "string",
-            "maxLength": 255
+            "maxLength": 255,
+            "description": "Chat session identifier associated with this persisted conversation."
           },
           "business_uid": {
             "type": "string",
-            "maxLength": 255
+            "maxLength": 255,
+            "description": "Business UID for this conversation. Must match the authenticated business context."
           },
           "transcript": {
             "description": "Structured transcript JSON (`ChatTranscriptDocument`) when closing a session; optional JSON string encoding for compatibility.",
@@ -119,39 +121,47 @@
           },
           "summary": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "description": "Optional summary of the conversation."
           },
           "contact_full_name": {
             "type": "string",
             "nullable": true,
-            "maxLength": 255
+            "maxLength": 255,
+            "description": "Visitor full name captured during the chat."
           },
           "contact_email": {
             "type": "string",
             "nullable": true,
-            "maxLength": 255
+            "maxLength": 255,
+            "description": "Visitor email captured during the chat."
           },
           "contact_phone": {
             "type": "string",
             "nullable": true,
-            "maxLength": 255
+            "maxLength": 255,
+            "description": "Visitor phone captured during the chat."
           },
           "page_url": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "description": "Page URL where the chat was started."
           },
           "started_at": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "Conversation start timestamp in ISO 8601 format."
           },
           "ended_at": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "Conversation end timestamp in ISO 8601 format."
           },
           "matter_uid": {
             "type": "string",
             "nullable": true,
-            "maxLength": 255
+            "maxLength": 255,
+            "description": "Optional related matter/case UID."
           },
           "client_uid": {
             "type": "string",
@@ -162,7 +172,8 @@
           "message_count": {
             "type": "integer",
             "nullable": true,
-            "minimum": 0
+            "minimum": 0,
+            "description": "Number of visitor-visible messages in the conversation."
           },
           "lead_intent": {
             "type": "string",
@@ -260,31 +271,37 @@
           },
           "summary": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "description": "Optional summary of the conversation."
           },
           "contact_full_name": {
             "type": "string",
             "nullable": true,
-            "maxLength": 255
+            "maxLength": 255,
+            "description": "Visitor full name captured during the chat."
           },
           "contact_email": {
             "type": "string",
             "nullable": true,
-            "maxLength": 255
+            "maxLength": 255,
+            "description": "Visitor email captured during the chat."
           },
           "contact_phone": {
             "type": "string",
             "nullable": true,
-            "maxLength": 255
+            "maxLength": 255,
+            "description": "Visitor phone captured during the chat."
           },
           "page_url": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "description": "Page URL where the chat was started."
           },
           "matter_uid": {
             "type": "string",
             "nullable": true,
-            "maxLength": 255
+            "maxLength": 255,
+            "description": "Optional related matter/case UID."
           },
           "lead_intent": {
             "type": "string",
@@ -317,7 +334,7 @@
       "get": {
         "operationId": "listChatWidgetConversations",
         "summary": "Get all conversations",
-        "description": "Returns conversations for the authenticated business. **Staff tokens** required. Supports `page`, `per_page`, `q`, `from_date`, `to_date`, and optional `sort=field:asc|desc` (allowed fields: `ended_at`, `started_at`, `created_at`, `updated_at`; default sort `ended_at:desc`).",
+        "description": "Returns paginated conversations for the authenticated business. **Staff tokens** required.",
         "tags": [
           "Online Presence conversations"
         ],
@@ -330,6 +347,7 @@
           {
             "name": "page",
             "in": "query",
+            "description": "1-based page index.",
             "schema": {
               "type": "integer",
               "minimum": 1,
@@ -339,6 +357,7 @@
           {
             "name": "per_page",
             "in": "query",
+            "description": "Number of records per page (1-100).",
             "schema": {
               "type": "integer",
               "minimum": 1,
@@ -357,7 +376,7 @@
           {
             "name": "sort",
             "in": "query",
-            "description": "e.g. `ended_at:desc`",
+            "description": "Sort expression in `field:asc|desc` format. Allowed fields: `ended_at`, `started_at`, `created_at`, `updated_at`. Default sort is `ended_at:desc`.",
             "schema": {
               "type": "string",
               "example": "ended_at:desc"
@@ -366,6 +385,7 @@
           {
             "name": "from_date",
             "in": "query",
+            "description": "Filter conversations ending on or after this ISO 8601 date-time.",
             "schema": {
               "type": "string",
               "format": "date-time"
@@ -374,6 +394,7 @@
           {
             "name": "to_date",
             "in": "query",
+            "description": "Filter conversations ending on or before this ISO 8601 date-time.",
             "schema": {
               "type": "string",
               "format": "date-time"
@@ -522,7 +543,7 @@
       "post": {
         "operationId": "createChatWidgetConversation",
         "summary": "Create a conversation",
-        "description": "Creates a conversation for the authenticated business. `business_uid` must match the staff token business. **Staff tokens** required.",
+        "description": "Creates a conversation for the authenticated business. **Staff tokens** required.",
         "tags": [
           "Online Presence conversations"
         ],
