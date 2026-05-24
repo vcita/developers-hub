@@ -564,6 +564,24 @@
           }
         }
       },
+      "OperatorDirectorySwitcherDirectory": {
+        "type": "object",
+        "description": "A slim directory option available to the authenticated operator for context switching.",
+        "properties": {
+          "uid": {
+            "type": "string",
+            "description": "Unique identifier of the directory option (e.g., \"dir_abc123\")."
+          },
+          "name": {
+            "type": "string",
+            "description": "Display name of the directory option (e.g., \"Example Directory\")."
+          }
+        },
+        "required": [
+          "uid",
+          "name"
+        ]
+      },
       "ErrorResponse": {
         "type": "object",
         "properties": {
@@ -712,7 +730,7 @@
       },
       "get": {
         "summary": "Get a list of Directories",
-        "description": "Returns a filtered, paginated list of directories.\n\nAvailable for **Internal tokens**, **Directory Tokens** and **Staff Tokens**",
+        "description": "Returns a filtered, paginated list of directories. Operator tokens receive only directories available through their operator directory assignments. Use `view_type=operator_switcher` for the slim directory switcher response.\n\nAvailable for **Internal, Directory, Staff, and Operator tokens**",
         "tags": [
           "Directory"
         ],
@@ -746,6 +764,27 @@
               "type": "string"
             },
             "example": "abc"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Optional case-insensitive search term matched against directory name or uid (e.g., \"example\").",
+            "schema": {
+              "type": "string"
+            },
+            "example": "example"
+          },
+          {
+            "name": "view_type",
+            "in": "query",
+            "required": false,
+            "description": "Optional response view. Use `operator_switcher` to return slim directory options for the Operator Portal directory switcher (e.g., \"operator_switcher\").",
+            "schema": {
+              "type": "string",
+              "enum": ["operator_switcher"]
+            },
+            "example": "operator_switcher"
           },
           {
             "name": "page",
@@ -788,7 +827,14 @@
                         "directories": {
                           "type": "array",
                           "items": {
-                            "$ref": "https://vcita.github.io/developers-hub/entities/business_administration/directory.json"
+                            "oneOf": [
+                              {
+                                "$ref": "https://vcita.github.io/developers-hub/entities/business_administration/directory.json"
+                              },
+                              {
+                                "$ref": "#/components/schemas/OperatorDirectorySwitcherDirectory"
+                              }
+                            ]
                           }
                         }
                       }
@@ -819,6 +865,29 @@
                         "page": 1,
                         "per_page": 50,
                         "total": 1
+                      }
+                    }
+                  },
+                  "Operator Switcher Response": {
+                    "summary": "Slim directory options for Operator Portal switcher",
+                    "value": {
+                      "success": true,
+                      "data": {
+                        "directories": [
+                          {
+                            "uid": "dir_abc123",
+                            "name": "Example Directory"
+                          },
+                          {
+                            "uid": "dir_def456",
+                            "name": "Another Directory"
+                          }
+                        ]
+                      },
+                      "paging": {
+                        "page": 1,
+                        "per_page": 25,
+                        "total": 2
                       }
                     }
                   },
@@ -880,7 +949,7 @@
         ]
       }
     },
-  
+
     "/v3/business_administration/directories/{uid}": {
       "put": {
         "summary": "Update a Directory",
