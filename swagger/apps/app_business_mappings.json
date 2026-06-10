@@ -18,18 +18,18 @@
     }
   ],
   "paths": {
-    "/v3/apps/business_mappings": {
+    "/v3/apps/app_business_mappings": {
       "get": {
         "tags": ["App Business Mappings"],
         "summary": "List App Business Mappings",
-        "description": "Returns a paginated list of app business mappings belonging to the calling directory (resolved from the Directory token). Supports optional filtering by business_uid and app_code_name. Available for **Directory tokens**.",
+        "description": "Returns a paginated list of app business mappings for the caller. For **Directory tokens**, returns mappings belonging to the authenticated directory, with optional filtering by business_uid and app_code_name. For **Staff tokens**, returns mappings scoped to the authenticated staff member's business; the business_uid query parameter is ignored. Available for **Staff & Directory tokens**.",
         "operationId": "listAppBusinessMappings",
         "parameters": [
           {
             "name": "business_uid",
             "in": "query",
             "required": false,
-            "description": "Filter by vcita business unique identifier (e.g., \"d290f1ee6c544b01\").",
+            "description": "Filter by vcita business unique identifier. Only available for **Directory tokens**; ignored for **Staff tokens**, which are always scoped to the authenticated business (e.g., \"d290f1ee6c544b01\").",
             "schema": {
               "type": "string"
             }
@@ -90,8 +90,7 @@
                                 "$ref": "https://vcita.github.io/developers-hub/entities/apps/appBusinessMapping.json"
                               }
                             }
-                          },
-                          "required": ["business_mappings"]
+                          }
                         }
                       }
                     }
@@ -154,6 +153,25 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "Not Found - No app business mappings found for the given filters.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "No app business mappings found"
+                    }
+                  ]
+                }
+              }
+            }
           }
         },
         "security": [
@@ -176,7 +194,6 @@
               },
               "example": {
                 "business_uid": "d290f1ee6c544b01",
-                "directory_uid": "dir_partner_xyz",
                 "app_code_name": "yext",
                 "mapped_business_uid": "yext-business-id-42",
                 "mapped_user_uid": "yext-user-code-42"
@@ -326,11 +343,11 @@
         ]
       }
     },
-    "/v3/apps/business_mappings/{uid}": {
+    "/v3/apps/app_business_mappings/{uid}": {
       "get": {
         "tags": ["App Business Mappings"],
         "summary": "Get an App Business Mapping",
-        "description": "Retrieve a single app business mapping by uid. Available for **Directory tokens**.",
+        "description": "Retrieve a single app business mapping by uid. For **Directory tokens**, returns any mapping owned by the authenticated directory. For **Staff tokens**, returns the mapping only if it belongs to the authenticated staff member's business; otherwise returns 403 Forbidden. Available for **Staff & Directory tokens**.",
         "operationId": "getAppBusinessMapping",
         "parameters": [
           {
@@ -446,7 +463,7 @@
       "put": {
         "tags": ["App Business Mappings"],
         "summary": "Update an App Business Mapping",
-        "description": "Update an existing app business mapping. Only provided fields will be updated. business_uid cannot be changed. Available for **Directory tokens**.",
+        "description": "Update an existing app business mapping. Only provided fields will be updated. business_uid cannot be changed. directory_uid can only be modified when using an **Internal token**; if directory_uid is included in the request body when using a **Directory token**, the request will be rejected. Available for **Directory tokens**.",
         "operationId": "updateAppBusinessMapping",
         "parameters": [
           {
@@ -735,7 +752,7 @@
     "schemas": {
       "CreateAppBusinessMappingRequest": {
         "type": "object",
-        "description": "Request body for creating an app business mapping. Omits backend-managed fields (uid, created_at, updated_at).",
+        "description": "Request body for creating an app business mapping. Omits backend-managed fields (uid, created_at, updated_at). directory_uid is resolved from the Directory token when omitted.",
         "properties": {
           "business_uid": {
             "type": "string",
@@ -743,7 +760,7 @@
           },
           "directory_uid": {
             "type": "string",
-            "description": "Unique identifier of the directory (partner) that owns this mapping (e.g., \"dir_partner_xyz\")."
+            "description": "The uid of the directory (partner) that owns this mapping. **Optional when using Directory Token** — auto-determined from the token if omitted. If provided, must match the directory associated with your authentication token. May be supplied for future Internal token support (e.g., \"dir_partner_xyz\")."
           },
           "app_code_name": {
             "type": "string",
@@ -761,7 +778,6 @@
         },
         "required": [
           "business_uid",
-          "directory_uid",
           "app_code_name",
           "mapped_business_uid"
         ]
@@ -772,7 +788,7 @@
         "properties": {
           "directory_uid": {
             "type": "string",
-            "description": "Unique identifier of the directory (partner) that owns this mapping (e.g., \"dir_partner_xyz\")."
+            "description": "The uid of the directory (partner) that owns this mapping. Can only be modified when using an **Internal token**. Must not be included when using a **Directory token** — the request will be rejected if supplied (e.g., \"dir_partner_xyz\")."
           },
           "app_code_name": {
             "type": "string",
