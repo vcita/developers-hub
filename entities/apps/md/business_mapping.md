@@ -1,0 +1,35 @@
+## Business Mapping
+
+Maps a vcita business to one or more third-party application identifiers for a specific integrated app. Used by partner-facing tooling to associate an SMB with external app user codes (e.g., a Yext user code for app_code_name "yext").
+
+## Properties
+
+| Name | Description | Type | Required |
+| --- | --- | --- | --- |
+| uid | Unique identifier for the business mapping record (e.g., "bm_7f2e8d9a1b4c"). | string |  |
+| business_uid | Unique identifier of the vcita business being mapped (e.g., "d290f1ee6c544b01"). | string | Yes |
+| directory_uid | Unique identifier of the directory (partner) that owns this mapping. Automatically resolved from the authenticated Directory token and cannot be supplied or overridden by callers (e.g., "dir_partner_xyz"). | string |  |
+| app_code_name | Code name of the third-party integrated app this mapping applies to (e.g., "yext"). | string | Yes |
+| mapped_uid_1 | Primary third-party identifier for the business in the external app (e.g., "yext-user-code-42"). | string | Yes |
+| mapped_uid_2 | Optional secondary third-party identifier for the business in the external app (e.g., "secondary-external-id" or null). | string |  |
+| mapped_uid_3 | Optional tertiary third-party identifier for the business in the external app (e.g., "tertiary-external-id" or null). | string |  |
+| created_at | The date and time when the mapping was created, in ISO 8601 format (e.g., "2026-06-10T10:30:00Z"). | string |  |
+| updated_at | The date and time when the mapping was last updated, in ISO 8601 format (e.g., "2026-06-10T10:30:00Z"). | string |  |
+
+## Example
+
+JSON
+
+```json
+{
+  "uid": "bm_7f2e8d9a1b4c",
+  "business_uid": "d290f1ee6c544b01",
+  "directory_uid": "dir_partner_xyz",
+  "app_code_name": "yext",
+  "mapped_uid_1": "yext-user-code-42",
+  "mapped_uid_2": null,
+  "mapped_uid_3": null,
+  "created_at": "2026-06-10T10:30:00Z",
+  "updated_at": "2026-06-10T10:30:00Z"
+}
+```
