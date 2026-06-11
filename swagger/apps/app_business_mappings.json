@@ -1,0 +1,851 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "App Business Mappings API",
+    "description": "API for managing mappings between vcita businesses and third-party integrated app identifiers. Enables partners to associate SMBs with external app business and user codes (e.g., Yext identifiers for app_code_name \"yext\").\n\nAvailable for **Directory tokens**.",
+    "version": "3.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.vcita.biz",
+      "description": "Production server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "App Business Mappings",
+      "description": "CRUD operations for third-party app business mappings"
+    }
+  ],
+  "paths": {
+    "/v3/apps/app_business_mappings": {
+      "get": {
+        "tags": ["App Business Mappings"],
+        "summary": "List App Business Mappings",
+        "description": "Returns a paginated list of app business mappings for the caller. For **Directory tokens**, returns mappings belonging to the authenticated directory, with optional filtering by business_uid and app_code_name. For **Staff tokens**, returns mappings scoped to the authenticated staff member's business; the business_uid query parameter is ignored. Available for **Staff & Directory tokens**.",
+        "operationId": "listAppBusinessMappings",
+        "parameters": [
+          {
+            "name": "business_uid",
+            "in": "query",
+            "required": false,
+            "description": "Filter by vcita business unique identifier. Only available for **Directory tokens**; ignored for **Staff tokens**, which are always scoped to the authenticated business (e.g., \"d290f1ee6c544b01\").",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "app_code_name",
+            "in": "query",
+            "required": false,
+            "description": "Filter by third-party integrated app code name (e.g., \"yext\").",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Page number of results (e.g., 1, 2, 3).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000,
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "description": "How many items to return per page. Max: 100 (e.g., 25, 50, 100).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "App business mappings retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "business_mappings": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "https://vcita.github.io/developers-hub/entities/apps/appBusinessMapping.json"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "business_mappings": [
+                      {
+                        "uid": "abm_7f2e8d9a1b4c",
+                        "business_uid": "d290f1ee6c544b01",
+                        "directory_uid": "dir_partner_xyz",
+                        "app_code_name": "yext",
+                        "mapped_business_uid": "yext-business-id-42",
+                        "mapped_user_uid": "yext-user-code-42",
+                        "created_at": "2026-06-10T10:30:00Z",
+                        "updated_at": "2026-06-10T10:30:00Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Insufficient permissions to list app business mappings"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - No app business mappings found for the given filters.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "No app business mappings found"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": ["App Business Mappings"],
+        "summary": "Create an App Business Mapping",
+        "description": "Create a new mapping between a vcita business and third-party app identifiers for a specific integrated app. Available for **Directory tokens**.",
+        "operationId": "createAppBusinessMapping",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAppBusinessMappingRequest"
+              },
+              "example": {
+                "business_uid": "d290f1ee6c544b01",
+                "app_code_name": "yext",
+                "mapped_business_uid": "yext-business-id-42",
+                "mapped_user_uid": "yext-user-code-42"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "App business mapping created successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/appBusinessMapping.json"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "uid": "abm_7f2e8d9a1b4c",
+                    "business_uid": "d290f1ee6c544b01",
+                    "directory_uid": "dir_partner_xyz",
+                    "app_code_name": "yext",
+                    "mapped_business_uid": "yext-business-id-42",
+                    "mapped_user_uid": "yext-user-code-42",
+                    "created_at": "2026-06-10T10:30:00Z",
+                    "updated_at": "2026-06-10T10:30:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Malformed request or invalid syntax.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "business_uid",
+                      "code": "required",
+                      "message": "business_uid is required"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions or business belongs to a different directory.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Business belongs to a different directory"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict - A mapping already exists for this business and app.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "business_uid",
+                      "code": "duplicate",
+                      "message": "A mapping already exists for this business_uid and app_code_name"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "app_code_name",
+                      "code": "invalid",
+                      "message": "app_code_name is not recognized"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/apps/app_business_mappings/{uid}": {
+      "get": {
+        "tags": ["App Business Mappings"],
+        "summary": "Get an App Business Mapping",
+        "description": "Retrieve a single app business mapping by uid. For **Directory tokens**, returns any mapping owned by the authenticated directory. For **Staff tokens**, returns the mapping only if it belongs to the authenticated staff member's business; otherwise returns 403 Forbidden. Available for **Staff & Directory tokens**.",
+        "operationId": "getAppBusinessMapping",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the app business mapping to retrieve (e.g., \"abm_7f2e8d9a1b4c\").",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "App business mapping retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/appBusinessMapping.json"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "uid": "abm_7f2e8d9a1b4c",
+                    "business_uid": "d290f1ee6c544b01",
+                    "directory_uid": "dir_partner_xyz",
+                    "app_code_name": "yext",
+                    "mapped_business_uid": "yext-business-id-42",
+                    "mapped_user_uid": "yext-user-code-42",
+                    "created_at": "2026-06-10T10:30:00Z",
+                    "updated_at": "2026-06-10T10:30:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Mapping belongs to a different directory.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "App business mapping belongs to a different directory"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - App business mapping does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "App business mapping not found"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": ["App Business Mappings"],
+        "summary": "Update an App Business Mapping",
+        "description": "Update an existing app business mapping. Only provided fields will be updated. business_uid cannot be changed. directory_uid can only be modified when using an **Internal token**; if directory_uid is included in the request body when using a **Directory token**, the request will be rejected. Available for **Directory tokens**.",
+        "operationId": "updateAppBusinessMapping",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the app business mapping to update (e.g., \"abm_7f2e8d9a1b4c\").",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAppBusinessMappingRequest"
+              },
+              "example": {
+                "mapped_business_uid": "yext-business-id-99",
+                "mapped_user_uid": "yext-user-code-99"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "App business mapping updated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/appBusinessMapping.json"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "uid": "abm_7f2e8d9a1b4c",
+                    "business_uid": "d290f1ee6c544b01",
+                    "directory_uid": "dir_partner_xyz",
+                    "app_code_name": "yext",
+                    "mapped_business_uid": "yext-business-id-99",
+                    "mapped_user_uid": "yext-user-code-99",
+                    "created_at": "2026-06-10T10:30:00Z",
+                    "updated_at": "2026-06-10T12:00:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Malformed request or invalid syntax.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "mapped_business_uid",
+                      "code": "invalid",
+                      "message": "mapped_business_uid must be a non-empty string"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Mapping belongs to a different directory.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "App business mapping belongs to a different directory"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - App business mapping does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "App business mapping not found"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "app_code_name",
+                      "code": "invalid",
+                      "message": "app_code_name is not recognized"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": ["App Business Mappings"],
+        "summary": "Delete an App Business Mapping",
+        "description": "Delete an app business mapping by uid. Available for **Directory tokens**.",
+        "operationId": "deleteAppBusinessMapping",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the app business mapping to delete (e.g., \"abm_7f2e8d9a1b4c\").",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "App business mapping deleted successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/apps/appBusinessMapping.json"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "uid": "abm_7f2e8d9a1b4c",
+                    "business_uid": "d290f1ee6c544b01",
+                    "directory_uid": "dir_partner_xyz",
+                    "app_code_name": "yext",
+                    "mapped_business_uid": "yext-business-id-42",
+                    "mapped_user_uid": "yext-user-code-42",
+                    "created_at": "2026-06-10T10:30:00Z",
+                    "updated_at": "2026-06-10T10:30:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Mapping belongs to a different directory.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "App business mapping belongs to a different directory"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - App business mapping does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "App business mapping not found"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CreateAppBusinessMappingRequest": {
+        "type": "object",
+        "description": "Request body for creating an app business mapping. Omits backend-managed fields (uid, created_at, updated_at). directory_uid is resolved from the Directory token when omitted.",
+        "properties": {
+          "business_uid": {
+            "type": "string",
+            "description": "Unique identifier of the vcita business being mapped (e.g., \"d290f1ee6c544b01\")."
+          },
+          "directory_uid": {
+            "type": "string",
+            "description": "The uid of the directory (partner) that owns this mapping. **Optional when using Directory Token** — auto-determined from the token if omitted. If provided, must match the directory associated with your authentication token. May be supplied for future Internal token support (e.g., \"dir_partner_xyz\")."
+          },
+          "app_code_name": {
+            "type": "string",
+            "description": "Code name of the third-party integrated app this mapping applies to (e.g., \"yext\")."
+          },
+          "mapped_business_uid": {
+            "type": "string",
+            "description": "Third-party business identifier for the mapped business in the external app (e.g., \"yext-business-id-42\")."
+          },
+          "mapped_user_uid": {
+            "type": "string",
+            "nullable": true,
+            "description": "Optional third-party user identifier for the mapped business in the external app (e.g., \"yext-user-code-42\" or null)."
+          }
+        },
+        "required": [
+          "business_uid",
+          "app_code_name",
+          "mapped_business_uid"
+        ]
+      },
+      "UpdateAppBusinessMappingRequest": {
+        "type": "object",
+        "description": "Request body for updating an app business mapping. Only provided fields are updated. business_uid cannot be changed.",
+        "properties": {
+          "directory_uid": {
+            "type": "string",
+            "description": "The uid of the directory (partner) that owns this mapping. Can only be modified when using an **Internal token**. Must not be included when using a **Directory token** — the request will be rejected if supplied (e.g., \"dir_partner_xyz\")."
+          },
+          "app_code_name": {
+            "type": "string",
+            "description": "Code name of the third-party integrated app this mapping applies to (e.g., \"yext\")."
+          },
+          "mapped_business_uid": {
+            "type": "string",
+            "description": "Third-party business identifier for the mapped business in the external app (e.g., \"yext-business-id-42\")."
+          },
+          "mapped_user_uid": {
+            "type": "string",
+            "nullable": true,
+            "description": "Optional third-party user identifier for the mapped business in the external app (e.g., \"yext-user-code-42\" or null)."
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "description": "Standard error response format.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [false],
+            "description": "Always false for error responses (e.g., false)."
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "Field that caused the error, for validation errors (e.g., \"business_uid\")."
+                },
+                "code": {
+                  "type": "string",
+                  "description": "Error code identifier (e.g., \"invalid\")."
+                },
+                "message": {
+                  "type": "string",
+                  "description": "Human-readable error message (e.g., \"business_uid is required\")."
+                }
+              },
+              "required": ["code", "message"]
+            }
+          }
+        },
+        "required": ["success", "errors"]
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid Directory bearer token in the Authorization header (e.g., \"Authorization: Bearer {directory_token}\")."
+      }
+    }
+  }
+}
