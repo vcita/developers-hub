@@ -1,0 +1,382 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "Payment Settings",
+        "description": "API endpoints for managing Payment Settings. Updates the SMB payment configuration, including gateway integration details, tip settings, and automated fee-offset logic (surcharges/convenience fees).",
+        "version": "3.0"
+    },
+    "servers": [
+        {
+            "url": "https://api.vcita.biz",
+            "description": "API Gateway server"
+        }
+    ],
+    "components": {
+        "securitySchemes": {
+            "Bearer": {
+                "type": "http",
+                "scheme": "bearer",
+                "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {staff_token}' or 'Authorization: Bearer {client_token}'"
+            }
+        },
+        "schemas": {
+            "PaymentSettingsRequest": {
+                "type": "object",
+                "properties": {
+                    "payments_enabled": {
+                        "type": "boolean",
+                        "description": "Enables/disables online payments for SMBs. Set to true to activate, false to disable."
+                    },
+                    "currency": {
+                        "type": "string",
+                        "description": "Primary currency using ISO 4217 codes (e.g., \"USD\", \"EUR\", \"GBP\")."
+                    },
+                    "multiple_currencies": {
+                        "type": "boolean",
+                        "description": "Enables multi-currency support for businesses serving international clients. Set true/false."
+                    },
+                    "allow_view_payments": {
+                        "type": "boolean",
+                        "description": "Allows SMB clients to view payment history in their portal. Set true/false."
+                    },
+                    "terms_and_conditions_type": {
+                        "type": "string",
+                        "enum": ["external_link", "text"],
+                        "description": "Checkout terms format. Use \"external_link\" for URLs or \"text\" for inline content (default)."
+                    },
+                    "terms_and_conditions_value": {
+                        "type": "string",
+                        "description": "URL or text content for client terms and conditions."
+                    },
+                    "payments_gateway_type": {
+                        "type": "string",
+                        "enum": ["vcitaPayments", "stripe", "square", "ThryvPay", "paypal"],
+                        "description": "Active gateway provider. Options: \"vcitaPayments\", \"stripe\", \"square\", \"ThryvPay\", \"paypal\"."
+                    },
+                    "allow_credit_card": {
+                        "type": "boolean",
+                        "description": "Enables card payments (credit, debit, prepaid). Default: true."
+                    },
+                    "allow_bank_debit_on_checkout": {
+                        "type": "boolean",
+                        "description": "Enables ACH/bank debit for client checkout. Default: true."
+                    },
+                    "client_store_card_for_business_use": {
+                        "type": "boolean",
+                        "description": "Allows businesses to charge a card that was saved by the client for future use. Set true/false."
+                    },
+                    "ewallet_type": {
+                        "type": "string",
+                        "description": "E-wallet provider support. Currently \"paypal\"."
+                    },
+                    "allow_express_wallets": {
+                        "type": "boolean",
+                        "description": "Enables digital wallet payments (Google Pay, Apple Pay, etc.). Default: true."
+                    },
+                    "stripe_access_token": {
+                        "type": "string",
+                        "description": "Stripe access token. Required when using Stripe gateway."
+                    },
+                    "stripe_user_id": {
+                        "type": "string",
+                        "description": "Stripe account ID (format: \"acct_...\"). Required for Stripe."
+                    },
+                    "braintree_merchant_id": {
+                        "type": "string",
+                        "description": "Braintree merchant ID. Required for Braintree gateway."
+                    },
+                    "enable_tips_for_bo": {
+                        "type": "boolean",
+                        "description": "Enables tips on back office charges created by SMB. Set true/false."
+                    },
+                    "enable_tips_for_cp": {
+                        "type": "boolean",
+                        "description": "Enables client tips during Client Portal checkout. Set true/false."
+                    },
+                    "tips": {
+                        "type": "array",
+                        "description": "Preset tip options. Send empty [] to use defaults (15%, 20%, 25%); otherwise exactly 3 items.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "type": {
+                                    "type": "string",
+                                    "enum": ["percent"],
+                                    "description": "Tip calculation mode. Use \"percent\". Required if tips enabled."
+                                },
+                                "value": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "maximum": 99,
+                                    "description": "Tip percentage (1-99). Required if tips enabled."
+                                }
+                            },
+                            "required": ["type", "value"]
+                        },
+                        "minItems": 0,
+                        "maxItems": 3
+                    },
+                    "offset_fee_configuration": {
+                        "type": "object",
+                        "properties": {
+                            "offset_fee_mode": {
+                                "type": "string",
+                                "enum": ["surcharge_fee", "convenience_fee", "none"],
+                                "description": "Fee logic master switch. Options: \"surcharge_fee\", \"convenience_fee\", \"none\". Default:\"none\""
+                            },
+                            "convenience_fee_type": {
+                                "type": "string",
+                                "enum": ["flat", "percentage"],
+                                "description": "Convenience fee type. Use \"flat\" or \"percentage\". Required if convenience_fee."
+                            },
+                            "convenience_fee_value": {
+                                "type": "number",
+                                "description": "Fee amount (e.g., 2.50 flat or 1.0%). Required if convenience_fee."
+                            }
+                        }
+                    }
+                },
+                "required": [
+                    "payments_enabled",
+                    "currency",
+                    "payments_gateway_type"
+                ]
+            }
+        }
+    },
+    "paths": {
+        "/v3/payments/settings": {
+            "get": {
+                "summary": "Get Payment Settings",
+                "description": "Retrieve payment settings for the current business context - Available for **Staff and Client Tokens**\n\n**Note:** When using a **Client token**, business-only fields are completely omitted from the response (not included at all) for security and privacy reasons. Business-only fields include: `supported_currencies`, `multiple_currencies`, `connected_payment_gateways`, `allow_bank_debit_on_checkout_enabled`, `store_card_for_business_use_enabled`, `stripe_access_token`, `stripe_user_id`, `stripe_email`, `braintree_merchant_id`, `paypal_email`, `enable_tips_for_bo`, `offset_fee_configuration.surcharge_fee_enabled`, and `vcita_payments_business_profession_code`. See response examples below for the differences between token types.",
+                "parameters": [],
+                "responses": {
+                    "200": {
+                        "description": "Successful response. The response content varies based on the token type - business-only fields are omitted for Client tokens. See examples below for details.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "allOf": [
+                                        {
+                                            "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                                        },
+                                        {
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "https://vcita.github.io/developers-hub/entities/payments/settings.json"
+                                                }
+                                            }
+                                        }
+                                    ]
+                                },
+                                "examples": {
+                                    "Staff_Token": {
+                                        "summary": "Response with Staff Token",
+                                        "description": "Full response with all fields including business-only fields",
+                                        "value": {
+                                            "success": true,
+                                            "data": {
+                                                "payments_enabled": true,
+                                                "currency": "USD",
+                                                "supported_currencies": ["USD", "EUR", "GBP"],
+                                                "multiple_currencies": true,
+                                                "allow_view_payments": true,
+                                                "terms_and_conditions_type": "external_link",
+                                                "terms_and_conditions_value": "https://example.com/terms",
+                                                "payments_gateway_type": "stripe",
+                                                "connected_payment_gateways": ["stripe"],
+                                                "allow_credit_card": true,
+                                                "allow_bank_debit_on_checkout": true,
+                                                "allow_bank_debit_on_checkout_enabled": true,
+                                                "client_store_card_for_business_use": true,
+                                                "store_card_for_business_use_enabled": true,
+                                                "ewallet_type": "paypal",
+                                                "allow_express_wallets": true,
+                                                "stripe_access_token": "sk_test_...",
+                                                "stripe_user_id": "acct_1234567890",
+                                                "stripe_email": "business@example.com",
+                                                "braintree_merchant_id": "merchant_123",
+                                                "paypal_email": "business@example.com",
+                                                "enable_tips_for_bo": true,
+                                                "enable_tips_for_cp": true,
+                                                "tips": [
+                                                    {
+                                                        "type": "percent",
+                                                        "value": 15
+                                                    },
+                                                    {
+                                                        "type": "percent",
+                                                        "value": 20
+                                                    },
+                                                    {
+                                                        "type": "percent",
+                                                        "value": 25
+                                                    }
+                                                ],
+                                                "offset_fee_configuration": {
+                                                    "offset_fee_mode": "convenience_fee",
+                                                    "surcharge_fee_enabled": false,
+                                                    "surcharge_fee_rate": null,
+                                                    "convenience_fee_type": "percentage",
+                                                    "convenience_fee_value": 2.5
+                                                },
+                                                "tax_mode": "exclude",
+                                                "show_taxes": true,
+                                                "partial_payments_enabled": true,
+                                                "billing_address": "123 Main St, City, State 12345",
+                                                "invoice_terms": "30 days",
+                                                "estimate_terms": "Valid for 30 days",
+                                                "hide_powered_by": false,
+                                                "pdf_customization_color": "#000000",
+                                                "pdf_customization_cover": "default",
+                                                "pdf_customization_logo_size": "medium",
+                                                "pdf_customization_template": "default",
+                                                "vcita_payments_business_profession_code": "8011",
+                                                "matter_term": "Project"
+                                            }
+                                        }
+                                    },
+                                    "Client_Token": {
+                                        "summary": "Response with Client Token",
+                                        "description": "Response with business-only fields completely omitted (not included in response)",
+                                        "value": {
+                                            "success": true,
+                                            "data": {
+                                                "payments_enabled": true,
+                                                "currency": "USD",
+                                                "allow_view_payments": true,
+                                                "terms_and_conditions_type": "external_link",
+                                                "terms_and_conditions_value": "https://example.com/terms",
+                                                "payments_gateway_type": "stripe",
+                                                "allow_credit_card": true,
+                                                "allow_bank_debit_on_checkout": true,
+                                                "client_store_card_for_business_use": true,
+                                                "ewallet_type": "paypal",
+                                                "allow_express_wallets": true,
+                                                "enable_tips_for_cp": true,
+                                                "tips": [
+                                                    {
+                                                        "type": "percent",
+                                                        "value": 15
+                                                    },
+                                                    {
+                                                        "type": "percent",
+                                                        "value": 20
+                                                    },
+                                                    {
+                                                        "type": "percent",
+                                                        "value": 25
+                                                    }
+                                                ],
+                                                "offset_fee_configuration": {
+                                                    "offset_fee_mode": "convenience_fee",
+                                                    "surcharge_fee_rate": null,
+                                                    "convenience_fee_type": "percentage",
+                                                    "convenience_fee_value": 2.5
+                                                },
+                                                "tax_mode": "exclude",
+                                                "show_taxes": true,
+                                                "partial_payments_enabled": true,
+                                                "billing_address": "123 Main St, City, State 12345",
+                                                "invoice_terms": "30 days",
+                                                "estimate_terms": "Valid for 30 days",
+                                                "hide_powered_by": false,
+                                                "pdf_customization_color": "#000000",
+                                                "pdf_customization_cover": "default",
+                                                "pdf_customization_logo_size": "medium",
+                                                "pdf_customization_template": "default",
+                                                "matter_term": "Project"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized. The bearer token is missing or invalid."
+                    },
+                    "403": {
+                        "description": "Forbidden. You do not have access to this resource."
+                    },
+                    "404": {
+                        "description": "Payment settings not found."
+                    },
+                    "500": {
+                        "description": "Internal server error."
+                    }
+                },
+                "tags": [
+                    "Payment Settings"
+                ],
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ]
+            },
+            "put": {
+                "summary": "Update Payment Settings",
+                "description": "Updates the SMB payment configuration, including gateway integration details, tip settings, and automated fee-offset logic (surcharges/convenience fees).\n\nAvailable for **Staff Tokens**",
+                "parameters": [],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PaymentSettingsRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Payment settings updated successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "allOf": [
+                                        {
+                                            "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                                        },
+                                        {
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "https://vcita.github.io/developers-hub/entities/payments/settings.json"
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request. Invalid input data."
+                    },
+                    "401": {
+                        "description": "Unauthorized. The bearer token is missing or invalid."
+                    },
+                    "403": {
+                        "description": "Forbidden. You do not have access to this resource."
+                    },
+                    "404": {
+                        "description": "Payment settings not found."
+                    },
+                    "500": {
+                        "description": "Internal server error."
+                    }
+                },
+                "tags": [
+                    "Payment Settings"
+                ],
+                "security": [
+                    {
+                        "Bearer": []
+                    }
+                ]
+            }
+        }
+    }
+}
+
