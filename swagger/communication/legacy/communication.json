@@ -88,6 +88,19 @@
           "description": "Contact Uid",
           "type": "string"
         },
+        "contact_data": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Optional channel-provided contact metadata for AI Chat Receptionist context, such as contact_name, email, phone, or other scalar contact details. This object is metadata only: it does not participate in routing or session lookup, and contact_uid/external_uid remain the routing identifiers. When provided on an intercepted inbound message without contact_uid, communication-gw forwards it to the AI receptionist as unverified client context and does not include it in the normal CRM fallback message payload.",
+          "example": {
+            "contact_name": "Itzik Levy",
+            "email": "itzik@example.com",
+            "phone": "+15551234567",
+            "company": "Acme"
+          },
+          "type": "object"
+        },
         "created_at": {
           "description": "Message creation date time [optional | Format: YYYY-MM-DD HH:MM:SS].",
           "type": "string"
@@ -235,12 +248,23 @@
     },
     "SessionResponse": {
       "properties": {
+        "ai_status": {
+          "description": "AI routing status for the session. `none` means the session is not currently owned by the AI receptionist; `ai_intercepted` means inbound messages are routed to the AI receptionist; `ai_released` means the AI receptionist handed the active session back to the CRM.",
+          "enum": [
+            "none",
+            "ai_intercepted",
+            "ai_released"
+          ],
+          "type": "string"
+        },
         "status": {
-          "description": "Session status. Enum SessionStatus.",
+          "description": "Session lifecycle status. Enum CompleteSessionStatus.",
           "enum": [
             "pending",
             "inactive",
-            "active"
+            "active",
+            "deleted",
+            "failed"
           ],
           "type": "string"
         },
@@ -251,7 +275,8 @@
       },
       "required": [
         "uid",
-        "status"
+        "status",
+        "ai_status"
       ],
       "type": "object"
     },
@@ -320,19 +345,25 @@
     },
     "UpdateSessionDto": {
       "properties": {
-        "status": {
-          "description": "Session status. Enum SessionStatus.",
+        "ai_status": {
+          "description": "AI routing status. Only the AI receptionist app may set `ai_released`; source channel apps must not set this field.",
           "enum": [
-            "pending",
+            "none",
+            "ai_intercepted",
+            "ai_released"
+          ],
+          "type": "string"
+        },
+        "status": {
+          "description": "Session lifecycle status. Source channel apps use this field to activate, deactivate, or delete the session.",
+          "enum": [
             "inactive",
-            "active"
+            "active",
+            "deleted"
           ],
           "type": "string"
         }
       },
-      "required": [
-        "status"
-      ],
       "type": "object"
     }
   },

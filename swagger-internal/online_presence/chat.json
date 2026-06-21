@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Online Presence \u2014 Web AI chat sessions",
-    "description": "Public/embed **chat** session APIs (`/v3/online_presence/chat`).\n\n**Session resume:** `POST /sessions` accepts optional `resume_session_id` to reconnect to an active Redis session for the same `business_uid`. On success, the response includes `resumed: true` and `messages` for client-side replay. If the id is stale or missing, a new session is created (`resumed: false`) \u2014 same as omitting the field.\n\n**Response envelopes:** JSON success responses follow the standard v3 envelope `{ \"success\": true, \"data\": ... }`. The SSE chat stream (`POST /sessions/{sessionId}/chat`) returns `text/event-stream`, not JSON.\n\nSession APIs are internal/private (non-CRUD) and are not part of the public entity CRUD contract.",
+    "description": "Embed/runtime **chat** session APIs (`/v3/online_presence/chat`). Called by the embedded AI chat widget (anonymous visitor surface) and internal services — these are internal/private (non-CRUD) APIs, not part of the public developer API contract.\n\n**Session resume:** `POST /sessions` accepts optional `resume_session_id` to reconnect to an active Redis session for the same `business_uid`. On success, the response includes `resumed: true` and `messages` for client-side replay. If the id is stale or missing, a new session is created (`resumed: false`) \u2014 same as omitting the field.\n\n**Response envelopes:** JSON success responses follow the standard v3 envelope `{ \"success\": true, \"data\": ... }`. The SSE chat stream (`POST /sessions/{sessionId}/chat`) returns `text/event-stream`, not JSON.\n\nSession APIs are internal/private (non-CRUD) and are not part of the public entity CRUD contract.",
     "version": "3.0.2",
     "contact": {}
   },
@@ -10,6 +10,10 @@
     {
       "name": "Online Presence chat",
       "description": "Session create/close, resume, and SSE streaming for the embedded widget / client portal flow."
+    },
+    {
+      "name": "AI Receptionist Metrics",
+      "description": "Internal AI Receptionist installation and chat metrics for the authenticated business."
     }
   ],
   "servers": [
@@ -92,6 +96,23 @@
             "type": "string",
             "format": "uuid",
             "description": "Optional. When set, reconnects to an existing Redis chat session for the same `business_uid` if it still exists (not idle-closed, same business). If the session cannot be resumed, the server creates a **new** session and returns `resumed: false` \u2014 no extra error for a stale id."
+          }
+        }
+      },
+      "CreateTrainingSessionRequest": {
+        "type": "object",
+        "description": "Create a simulated AI Receptionist training session for the authenticated staff business. Optional `channel_uid` loads the selected channel's receptionist setup without routing messages through that channel.",
+        "properties": {
+          "channel_uid": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Optional communication channel UID. When omitted or null, the session uses the always-enabled Web AI Widget channel."
+          },
+          "simulated": {
+            "type": "boolean",
+            "default": true,
+            "description": "Internal marker for training sessions. The server forces this to true for the authenticated training route so CRM writes and real-channel side effects are suppressed."
           }
         }
       },
@@ -317,6 +338,68 @@
           "started_at": "2026-05-16T21:17:10.123Z",
           "ended_at": "2026-05-16T21:17:45.987Z"
         }
+      },
+      "AiReceptionistMetrics": {
+        "type": "object",
+        "description": "Internal AI Receptionist installation status and chat count for a requested period.",
+        "properties": {
+          "installed": {
+            "type": "boolean",
+            "description": "Whether AI Receptionist is installed for the authenticated business (e.g., true)."
+          },
+          "period": {
+            "type": "string",
+            "enum": [
+              "year",
+              "month",
+              "week",
+              "last_year",
+              "last_month",
+              "last_week"
+            ],
+            "description": "Normalized period used to calculate the metric. `year`, `month`, and `week` refer to the current period; `last_year`, `last_month`, and `last_week` refer to the previous complete period (e.g., \"last_month\")."
+          },
+          "range": {
+            "type": "object",
+            "description": "Inclusive start and exclusive end timestamps used for the chat count.",
+            "properties": {
+              "start_date": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Inclusive UTC start timestamp for the metric window (e.g., \"2026-05-01T00:00:00.000Z\")."
+              },
+              "end_date": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Exclusive UTC end timestamp for the metric window (e.g., \"2026-06-01T00:00:00.000Z\")."
+              }
+            },
+            "required": [
+              "start_date",
+              "end_date"
+            ]
+          },
+          "chats_count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Number of non-simulated AI Receptionist chat history conversations that ended during the period (e.g., 42)."
+          }
+        },
+        "required": [
+          "installed",
+          "period",
+          "range",
+          "chats_count"
+        ],
+        "example": {
+          "installed": true,
+          "period": "last_month",
+          "range": {
+            "start_date": "2026-05-01T00:00:00.000Z",
+            "end_date": "2026-06-01T00:00:00.000Z"
+          },
+          "chats_count": 42
+        }
       }
     },
     "securitySchemes": {
@@ -486,6 +569,109 @@
                       ]
                     }
                   }
+                }
+              }
+            }
+          }
+        },
+        "x-internal": true
+      }
+    },
+    "/v3/online_presence/chat/sessions/training": {
+      "post": {
+        "operationId": "createTrainingChatSession",
+        "summary": "Create simulated training chat session",
+        "description": "[Internal use only] Creates a simulated direct chat session for AI Receptionist training. The authenticated staff business is used as the session context. Optional `channel_uid` loads the channel-aware receptionist setup without sending messages through communication-gw. Available for **Staff tokens**.",
+        "tags": [
+          "Online Presence chat"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTrainingSessionRequest"
+              },
+              "example": {
+                "channel_uid": "0f3e7f62-8a78-4e1a-a8cb-36c71de60f8a",
+                "simulated": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Training session created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/CreateSessionResponse"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "session_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                    "resumed": false,
+                    "greeting": {
+                      "content": "Hi! How can we help?",
+                      "buttons": []
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - channel does not belong to the authenticated business.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Channel does not belong to authenticated business."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - selected channel is not eligible for training.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "channel_uid",
+                      "code": "invalid",
+                      "message": "Channel must be active and intercepted by AI Receptionist to be used for training."
+                    }
+                  ]
                 }
               }
             }
@@ -809,6 +995,117 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          }
+        },
+        "x-internal": true
+      }
+    },
+    "/v3/online_presence/ai_receptionist/metrics": {
+      "get": {
+        "operationId": "getAiReceptionistMetrics",
+        "summary": "Get AI Receptionist metrics",
+        "description": "[Internal use only] Returns whether AI Receptionist is installed for the authenticated business and, when installed, how many non-simulated AI Receptionist chats ended during the requested period. Available for **Staff tokens**.",
+        "tags": [
+          "AI Receptionist Metrics"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "period",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "year",
+                "month",
+                "week",
+                "last_year",
+                "last_month",
+                "last_week"
+              ],
+              "default": "year"
+            },
+            "description": "Period to count chats for. `week` and `last_week` use Monday-based UTC week boundaries (e.g., \"last_month\")."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "AI Receptionist metrics retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/AiReceptionistMetrics"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "installed": true,
+                    "period": "last_month",
+                    "range": {
+                      "start_date": "2026-05-01T00:00:00.000Z",
+                      "end_date": "2026-06-01T00:00:00.000Z"
+                    },
+                    "chats_count": 42
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - missing/invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - token actor is not staff or business context is missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Semantic validation or installation lookup failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "period",
+                      "code": "invalid_period",
+                      "message": "period must be one of: year, month, week, last_year, last_month, last_week"
+                    }
+                  ]
                 }
               }
             }
