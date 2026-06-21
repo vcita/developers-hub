@@ -53,15 +53,28 @@ manifest (see [architecture.md](architecture.md)).
 | Lead | `POST /platform/v1/leadgen` | sales |
 | Booking / Appointment | `POST /platform/v1/scheduling/bookings` | scheduling |
 
-### Triggers (source: webhook subscribe enum)
+### Triggers (source: documented webhook events)
 
-`client/created`, `invoice/issued`, `invoice/paid`, `payment/paid`,
-`estimate/created`, `appointment/scheduled`, `appointment/cancelled`,
-`lead/created`.
+The authoritative event list comes from the readme_sync webhook-response docs
+(captured via `npm run zapier:capture-samples`). The subscribe enum only lists
+**entity** prefixes; the real `entity/event_type` pairs come from the docs.
 
-Trigger events are validated against the live subscribe enum at generate time.
-Events without a captured payload sample are scaffolded but flagged as needing a
-sample (see architecture.md → "Webhook payload samples").
+Seeded triggers (all confirmed to exist as documented events):
+
+`client/updated`, `invoice/issued`, `payment/recorded`, `estimate/requested`,
+`appointment/scheduled`, `appointment/cancelled`.
+
+> **Intuitive names that do NOT exist as webhooks** (learned the hard way —
+> always source event names from the docs, never guess):
+> - `client/created` — only `client/updated` is documented
+> - `invoice/paid` / `payment/paid` — payments are `recorded`/`refunded`/`updated`/`matched`
+> - `estimate/created` — estimates are `requested`/`approved`/`rejected`
+> - `lead/*` — **no lead webhook is documented at all**, so there is no lead
+>   trigger (the lead *create* action still exists)
+
+Each trigger's output fields + sample come from the captured payload. The
+capture step is **strict**: any malformed JSON fence in the docs fails the run
+so it gets fixed at the source rather than tolerated.
 
 ## Candidates for later expansion
 

@@ -1,0 +1,101 @@
+# Zapier integration manifest — the curation gate.
+#
+# This file is the ONLY place that decides what the Zapier app exposes.
+# The generator (scripts/generate-zapier.js) reads it plus the repo's
+# sources of truth and emits zapier-app/. See zapier/docs/ for the rationale.
+#
+# Scope rule: business-owner audience only. Every entry here must be reachable
+# with a staff/app token. Do NOT add directory/operator/partner APIs.
+
+base_url: https://api.vcita.biz
+
+auth:
+  # Business-level token the user pastes when connecting. Used as Bearer.
+  token_type: app
+  # Cheap business-scoped call used to validate the token.
+  test_endpoint:
+    method: GET
+    path: /platform/v1/webhooks
+
+# ---------------------------------------------------------------------------
+# Triggers — webhook events. The part before "/" must be in the subscribe enum
+# (validated at generate time). Output shape/sample comes from webhook_samples/.
+# `create` optionally links a trigger to its related create (key below).
+# ---------------------------------------------------------------------------
+# NOTE: event names below are the ACTUAL documented events (sourced from
+# readme_sync webhook-response docs via `npm run zapier:capture-samples`).
+# Several intuitive guesses do not exist as webhooks — see zapier/docs/scope.md.
+triggers:
+  - event: client/updated        # no client/created webhook exists
+    noun: Client
+    create: client
+  - event: invoice/issued
+    noun: Invoice
+    create: invoice
+  - event: payment/recorded      # "paid" is not an event; recorded is the create
+    noun: Payment
+    create: payment
+  - event: estimate/requested    # estimate events: requested/approved/rejected
+    noun: Estimate
+    create: estimate
+  - event: appointment/scheduled
+    noun: Appointment
+    create: booking
+  - event: appointment/cancelled
+    noun: Appointment
+  # lead: no lead/* webhook is documented, so there is no trigger — the lead
+  # CREATE action below still stands.
+
+# ---------------------------------------------------------------------------
+# Creates — selected by method + path (most operations have no operationId).
+# `spec` names the mcp_swagger/<spec>.json file holding the operation.
+# ---------------------------------------------------------------------------
+creates:
+  - key: client
+    noun: Client
+    label: Create Client
+    method: POST
+    path: /platform/v1/clients
+    spec: clients
+
+  - key: client_note
+    noun: Client Note
+    label: Create Client Note
+    method: POST
+    path: /v3/clients/client_notes
+    spec: clients
+
+  - key: invoice
+    noun: Invoice
+    label: Create Invoice
+    method: POST
+    path: /business/payments/v1/invoices
+    spec: sales
+
+  - key: estimate
+    noun: Estimate
+    label: Create Estimate
+    method: POST
+    path: /business/payments/v1/estimates
+    spec: sales
+
+  - key: payment
+    noun: Payment
+    label: Create Payment
+    method: POST
+    path: /platform/v1/payments
+    spec: sales
+
+  - key: lead
+    noun: Lead
+    label: Create Lead
+    method: POST
+    path: /platform/v1/leadgen
+    spec: sales
+
+  - key: booking
+    noun: Appointment
+    label: Create Booking
+    method: POST
+    path: /platform/v1/scheduling/bookings
+    spec: scheduling

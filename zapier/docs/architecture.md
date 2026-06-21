@@ -112,6 +112,22 @@ These serve two consumers from one source:
 2. **GitHub Pages** publishes them publicly (same site that serves entities):
    `https://vcita.github.io/developers-hub/webhook_samples/<entity>/<event_type>.json`
 
-A helper (`scripts/capture-webhook-samples.js`, TBD) can refresh these by calling
-`GET /platform/v1/webhooks` with a token. Samples are committed so generation is
-offline and deterministic.
+`scripts/capture-webhook-samples.js` refreshes these by calling
+`GET /platform/v1/webhooks` with a token
+(`VCITA_TOKEN=… npm run zapier:capture-samples`). Samples are committed so
+generation is offline and deterministic.
+
+## Testing (TDD)
+
+Pure logic is unit-tested with Jest; run `npm run test:zapier`
+(config: `zapier/jest.config.js`). Covered:
+
+- `zapier-app/utils.js` — `buildBody`, `unwrapWebhook`, `safeJson`, `toInputField`
+- `scripts/generate-zapier.js` — `walkSchema`, `deref`, `zapierType`,
+  `sanitizeKey`, `outputFieldsFromSample` (exported; `main` runs only when the
+  script is invoked directly, so requiring it has no side effects)
+- `scripts/capture-webhook-samples.js` — `extractEvents`, `toSampleFiles`
+
+New behavior is added test-first (red → green). The generated `index.js` is also
+checked against Zapier's `validateAppDefinition` (functions stubbed as
+`$func$N$f$` placeholders, the form Zapier validates after compilation).
