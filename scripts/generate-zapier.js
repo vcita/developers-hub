@@ -127,6 +127,12 @@ const walkSchema = (schema, spec, ctx) => {
 
 const pathParamsOf = (p) => [...p.matchAll(/\{([^}]+)\}/g)].map((m) => m[1]);
 
+// The subscribe enum may be full `entity/event_type` pairs (current) or legacy
+// entity-only prefixes. Accept an event if it matches a full enum value, or its
+// entity prefix is listed.
+const isValidEvent = (event, enumVals) =>
+  enumVals.includes(event) || enumVals.includes(event.split('/')[0]);
+
 // --------------------------------------------------------------------------
 // Code emitters
 // --------------------------------------------------------------------------
@@ -309,13 +315,13 @@ const main = () => {
   const manifest = yaml.load(fs.readFileSync(MANIFEST, 'utf8'));
   const report = { creates: [], triggers: [], warnings: [] };
 
-  // Subscribe enum (valid entity prefixes) for trigger validation.
+  // Subscribe enum for trigger validation. May be full entity/event_type pairs
+  // or legacy entity-only prefixes — isValidEvent() handles both.
   const platformSpec = readJson(path.join(MCP_DIR, 'platform_administration.json'));
   const subEnum =
     platformSpec.paths['/platform/v1/webhook/subscribe'].post.requestBody.content[
       'application/json'
     ].schema.properties.event.enum || [];
-  const validEntities = new Set(subEnum);
 
   cleanDir(TRIGGERS_DIR);
   cleanDir(CREATES_DIR);
@@ -355,9 +361,9 @@ const main = () => {
   const triggerKeys = [];
   for (const trigger of manifest.triggers || []) {
     const [entity] = trigger.event.split('/');
-    if (!validEntities.has(entity)) {
+    if (!isValidEvent(trigger.event, subEnum)) {
       report.warnings.push(
-        `trigger ${trigger.event}: entity "${entity}" not in subscribe enum — skipped`
+        `trigger ${trigger.event}: not in subscribe enum — skipped`
       );
       continue;
     }
@@ -403,6 +409,7 @@ module.exports = {
   walkSchema,
   makeField,
   pathParamsOf,
+  isValidEvent,
   outputFieldsFromSample,
   main,
 };

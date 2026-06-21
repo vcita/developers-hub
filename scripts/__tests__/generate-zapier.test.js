@@ -10,6 +10,21 @@ describe('generate-zapier exposes pure helpers (testable, no side effects on req
   });
 });
 
+describe('isValidEvent (robust to entity-only OR full entity/event_type enums)', () => {
+  test('full-form enum: accepts an exact entity/event_type match', () => {
+    expect(gen.isValidEvent('client/created', ['client/created', 'invoice/issued'])).toBe(true);
+  });
+  test('full-form enum: rejects an event not listed', () => {
+    expect(gen.isValidEvent('client/deleted', ['client/created', 'invoice/issued'])).toBe(false);
+  });
+  test('legacy entity-only enum: accepts when the entity prefix is listed', () => {
+    expect(gen.isValidEvent('client/created', ['client', 'invoice'])).toBe(true);
+  });
+  test('legacy entity-only enum: rejects an unknown entity', () => {
+    expect(gen.isValidEvent('widget/created', ['client', 'invoice'])).toBe(false);
+  });
+});
+
 describe('zapierType', () => {
   test('maps date/date-time strings to datetime', () => {
     expect(gen.zapierType({ type: 'string', format: 'date-time' })).toBe('datetime');
