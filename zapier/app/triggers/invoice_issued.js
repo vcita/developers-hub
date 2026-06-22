@@ -108,7 +108,8 @@ const outputFields = [
   },
   {
     "key": "note",
-    "label": "Note"
+    "label": "Note",
+    "type": "string"
   },
   {
     "key": "amount",
@@ -122,7 +123,8 @@ const outputFields = [
   },
   {
     "key": "charge_at",
-    "label": "Charge At"
+    "label": "Charge At",
+    "type": "string"
   },
   {
     "key": "client_id",
@@ -133,10 +135,6 @@ const outputFields = [
     "key": "created_at",
     "label": "Created At",
     "type": "string"
-  },
-  {
-    "key": "items",
-    "label": "Items"
   }
 ];
 

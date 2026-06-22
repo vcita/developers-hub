@@ -30,6 +30,8 @@ module.exports = {
   authentication,
   beforeRequest: [includeBearerToken],
   afterResponse: [checkForErrors],
+  // Don't auto-clean input data — keep what the user maps predictable (D028).
+  flags: { cleanInputData: false },
   triggers,
   creates,
 };

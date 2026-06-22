@@ -87,21 +87,14 @@ const outputFields = [
     "type": "string"
   },
   {
-    "key": "address",
-    "label": "Address"
-  },
-  {
-    "key": "custom_fields",
-    "label": "Custom Fields"
-  },
-  {
     "key": "visible",
     "label": "Visible",
     "type": "boolean"
   },
   {
     "key": "opt_in",
-    "label": "Opt In"
+    "label": "Opt In",
+    "type": "string"
   },
   {
     "key": "created_at",

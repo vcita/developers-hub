@@ -84,7 +84,8 @@ const outputFields = [
   },
   {
     "key": "note",
-    "label": "Note"
+    "label": "Note",
+    "type": "string"
   },
   {
     "key": "amount",
@@ -103,7 +104,8 @@ const outputFields = [
   },
   {
     "key": "refunded_at",
-    "label": "Refunded At"
+    "label": "Refunded At",
+    "type": "string"
   },
   {
     "key": "payment_method",
@@ -112,11 +114,13 @@ const outputFields = [
   },
   {
     "key": "other_payment_method",
-    "label": "Other Payment Method"
+    "label": "Other Payment Method",
+    "type": "string"
   },
   {
     "key": "reference",
-    "label": "Reference"
+    "label": "Reference",
+    "type": "string"
   },
   {
     "key": "offline",
@@ -125,16 +129,13 @@ const outputFields = [
   },
   {
     "key": "pay_key",
-    "label": "Pay Key"
+    "label": "Pay Key",
+    "type": "string"
   },
   {
     "key": "payment_request_id",
     "label": "Payment Request Id",
     "type": "string"
-  },
-  {
-    "key": "payment_requests",
-    "label": "Payment Requests"
   },
   {
     "key": "client_id",

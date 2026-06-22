@@ -320,6 +320,8 @@ module.exports = {
   authentication,
   beforeRequest: [includeBearerToken],
   afterResponse: [checkForErrors],
+  // Don't auto-clean input data — keep what the user maps predictable (D028).
+  flags: { cleanInputData: false },
   triggers,
   creates,
 };
@@ -349,15 +351,18 @@ const loadSampleData = (trigger) => {
 
 const outputFieldsFromSample = (sample) => {
   if (!sample || typeof sample !== 'object') return [];
-  return Object.entries(sample).map(([k, v]) => {
-    const field = { key: k, label: humanize(k) };
-    // Only declare a type for scalars; objects/arrays would otherwise be tagged
-    // "string" and mismatch the sample (D024). Leaving type unset lets them pass.
+  const fields = [];
+  for (const [k, v] of Object.entries(sample)) {
+    // Skip object/array values: Zapier defaults an untyped output field to
+    // "string", which mismatches a dict/list sample (D024). The data still
+    // flows through; we just don't declare a (wrong) scalar field for it.
+    if (v !== null && typeof v === 'object') continue;
+    const field = { key: k, label: humanize(k), type: 'string' };
     if (typeof v === 'number') field.type = 'number';
     else if (typeof v === 'boolean') field.type = 'boolean';
-    else if (typeof v === 'string') field.type = 'string';
-    return field;
-  });
+    fields.push(field);
+  }
+  return fields;
 };
 
 // --------------------------------------------------------------------------

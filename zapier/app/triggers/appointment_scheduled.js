@@ -122,16 +122,13 @@ const outputFields = [
   },
   {
     "key": "payment_id",
-    "label": "Payment Id"
+    "label": "Payment Id",
+    "type": "string"
   },
   {
     "key": "where",
     "label": "Where",
     "type": "string"
-  },
-  {
-    "key": "source_data",
-    "label": "Source Data"
   }
 ];
 

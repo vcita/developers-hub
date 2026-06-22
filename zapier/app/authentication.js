@@ -10,7 +10,8 @@ module.exports = {
       type: 'string',
       required: true,
       helpText:
-        'A business-level (staff/app) inTandem API token. Sent as a Bearer token on every request.',
+        'A business-level (staff/app) inTandem API token, sent as a Bearer token on every request. ' +
+        'See [the inTandem API authentication docs](https://developers.intandem.tech/docs/authentication) for how to obtain one.',
     },
   ],
   // Validates the token against a cheap business-scoped endpoint.
