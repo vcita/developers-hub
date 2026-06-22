@@ -222,6 +222,12 @@ const pathFields = [];
 
 const inputFields = [...pathFields, ...bodyFields.map(toInputField)];
 
+// Static sample of the created record (D012). Reuses the linked trigger's real
+// payload where the manifest pairs one; otherwise a minimal stub.
+const sample = {
+  "uid": "sample-lead-uid"
+};
+
 const perform = async (z, bundle) => {
   let url = `${BASE_URL}${PATH}`;
   for (const p of PATH_PARAMS) {
@@ -242,5 +248,5 @@ module.exports = {
     label: "Create Lead",
     description: "Create a lead in inTandem.",
   },
-  operation: { inputFields, perform },
+  operation: { inputFields, perform, sample },
 };

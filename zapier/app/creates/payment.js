@@ -16,8 +16,7 @@ const bodyFields = [
     "label": "Amount",
     "type": "number",
     "required": true,
-    "isJson": false,
-    "helpText": "amount"
+    "isJson": false
   },
   {
     "key": "client_id",
@@ -27,8 +26,7 @@ const bodyFields = [
     "label": "Client Id",
     "type": "string",
     "required": true,
-    "isJson": false,
-    "helpText": "client ID"
+    "isJson": false
   },
   {
     "key": "currency",
@@ -211,6 +209,35 @@ const pathFields = [];
 
 const inputFields = [...pathFields, ...bodyFields.map(toInputField)];
 
+// Static sample of the created record (D012). Reuses the linked trigger's real
+// payload where the manifest pairs one; otherwise a minimal stub.
+const sample = {
+  "payment_id": "i80jmue5khmm89mt",
+  "business_id": "s36f9j76o95dclwn",
+  "conversation_id": "9og26xm7z6vi9hsj",
+  "state": "paid",
+  "title": "INVOICE #0000011",
+  "note": null,
+  "amount": 333,
+  "currency": "USD",
+  "charge_at": "2022-02-06T12:01:35.000Z",
+  "refunded_at": null,
+  "payment_method": "Bank Transfer",
+  "other_payment_method": null,
+  "reference": null,
+  "offline": true,
+  "pay_key": null,
+  "payment_request_id": "swv4y4ecobe9s204",
+  "payment_requests": [
+    {
+      "type": "Invoice",
+      "id": "zup98lxfmm1aagtk"
+    }
+  ],
+  "client_id": "pnm372tuy83p24f0",
+  "created_at": "2022-02-06T12:01:51.000Z"
+};
+
 const perform = async (z, bundle) => {
   let url = `${BASE_URL}${PATH}`;
   for (const p of PATH_PARAMS) {
@@ -231,5 +258,5 @@ module.exports = {
     label: "Create Payment",
     description: "Create a payment in inTandem.",
   },
-  operation: { inputFields, perform },
+  operation: { inputFields, perform, sample },
 };

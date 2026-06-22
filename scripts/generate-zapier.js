@@ -39,6 +39,14 @@ const humanize = (s) =>
     .replace(/[_-]+/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase());
 const sanitizeKey = (s) => s.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+// Title-case an "entity/event_type" for display labels (D018), keeping / and _.
+const titleCaseEvent = (event) =>
+  String(event)
+    .split('/')
+    .map((seg) => seg.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join('_'))
+    .join('/');
+// Normalize a string for redundancy comparison (D011): lowercase, alphanumerics only.
+const normalize = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '');
 
 const resolveRef = (spec, ref) => {
   if (!ref.startsWith('#/')) return null; // external $ref — treated as opaque
@@ -77,7 +85,10 @@ const makeField = (fieldPath, schema, required, isJson) => {
     isJson: !!isJson,
   };
   const help = clip(schema.description);
-  if (help) field.helpText = isJson ? `${help} (JSON)` : help;
+  // Skip helpText that just repeats the label (D011 redundant help text).
+  if (help && (isJson || normalize(help) !== normalize(field.label))) {
+    field.helpText = isJson ? `${help} (JSON)` : help;
+  }
   if (!isJson && Array.isArray(schema.enum)) field.choices = schema.enum.map(String);
   return field;
 };
@@ -139,7 +150,7 @@ const isValidEvent = (event, enumVals) =>
 // --------------------------------------------------------------------------
 const j = (v) => JSON.stringify(v, null, 2);
 
-const emitCreate = (create, fields, pathParams) => {
+const emitCreate = (create, fields, pathParams, sample) => {
   const bodyFields = fields; // path params are separate, added below
   const pathFields = pathParams.map((p) => ({
     key: p,
@@ -162,6 +173,10 @@ const pathFields = ${j(pathFields)};
 
 const inputFields = [...pathFields, ...bodyFields.map(toInputField)];
 
+// Static sample of the created record (D012). Reuses the linked trigger's real
+// payload where the manifest pairs one; otherwise a minimal stub.
+const sample = ${j(sample)};
+
 const perform = async (z, bundle) => {
   let url = \`\${BASE_URL}\${PATH}\`;
   for (const p of PATH_PARAMS) {
@@ -182,7 +197,7 @@ module.exports = {
     label: ${j(create.label)},
     description: ${j(`Create a ${create.noun.toLowerCase()} in inTandem.`)},
   },
-  operation: { inputFields, perform },
+  operation: { inputFields, perform, sample },
 };
 `;
 };
@@ -228,7 +243,7 @@ module.exports = {
   key: ${j(key)},
   noun: ${j(trigger.noun)},
   display: {
-    label: ${j(`New ${trigger.noun} (${trigger.event})`)},
+    label: ${j(`New ${trigger.noun} (${titleCaseEvent(trigger.event)})`)},
     description: ${j(`Triggers when an inTandem "${trigger.event}" webhook fires.`)},
   },
   operation: {
@@ -295,10 +310,13 @@ const loadSampleData = (trigger) => {
 const outputFieldsFromSample = (sample) => {
   if (!sample || typeof sample !== 'object') return [];
   return Object.entries(sample).map(([k, v]) => {
-    let type = 'string';
-    if (typeof v === 'number') type = 'number';
-    else if (typeof v === 'boolean') type = 'boolean';
-    return { key: k, label: humanize(k), type };
+    const field = { key: k, label: humanize(k) };
+    // Only declare a type for scalars; objects/arrays would otherwise be tagged
+    // "string" and mismatch the sample (D024). Leaving type unset lets them pass.
+    if (typeof v === 'number') field.type = 'number';
+    else if (typeof v === 'boolean') field.type = 'boolean';
+    else if (typeof v === 'string') field.type = 'string';
+    return field;
   });
 };
 
@@ -327,6 +345,16 @@ const main = () => {
   cleanDir(TRIGGERS_DIR);
   cleanDir(CREATES_DIR);
 
+  // Representative create samples (D012): reuse the payload of a trigger the
+  // manifest pairs to this create (`create:` field). Falls back to a stub below.
+  const createSamples = {};
+  for (const t of manifest.triggers || []) {
+    if (t.create) {
+      const s = loadSampleData(t);
+      if (s) createSamples[t.create] = s;
+    }
+  }
+
   // ---- Creates ----
   const specCache = {};
   const createKeys = [];
@@ -350,9 +378,10 @@ const main = () => {
       : {};
     const fields = walkSchema(schema, spec, { path: [], depth: 0, parentRequired: true });
     const pathParams = pathParamsOf(create.path);
+    const sample = createSamples[create.key] || { uid: `sample-${create.key}-uid` };
     fs.writeFileSync(
       path.join(CREATES_DIR, `${create.key}.js`),
-      emitCreate(create, fields, pathParams)
+      emitCreate(create, fields, pathParams, sample)
     );
     createKeys.push(create.key);
     report.creates.push(`${create.key} (${fields.length} fields)`);
@@ -411,6 +440,7 @@ module.exports = {
   makeField,
   pathParamsOf,
   isValidEvent,
+  titleCaseEvent,
   outputFieldsFromSample,
   main,
 };

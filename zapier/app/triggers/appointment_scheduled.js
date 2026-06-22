@@ -122,8 +122,7 @@ const outputFields = [
   },
   {
     "key": "payment_id",
-    "label": "Payment Id",
-    "type": "string"
+    "label": "Payment Id"
   },
   {
     "key": "where",
@@ -132,8 +131,7 @@ const outputFields = [
   },
   {
     "key": "source_data",
-    "label": "Source Data",
-    "type": "string"
+    "label": "Source Data"
   }
 ];
 
@@ -141,7 +139,7 @@ module.exports = {
   key: "appointment_scheduled",
   noun: "Appointment",
   display: {
-    label: "New Appointment (appointment/scheduled)",
+    label: "New Appointment (Appointment/Scheduled)",
     description: "Triggers when an inTandem \"appointment/scheduled\" webhook fires.",
   },
   operation: {

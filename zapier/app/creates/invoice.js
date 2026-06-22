@@ -185,8 +185,7 @@ const bodyFields = [
     "label": "Matter Uid",
     "type": "string",
     "required": true,
-    "isJson": false,
-    "helpText": "Matter UID"
+    "isJson": false
   },
   {
     "key": "invoice__note",
@@ -221,8 +220,7 @@ const bodyFields = [
     "label": "Purchase Order",
     "type": "string",
     "required": false,
-    "isJson": false,
-    "helpText": "Purchase Order"
+    "isJson": false
   },
   {
     "key": "invoice__sections",
@@ -245,8 +243,7 @@ const bodyFields = [
     "label": "Source Campaign",
     "type": "string",
     "required": false,
-    "isJson": false,
-    "helpText": "Source Campaign"
+    "isJson": false
   },
   {
     "key": "invoice__source_channel",
@@ -257,8 +254,7 @@ const bodyFields = [
     "label": "Source Channel",
     "type": "string",
     "required": false,
-    "isJson": false,
-    "helpText": "Source Channel"
+    "isJson": false
   },
   {
     "key": "invoice__source_name",
@@ -269,8 +265,7 @@ const bodyFields = [
     "label": "Source Name",
     "type": "string",
     "required": false,
-    "isJson": false,
-    "helpText": "Source Name"
+    "isJson": false
   },
   {
     "key": "invoice__source_url",
@@ -281,8 +276,7 @@ const bodyFields = [
     "label": "Source Url",
     "type": "string",
     "required": false,
-    "isJson": false,
-    "helpText": "Source Url"
+    "isJson": false
   },
   {
     "key": "invoice__status",
@@ -313,6 +307,34 @@ const pathFields = [];
 
 const inputFields = [...pathFields, ...bodyFields.map(toInputField)];
 
+// Static sample of the created record (D012). Reuses the linked trigger's real
+// payload where the manifest pairs one; otherwise a minimal stub.
+const sample = {
+  "business_id": "s5ek7tfgp068i2st",
+  "staff_id": "e6j4i1ofy2pf0dmg",
+  "conversation_id": "pto6yng4e908c8g0",
+  "invoice_id": "ujjq3chk5jv91y0q",
+  "state": "issued",
+  "title": "#0000001",
+  "issued_at": "2019-10-29",
+  "due_date": "2019-11-28",
+  "invoice_number": 1,
+  "address": "Tel Aviv",
+  "note": null,
+  "amount": "35.84",
+  "currency": "ILS",
+  "charge_at": null,
+  "client_id": "54gjvtadfbxiom7y",
+  "created_at": "2019-10-29T09:33:43.000+02:00",
+  "items": [
+    {
+      "title": "Demo Class / Event",
+      "amount": "35.84",
+      "tax": "3.84"
+    }
+  ]
+};
+
 const perform = async (z, bundle) => {
   let url = `${BASE_URL}${PATH}`;
   for (const p of PATH_PARAMS) {
@@ -333,5 +355,5 @@ module.exports = {
     label: "Create Invoice",
     description: "Create a invoice in inTandem.",
   },
-  operation: { inputFields, perform },
+  operation: { inputFields, perform, sample },
 };

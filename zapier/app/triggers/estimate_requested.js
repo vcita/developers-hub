@@ -99,7 +99,7 @@ module.exports = {
   key: "estimate_requested",
   noun: "Estimate",
   display: {
-    label: "New Estimate (estimate/requested)",
+    label: "New Estimate (Estimate/Requested)",
     description: "Triggers when an inTandem \"estimate/requested\" webhook fires.",
   },
   operation: {

@@ -149,8 +149,7 @@ const bodyFields = [
     "label": "Matter Uid",
     "type": "string",
     "required": true,
-    "isJson": false,
-    "helpText": "Matter UID"
+    "isJson": false
   },
   {
     "key": "estimate__note",
@@ -185,8 +184,7 @@ const bodyFields = [
     "label": "Purchase Order",
     "type": "string",
     "required": false,
-    "isJson": false,
-    "helpText": "Purchase Order"
+    "isJson": false
   },
   {
     "key": "estimate__sections",
@@ -209,8 +207,7 @@ const bodyFields = [
     "label": "Source Campaign",
     "type": "string",
     "required": false,
-    "isJson": false,
-    "helpText": "Source Campaign"
+    "isJson": false
   },
   {
     "key": "estimate__source_channel",
@@ -221,8 +218,7 @@ const bodyFields = [
     "label": "Source Channel",
     "type": "string",
     "required": false,
-    "isJson": false,
-    "helpText": "Source Channel"
+    "isJson": false
   },
   {
     "key": "estimate__source_name",
@@ -233,8 +229,7 @@ const bodyFields = [
     "label": "Source Name",
     "type": "string",
     "required": false,
-    "isJson": false,
-    "helpText": "Source Name"
+    "isJson": false
   },
   {
     "key": "estimate__source_url",
@@ -245,8 +240,7 @@ const bodyFields = [
     "label": "Source Url",
     "type": "string",
     "required": false,
-    "isJson": false,
-    "helpText": "Source Url"
+    "isJson": false
   },
   {
     "key": "estimate__status",
@@ -277,6 +271,21 @@ const pathFields = [];
 
 const inputFields = [...pathFields, ...bodyFields.map(toInputField)];
 
+// Static sample of the created record (D012). Reuses the linked trigger's real
+// payload where the manifest pairs one; otherwise a minimal stub.
+const sample = {
+  "business_id": "s5ek7tfgp068i2st",
+  "conversation_id": "l5718cwza39px7vj",
+  "estimate_id": "50ic6dbp2wkntppt",
+  "estimate_number": 1,
+  "amount": "16.8",
+  "currency": "ILS",
+  "state": "issued",
+  "due_date": "2019-11-29",
+  "client_id": "54gjvtadfbxiom7y",
+  "created_at": "2019-10-29T09:48:11.000+02:00"
+};
+
 const perform = async (z, bundle) => {
   let url = `${BASE_URL}${PATH}`;
   for (const p of PATH_PARAMS) {
@@ -297,5 +306,5 @@ module.exports = {
     label: "Create Estimate",
     description: "Create a estimate in inTandem.",
   },
-  operation: { inputFields, perform },
+  operation: { inputFields, perform, sample },
 };

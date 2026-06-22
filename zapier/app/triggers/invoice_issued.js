@@ -108,8 +108,7 @@ const outputFields = [
   },
   {
     "key": "note",
-    "label": "Note",
-    "type": "string"
+    "label": "Note"
   },
   {
     "key": "amount",
@@ -123,8 +122,7 @@ const outputFields = [
   },
   {
     "key": "charge_at",
-    "label": "Charge At",
-    "type": "string"
+    "label": "Charge At"
   },
   {
     "key": "client_id",
@@ -138,8 +136,7 @@ const outputFields = [
   },
   {
     "key": "items",
-    "label": "Items",
-    "type": "string"
+    "label": "Items"
   }
 ];
 
@@ -147,7 +144,7 @@ module.exports = {
   key: "invoice_issued",
   noun: "Invoice",
   display: {
-    label: "New Invoice (invoice/issued)",
+    label: "New Invoice (Invoice/Issued)",
     description: "Triggers when an inTandem \"invoice/issued\" webhook fires.",
   },
   operation: {

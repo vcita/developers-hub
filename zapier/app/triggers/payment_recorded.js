@@ -84,8 +84,7 @@ const outputFields = [
   },
   {
     "key": "note",
-    "label": "Note",
-    "type": "string"
+    "label": "Note"
   },
   {
     "key": "amount",
@@ -104,8 +103,7 @@ const outputFields = [
   },
   {
     "key": "refunded_at",
-    "label": "Refunded At",
-    "type": "string"
+    "label": "Refunded At"
   },
   {
     "key": "payment_method",
@@ -114,13 +112,11 @@ const outputFields = [
   },
   {
     "key": "other_payment_method",
-    "label": "Other Payment Method",
-    "type": "string"
+    "label": "Other Payment Method"
   },
   {
     "key": "reference",
-    "label": "Reference",
-    "type": "string"
+    "label": "Reference"
   },
   {
     "key": "offline",
@@ -129,8 +125,7 @@ const outputFields = [
   },
   {
     "key": "pay_key",
-    "label": "Pay Key",
-    "type": "string"
+    "label": "Pay Key"
   },
   {
     "key": "payment_request_id",
@@ -139,8 +134,7 @@ const outputFields = [
   },
   {
     "key": "payment_requests",
-    "label": "Payment Requests",
-    "type": "string"
+    "label": "Payment Requests"
   },
   {
     "key": "client_id",
@@ -158,7 +152,7 @@ module.exports = {
   key: "payment_recorded",
   noun: "Payment",
   display: {
-    label: "New Payment (payment/recorded)",
+    label: "New Payment (Payment/Recorded)",
     description: "Triggers when an inTandem \"payment/recorded\" webhook fires.",
   },
   operation: {

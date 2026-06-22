@@ -16,8 +16,7 @@ const bodyFields = [
     "label": "Address",
     "type": "string",
     "required": false,
-    "isJson": false,
-    "helpText": "Address"
+    "isJson": false
   },
   {
     "key": "custom_field1",
@@ -27,8 +26,7 @@ const bodyFields = [
     "label": "Custom Field1",
     "type": "string",
     "required": false,
-    "isJson": false,
-    "helpText": "Custom Field 1"
+    "isJson": false
   },
   {
     "key": "custom_field2",
@@ -38,8 +36,7 @@ const bodyFields = [
     "label": "Custom Field2",
     "type": "string",
     "required": false,
-    "isJson": false,
-    "helpText": "Custom Field 2"
+    "isJson": false
   },
   {
     "key": "custom_field3",
@@ -49,8 +46,7 @@ const bodyFields = [
     "label": "Custom Field3",
     "type": "string",
     "required": false,
-    "isJson": false,
-    "helpText": "Custom Field 3"
+    "isJson": false
   },
   {
     "key": "email",
@@ -71,8 +67,7 @@ const bodyFields = [
     "label": "First Name",
     "type": "string",
     "required": true,
-    "isJson": false,
-    "helpText": "First Name"
+    "isJson": false
   },
   {
     "key": "last_name",
@@ -82,8 +77,7 @@ const bodyFields = [
     "label": "Last Name",
     "type": "string",
     "required": false,
-    "isJson": false,
-    "helpText": "Last Name"
+    "isJson": false
   },
   {
     "key": "opt_in",
@@ -126,8 +120,7 @@ const bodyFields = [
     "label": "Source Campaign",
     "type": "string",
     "required": false,
-    "isJson": false,
-    "helpText": "Source campaign"
+    "isJson": false
   },
   {
     "key": "source_channel",
@@ -137,8 +130,7 @@ const bodyFields = [
     "label": "Source Channel",
     "type": "string",
     "required": false,
-    "isJson": false,
-    "helpText": "Source channel"
+    "isJson": false
   },
   {
     "key": "source_name",
@@ -148,8 +140,7 @@ const bodyFields = [
     "label": "Source Name",
     "type": "string",
     "required": false,
-    "isJson": false,
-    "helpText": "Source name"
+    "isJson": false
   },
   {
     "key": "source_url",
@@ -159,8 +150,7 @@ const bodyFields = [
     "label": "Source Url",
     "type": "string",
     "required": false,
-    "isJson": false,
-    "helpText": "Source URL"
+    "isJson": false
   },
   {
     "key": "staff_id",
@@ -206,6 +196,29 @@ const pathFields = [];
 
 const inputFields = [...pathFields, ...bodyFields.map(toInputField)];
 
+// Static sample of the created record (D012). Reuses the linked trigger's real
+// payload where the manifest pairs one; otherwise a minimal stub.
+const sample = {
+  "business_id": "s5ek7tfgp068i2st",
+  "client_id": "k7zcc3nhb1aijzms",
+  "first_name": "New",
+  "last_name": "Client",
+  "phone": "05544778899",
+  "email": "user@email.com",
+  "image": "http://www.meet2know.com/assets/img-avatar.gif",
+  "address": {
+    "main": "New York"
+  },
+  "custom_fields": {
+    "Birthday": "1985-10-15"
+  },
+  "visible": true,
+  "opt_in": null,
+  "created_at": "2019-10-29T07:29:30Z",
+  "updated_at": "2023-04-24T18:28:10.000+03:00",
+  "spam": false
+};
+
 const perform = async (z, bundle) => {
   let url = `${BASE_URL}${PATH}`;
   for (const p of PATH_PARAMS) {
@@ -226,5 +239,5 @@ module.exports = {
     label: "Create Client",
     description: "Create a client in inTandem.",
   },
-  operation: { inputFields, perform },
+  operation: { inputFields, perform, sample },
 };

@@ -88,13 +88,11 @@ const outputFields = [
   },
   {
     "key": "address",
-    "label": "Address",
-    "type": "string"
+    "label": "Address"
   },
   {
     "key": "custom_fields",
-    "label": "Custom Fields",
-    "type": "string"
+    "label": "Custom Fields"
   },
   {
     "key": "visible",
@@ -103,8 +101,7 @@ const outputFields = [
   },
   {
     "key": "opt_in",
-    "label": "Opt In",
-    "type": "string"
+    "label": "Opt In"
   },
   {
     "key": "created_at",
@@ -127,7 +124,7 @@ module.exports = {
   key: "client_updated",
   noun: "Client",
   display: {
-    label: "New Client (client/updated)",
+    label: "New Client (Client/Updated)",
     description: "Triggers when an inTandem \"client/updated\" webhook fires.",
   },
   operation: {
