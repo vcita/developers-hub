@@ -1,4 +1,17 @@
-const { buildBody, safeJson, unwrapWebhook, toInputField } = require('../utils');
+const { buildBody, safeJson, unwrapWebhook, toInputField, getByPath } = require('../utils');
+
+describe('getByPath', () => {
+  test('resolves a dotted path', () => {
+    expect(getByPath({ data: { clients: [1, 2] } }, 'data.clients')).toEqual([1, 2]);
+  });
+  test('returns undefined for a missing path', () => {
+    expect(getByPath({ data: {} }, 'data.clients')).toBeUndefined();
+    expect(getByPath(null, 'a.b')).toBeUndefined();
+  });
+  test('empty path returns the object itself', () => {
+    expect(getByPath({ a: 1 }, '')).toEqual({ a: 1 });
+  });
+});
 
 describe('buildBody', () => {
   test('rebuilds a nested body from dotted field paths', () => {
@@ -82,5 +95,9 @@ describe('toInputField', () => {
   test('omits falsy optional keys', () => {
     const out = toInputField({ key: 'x', label: 'X', type: 'string', required: false });
     expect(out).toEqual({ key: 'x', label: 'X', type: 'string' });
+  });
+  test('passes through a dynamic dropdown reference', () => {
+    const out = toInputField({ key: 'client_id', label: 'Client Id', type: 'string', dynamic: 'list_clients.id.label' });
+    expect(out.dynamic).toBe('list_clients.id.label');
   });
 });

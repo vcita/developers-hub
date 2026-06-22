@@ -43,7 +43,15 @@ const toInputField = (f) => {
   if (f.required) out.required = true;
   if (f.helpText) out.helpText = f.helpText;
   if (f.choices && f.choices.length) out.choices = f.choices;
+  if (f.dynamic) out.dynamic = f.dynamic; // dynamic dropdown: "trigger.id.label"
   return out;
 };
 
-module.exports = { buildBody, safeJson, unwrapWebhook, toInputField };
+// Resolve a dotted path (e.g. "data.clients") inside a response body. Used by
+// generated dropdown list triggers to find the array of items.
+const getByPath = (obj, path) => {
+  if (!path) return obj;
+  return path.split('.').reduce((node, key) => (node == null ? undefined : node[key]), obj);
+};
+
+module.exports = { buildBody, safeJson, unwrapWebhook, toInputField, getByPath };

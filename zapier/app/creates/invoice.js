@@ -126,7 +126,8 @@ const bodyFields = [
     "type": "string",
     "required": false,
     "isJson": false,
-    "helpText": "The UID of the estimate from which the invoice was created."
+    "helpText": "The UID of the estimate from which the invoice was created.",
+    "dynamic": "list_estimates.id.label"
   },
   {
     "key": "invoice__invoice_label",

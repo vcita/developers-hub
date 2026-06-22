@@ -9,6 +9,9 @@ const triggers = {
   "estimate_requested": require('./triggers/estimate_requested'),
   "appointment_scheduled": require('./triggers/appointment_scheduled'),
   "appointment_cancelled": require('./triggers/appointment_cancelled'),
+  "list_clients": require('./triggers/list_clients'),
+  "list_services": require('./triggers/list_services'),
+  "list_estimates": require('./triggers/list_estimates'),
 };
 
 const creates = {

@@ -50,7 +50,8 @@ const bodyFields = [
     "type": "string",
     "required": false,
     "isJson": false,
-    "helpText": "Client uid. If not provided, form_data with client fields (email, first_name) is required."
+    "helpText": "Client uid. If not provided, form_data with client fields (email, first_name) is required.",
+    "dynamic": "list_clients.id.label"
   },
   {
     "key": "event_instance_id",
@@ -156,7 +157,8 @@ const bodyFields = [
     "type": "string",
     "required": false,
     "isJson": false,
-    "helpText": "Service uid. Required for appointment booking."
+    "helpText": "Service uid. Required for appointment booking.",
+    "dynamic": "list_services.id.label"
   },
   {
     "key": "source_name",

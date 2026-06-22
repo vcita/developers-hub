@@ -26,7 +26,8 @@ const bodyFields = [
     "label": "Client Id",
     "type": "string",
     "required": true,
-    "isJson": false
+    "isJson": false,
+    "dynamic": "list_clients.id.label"
   },
   {
     "key": "currency",
