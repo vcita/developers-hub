@@ -7,6 +7,56 @@ describe('generate-zapier exposes pure helpers (testable, no side effects on req
     expect(typeof gen.deref).toBe('function');
     expect(typeof gen.walkSchema).toBe('function');
     expect(typeof gen.outputFieldsFromSample).toBe('function');
+    expect(typeof gen.titleCaseEvent).toBe('function');
+  });
+});
+
+describe('dropdownRef (D004 — dynamic dropdown wiring)', () => {
+  const byLeaf = { client_id: 'clients', from_estimate_uid: 'estimates' };
+  test('builds list_<key>.id.label for a matching leaf (incl. dotted keys)', () => {
+    expect(gen.dropdownRef('client_id', byLeaf)).toBe('list_clients.id.label');
+    expect(gen.dropdownRef('invoice__from_estimate_uid', byLeaf)).toBe('list_estimates.id.label');
+  });
+  test('returns undefined when the leaf is not a dropdown', () => {
+    expect(gen.dropdownRef('amount', byLeaf)).toBeUndefined();
+    expect(gen.dropdownRef('invoice__total', byLeaf)).toBeUndefined();
+  });
+});
+
+describe('titleCaseEvent (D018 — title-cased trigger labels)', () => {
+  test('title-cases each segment of entity/event_type, preserving / and _', () => {
+    expect(gen.titleCaseEvent('client/updated')).toBe('Client/Updated');
+    expect(gen.titleCaseEvent('appointment/reminder_sent')).toBe('Appointment/Reminder_Sent');
+    expect(gen.titleCaseEvent('payment/recorded')).toBe('Payment/Recorded');
+  });
+});
+
+describe('makeField redundant helpText (D011)', () => {
+  const ctx = ['address'];
+  test('omits helpText when the description just repeats the label', () => {
+    const f = gen.makeField(ctx, { type: 'string', description: 'Address' }, false, false);
+    expect(f.label).toBe('Address');
+    expect(f.helpText).toBeUndefined();
+  });
+  test('keeps helpText when it adds real information', () => {
+    const f = gen.makeField(ctx, { type: 'string', description: 'Full street address incl. zip' }, false, false);
+    expect(f.helpText).toBe('Full street address incl. zip');
+  });
+});
+
+describe('outputFieldsFromSample type handling (D024)', () => {
+  test('skips object/array values entirely (Zapier defaults untyped to string -> mismatch)', () => {
+    const out = gen.outputFieldsFromSample({ addr: { x: 1 }, items: [1, 2], name: 's', n: 3, b: true });
+    const by = Object.fromEntries(out.map((f) => [f.key, f]));
+    expect(by.addr).toBeUndefined();
+    expect(by.items).toBeUndefined();
+    expect(by.name.type).toBe('string');
+    expect(by.n.type).toBe('number');
+    expect(by.b.type).toBe('boolean');
+  });
+  test('keeps null/scalar fields (null treated as string)', () => {
+    const out = gen.outputFieldsFromSample({ note: null, id: 'x' });
+    expect(out.map((f) => f.key).sort()).toEqual(['id', 'note']);
   });
 });
 
