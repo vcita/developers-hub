@@ -11,6 +11,7 @@ Platform CLI project.
 
 | Doc | What it covers |
 |-----|----------------|
+| [../HOW_TO_UPDATE.md](../HOW_TO_UPDATE.md) | **Start here to make changes** — add a trigger/create/dropdown, regenerate, test, and publish. |
 | [scope.md](scope.md) | Who the integration is for, what is in/out of scope, the curated seed set, and the exclusion list. |
 | [architecture.md](architecture.md) | The single-repo layout, sources of truth, the generation pipeline, auth model, and how webhook payload samples are published via GitHub Pages. |
 
