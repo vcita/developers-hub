@@ -186,7 +186,8 @@ const bodyFields = [
     "label": "Matter Uid",
     "type": "string",
     "required": true,
-    "isJson": false
+    "isJson": false,
+    "dynamic": "list_matters.id.label"
   },
   {
     "key": "invoice__note",

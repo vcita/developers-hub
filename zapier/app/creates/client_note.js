@@ -17,7 +17,8 @@ const bodyFields = [
     "type": "string",
     "required": true,
     "isJson": false,
-    "helpText": "Unique identifier of the client matter this note belongs to"
+    "helpText": "Unique identifier of the client matter this note belongs to",
+    "dynamic": "list_matters.id.label"
   },
   {
     "key": "content",

@@ -135,7 +135,8 @@ const bodyFields = [
     "type": "string",
     "required": false,
     "isJson": false,
-    "helpText": "Matter uid (conversation context)"
+    "helpText": "Matter uid (conversation context)",
+    "dynamic": "list_matters.id.label"
   },
   {
     "key": "portal_id",
