@@ -167,7 +167,8 @@ const bodyFields = [
     "type": "string",
     "required": false,
     "isJson": false,
-    "helpText": "Default is set to the staff that performed the API call. Business owner is allowed to send staff_id"
+    "helpText": "Default is set to the staff that performed the API call. Business owner is allowed to send staff_id",
+    "dynamic": "list_staff.id.label"
   },
   {
     "key": "state",

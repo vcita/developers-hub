@@ -161,7 +161,8 @@ const bodyFields = [
     "type": "string",
     "required": false,
     "isJson": false,
-    "helpText": "Staff ID. Reference to the staff member (see staff entity)."
+    "helpText": "Staff ID. Reference to the staff member (see staff entity).",
+    "dynamic": "list_staff.id.label"
   },
   {
     "key": "status",

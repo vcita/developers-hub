@@ -12,6 +12,7 @@ const triggers = {
   "list_clients": require('./triggers/list_clients'),
   "list_services": require('./triggers/list_services'),
   "list_estimates": require('./triggers/list_estimates'),
+  "list_staff": require('./triggers/list_staff'),
 };
 
 const creates = {

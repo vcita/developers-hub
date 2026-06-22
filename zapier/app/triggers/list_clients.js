@@ -3,6 +3,7 @@ const { BASE_URL } = require('../constants');
 const { getByPath } = require('../utils');
 
 const PATH = "/platform/v1/clients";
+const PATH_PARAMS = [];
 const ARRAY_PATH = "data.clients";
 const ID_FIELD = "id";
 const LABEL_FIELDS = [
@@ -12,7 +13,15 @@ const LABEL_FIELDS = [
 const QUERY = {};
 
 const perform = async (z, bundle) => {
-  const response = await z.request({ url: `${BASE_URL}${PATH}`, method: 'GET', params: QUERY });
+  let url = `${BASE_URL}${PATH}`;
+  for (const p of PATH_PARAMS) {
+    // Path params (e.g. {business_uid}) are sourced from the connection's auth
+    // data. If absent, we can't list — return no options rather than erroring.
+    const value = bundle.authData && bundle.authData[p];
+    if (!value) return [];
+    url = url.replace(`{${p}}`, encodeURIComponent(value));
+  }
+  const response = await z.request({ url, method: 'GET', params: QUERY });
   const list = getByPath(response.data, ARRAY_PATH) || [];
   return list.map((item) => ({
     ...item,

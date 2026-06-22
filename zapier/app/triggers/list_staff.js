@@ -2,12 +2,14 @@
 const { BASE_URL } = require('../constants');
 const { getByPath } = require('../utils');
 
-const PATH = "/platform/v1/services";
-const PATH_PARAMS = [];
-const ARRAY_PATH = "data.services";
+const PATH = "/platform/v1/businesses/{business_uid}/staffs";
+const PATH_PARAMS = [
+  "business_uid"
+];
+const ARRAY_PATH = "data.staff";
 const ID_FIELD = "id";
 const LABEL_FIELDS = [
-  "name"
+  "display_name"
 ];
 const QUERY = {};
 
@@ -30,11 +32,11 @@ const perform = async (z, bundle) => {
 };
 
 module.exports = {
-  key: "list_services",
-  noun: "Service",
+  key: "list_staff",
+  noun: "Staff",
   display: {
-    label: "List Services",
-    description: "Internal: lists services to populate dynamic dropdowns.",
+    label: "List Staffs",
+    description: "Internal: lists staffs to populate dynamic dropdowns.",
     hidden: true,
   },
   operation: { perform, canPaginate: true },

@@ -190,7 +190,8 @@ const bodyFields = [
     "type": "string",
     "required": false,
     "isJson": false,
-    "helpText": "Staff uid. Required for appointment booking."
+    "helpText": "Staff uid. Required for appointment booking.",
+    "dynamic": "list_staff.id.label"
   },
   {
     "key": "start_time",

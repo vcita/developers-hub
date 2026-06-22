@@ -272,13 +272,22 @@ const { BASE_URL } = require('../constants');
 const { getByPath } = require('../utils');
 
 const PATH = ${j(dd.path)};
+const PATH_PARAMS = ${j(pathParamsOf(dd.path))};
 const ARRAY_PATH = ${j(dd.array_path)};
 const ID_FIELD = ${j(dd.id_field)};
 const LABEL_FIELDS = ${j(dd.label_fields || [dd.id_field])};
 const QUERY = ${j(dd.query || {})};
 
 const perform = async (z, bundle) => {
-  const response = await z.request({ url: \`\${BASE_URL}\${PATH}\`, method: 'GET', params: QUERY });
+  let url = \`\${BASE_URL}\${PATH}\`;
+  for (const p of PATH_PARAMS) {
+    // Path params (e.g. {business_uid}) are sourced from the connection's auth
+    // data. If absent, we can't list — return no options rather than erroring.
+    const value = bundle.authData && bundle.authData[p];
+    if (!value) return [];
+    url = url.replace(\`{\${p}}\`, encodeURIComponent(value));
+  }
+  const response = await z.request({ url, method: 'GET', params: QUERY });
   const list = getByPath(response.data, ARRAY_PATH) || [];
   return list.map((item) => ({
     ...item,

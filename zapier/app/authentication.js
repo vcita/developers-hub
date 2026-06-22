@@ -13,6 +13,15 @@ module.exports = {
         'A business-level (staff/app) inTandem API token, sent as a Bearer token on every request. ' +
         'See [the inTandem API authentication docs](https://developers.intandem.tech/docs/authentication) for how to obtain one.',
     },
+    {
+      key: 'business_uid',
+      label: 'Business UID (optional)',
+      type: 'string',
+      required: false,
+      helpText:
+        'Your inTandem business UID. Optional — only needed to power the **Staff** dropdown ' +
+        '(and other business-scoped pickers). Leave blank if you don\'t use them.',
+    },
   ],
   // Validates the token against a cheap business-scoped endpoint.
   test: {
