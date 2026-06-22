@@ -4,6 +4,18 @@ This is a [Zapier Platform CLI](https://platform.zapier.com/) app **generated**
 from developers-hub specs. Do not hand-edit `index.js`, `triggers/`, or
 `creates/` — they are overwritten on every generate.
 
+## Requirements
+
+The toolchain versions must line up or the CLI refuses to validate/push:
+
+| Tool | Required version | Notes |
+|------|------------------|-------|
+| **Node.js** | **≥ 22** | `zapier-platform-cli` v19 requires it; v20 will error. |
+| **zapier-platform-cli** | **v19** (global) | The command is **`zapier-platform`** (renamed from `zapier` in v19). Install with `npm i -g zapier-platform-cli`. |
+| **zapier-platform-core** | **`19.0.0` exact** | Pinned in `package.json` — Zapier requires an exact version (no `^`/`~`), and its major must match the CLI. |
+
+If you're on nvm: `nvm install 22 && nvm use 22`, then reinstall the CLI under Node 22.
+
 ## Regenerate
 
 From the repo root:
@@ -42,14 +54,19 @@ event per element. Output sample/fields come from `../webhook_samples/`.
 ```bash
 cd zapier/app && npm install
 # structural schema validation + runtime smoke tests were run during build.
-# For full validation incl. functions, use the Zapier CLI: `zapier validate`.
+# For full validation incl. functions, use the Zapier CLI:
+zapier-platform validate
 ```
 
-## Deploy (requires Zapier CLI + account)
+## Deploy (requires Node ≥ 22, Zapier CLI v19, and an account)
+
+All commands run from `zapier/app`:
 
 ```bash
-npm i -g zapier-platform-cli
-zapier login
-zapier register   # first time only
-zapier push
+npm i -g zapier-platform-cli        # v19 — provides the `zapier-platform` command
+zapier-platform login               # saves a deploy key to ~/.zapierrc
+zapier-platform register "inTandem" # first time only (creates the integration)
+zapier-platform validate
+zapier-platform push                # or: npm run zapier:push
+zapier-platform promote 1.0.0       # make a version live
 ```
