@@ -12,8 +12,8 @@ From the repo root:
 node scripts/generate-zapier.js
 ```
 
-Edit [`../zapier/manifest.yaml`](../zapier/manifest.yaml) to change what is
-exposed. See [`../zapier/docs/`](../zapier/docs/) for scope and architecture.
+Edit [`../manifest.yaml`](../manifest.yaml) to change what is
+exposed. See [`../docs/`](../docs/) for scope and architecture.
 
 ## What is static vs generated
 
@@ -40,7 +40,7 @@ event per element. Output sample/fields come from `../webhook_samples/`.
 ## Local checks
 
 ```bash
-cd zapier-app && npm install
+cd zapier/app && npm install
 # structural schema validation + runtime smoke tests were run during build.
 # For full validation incl. functions, use the Zapier CLI: `zapier validate`.
 ```

@@ -4,7 +4,7 @@ module.exports = {
   rootDir: '..',
   testMatch: [
     '<rootDir>/scripts/__tests__/**/*.test.js',
-    '<rootDir>/zapier-app/__tests__/**/*.test.js',
+    '<rootDir>/zapier/app/__tests__/**/*.test.js',
   ],
   testPathIgnorePatterns: ['/node_modules/'],
 };

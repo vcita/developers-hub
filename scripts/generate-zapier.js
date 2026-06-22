@@ -2,12 +2,12 @@
 /**
  * generate-zapier.js
  *
- * Generates the Zapier Platform CLI app (zapier-app/{index,triggers,creates})
+ * Generates the Zapier Platform CLI app (zapier/app/{index,triggers,creates})
  * from:
  *   - zapier/manifest.yaml          (the curation gate — what to expose)
  *   - mcp_swagger/*.json            (APIs / create request bodies)
  *   - webhook subscribe enum        (valid trigger entities)
- *   - webhook_samples/*.json        (trigger output shape + sample)
+ *   - zapier/webhook_samples/*.json (trigger output shape + sample)
  *
  * Only the dynamic parts are (re)generated. The static scaffold
  * (package.json, authentication.js, middleware.js, utils.js, constants.js)
@@ -22,9 +22,10 @@ const yaml = require('js-yaml');
 const REPO = path.resolve(__dirname, '..');
 const MANIFEST = path.join(REPO, 'zapier', 'manifest.yaml');
 const MCP_DIR = path.join(REPO, 'mcp_swagger');
-const APP = path.join(REPO, 'zapier-app');
+const APP = path.join(REPO, 'zapier', 'app');
 const TRIGGERS_DIR = path.join(APP, 'triggers');
 const CREATES_DIR = path.join(APP, 'creates');
+const SAMPLES_DIR = path.join(REPO, 'zapier', 'webhook_samples');
 const MAX_DEPTH = 3;
 
 // --------------------------------------------------------------------------
@@ -278,8 +279,8 @@ const loadSampleData = (trigger) => {
   const candidates = [];
   if (trigger.sample) candidates.push(path.join(REPO, trigger.sample));
   candidates.push(
-    path.join(REPO, 'webhook_samples', entity, `${eventType}.json`),
-    path.join(REPO, 'webhook_samples', `${entity}s`, `${eventType}.json`)
+    path.join(SAMPLES_DIR, entity, `${eventType}.json`),
+    path.join(SAMPLES_DIR, `${entity}s`, `${eventType}.json`)
   );
   for (const file of candidates) {
     if (fs.existsSync(file)) {
@@ -371,7 +372,7 @@ const main = () => {
     let sample = loadSampleData(trigger);
     if (!sample) {
       report.warnings.push(
-        `trigger ${trigger.event}: NO payload sample found — scaffolded with placeholder (add webhook_samples/${entity}/<event>.json)`
+        `trigger ${trigger.event}: NO payload sample found — scaffolded with placeholder (add zapier/webhook_samples/${entity}/<event>.json)`
       );
       sample = { id: 'sample', entity_name: entity, note: 'placeholder — capture a real payload' };
     }

@@ -65,17 +65,17 @@ describe('findMalformedFences (the gate — surfaces broken docs, never silently
 });
 
 describe('toSampleFiles', () => {
-  test('maps payloads to webhook_samples/<entity>/<event_type>.json in envelope format', () => {
+  test('maps payloads to zapier/webhook_samples/<entity>/<event_type>.json in envelope format', () => {
     const payloads = [
       { entity_name: 'client', event_type: 'created', data: { uid: '1' } },
       { entity_name: 'invoice', event_type: 'paid', data: { uid: '2' } },
     ];
     const byPath = Object.fromEntries(cap.toSampleFiles(payloads).map((f) => [f.path, f.content]));
     expect(Object.keys(byPath).sort()).toEqual([
-      'webhook_samples/client/created.json',
-      'webhook_samples/invoice/paid.json',
+      'zapier/webhook_samples/client/created.json',
+      'zapier/webhook_samples/invoice/paid.json',
     ]);
-    expect(byPath['webhook_samples/client/created.json']).toEqual([
+    expect(byPath['zapier/webhook_samples/client/created.json']).toEqual([
       { entity_name: 'client', event_type: 'created', data: { uid: '1' } },
     ]);
   });
@@ -97,7 +97,7 @@ describe('toSampleFiles', () => {
       { entity_name: 'lead', event_type: 'created', data: { uid: 'ok' } },
     ];
     expect(cap.toSampleFiles(payloads).map((f) => f.path)).toEqual([
-      'webhook_samples/lead/created.json',
+      'zapier/webhook_samples/lead/created.json',
     ]);
   });
 });

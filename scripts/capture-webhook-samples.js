@@ -3,7 +3,7 @@
  * capture-webhook-samples.js
  *
  * Captures real webhook payloads from the readme_sync repo's webhook-response
- * docs and writes them to webhook_samples/<entity>/<event_type>.json (the
+ * docs and writes them to zapier/webhook_samples/<entity>/<event_type>.json (the
  * format the generator and GitHub Pages both consume). Re-run the generator
  * afterwards so triggers pick up the real shapes.
  *
@@ -72,7 +72,7 @@ const findMalformedFences = (markdown) => {
   return bad;
 };
 
-// payloads -> [{ path, content }] in the webhook_samples envelope format.
+// payloads -> [{ path, content }] in the zapier/webhook_samples envelope format.
 const toSampleFiles = (payloads) => {
   const seen = new Set();
   const files = [];
@@ -82,7 +82,7 @@ const toSampleFiles = (payloads) => {
     if (seen.has(id)) continue;
     seen.add(id);
     files.push({
-      path: `webhook_samples/${ev.entity_name}/${ev.event_type}.json`,
+      path: `zapier/webhook_samples/${ev.entity_name}/${ev.event_type}.json`,
       content: [{ entity_name: ev.entity_name, event_type: ev.event_type, data: ev.data || {} }],
     });
   }
