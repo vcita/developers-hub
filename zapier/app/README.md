@@ -14,7 +14,10 @@ The toolchain versions must line up or the CLI refuses to validate/push:
 | **zapier-platform-cli** | **v19** (global) | The command is **`zapier-platform`** (renamed from `zapier` in v19). Install with `npm i -g zapier-platform-cli`. |
 | **zapier-platform-core** | **`19.0.0` exact** | Pinned in `package.json` — Zapier requires an exact version (no `^`/`~`), and its major must match the CLI. |
 
-If you're on nvm: `nvm install 22 && nvm use 22`, then reinstall the CLI under Node 22.
+The Node requirement is **enforced**: `package.json` declares `engines.node >= 22`
+and `.npmrc` sets `engine-strict=true`, so `npm install` fails (not just warns)
+on an older Node. If you're on nvm: `nvm install 22 && nvm use 22`, then reinstall
+the CLI under Node 22.
 
 ## Regenerate
 
