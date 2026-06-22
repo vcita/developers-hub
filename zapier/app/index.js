@@ -24,6 +24,8 @@ const creates = {
   "payment": require('./creates/payment'),
   "lead": require('./creates/lead'),
   "booking": require('./creates/booking'),
+  "product": require('./creates/product'),
+  "service": require('./creates/service'),
 };
 
 module.exports = {
