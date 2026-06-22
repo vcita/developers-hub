@@ -1,4 +1,19 @@
-const { buildBody, safeJson, unwrapWebhook, toInputField, getByPath } = require('../utils');
+const { buildBody, safeJson, unwrapWebhook, toInputField, getByPath, resolveBusinessUid } = require('../utils');
+
+describe('resolveBusinessUid', () => {
+  test('returns authData.business_uid when provided (no API call)', async () => {
+    const z = { request: () => { throw new Error('should not be called'); } };
+    expect(await resolveBusinessUid(z, { authData: { business_uid: 'biz-override' } })).toBe('biz-override');
+  });
+  test('resolves from GET /v3/business_administration/businesses (data.businesses[0].uid)', async () => {
+    const z = { request: async () => ({ data: { success: true, data: { businesses: [{ uid: 'bizX' }] }, paging: {} } }) };
+    expect(await resolveBusinessUid(z, { authData: {} })).toBe('bizX');
+  });
+  test('returns null when no businesses are returned', async () => {
+    const z = { request: async () => ({ data: { data: { businesses: [] } } }) };
+    expect(await resolveBusinessUid(z, {})).toBeNull();
+  });
+});
 
 describe('getByPath', () => {
   test('resolves a dotted path', () => {

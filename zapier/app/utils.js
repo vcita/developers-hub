@@ -54,4 +54,21 @@ const getByPath = (obj, path) => {
   return path.split('.').reduce((node, key) => (node == null ? undefined : node[key]), obj);
 };
 
-module.exports = { buildBody, safeJson, unwrapWebhook, toInputField, getByPath };
+// Resolve the connection's business UID. No token-scoped endpoint returns it
+// directly, so we read it from GET /v3/business_administration/businesses (the
+// staff token's own business). An explicit authData.business_uid wins if set.
+const resolveBusinessUid = async (z, bundle) => {
+  const { BASE_URL } = require('./constants');
+  if (bundle && bundle.authData && bundle.authData.business_uid) {
+    return bundle.authData.business_uid;
+  }
+  const response = await z.request({
+    url: `${BASE_URL}/v3/business_administration/businesses`,
+    method: 'GET',
+    params: { per_page: 1 },
+  });
+  const list = getByPath(response.data, 'data.businesses') || [];
+  return (list[0] && (list[0].uid || list[0].id)) || null;
+};
+
+module.exports = { buildBody, safeJson, unwrapWebhook, toInputField, getByPath, resolveBusinessUid };
