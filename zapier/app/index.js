@@ -9,11 +9,13 @@ const triggers = {
   "estimate_requested": require('./triggers/estimate_requested'),
   "appointment_scheduled": require('./triggers/appointment_scheduled'),
   "appointment_cancelled": require('./triggers/appointment_cancelled'),
+  "service_updated": require('./triggers/service_updated'),
   "list_clients": require('./triggers/list_clients'),
   "list_services": require('./triggers/list_services'),
   "list_estimates": require('./triggers/list_estimates'),
   "list_staff": require('./triggers/list_staff'),
   "list_matters": require('./triggers/list_matters'),
+  "list_service_categories": require('./triggers/list_service_categories'),
 };
 
 const creates = {

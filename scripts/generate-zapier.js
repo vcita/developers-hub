@@ -51,7 +51,10 @@ const normalize = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '');
 // trigger. The list trigger always exposes `id` + `label`, so the ref is fixed.
 const dropdownRef = (fieldKey, byLeaf) => {
   const leaf = String(fieldKey).split('__').pop();
-  return byLeaf[leaf] ? `list_${byLeaf[leaf]}.id.label` : undefined;
+  // Match the full dotted key first (lets a generic leaf like "uid" be targeted
+  // precisely via "category__uid"), then fall back to the bare leaf.
+  const key = byLeaf[fieldKey] || byLeaf[leaf];
+  return key ? `list_${key}.id.label` : undefined;
 };
 
 const resolveRef = (spec, ref) => {

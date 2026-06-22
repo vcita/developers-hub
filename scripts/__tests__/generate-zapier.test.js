@@ -21,6 +21,12 @@ describe('dropdownRef (D004 — dynamic dropdown wiring)', () => {
     expect(gen.dropdownRef('amount', byLeaf)).toBeUndefined();
     expect(gen.dropdownRef('invoice__total', byLeaf)).toBeUndefined();
   });
+  test('matches a full dotted key (so generic leaves like "uid" can be targeted precisely)', () => {
+    const map = { category__uid: 'service_categories' };
+    expect(gen.dropdownRef('category__uid', map)).toBe('list_service_categories.id.label');
+    // a different field ending in the generic "uid" leaf must NOT match
+    expect(gen.dropdownRef('other__uid', map)).toBeUndefined();
+  });
 });
 
 describe('titleCaseEvent (D018 — title-cased trigger labels)', () => {

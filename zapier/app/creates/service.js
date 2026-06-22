@@ -173,7 +173,8 @@ const bodyFields = [
     "type": "string",
     "required": true,
     "isJson": false,
-    "helpText": "UID of an existing category. Can be obtained from GET /v2/settings/categories."
+    "helpText": "UID of an existing category. Can be obtained from GET /v2/settings/categories.",
+    "dynamic": "list_service_categories.id.label"
   }
 ];
 const pathFields = [];
@@ -183,7 +184,24 @@ const inputFields = [...pathFields, ...bodyFields.map(toInputField)];
 // Static sample of the created record (D012). Reuses the linked trigger's real
 // payload where the manifest pairs one; otherwise a minimal stub.
 const sample = {
-  "uid": "sample-service-uid"
+  "uid": "jy6hpuy25g0n83oa",
+  "name": "my availability service",
+  "type": "AppointmentService",
+  "image_path": null,
+  "interaction_type": "default_business_location",
+  "duration": 75,
+  "min_hours_before_meeting": 72,
+  "padding": 20,
+  "future_bookings_limit": 60,
+  "interval": 20,
+  "price": null,
+  "meeting_length": 75,
+  "charge_type": "no_price",
+  "active": true,
+  "max_attendance": null,
+  "currency": "ILS",
+  "business_uid": "k5lh1ri2rygw6nnp",
+  "updated_at": "2024-03-19T11:35:59.000+02:00"
 };
 
 const perform = async (z, bundle) => {
