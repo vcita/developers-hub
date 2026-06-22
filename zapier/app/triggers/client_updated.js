@@ -128,7 +128,7 @@ module.exports = {
   noun: "Client",
   display: {
     label: "New Client (client/updated)",
-    description: "Triggers when a vcita \"client/updated\" webhook fires.",
+    description: "Triggers when an inTandem \"client/updated\" webhook fires.",
   },
   operation: {
     type: 'hook',

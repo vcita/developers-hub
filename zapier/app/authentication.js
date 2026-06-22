@@ -6,11 +6,11 @@ module.exports = {
   fields: [
     {
       key: 'api_token',
-      label: 'vcita API Token',
+      label: 'inTandem API Token',
       type: 'string',
       required: true,
       helpText:
-        'A business-level (staff/app) vcita API token. Sent as a Bearer token on every request.',
+        'A business-level (staff/app) inTandem API token. Sent as a Bearer token on every request.',
     },
   ],
   // Validates the token against a cheap business-scoped endpoint.
@@ -18,5 +18,5 @@ module.exports = {
     url: `${BASE_URL}/platform/v1/webhooks`,
     method: 'GET',
   },
-  connectionLabel: 'vcita ({{bundle.authData.api_token}})',
+  connectionLabel: 'inTandem ({{bundle.authData.api_token}})',
 };

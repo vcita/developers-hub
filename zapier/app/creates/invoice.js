@@ -331,7 +331,7 @@ module.exports = {
   noun: "Invoice",
   display: {
     label: "Create Invoice",
-    description: "Create a invoice in vcita.",
+    description: "Create a invoice in inTandem.",
   },
   operation: { inputFields, perform },
 };

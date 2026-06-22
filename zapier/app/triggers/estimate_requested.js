@@ -100,7 +100,7 @@ module.exports = {
   noun: "Estimate",
   display: {
     label: "New Estimate (estimate/requested)",
-    description: "Triggers when a vcita \"estimate/requested\" webhook fires.",
+    description: "Triggers when an inTandem \"estimate/requested\" webhook fires.",
   },
   operation: {
     type: 'hook',

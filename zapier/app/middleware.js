@@ -13,7 +13,7 @@ const includeBearerToken = (request, z, bundle) => {
 const checkForErrors = (response, z) => {
   if (response.status >= 400) {
     throw new z.errors.Error(
-      `vcita API ${response.status}: ${response.content}`,
+      `inTandem API ${response.status}: ${response.content}`,
       'APIError',
       response.status
     );

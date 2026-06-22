@@ -91,7 +91,7 @@ module.exports = {
   noun: "Client Note",
   display: {
     label: "Create Client Note",
-    description: "Create a client note in vcita.",
+    description: "Create a client note in inTandem.",
   },
   operation: { inputFields, perform },
 };

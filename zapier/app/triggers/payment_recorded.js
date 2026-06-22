@@ -159,7 +159,7 @@ module.exports = {
   noun: "Payment",
   display: {
     label: "New Payment (payment/recorded)",
-    description: "Triggers when a vcita \"payment/recorded\" webhook fires.",
+    description: "Triggers when an inTandem \"payment/recorded\" webhook fires.",
   },
   operation: {
     type: 'hook',

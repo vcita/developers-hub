@@ -148,7 +148,7 @@ module.exports = {
   noun: "Invoice",
   display: {
     label: "New Invoice (invoice/issued)",
-    description: "Triggers when a vcita \"invoice/issued\" webhook fires.",
+    description: "Triggers when an inTandem \"invoice/issued\" webhook fires.",
   },
   operation: {
     type: 'hook',

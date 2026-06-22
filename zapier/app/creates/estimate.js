@@ -295,7 +295,7 @@ module.exports = {
   noun: "Estimate",
   display: {
     label: "Create Estimate",
-    description: "Create a estimate in vcita.",
+    description: "Create a estimate in inTandem.",
   },
   operation: { inputFields, perform },
 };

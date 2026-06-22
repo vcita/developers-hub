@@ -240,7 +240,7 @@ module.exports = {
   noun: "Lead",
   display: {
     label: "Create Lead",
-    description: "Create a lead in vcita.",
+    description: "Create a lead in inTandem.",
   },
   operation: { inputFields, perform },
 };

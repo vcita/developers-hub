@@ -224,7 +224,7 @@ module.exports = {
   noun: "Client",
   display: {
     label: "Create Client",
-    description: "Create a client in vcita.",
+    description: "Create a client in inTandem.",
   },
   operation: { inputFields, perform },
 };

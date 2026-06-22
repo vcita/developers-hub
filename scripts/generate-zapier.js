@@ -180,7 +180,7 @@ module.exports = {
   noun: ${j(create.noun)},
   display: {
     label: ${j(create.label)},
-    description: ${j(`Create a ${create.noun.toLowerCase()} in vcita.`)},
+    description: ${j(`Create a ${create.noun.toLowerCase()} in inTandem.`)},
   },
   operation: { inputFields, perform },
 };
@@ -229,7 +229,7 @@ module.exports = {
   noun: ${j(trigger.noun)},
   display: {
     label: ${j(`New ${trigger.noun} (${trigger.event})`)},
-    description: ${j(`Triggers when a vcita "${trigger.event}" webhook fires.`)},
+    description: ${j(`Triggers when an inTandem "${trigger.event}" webhook fires.`)},
   },
   operation: {
     type: 'hook',

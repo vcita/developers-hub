@@ -142,7 +142,7 @@ module.exports = {
   noun: "Appointment",
   display: {
     label: "New Appointment (appointment/cancelled)",
-    description: "Triggers when a vcita \"appointment/cancelled\" webhook fires.",
+    description: "Triggers when an inTandem \"appointment/cancelled\" webhook fires.",
   },
   operation: {
     type: 'hook',

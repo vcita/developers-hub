@@ -229,7 +229,7 @@ module.exports = {
   noun: "Payment",
   display: {
     label: "Create Payment",
-    description: "Create a payment in vcita.",
+    description: "Create a payment in inTandem.",
   },
   operation: { inputFields, perform },
 };

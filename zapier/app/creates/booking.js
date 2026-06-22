@@ -236,7 +236,7 @@ module.exports = {
   noun: "Appointment",
   display: {
     label: "Create Booking",
-    description: "Create a appointment in vcita.",
+    description: "Create a appointment in inTandem.",
   },
   operation: { inputFields, perform },
 };

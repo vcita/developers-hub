@@ -1,4 +1,4 @@
-# vcita Zapier App (generated)
+# inTandem Zapier App (generated)
 
 This is a [Zapier Platform CLI](https://platform.zapier.com/) app **generated**
 from developers-hub specs. Do not hand-edit `index.js`, `triggers/`, or
@@ -23,7 +23,7 @@ exposed. See [`../docs/`](../docs/) for scope and architecture.
 
 ## Auth
 
-Custom auth: the user pastes a business-level (staff/app) vcita API token, sent
+Custom auth: the user pastes a business-level (staff/app) inTandem API token, sent
 as a Bearer token. Validated against `GET /platform/v1/webhooks`.
 
 ## Triggers
