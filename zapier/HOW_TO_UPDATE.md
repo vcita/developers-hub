@@ -82,6 +82,31 @@ cd zapier/app && zapier-platform validate   # Zapier's own checks
 are advisory (e.g. an ID field with no list endpoint to back a dropdown) and
 don't block.
 
+## Smoke test (does it actually work against the live API?)
+
+`npm run test:zapier` is offline (unit tests only). To check the app against the
+**real inTandem API**, use the smoke test. It needs a token and **skips itself**
+when none is present (so it never breaks CI/normal runs).
+
+```bash
+cp zapier/app/.env.example zapier/app/.env   # then set INTANDEM_SMOKE_TOKEN=<staff token>
+npm run zapier:smoke                         # Tier 1: SAFE
+```
+**Tier 1 (safe, default):** validates auth, subscribes+unsubscribes every webhook
+trigger (self-cleaning), and reads every dropdown list endpoint. Writes no data.
+
+```bash
+npm run zapier:smoke:creates                 # Tier 2: DESTRUCTIVE — sandbox only
+```
+**Tier 2 (opt-in):** also exercises all 9 creates, so it **writes real records** —
+run it only against a **sandbox** business. Records are labelled `Zapier Smoke …`
+for manual cleanup (the app has no delete actions). Set
+`INTANDEM_SMOKE_BUSINESS_UID` in `.env` to hard-guard the target business.
+
+Run it with **Node 22** (same as the CLI). A failure pinpoints the broken
+operation (e.g. `inTandem API 404: …`). For ad-hoc manual checks:
+`npx zapier-platform-cli invoke trigger list_clients`.
+
 ## Publish a new version
 
 Requires **Node ≥ 22** and **zapier-platform-cli v19** (see
