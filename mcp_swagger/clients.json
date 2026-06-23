@@ -7,12 +7,12 @@
     "x-generated": {
       "sourceFiles": [
         "manage_clients.json",
-        "legacy_v1_clients.json",
-        "client_settings.json",
-        "search.json",
         "notes.json",
-        "clients_payments.json",
+        "client_settings.json",
+        "legacy_v1_clients.json",
+        "search.json",
         "client_messaging.json",
+        "clients_payments.json",
         "crm_views.json"
       ],
       "pathNormalizations": [
@@ -144,6 +144,17 @@
           ]
         },
         {
+          "file": "client_messaging.json",
+          "basePath": "/client/messaging",
+          "transformations": [
+            {
+              "original": "/v1/messages",
+              "normalized": "/client/messaging/v1/messages",
+              "basePath": "/client/messaging"
+            }
+          ]
+        },
+        {
           "file": "clients_payments.json",
           "basePath": "/client/payments",
           "transformations": [
@@ -230,17 +241,6 @@
           ]
         },
         {
-          "file": "client_messaging.json",
-          "basePath": "/client/messaging",
-          "transformations": [
-            {
-              "original": "/v1/messages",
-              "normalized": "/client/messaging/v1/messages",
-              "basePath": "/client/messaging"
-            }
-          ]
-        },
-        {
           "file": "crm_views.json",
           "basePath": "/business/search/v1",
           "transformations": [
@@ -277,10 +277,10 @@
         {
           "type": "schema",
           "name": "ErrorResponse",
-          "resolution": "Renamed to ErrorResponse_notes",
+          "resolution": "Renamed to ErrorResponse_search",
           "files": [
             "merged",
-            "notes.json"
+            "search.json"
           ]
         }
       ],
@@ -2353,6 +2353,837 @@
         ]
       }
     },
+    "/v3/clients/client_notes": {
+      "get": {
+        "summary": "Get all ClientNotes",
+        "description": "Get a list of ClientNotes for a specific matter\n\nAvailable for **Staff tokens**",
+        "parameters": [
+          {
+            "name": "matter_uid",
+            "required": true,
+            "in": "query",
+            "description": "Unique identifier of the client matter to retrieve notes for",
+            "schema": {
+              "type": "string"
+            },
+            "example": "you37bj7mnbv372g"
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number of results.",
+            "schema": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 10000,
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "required": false,
+            "in": "query",
+            "description": "How many items to return per page. Maximum: 100",
+            "schema": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {
+              "Note-Summary-ETA-Seconds": {
+                "description": "Estimated time in seconds until the AI-generated summary is expected to be ready. Only present when summary_status is 'in_progress'. Clients should poll again after approximately this duration. This is an estimate and actual completion time may vary.",
+                "schema": {
+                  "type": "number",
+                  "format": "float"
+                },
+                "example": 3.5
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/MultiClientNoteResponse"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "client_notes": [
+                      {
+                        "uid": "197om8659kkgq6pm",
+                        "business_uid": "d290f1ee26c54",
+                        "matter_uid": "you37bj7mnbv372g",
+                        "content": "<div>some note here</div>",
+                        "title": "Follow-up discussion",
+                        "staff_uid": "ctxr1h6y69d46vaj",
+                        "entity_uid": "25p7fdsyg887ttn9",
+                        "entity_type": "meeting",
+                        "entity_title": "Quick one",
+                        "summary": "Brief discussion about scheduling matters",
+                        "summary_status": "generated",
+                        "created_at": "2026-04-01T07:00:23Z",
+                        "updated_at": "2026-04-01T07:00:23Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Invalid query parameters or malformed request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "matter_uid",
+                      "code": "required",
+                      "message": "matter_uid is required"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions to access this resource"
+          },
+          "404": {
+            "description": "Not Found - The specified matter was not found"
+          }
+        },
+        "tags": [
+          "Client Notes"
+        ],
+        "security": [
+          {
+            "Notes": []
+          }
+        ]
+      },
+      "post": {
+        "summary": "Create a ClientNote",
+        "description": "Create a new note for a client matter\n\nAvailable for **Staff tokens**",
+        "parameters": [
+          {
+            "name": "skip_summary_generation",
+            "in": "query",
+            "required": false,
+            "description": "If true, skips AI summary generation for this note. The note will be created with summary_status set to 'skipped'. Useful for batch imports, migrations, or when summary is not needed.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateClientNoteRequest"
+              },
+              "example": {
+                "matter_uid": "you37bj7mnbv372g",
+                "content": "Client requested additional information about our service packages. Sent detailed pricing breakdown via email.",
+                "title": "Service inquiry follow-up",
+                "entity_uid": "25p7fdsyg887ttn9",
+                "entity_type": "meeting"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {
+              "Note-Summary-ETA-Seconds": {
+                "description": "Estimated time in seconds until the AI-generated summary is expected to be ready. Only present when summary_status is 'in_progress'. Clients should poll again after approximately this duration. This is an estimate and actual completion time may vary.",
+                "schema": {
+                  "type": "number",
+                  "format": "float"
+                },
+                "example": 3.5
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/clients/client_note.json"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "uid": "197om8659kkgq6pm",
+                    "business_uid": "d290f1ee26c54",
+                    "matter_uid": "you37bj7mnbv372g",
+                    "content": "<div>Client requested follow-up on proposal. Sent detailed pricing breakdown via email.</div>",
+                    "staff_uid": "ctxr1h6y69d46vaj",
+                    "entity_uid": null,
+                    "entity_type": null,
+                    "entity_title": null,
+                    "title": null,
+                    "summary": null,
+                    "summary_status": "in_progress",
+                    "created_at": "2026-04-01T07:00:23Z",
+                    "updated_at": "2026-04-01T07:00:23Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Malformed request or invalid syntax"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions to create notes"
+          },
+          "404": {
+            "description": "Not Found - The specified matter was not found"
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error with valid syntax",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "invalid",
+                      "message": "At least one of title or content must be provided"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Client Notes"
+        ],
+        "security": [
+          {
+            "Notes": []
+          }
+        ]
+      }
+    },
+    "/v3/clients/client_notes/{uid}": {
+      "get": {
+        "summary": "Retrieve a ClientNote",
+        "description": "Retrieve a specific ClientNote based on it's unique identifier (UID)\n\nAvailable for **Staff tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the note",
+            "schema": {
+              "type": "string"
+            },
+            "example": "ubneca28lj0komfa"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {
+              "Note-Summary-ETA-Seconds": {
+                "description": "Estimated time in seconds until the AI-generated summary is expected to be ready. Only present when summary_status is 'in_progress'. Clients should poll again after approximately this duration. This is an estimate and actual completion time may vary.",
+                "schema": {
+                  "type": "number",
+                  "format": "float"
+                },
+                "example": 3.5
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/clients/client_note.json"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "uid": "197om8659kkgq6pm",
+                    "business_uid": "d290f1ee26c54",
+                    "matter_uid": "you37bj7mnbv372g",
+                    "content": "<div>Client requested follow-up on proposal. Sent detailed pricing breakdown via email.</div>",
+                    "staff_uid": "ctxr1h6y69d46vaj",
+                    "entity_uid": null,
+                    "entity_type": null,
+                    "entity_title": null,
+                    "title": null,
+                    "summary": null,
+                    "summary_status": "in_progress",
+                    "created_at": "2026-04-01T07:00:23Z",
+                    "updated_at": "2026-04-01T07:00:23Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions to access this note"
+          },
+          "404": {
+            "description": "Not Found - The specified note was not found"
+          }
+        },
+        "tags": [
+          "Client Notes"
+        ],
+        "security": [
+          {
+            "Notes": []
+          }
+        ]
+      },
+      "put": {
+        "summary": "Update a ClientNote",
+        "description": "Update an existing note for a client matter. At least one of title or content must be provided in the request. Additionally, the resulting note must have at least one of title or content non-empty after the update (e.g., you can set content to empty only if title remains non-empty).\n\nAvailable for **Staff tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the note",
+            "schema": {
+              "type": "string"
+            },
+            "example": "ubneca28lj0komfa"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateClientNoteRequest"
+              },
+              "example": {
+                "content": "Updated: Client confirmed they will attend the meeting on Thursday at 2 PM. No need for rescheduling.",
+                "title": "Meeting confirmation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {
+              "Note-Summary-ETA-Seconds": {
+                "description": "Estimated time in seconds until the AI-generated summary is expected to be ready. Only present when summary_status is 'in_progress'. Clients should poll again after approximately this duration. This is an estimate and actual completion time may vary.",
+                "schema": {
+                  "type": "number",
+                  "format": "float"
+                },
+                "example": 3.5
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/clients/client_note.json"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "uid": "197om8659kkgq6pm",
+                    "business_uid": "d290f1ee26c54",
+                    "matter_uid": "you37bj7mnbv372g",
+                    "content": "<div>Client requested follow-up on proposal. Sent detailed pricing breakdown via email.</div>",
+                    "staff_uid": "ctxr1h6y69d46vaj",
+                    "entity_uid": null,
+                    "entity_type": null,
+                    "entity_title": null,
+                    "title": null,
+                    "summary": null,
+                    "summary_status": "in_progress",
+                    "created_at": "2026-04-01T07:00:23Z",
+                    "updated_at": "2026-04-01T07:00:23Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Malformed request or invalid syntax"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions to update this note"
+          },
+          "404": {
+            "description": "Not Found - The specified note was not found"
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error with valid syntax",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "invalid",
+                      "message": "The resulting note must have at least one of title or content non-empty"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Client Notes"
+        ],
+        "security": [
+          {
+            "Notes": []
+          }
+        ]
+      },
+      "delete": {
+        "summary": "Delete a ClientNote",
+        "description": "Delete a specific ClientNote based on it's unique identifier (UID)\n\nAvailable for **Staff tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the note to delete (e.g., \"note_abc123xyz\")",
+            "schema": {
+              "type": "string"
+            },
+            "example": "ubneca28lj0komfa"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions to delete this note"
+          },
+          "404": {
+            "description": "Not Found - The specified note was not found"
+          }
+        },
+        "tags": [
+          "Client Notes"
+        ],
+        "security": [
+          {
+            "Notes": []
+          }
+        ]
+      }
+    },
+    "/v3/clients/client_settings/{client_uid}": {
+      "get": {
+        "summary": "Retrieve Client Settings",
+        "description": "## Overview\nGet the client settings for a specific client.\n\n## Authentication\n**Available for Staff and Client Tokens.**",
+        "parameters": [
+          {
+            "name": "client_uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the Client",
+            "schema": {
+              "type": "string"
+            },
+            "example": "cmf62p00w2ns3chq"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/clients/clientSettings.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Client Settings"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "put": {
+        "summary": "Update Client Settings",
+        "description": "## Overview\nUpdate the client settings for a specific client - Update the client settings for a specific client - Available for **Staff and Client Tokens**.",
+        "parameters": [
+          {
+            "name": "client_uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the Client",
+            "schema": {
+              "type": "string"
+            },
+            "example": "cmf62p00w2ns3chq"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "opt_out_transactional_sms": {
+                    "type": "boolean",
+                    "description": "Opt out from transactional SMS"
+                  }
+                },
+                "required": [
+                  "client_uid"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/clients/clientSettings.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Client Settings"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/clients/client_settings/bulk": {
+      "put": {
+        "summary": "Bulk Update Client Settings",
+        "description": "## Overview\nBulk update client settings for multiple clients in a single operation. Supports partial success - individual clients can fail while others succeed.\n\n## Currently Supported Field\nThis endpoint currently supports updating **only** the `opt_out_transactional_sms` field. Any request containing other fields will be rejected with a validation error.\n\n## Field Requirements\n- `opt_out_transactional_sms` must be an explicit boolean value (`true` or `false`)\n- `null` values are **not allowed**\n- Missing the field will cause validation failure\n\n## Limits\n- Maximum 5000 clients per request\n- Duplicate client UIDs are not allowed\n- Additional rate limits apply per business\n\n## Authentication\n**Available for Staff Tokens only.**\n\nClient tokens should use the single update endpoint `/v3/clients/client_settings/{client_uid}` instead.\n\n## Response Behavior\n- Returns HTTP 200 with an array of results (one per client)\n- Each result includes a `success` boolean and either `data` (on success) or `errors` (on failure)\n- Individual client failures (e.g., not found) do not prevent other clients from being updated",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkUpdateRequest"
+              },
+              "example": {
+                "client_settings": [
+                  {
+                    "client_uid": "cmf62p00w2ns3chq",
+                    "opt_out_transactional_sms": true
+                  },
+                  {
+                    "client_uid": "cmf62p10x3ot4dir",
+                    "opt_out_transactional_sms": false
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bulk update completed (may contain partial failures)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "client_settings": {
+                              "type": "array",
+                              "description": "Array of results for each client (all items have success indicator)",
+                              "items": {
+                                "type": "object",
+                                "required": [
+                                  "success"
+                                ],
+                                "properties": {
+                                  "success": {
+                                    "type": "boolean",
+                                    "description": "Indicates if the operation succeeded for this client"
+                                  },
+                                  "data": {
+                                    "description": "Client settings data (only present when success is true)",
+                                    "$ref": "https://vcita.github.io/developers-hub/entities/clients/clientSettings.json"
+                                  },
+                                  "errors": {
+                                    "type": "array",
+                                    "description": "Error details (only present when success is false)",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "code": {
+                                          "type": "string",
+                                          "example": "not_found"
+                                        },
+                                        "message": {
+                                          "type": "string",
+                                          "example": "Client not found"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "client_settings": [
+                      {
+                        "success": true,
+                        "data": {
+                          "client_uid": "cmf62p00w2ns3chq",
+                          "opt_out_transactional_sms": true,
+                          "preferred_language": null,
+                          "effective_language": "en",
+                          "created_at": "2026-04-29T13:56:58.123Z",
+                          "updated_at": "2026-04-29T13:56:58.123Z"
+                        }
+                      },
+                      {
+                        "success": false,
+                        "errors": [
+                          {
+                            "code": "not_found",
+                            "message": "Client not found"
+                          }
+                        ]
+                      },
+                      {
+                        "success": true,
+                        "data": {
+                          "client_uid": "cmf62p10x3ot4dir",
+                          "opt_out_transactional_sms": false,
+                          "preferred_language": "es",
+                          "effective_language": "es",
+                          "created_at": "2026-04-29T13:56:58.123Z",
+                          "updated_at": "2026-04-29T13:56:58.123Z"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - only staff tokens allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string",
+                            "example": "unauthorized"
+                          },
+                          "message": {
+                            "type": "string",
+                            "example": "Only staff tokens are allowed for bulk operations"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error (invalid fields, missing required field, duplicates, or exceeds max batch size)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string",
+                            "example": "invalid"
+                          },
+                          "field": {
+                            "type": "string",
+                            "example": "opt_out_transactional_sms"
+                          },
+                          "message": {
+                            "type": "string",
+                            "example": "Only 'client_uid' and 'opt_out_transactional_sms' fields are allowed"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Client Settings"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/platform/v1/clients": {
       "get": {
         "description": "## Overview\nRetrieves a paginated list of clients for the business. Supports searching by various attributes and filtering by update timestamp.\n\n## Authentication\n**Available for Staff, App, and Directory Tokens.**",
@@ -3781,325 +4612,6 @@
         ]
       }
     },
-    "/v3/clients/client_settings/{client_uid}": {
-      "get": {
-        "summary": "Retrieve Client Settings",
-        "description": "## Overview\nGet the client settings for a specific client.\n\n## Authentication\n**Available for Staff and Client Tokens.**",
-        "parameters": [
-          {
-            "name": "client_uid",
-            "required": true,
-            "in": "path",
-            "description": "Unique identifier of the Client",
-            "schema": {
-              "type": "string"
-            },
-            "example": "cmf62p00w2ns3chq"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/clients/clientSettings.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Client Settings"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      },
-      "put": {
-        "summary": "Update Client Settings",
-        "description": "## Overview\nUpdate the client settings for a specific client - Update the client settings for a specific client - Available for **Staff and Client Tokens**.",
-        "parameters": [
-          {
-            "name": "client_uid",
-            "required": true,
-            "in": "path",
-            "description": "Unique identifier of the Client",
-            "schema": {
-              "type": "string"
-            },
-            "example": "cmf62p00w2ns3chq"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "opt_out_transactional_sms": {
-                    "type": "boolean",
-                    "description": "Opt out from transactional SMS"
-                  }
-                },
-                "required": [
-                  "client_uid"
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/clients/clientSettings.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Client Settings"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/clients/client_settings/bulk": {
-      "put": {
-        "summary": "Bulk Update Client Settings",
-        "description": "## Overview\nBulk update client settings for multiple clients in a single operation. Supports partial success - individual clients can fail while others succeed.\n\n## Currently Supported Field\nThis endpoint currently supports updating **only** the `opt_out_transactional_sms` field. Any request containing other fields will be rejected with a validation error.\n\n## Field Requirements\n- `opt_out_transactional_sms` must be an explicit boolean value (`true` or `false`)\n- `null` values are **not allowed**\n- Missing the field will cause validation failure\n\n## Limits\n- Maximum 5000 clients per request\n- Duplicate client UIDs are not allowed\n- Additional rate limits apply per business\n\n## Authentication\n**Available for Staff Tokens only.**\n\nClient tokens should use the single update endpoint `/v3/clients/client_settings/{client_uid}` instead.\n\n## Response Behavior\n- Returns HTTP 200 with an array of results (one per client)\n- Each result includes a `success` boolean and either `data` (on success) or `errors` (on failure)\n- Individual client failures (e.g., not found) do not prevent other clients from being updated",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/BulkUpdateRequest"
-              },
-              "example": {
-                "client_settings": [
-                  {
-                    "client_uid": "cmf62p00w2ns3chq",
-                    "opt_out_transactional_sms": true
-                  },
-                  {
-                    "client_uid": "cmf62p10x3ot4dir",
-                    "opt_out_transactional_sms": false
-                  }
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Bulk update completed (may contain partial failures)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "type": "object",
-                          "properties": {
-                            "client_settings": {
-                              "type": "array",
-                              "description": "Array of results for each client (all items have success indicator)",
-                              "items": {
-                                "type": "object",
-                                "required": [
-                                  "success"
-                                ],
-                                "properties": {
-                                  "success": {
-                                    "type": "boolean",
-                                    "description": "Indicates if the operation succeeded for this client"
-                                  },
-                                  "data": {
-                                    "description": "Client settings data (only present when success is true)",
-                                    "$ref": "https://vcita.github.io/developers-hub/entities/clients/clientSettings.json"
-                                  },
-                                  "errors": {
-                                    "type": "array",
-                                    "description": "Error details (only present when success is false)",
-                                    "items": {
-                                      "type": "object",
-                                      "properties": {
-                                        "code": {
-                                          "type": "string",
-                                          "example": "not_found"
-                                        },
-                                        "message": {
-                                          "type": "string",
-                                          "example": "Client not found"
-                                        }
-                                      }
-                                    }
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  ]
-                },
-                "example": {
-                  "success": true,
-                  "data": {
-                    "client_settings": [
-                      {
-                        "success": true,
-                        "data": {
-                          "client_uid": "cmf62p00w2ns3chq",
-                          "opt_out_transactional_sms": true,
-                          "preferred_language": null,
-                          "effective_language": "en",
-                          "created_at": "2026-04-29T13:56:58.123Z",
-                          "updated_at": "2026-04-29T13:56:58.123Z"
-                        }
-                      },
-                      {
-                        "success": false,
-                        "errors": [
-                          {
-                            "code": "not_found",
-                            "message": "Client not found"
-                          }
-                        ]
-                      },
-                      {
-                        "success": true,
-                        "data": {
-                          "client_uid": "cmf62p10x3ot4dir",
-                          "opt_out_transactional_sms": false,
-                          "preferred_language": "es",
-                          "effective_language": "es",
-                          "created_at": "2026-04-29T13:56:58.123Z",
-                          "updated_at": "2026-04-29T13:56:58.123Z"
-                        }
-                      }
-                    ]
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - only staff tokens allowed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": false
-                    },
-                    "errors": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "code": {
-                            "type": "string",
-                            "example": "unauthorized"
-                          },
-                          "message": {
-                            "type": "string",
-                            "example": "Only staff tokens are allowed for bulk operations"
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Unprocessable Entity - Validation error (invalid fields, missing required field, duplicates, or exceeds max batch size)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean",
-                      "example": false
-                    },
-                    "errors": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "code": {
-                            "type": "string",
-                            "example": "invalid"
-                          },
-                          "field": {
-                            "type": "string",
-                            "example": "opt_out_transactional_sms"
-                          },
-                          "message": {
-                            "type": "string",
-                            "example": "Only 'client_uid' and 'opt_out_transactional_sms' fields are allowed"
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Client Settings"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
     "/v2/search": {
       "get": {
         "tags": [
@@ -4537,514 +5049,100 @@
         ]
       }
     },
-    "/v3/clients/client_notes": {
-      "get": {
-        "summary": "Get all ClientNotes",
-        "description": "Get a list of ClientNotes for a specific matter\n\nAvailable for **Staff tokens**",
-        "parameters": [
-          {
-            "name": "matter_uid",
-            "required": true,
-            "in": "query",
-            "description": "Unique identifier of the client matter to retrieve notes for",
-            "schema": {
-              "type": "string"
-            },
-            "example": "you37bj7mnbv372g"
-          },
-          {
-            "name": "page",
-            "required": false,
-            "in": "query",
-            "description": "Page number of results.",
-            "schema": {
-              "type": "number",
-              "minimum": 1,
-              "maximum": 10000,
-              "default": 1
-            }
-          },
-          {
-            "name": "per_page",
-            "required": false,
-            "in": "query",
-            "description": "How many items to return per page. Maximum: 100",
-            "schema": {
-              "type": "number",
-              "minimum": 1,
-              "maximum": 100,
-              "default": 25
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "headers": {
-              "Note-Summary-ETA-Seconds": {
-                "description": "Estimated time in seconds until the AI-generated summary is expected to be ready. Only present when summary_status is 'in_progress'. Clients should poll again after approximately this duration. This is an estimate and actual completion time may vary.",
-                "schema": {
-                  "type": "number",
-                  "format": "float"
-                },
-                "example": 3.5
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/MultiClientNoteResponse"
-                        }
-                      }
-                    }
-                  ]
-                },
-                "example": {
-                  "success": true,
-                  "data": {
-                    "client_notes": [
-                      {
-                        "uid": "197om8659kkgq6pm",
-                        "business_uid": "d290f1ee26c54",
-                        "matter_uid": "you37bj7mnbv372g",
-                        "content": "<div>some note here</div>",
-                        "title": "Follow-up discussion",
-                        "staff_uid": "ctxr1h6y69d46vaj",
-                        "entity_uid": "25p7fdsyg887ttn9",
-                        "entity_type": "meeting",
-                        "entity_title": "Quick one",
-                        "summary": "Brief discussion about scheduling matters",
-                        "summary_status": "generated",
-                        "created_at": "2026-04-01T07:00:23Z",
-                        "updated_at": "2026-04-01T07:00:23Z"
-                      }
-                    ]
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Invalid query parameters or malformed request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "field": "matter_uid",
-                      "code": "required",
-                      "message": "matter_uid is required"
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing authentication token"
-          },
-          "403": {
-            "description": "Forbidden - Insufficient permissions to access this resource"
-          },
-          "404": {
-            "description": "Not Found - The specified matter was not found"
-          }
-        },
-        "tags": [
-          "Client Notes"
-        ],
-        "security": [
-          {
-            "Notes": []
-          }
-        ]
-      },
+    "/client/messaging/v1/messages": {
       "post": {
-        "summary": "Create a ClientNote",
-        "description": "Create a new note for a client matter\n\nAvailable for **Staff tokens**",
-        "parameters": [
-          {
-            "name": "skip_summary_generation",
-            "in": "query",
-            "required": false,
-            "description": "If true, skips AI summary generation for this note. The note will be created with summary_status set to 'skipped'. Useful for batch imports, migrations, or when summary is not needed.",
-            "schema": {
-              "type": "boolean",
-              "default": false
+        "description": "## Overview\nSends a message from the authenticated client to the business. The message direction is always `client_to_business` — it is set automatically by the server based on the client token.\n\nThe staff member who receives the message is auto-assigned based on the business's assignment rules and the client's existing relationships.\n\n## Authentication\nAvailable for **Client tokens** only. The client UID and business UID are extracted from the token — no need to pass them in the request body.\n\n## Parameters\n- `message.message` (required) — The text content of the message.\n- `message.subject` (optional) — An optional subject line for the message.\n- `message.entity` (optional) — Entity attachment that controls message type. When omitted, defaults to a plain text message. Set `type` to `\"document\"` and provide `uid` to attach an existing document.\n- `matter_uid` (optional) — The UID of the conversation (matter/engagement) to add the message to. If omitted, the system uses the client's default conversation.",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "Message sent successfully.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "data": {
+                    "message": {
+                      "business_uid": "0ka5ubzrwi7qizsx",
+                      "message_uid": null
+                    }
+                  }
+                }
+              }
             }
+          },
+          "401": {
+            "description": "Unauthorized — invalid or missing client token."
+          },
+          "422": {
+            "description": "Unprocessable Entity — validation error (e.g., missing message text, invalid matter_uid)."
           }
+        },
+        "summary": "Send a Client Message",
+        "tags": [
+          "Client Messages"
         ],
+        "x-auth-type": "Client",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateClientNoteRequest"
-              },
-              "example": {
-                "matter_uid": "you37bj7mnbv372g",
-                "content": "Client requested additional information about our service packages. Sent detailed pricing breakdown via email.",
-                "title": "Service inquiry follow-up",
-                "entity_uid": "25p7fdsyg887ttn9",
-                "entity_type": "meeting"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "headers": {
-              "Note-Summary-ETA-Seconds": {
-                "description": "Estimated time in seconds until the AI-generated summary is expected to be ready. Only present when summary_status is 'in_progress'. Clients should poll again after approximately this duration. This is an estimate and actual completion time may vary.",
-                "schema": {
-                  "type": "number",
-                  "format": "float"
-                },
-                "example": 3.5
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/clients/client_note.json"
+                "type": "object",
+                "required": [
+                  "message"
+                ],
+                "properties": {
+                  "message": {
+                    "type": "object",
+                    "description": "Message payload wrapper.",
+                    "required": [
+                      "message"
+                    ],
+                    "properties": {
+                      "message": {
+                        "type": "string",
+                        "description": "The text content of the message. Required."
+                      },
+                      "subject": {
+                        "type": "string",
+                        "description": "Optional subject line for the message."
+                      },
+                      "entity": {
+                        "type": "object",
+                        "description": "Optional entity attachment for the message. Controls the message type and, for document messages, attaches a file. When omitted entirely, the message type defaults to `text` (plain text message). The only supported entity type that triggers special behavior is `document` — all other values (including `text`) result in a standard text message with no attachment.",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "description": "The entity type, which determines the message type. Supported values:\n- `\"text\"` (default) — A plain text message. No additional fields are needed.\n- `\"document\"` — Attaches an existing document to the message. Requires `uid` to reference the document. The message will be linked to the document record and the staff member who owns the document will be auto-assigned if no other staff is resolved.",
+                            "enum": [
+                              "text",
+                              "document"
+                            ],
+                            "default": "text"
+                          },
+                          "uid": {
+                            "type": "string",
+                            "description": "The UID of an existing Document record to attach to the message. Required when `type` is `\"document\"`. The document must belong to the business associated with the client token."
+                          },
+                          "object": {
+                            "type": "string",
+                            "description": "Optional metadata string stored alongside the document attachment in the message data. Only used when `type` is `\"document\"`."
+                          }
                         }
                       }
                     }
-                  ]
-                },
-                "example": {
-                  "success": true,
-                  "data": {
-                    "uid": "197om8659kkgq6pm",
-                    "business_uid": "d290f1ee26c54",
-                    "matter_uid": "you37bj7mnbv372g",
-                    "content": "<div>Client requested follow-up on proposal. Sent detailed pricing breakdown via email.</div>",
-                    "staff_uid": "ctxr1h6y69d46vaj",
-                    "entity_uid": null,
-                    "entity_type": null,
-                    "entity_title": null,
-                    "title": null,
-                    "summary": null,
-                    "summary_status": "in_progress",
-                    "created_at": "2026-04-01T07:00:23Z",
-                    "updated_at": "2026-04-01T07:00:23Z"
+                  },
+                  "matter_uid": {
+                    "type": "string",
+                    "description": "UID of the conversation (matter/engagement) to add the message to. If omitted, the system uses the client's default conversation."
                   }
                 }
               }
             }
-          },
-          "400": {
-            "description": "Bad Request - Malformed request or invalid syntax"
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing authentication token"
-          },
-          "403": {
-            "description": "Forbidden - Insufficient permissions to create notes"
-          },
-          "404": {
-            "description": "Not Found - The specified matter was not found"
-          },
-          "422": {
-            "description": "Unprocessable Entity - Validation error with valid syntax",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "invalid",
-                      "message": "At least one of title or content must be provided"
-                    }
-                  ]
-                }
-              }
-            }
           }
         },
-        "tags": [
-          "Client Notes"
-        ],
         "security": [
           {
-            "Notes": []
-          }
-        ]
-      }
-    },
-    "/v3/clients/client_notes/{uid}": {
-      "get": {
-        "summary": "Retrieve a ClientNote",
-        "description": "Retrieve a specific ClientNote based on it's unique identifier (UID)\n\nAvailable for **Staff tokens**",
-        "parameters": [
-          {
-            "name": "uid",
-            "required": true,
-            "in": "path",
-            "description": "Unique identifier of the note",
-            "schema": {
-              "type": "string"
-            },
-            "example": "ubneca28lj0komfa"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "headers": {
-              "Note-Summary-ETA-Seconds": {
-                "description": "Estimated time in seconds until the AI-generated summary is expected to be ready. Only present when summary_status is 'in_progress'. Clients should poll again after approximately this duration. This is an estimate and actual completion time may vary.",
-                "schema": {
-                  "type": "number",
-                  "format": "float"
-                },
-                "example": 3.5
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/clients/client_note.json"
-                        }
-                      }
-                    }
-                  ]
-                },
-                "example": {
-                  "success": true,
-                  "data": {
-                    "uid": "197om8659kkgq6pm",
-                    "business_uid": "d290f1ee26c54",
-                    "matter_uid": "you37bj7mnbv372g",
-                    "content": "<div>Client requested follow-up on proposal. Sent detailed pricing breakdown via email.</div>",
-                    "staff_uid": "ctxr1h6y69d46vaj",
-                    "entity_uid": null,
-                    "entity_type": null,
-                    "entity_title": null,
-                    "title": null,
-                    "summary": null,
-                    "summary_status": "in_progress",
-                    "created_at": "2026-04-01T07:00:23Z",
-                    "updated_at": "2026-04-01T07:00:23Z"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing authentication token"
-          },
-          "403": {
-            "description": "Forbidden - Insufficient permissions to access this note"
-          },
-          "404": {
-            "description": "Not Found - The specified note was not found"
-          }
-        },
-        "tags": [
-          "Client Notes"
-        ],
-        "security": [
-          {
-            "Notes": []
-          }
-        ]
-      },
-      "put": {
-        "summary": "Update a ClientNote",
-        "description": "Update an existing note for a client matter. At least one of title or content must be provided in the request. Additionally, the resulting note must have at least one of title or content non-empty after the update (e.g., you can set content to empty only if title remains non-empty).\n\nAvailable for **Staff tokens**",
-        "parameters": [
-          {
-            "name": "uid",
-            "required": true,
-            "in": "path",
-            "description": "Unique identifier of the note",
-            "schema": {
-              "type": "string"
-            },
-            "example": "ubneca28lj0komfa"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateClientNoteRequest"
-              },
-              "example": {
-                "content": "Updated: Client confirmed they will attend the meeting on Thursday at 2 PM. No need for rescheduling.",
-                "title": "Meeting confirmation"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "headers": {
-              "Note-Summary-ETA-Seconds": {
-                "description": "Estimated time in seconds until the AI-generated summary is expected to be ready. Only present when summary_status is 'in_progress'. Clients should poll again after approximately this duration. This is an estimate and actual completion time may vary.",
-                "schema": {
-                  "type": "number",
-                  "format": "float"
-                },
-                "example": 3.5
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/clients/client_note.json"
-                        }
-                      }
-                    }
-                  ]
-                },
-                "example": {
-                  "success": true,
-                  "data": {
-                    "uid": "197om8659kkgq6pm",
-                    "business_uid": "d290f1ee26c54",
-                    "matter_uid": "you37bj7mnbv372g",
-                    "content": "<div>Client requested follow-up on proposal. Sent detailed pricing breakdown via email.</div>",
-                    "staff_uid": "ctxr1h6y69d46vaj",
-                    "entity_uid": null,
-                    "entity_type": null,
-                    "entity_title": null,
-                    "title": null,
-                    "summary": null,
-                    "summary_status": "in_progress",
-                    "created_at": "2026-04-01T07:00:23Z",
-                    "updated_at": "2026-04-01T07:00:23Z"
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Malformed request or invalid syntax"
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing authentication token"
-          },
-          "403": {
-            "description": "Forbidden - Insufficient permissions to update this note"
-          },
-          "404": {
-            "description": "Not Found - The specified note was not found"
-          },
-          "422": {
-            "description": "Unprocessable Entity - Validation error with valid syntax",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "invalid",
-                      "message": "The resulting note must have at least one of title or content non-empty"
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Client Notes"
-        ],
-        "security": [
-          {
-            "Notes": []
-          }
-        ]
-      },
-      "delete": {
-        "summary": "Delete a ClientNote",
-        "description": "Delete a specific ClientNote based on it's unique identifier (UID)\n\nAvailable for **Staff tokens**",
-        "parameters": [
-          {
-            "name": "uid",
-            "required": true,
-            "in": "path",
-            "description": "Unique identifier of the note to delete (e.g., \"note_abc123xyz\")",
-            "schema": {
-              "type": "string"
-            },
-            "example": "ubneca28lj0komfa"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing authentication token"
-          },
-          "403": {
-            "description": "Forbidden - Insufficient permissions to delete this note"
-          },
-          "404": {
-            "description": "Not Found - The specified note was not found"
-          }
-        },
-        "tags": [
-          "Client Notes"
-        ],
-        "security": [
-          {
-            "Notes": []
+            "ClientMessaging": []
           }
         ]
       }
@@ -6994,104 +7092,6 @@
         ]
       }
     },
-    "/client/messaging/v1/messages": {
-      "post": {
-        "description": "## Overview\nSends a message from the authenticated client to the business. The message direction is always `client_to_business` — it is set automatically by the server based on the client token.\n\nThe staff member who receives the message is auto-assigned based on the business's assignment rules and the client's existing relationships.\n\n## Authentication\nAvailable for **Client tokens** only. The client UID and business UID are extracted from the token — no need to pass them in the request body.\n\n## Parameters\n- `message.message` (required) — The text content of the message.\n- `message.subject` (optional) — An optional subject line for the message.\n- `message.entity` (optional) — Entity attachment that controls message type. When omitted, defaults to a plain text message. Set `type` to `\"document\"` and provide `uid` to attach an existing document.\n- `matter_uid` (optional) — The UID of the conversation (matter/engagement) to add the message to. If omitted, the system uses the client's default conversation.",
-        "parameters": [],
-        "responses": {
-          "201": {
-            "description": "Message sent successfully.",
-            "content": {
-              "application/json": {
-                "example": {
-                  "success": true,
-                  "data": {
-                    "message": {
-                      "business_uid": "0ka5ubzrwi7qizsx",
-                      "message_uid": null
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized — invalid or missing client token."
-          },
-          "422": {
-            "description": "Unprocessable Entity — validation error (e.g., missing message text, invalid matter_uid)."
-          }
-        },
-        "summary": "Send a Client Message",
-        "tags": [
-          "Client Messages"
-        ],
-        "x-auth-type": "Client",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "message"
-                ],
-                "properties": {
-                  "message": {
-                    "type": "object",
-                    "description": "Message payload wrapper.",
-                    "required": [
-                      "message"
-                    ],
-                    "properties": {
-                      "message": {
-                        "type": "string",
-                        "description": "The text content of the message. Required."
-                      },
-                      "subject": {
-                        "type": "string",
-                        "description": "Optional subject line for the message."
-                      },
-                      "entity": {
-                        "type": "object",
-                        "description": "Optional entity attachment for the message. Controls the message type and, for document messages, attaches a file. When omitted entirely, the message type defaults to `text` (plain text message). The only supported entity type that triggers special behavior is `document` — all other values (including `text`) result in a standard text message with no attachment.",
-                        "properties": {
-                          "type": {
-                            "type": "string",
-                            "description": "The entity type, which determines the message type. Supported values:\n- `\"text\"` (default) — A plain text message. No additional fields are needed.\n- `\"document\"` — Attaches an existing document to the message. Requires `uid` to reference the document. The message will be linked to the document record and the staff member who owns the document will be auto-assigned if no other staff is resolved.",
-                            "enum": [
-                              "text",
-                              "document"
-                            ],
-                            "default": "text"
-                          },
-                          "uid": {
-                            "type": "string",
-                            "description": "The UID of an existing Document record to attach to the message. Required when `type` is `\"document\"`. The document must belong to the business associated with the client token."
-                          },
-                          "object": {
-                            "type": "string",
-                            "description": "Optional metadata string stored alongside the document attachment in the message data. Only used when `type` is `\"document\"`."
-                          }
-                        }
-                      }
-                    }
-                  },
-                  "matter_uid": {
-                    "type": "string",
-                    "description": "UID of the conversation (matter/engagement) to add the message to. If omitted, the system uses the client's default conversation."
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "ClientMessaging": []
-          }
-        ]
-      }
-    },
     "/business/search/v1/views": {
       "get": {
         "summary": "Get all views",
@@ -8096,6 +8096,117 @@
       }
     },
     "schemas": {
+      "CreateClientNoteRequest": {
+        "type": "object",
+        "properties": {
+          "matter_uid": {
+            "type": "string",
+            "description": "Unique identifier of the client matter this note belongs to"
+          },
+          "content": {
+            "type": "string",
+            "description": "The HTML or text content of the note. May contain HTML markup for rich text formatting (e.g., \"<div>some note here</div>\"). Can be empty. At least one of title or content must be provided."
+          },
+          "title": {
+            "type": "string",
+            "description": "Title for the note. Provides a brief heading or subject line for the note content. At least one of title or content must be provided."
+          },
+          "entity_uid": {
+            "type": "string",
+            "description": "Unique identifier of the entity this note is associated with (e.g., document, payment, meeting). Optional - omit if the note is not linked to any specific entity."
+          },
+          "entity_type": {
+            "type": "string",
+            "enum": [
+              "document",
+              "payment",
+              "meeting"
+            ],
+            "description": "Type of entity this note is associated with. Required if entity_uid is provided. Possible values: document (note linked to a document), payment (note linked to a payment), meeting (note linked to a meeting)."
+          }
+        },
+        "required": [
+          "matter_uid"
+        ],
+        "anyOf": [
+          {
+            "required": [
+              "title"
+            ]
+          },
+          {
+            "required": [
+              "content"
+            ]
+          }
+        ]
+      },
+      "UpdateClientNoteRequest": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "The HTML or text content of the note. May contain HTML markup for rich text formatting (e.g., \"<div>Updated note content</div>\"). Can be set to an empty string, but the resulting note must have at least one of title or content non-empty after the update."
+          },
+          "title": {
+            "type": "string",
+            "description": "Title for the note. Provides a brief heading or subject line for the note content. Can be set to an empty string, but the resulting note must have at least one of title or content non-empty after the update."
+          }
+        },
+        "anyOf": [
+          {
+            "required": [
+              "title"
+            ]
+          },
+          {
+            "required": [
+              "content"
+            ]
+          }
+        ]
+      },
+      "MultiClientNoteResponse": {
+        "type": "object",
+        "properties": {
+          "client_notes": {
+            "type": "array",
+            "description": "List of client notes",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/clients/client_note.json"
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": false
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "The field that caused the error"
+                },
+                "code": {
+                  "type": "string",
+                  "description": "Error code"
+                },
+                "message": {
+                  "type": "string",
+                  "description": "Human-readable error message"
+                }
+              }
+            }
+          }
+        }
+      },
       "ClientSettingsList": {
         "type": "object",
         "properties": {
@@ -8644,7 +8755,7 @@
           }
         }
       },
-      "ErrorResponse": {
+      "ErrorResponse_search": {
         "type": "object",
         "properties": {
           "success": {
@@ -8661,117 +8772,6 @@
           "message": {
             "type": "string",
             "description": "Human-readable error message."
-          }
-        }
-      },
-      "CreateClientNoteRequest": {
-        "type": "object",
-        "properties": {
-          "matter_uid": {
-            "type": "string",
-            "description": "Unique identifier of the client matter this note belongs to"
-          },
-          "content": {
-            "type": "string",
-            "description": "The HTML or text content of the note. May contain HTML markup for rich text formatting (e.g., \"<div>some note here</div>\"). Can be empty. At least one of title or content must be provided."
-          },
-          "title": {
-            "type": "string",
-            "description": "Title for the note. Provides a brief heading or subject line for the note content. At least one of title or content must be provided."
-          },
-          "entity_uid": {
-            "type": "string",
-            "description": "Unique identifier of the entity this note is associated with (e.g., document, payment, meeting). Optional - omit if the note is not linked to any specific entity."
-          },
-          "entity_type": {
-            "type": "string",
-            "enum": [
-              "document",
-              "payment",
-              "meeting"
-            ],
-            "description": "Type of entity this note is associated with. Required if entity_uid is provided. Possible values: document (note linked to a document), payment (note linked to a payment), meeting (note linked to a meeting)."
-          }
-        },
-        "required": [
-          "matter_uid"
-        ],
-        "anyOf": [
-          {
-            "required": [
-              "title"
-            ]
-          },
-          {
-            "required": [
-              "content"
-            ]
-          }
-        ]
-      },
-      "UpdateClientNoteRequest": {
-        "type": "object",
-        "properties": {
-          "content": {
-            "type": "string",
-            "description": "The HTML or text content of the note. May contain HTML markup for rich text formatting (e.g., \"<div>Updated note content</div>\"). Can be set to an empty string, but the resulting note must have at least one of title or content non-empty after the update."
-          },
-          "title": {
-            "type": "string",
-            "description": "Title for the note. Provides a brief heading or subject line for the note content. Can be set to an empty string, but the resulting note must have at least one of title or content non-empty after the update."
-          }
-        },
-        "anyOf": [
-          {
-            "required": [
-              "title"
-            ]
-          },
-          {
-            "required": [
-              "content"
-            ]
-          }
-        ]
-      },
-      "MultiClientNoteResponse": {
-        "type": "object",
-        "properties": {
-          "client_notes": {
-            "type": "array",
-            "description": "List of client notes",
-            "items": {
-              "$ref": "https://vcita.github.io/developers-hub/entities/clients/client_note.json"
-            }
-          }
-        }
-      },
-      "ErrorResponse_notes": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean",
-            "example": false
-          },
-          "errors": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "field": {
-                  "type": "string",
-                  "description": "The field that caused the error"
-                },
-                "code": {
-                  "type": "string",
-                  "description": "Error code"
-                },
-                "message": {
-                  "type": "string",
-                  "description": "Human-readable error message"
-                }
-              }
-            }
           }
         }
       },
