@@ -71,6 +71,7 @@ creates:
     method: POST
     path: /v3/clients/client_notes
     spec: clients
+    client_matter: true   # expose a Client picker; resolve their matter at runtime
 
   - key: invoice
     noun: Invoice
@@ -78,6 +79,7 @@ creates:
     method: POST
     path: /business/payments/v1/invoices
     spec: sales
+    client_matter: true   # expose a Client picker; resolve their matter at runtime
 
   - key: estimate
     noun: Estimate
@@ -85,6 +87,7 @@ creates:
     method: POST
     path: /business/payments/v1/estimates
     spec: sales
+    client_matter: true   # expose a Client picker; resolve their matter at runtime
 
   - key: payment
     noun: Payment
@@ -100,12 +103,33 @@ creates:
     path: /platform/v1/leadgen
     spec: sales
 
+  # booking: use the STAFF appointments endpoint (POST /business/scheduling/v1/
+  # appointments), not /scheduling/bookings. bookings is the client-facing flow
+  # that demands form_data (custom intake fields) and 500s on matter_uid; the
+  # appointments endpoint creates directly on the calendar from a client_id.
+  # This endpoint is NOT in mcp_swagger, so fields are defined explicitly here.
+  # Body is wrapped: { appointments: [ <fields> ], new_api: true }.
+  # See aiagents skills/chat-scheduling/workflows/book_appointment.md.
   - key: booking
     noun: Appointment
     label: Create Booking
     method: POST
-    path: /platform/v1/scheduling/bookings
-    spec: scheduling
+    path: /business/scheduling/v1/appointments
+    wrap_array: appointments
+    body_const: { new_api: true }
+    fields:
+      - { key: client_id, label: Client, required: true }   # clients dropdown via field_leaves
+      - { key: service_id, label: Service, required: true } # services dropdown
+      - { key: staff_id, label: Staff, required: true }     # staff dropdown
+      - { key: title, label: Title, required: true, helpText: "Appointment title (defaults to the service name)" }
+      - { key: start_time, label: Start Time, type: datetime, required: true, helpText: "ISO 8601, business-local time" }
+      - { key: end_time, label: End Time, type: datetime, required: true, helpText: "ISO 8601; default start + service duration" }
+      - { key: interaction_type, label: Interaction Type, helpText: "Use the service's interaction_type (e.g. online, skype, client_phone, business_location)" }
+      # interaction_details must be PRESENT even when empty (online/video accept "");
+      # default "" so a blank input is still sent. Location/phone types need a value.
+      - { key: interaction_details, label: Interaction Details, default: "", helpText: "Phone/address per interaction_type; leave blank for online/video" }
+      - { key: charge_type, label: Charge Type, choices: [no_price, fixed, custom], default: no_price }
+      - { key: source_type, label: Source, choices: [initiated_by_staff, initiated_by_client], default: initiated_by_staff }
 
   - key: product
     noun: Product
@@ -143,11 +167,15 @@ dropdowns:
     label_fields: [first_name, last_name]
     field_leaves: [client_id]
 
+  # services: GET /platform/v1/services requires business_id as a QUERY param.
+  # {business_uid} is auto-resolved at runtime from the token's own business
+  # (see utils.resolveBusinessUid); if unresolvable the dropdown returns no options.
   - key: services
     noun: Service
     method: GET
     path: /platform/v1/services
     spec: sales
+    query: { business_id: '{business_uid}' }
     array_path: data.services
     id_field: id
     label_fields: [name]
@@ -177,20 +205,12 @@ dropdowns:
     label_fields: [display_name]
     field_leaves: [staff_id]
 
-  # matters: listed via the clients quick-search (GET /v2/search). The `query`
-  # param only filters by free text; omitting it lists matters (data.matters).
-  # Each row's matter_uid/matter_name back the dropdown. Token-scoped (Staff),
-  # no path param. See aiagents get_clients_quick_search for the response shape.
-  - key: matters
-    noun: Matter
-    method: GET
-    path: /v2/search
-    spec: clients
-    query: { entity: client, new_decoration: 'true', per_page: 25 }
-    array_path: data.matters
-    id_field: matter_uid
-    label_fields: [matter_name]
-    field_leaves: [matter_uid]
+  # NOTE: there is intentionally no `matters` dropdown. There is no list-all
+  # matters endpoint (GET /v2/search returns null without a free-text query, and
+  # GET /business/clients/v1/matters requires a `filter`). Matters are per-client,
+  # so creates that need a matter use `client_matter: true` instead: the user
+  # picks a Client (clients dropdown) and the app resolves that client's matter
+  # at runtime via utils.resolveMatterUid. See zapier/docs/architecture.md.
 
   # service categories: GET /v2/settings/categories returns a TOP-LEVEL array of
   # { uid, name, services:[...] } (no envelope -> array_path is ""). Targets the

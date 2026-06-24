@@ -14,7 +14,6 @@ const triggers = {
   "list_services": require('./triggers/list_services'),
   "list_estimates": require('./triggers/list_estimates'),
   "list_staff": require('./triggers/list_staff'),
-  "list_matters": require('./triggers/list_matters'),
   "list_service_categories": require('./triggers/list_service_categories'),
 };
 

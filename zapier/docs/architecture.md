@@ -92,6 +92,43 @@ zapier/webhook_samples/*    ─┘
 - `beforeRequest` injects `Authorization: Bearer <token>`.
 - Token type: business-level **staff / app** token (see [scope.md](scope.md)).
 
+## Matters: pick a Client, not a matter UID
+
+Several creates (client_note, invoice, estimate) require a `matter_uid`. There is
+**no list-all matters endpoint** to back a dropdown: `GET /v2/search` returns
+`null` without a free-text query (and nests results at the top level, not under
+`data.matters`), and `GET /business/clients/v1/matters` requires a `filter`.
+Matters are inherently **per-client**.
+
+So instead of exposing a raw `matter_uid`, those creates set `client_matter: true`
+in the manifest. The generator then:
+
+- drops the `matter_uid` field(s) from the body,
+- exposes a single **Client** picker (`client_id`, backed by the `list_clients`
+  dropdown), and
+- at runtime resolves that client's matter via `utils.resolveMatterUid`
+  (`GET /platform/v1/clients/{id}` → `data.client.matters[0].uid`) and injects it
+  into the body at the original `matter_uid` path(s).
+
+Business owners think in clients, not matter UIDs — this matches their mental model
+and sidesteps the missing list endpoint.
+
+**Booking is the exception** and does **not** use `client_matter`. It posts to the
+staff appointments endpoint **`POST /business/scheduling/v1/appointments`**, not the
+client-facing `/scheduling/bookings` (which demands `form_data` custom-intake fields
+and 500s on `matter_uid`). The appointments endpoint creates directly on the calendar
+from a `client_id`; the platform associates the client's matter server-side. See the
+aiagents `book_appointment` workflow / `post_scheduling_appointments` doc.
+
+That endpoint is **not in `mcp_swagger`**, so the booking create defines its fields
+explicitly in the manifest (`fields:`) and uses three generator features:
+
+- **`fields:`** — explicit input fields when no swagger schema exists.
+- **`wrap_array` + `body_const`** — the built body is wrapped as
+  `{ <wrap_array>: [body], ...body_const }`, e.g. `{ appointments: [...], new_api: true }`.
+- **field `default:`** — a value sent even when the input is blank. `interaction_details`
+  defaults to `""` (valid for online/video; location/phone services need a real value).
+
 ## Webhook payload shape
 
 Payloads are **not** the entity schema. They are a batched envelope:

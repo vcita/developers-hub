@@ -1,4 +1,41 @@
-const { buildBody, safeJson, unwrapWebhook, toInputField, getByPath, resolveBusinessUid } = require('../utils');
+const { buildBody, safeJson, unwrapWebhook, toInputField, getByPath, resolveBusinessUid, resolveMatterUid, setByPath } = require('../utils');
+
+describe('resolveMatterUid', () => {
+  test('returns the client primary matter uid (GET client detail -> data.client.matters[0].uid)', async () => {
+    const z = {
+      request: async (opts) => {
+        expect(opts.url).toContain('/platform/v1/clients/client-1');
+        return { data: { data: { client: { matters: [{ uid: 'matter-9' }, { uid: 'matter-x' }] } } } };
+      },
+    };
+    expect(await resolveMatterUid(z, { authData: {} }, 'client-1')).toBe('matter-9');
+  });
+  test('falls back to matter.id when uid is absent', async () => {
+    const z = { request: async () => ({ data: { data: { client: { matters: [{ id: 'mid' }] } } } }) };
+    expect(await resolveMatterUid(z, {}, 'c')).toBe('mid');
+  });
+  test('returns null when the client has no matters', async () => {
+    const z = { request: async () => ({ data: { data: { client: { matters: [] } } } }) };
+    expect(await resolveMatterUid(z, {}, 'c')).toBeNull();
+  });
+  test('returns null (no API call) when clientId is missing', async () => {
+    const z = { request: () => { throw new Error('should not be called'); } };
+    expect(await resolveMatterUid(z, {}, undefined)).toBeNull();
+  });
+});
+
+describe('setByPath', () => {
+  test('sets a top-level key', () => {
+    expect(setByPath({}, ['matter_uid'], 'm1')).toEqual({ matter_uid: 'm1' });
+  });
+  test('creates nested objects as needed', () => {
+    expect(setByPath({}, ['invoice', 'matter_uid'], 'm2')).toEqual({ invoice: { matter_uid: 'm2' } });
+  });
+  test('preserves existing siblings', () => {
+    expect(setByPath({ invoice: { currency: 'USD' } }, ['invoice', 'matter_uid'], 'm3'))
+      .toEqual({ invoice: { currency: 'USD', matter_uid: 'm3' } });
+  });
+});
 
 describe('resolveBusinessUid', () => {
   test('returns authData.business_uid when provided (no API call)', async () => {
@@ -57,6 +94,22 @@ describe('buildBody', () => {
   test('flat field with no explicit path falls back to its key', () => {
     const body = buildBody({ name: 'x' }, [{ key: 'name' }]);
     expect(body).toEqual({ name: 'x' });
+  });
+});
+
+describe('buildBody field default (send a value even when the input is blank)', () => {
+  test('uses the field default when the input is missing/empty', () => {
+    const fields = [{ key: 'interaction_details', path: ['interaction_details'], default: '' }];
+    expect(buildBody({}, fields)).toEqual({ interaction_details: '' });
+    expect(buildBody({ interaction_details: '' }, fields)).toEqual({ interaction_details: '' });
+  });
+  test('prefers the provided input over the default', () => {
+    const fields = [{ key: 'interaction_details', path: ['interaction_details'], default: '' }];
+    expect(buildBody({ interaction_details: '123 Main St' }, fields)).toEqual({ interaction_details: '123 Main St' });
+  });
+  test('a field without a default is still skipped when blank', () => {
+    const fields = [{ key: 'notes', path: ['notes'] }];
+    expect(buildBody({ notes: '' }, fields)).toEqual({});
   });
 });
 

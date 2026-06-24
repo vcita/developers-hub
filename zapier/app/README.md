@@ -61,6 +61,10 @@ cd zapier/app && npm install
 zapier-platform validate
 ```
 
+To check the app against the **live** API (auth, triggers, list endpoints, and
+optionally creates), use the smoke test — see
+[`../HOW_TO_UPDATE.md`](../HOW_TO_UPDATE.md) → "Smoke test" (`npm run zapier:smoke`).
+
 ## Deploy (requires Node ≥ 22, Zapier CLI v19, and an account)
 
 All commands run from `zapier/app`:

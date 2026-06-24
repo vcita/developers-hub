@@ -39,6 +39,11 @@ creates:
 ```
 Input fields are derived automatically from the endpoint's request body.
 
+If the create needs a `matter_uid`, add `client_matter: true` instead of exposing
+the raw UID. The user then picks a **Client** (clients dropdown) and the app
+resolves that client's matter at runtime (there is no list-all matters endpoint —
+see [docs/architecture.md](docs/architecture.md) → "Matters").
+
 ### Add a Trigger
 The event must exist in vcita's webhook subscribe enum.
 ```yaml
@@ -81,6 +86,31 @@ cd zapier/app && zapier-platform validate   # Zapier's own checks
 `validate` must show **0 errors** and **0 publishing tasks**. General "Warnings"
 are advisory (e.g. an ID field with no list endpoint to back a dropdown) and
 don't block.
+
+## Smoke test (does it actually work against the live API?)
+
+`npm run test:zapier` is offline (unit tests only). To check the app against the
+**real inTandem API**, use the smoke test. It needs a token and **skips itself**
+when none is present (so it never breaks CI/normal runs).
+
+```bash
+cp zapier/app/.env.example zapier/app/.env   # then set INTANDEM_SMOKE_TOKEN=<staff token>
+npm run zapier:smoke                         # Tier 1: SAFE
+```
+**Tier 1 (safe, default):** validates auth, subscribes+unsubscribes every webhook
+trigger (self-cleaning), and reads every dropdown list endpoint. Writes no data.
+
+```bash
+npm run zapier:smoke:creates                 # Tier 2: DESTRUCTIVE — sandbox only
+```
+**Tier 2 (opt-in):** also exercises all 9 creates, so it **writes real records** —
+run it only against a **sandbox** business. Records are labelled `Zapier Smoke …`
+for manual cleanup (the app has no delete actions). Set
+`INTANDEM_SMOKE_BUSINESS_UID` in `.env` to hard-guard the target business.
+
+Run it with **Node 22** (same as the CLI). A failure pinpoints the broken
+operation (e.g. `inTandem API 404: …`). For ad-hoc manual checks:
+`npx zapier-platform-cli invoke trigger list_clients`.
 
 ## Publish a new version
 
