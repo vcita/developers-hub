@@ -22,7 +22,17 @@ const perform = async (z, bundle) => {
     if (!value) return [];
     url = url.replace(`{${p}}`, encodeURIComponent(value));
   }
-  const response = await z.request({ url, method: 'GET', params: QUERY });
+  // Resolve {business_uid} placeholders in query params from the token's business
+  // (some list endpoints require business_id as a query param, not a path param).
+  const params = { ...QUERY };
+  for (const k of Object.keys(params)) {
+    if (params[k] === '{business_uid}') {
+      const biz = await resolveBusinessUid(z, bundle);
+      if (!biz) return [];
+      params[k] = biz;
+    }
+  }
+  const response = await z.request({ url, method: 'GET', params });
   const list = getByPath(response.data, ARRAY_PATH) || [];
   return list.map((item) => ({
     ...item,

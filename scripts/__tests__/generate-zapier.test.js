@@ -29,6 +29,68 @@ describe('dropdownRef (D004 — dynamic dropdown wiring)', () => {
   });
 });
 
+describe('emitListTrigger query param resolution (D029 — {business_uid} in query)', () => {
+  const vm = require('vm');
+  // Load the emitted list-trigger source in a sandbox with stubbed deps so we can
+  // exercise its perform() without touching the real app/network.
+  const loadPerform = (dd, { resolvedBiz = 'biz-xyz' } = {}) => {
+    const src = gen.emitListTrigger(dd);
+    const requests = [];
+    const fakeRequire = (name) => {
+      if (name === '../constants') return { BASE_URL: 'https://api.test' };
+      if (name === '../utils') {
+        return {
+          getByPath: (obj, p) => (p ? p.split('.').reduce((n, k) => (n == null ? undefined : n[k]), obj) : obj),
+          resolveBusinessUid: async () => resolvedBiz,
+        };
+      }
+      throw new Error(`unexpected require: ${name}`);
+    };
+    const module = { exports: {} };
+    vm.runInNewContext(src, {
+      require: fakeRequire,
+      module,
+      exports: module.exports,
+    });
+    const z = { request: async (opts) => { requests.push(opts); return { data: { data: { rows: [] } } }; } };
+    return { perform: module.exports.operation.perform, z, requests };
+  };
+
+  test('substitutes {business_uid} in a query param with the resolved business uid', async () => {
+    const dd = {
+      key: 'services', noun: 'Service', path: '/platform/v1/services',
+      array_path: 'data.rows', id_field: 'id', label_fields: ['name'],
+      query: { business_id: '{business_uid}' },
+    };
+    const { perform, z, requests } = loadPerform(dd, { resolvedBiz: 'biz-xyz' });
+    await perform(z, { authData: {} });
+    expect(requests).toHaveLength(1);
+    expect(requests[0].params.business_id).toBe('biz-xyz');
+  });
+
+  test('returns [] (no request) when business_uid placeholder cannot be resolved', async () => {
+    const dd = {
+      key: 'services', noun: 'Service', path: '/platform/v1/services',
+      array_path: 'data.rows', id_field: 'id', label_fields: ['name'],
+      query: { business_id: '{business_uid}' },
+    };
+    const { perform, z, requests } = loadPerform(dd, { resolvedBiz: null });
+    await expect(perform(z, { authData: {} })).resolves.toEqual([]);
+    expect(requests).toHaveLength(0);
+  });
+
+  test('leaves literal query params untouched', async () => {
+    const dd = {
+      key: 'matters', noun: 'Matter', path: '/v2/search',
+      array_path: 'data.matters', id_field: 'matter_uid', label_fields: ['matter_name'],
+      query: { entity: 'client', per_page: 25 },
+    };
+    const { perform, z, requests } = loadPerform(dd);
+    await perform(z, { authData: {} });
+    expect(requests[0].params).toEqual({ entity: 'client', per_page: 25 });
+  });
+});
+
 describe('titleCaseEvent (D018 — title-cased trigger labels)', () => {
   test('title-cases each segment of entity/event_type, preserving / and _', () => {
     expect(gen.titleCaseEvent('client/updated')).toBe('Client/Updated');
