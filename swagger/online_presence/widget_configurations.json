@@ -1,0 +1,952 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Web AI Widget \u2014 Widget configurations",
+    "description": "Manage Web AI Widget configurations for a business via standard CRUD APIs under `/v3/online_presence/widget_configurations`.",
+    "version": "3.0.0",
+    "contact": {}
+  },
+  "tags": [
+    {
+      "name": "Web AI Widget",
+      "description": "Widget configuration resources under `/v3/online_presence/widget_configurations`."
+    }
+  ],
+  "servers": [
+    {
+      "url": "https://api.vcita.biz",
+      "description": "API Gateway server"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "description": "Standard v3 error envelope.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Always false for error responses."
+          },
+          "errors": {
+            "type": "array",
+            "description": "List of error details describing what failed.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "Request field that failed validation, when applicable."
+                },
+                "code": {
+                  "type": "string",
+                  "description": "Machine-readable error code."
+                },
+                "message": {
+                  "type": "string",
+                  "description": "Human-readable error message."
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "success",
+          "errors"
+        ]
+      },
+      "NestHttpException": {
+        "type": "object",
+        "description": "Standard v3 error envelope.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Always false for error responses.",
+            "enum": [
+              false
+            ]
+          },
+          "errors": {
+            "type": "array",
+            "description": "List of error details describing what failed.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "nullable": true,
+                  "description": "Request field that failed validation, when applicable."
+                },
+                "code": {
+                  "type": "string",
+                  "description": "Machine-readable error code."
+                },
+                "message": {
+                  "type": "string",
+                  "description": "Human-readable error message."
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ]
+            }
+          }
+        },
+        "required": [
+          "success",
+          "errors"
+        ]
+      },
+      "WelcomeButton": {
+        "type": "object",
+        "description": "Quick-reply button shown under the welcome message in the Web AI Widget.",
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "Button label shown to the visitor."
+          },
+          "message": {
+            "type": "string",
+            "description": "Message text sent to the assistant when the button is clicked."
+          }
+        },
+        "required": [
+          "label",
+          "message"
+        ]
+      },
+      "ActionConfigItem": {
+        "type": "object",
+        "description": "A single client-portal action in the stored widget configuration. Order follows array position in the API.",
+        "properties": {
+          "uid": {
+            "type": "string",
+            "nullable": true,
+            "description": "Portal action UID. Required by the API for persisted actions; nullable only for legacy/backfill reads."
+          },
+          "action": {
+            "type": "string",
+            "description": "Action key/type (client-portal action identifier)."
+          },
+          "label": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200,
+            "description": "Display label override; omit or null to resolve from portal defaults."
+          },
+          "availability": {
+            "type": "boolean",
+            "description": "Whether this action is available in the widget."
+          },
+          "should_offer": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether the assistant should proactively suggest this action."
+          },
+          "when_to_offer": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200,
+            "description": "Guidance text for when the assistant should proactively suggest this action."
+          }
+        },
+        "required": [
+          "uid",
+          "action",
+          "availability"
+        ]
+      },
+      "LeadIntentDataItem": {
+        "type": "object",
+        "description": "Intent-based lead capture instructions used by the Web AI Widget assistant. Each item defines one intent and the data that should be collected for it.",
+        "properties": {
+          "lead_intent": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 100,
+            "description": "Lead intent name (e.g., \"General inquiry\", \"Book consultation\"). Null/empty resolves to defaults according to backend normalization rules."
+          },
+          "lead_data_items": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200,
+            "description": "Comma-separated lead fields to collect for this intent (e.g., \"Name,Email,Phone\")."
+          },
+          "lead_message_to_visitor": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200,
+            "description": "Guidance text for how the assistant should explain what is being collected and what happens next while capturing lead details."
+          }
+        }
+      },
+      "RequestCreateWidgetConfiguration": {
+        "type": "object",
+        "properties": {
+          "widget_title": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200,
+            "description": "Widget title shown in the chat header."
+          },
+          "faq_and_guidance": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 50000,
+            "description": "Business FAQ and guidance text used by the assistant."
+          },
+          "business_hours": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 1000,
+            "description": "Business hours text shown to visitors or used for assistant guidance."
+          },
+          "welcome_message": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 1000,
+            "description": "Message shown when the widget chat opens."
+          },
+          "brand_color": {
+            "type": "string",
+            "nullable": true,
+            "description": "Hex color"
+          },
+          "text_color": {
+            "type": "string",
+            "nullable": true,
+            "description": "Hex color"
+          },
+          "logo_url": {
+            "type": "string",
+            "nullable": true,
+            "format": "uri",
+            "description": "Public logo URL shown in the widget."
+          },
+          "actions": {
+            "type": "array",
+            "nullable": true,
+            "description": "Ordered list of configured portal actions.",
+            "items": {
+              "$ref": "#/components/schemas/ActionConfigItem"
+            }
+          },
+          "auto_popup_enabled": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether the widget auto-opens for visitors."
+          },
+          "auto_popup_delay": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0,
+            "maximum": 3600,
+            "description": "Auto-open delay in seconds."
+          },
+          "welcome_buttons": {
+            "type": "array",
+            "nullable": true,
+            "description": "Quick-reply buttons shown under the welcome message.",
+            "items": {
+              "$ref": "#/components/schemas/WelcomeButton"
+            }
+          },
+          "lead_capture_text": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 1000,
+            "description": "Prompt text used when collecting visitor lead details."
+          },
+          "lead_intent_data": {
+            "type": "array",
+            "nullable": true,
+            "maxItems": 10,
+            "description": "Per-intent lead-capture configuration: which fields to collect and how to message the visitor for each detected intent (max 10).",
+            "items": {
+              "$ref": "#/components/schemas/LeadIntentDataItem"
+            }
+          },
+          "button_text": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200,
+            "description": "Launcher button label shown before opening the widget."
+          },
+          "include_contact_info": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether contact information is included in assistant context."
+          },
+          "include_services": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether business services are included in assistant context."
+          },
+          "include_products": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether products are included in assistant context."
+          },
+          "include_booking_policies": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether booking policies are included in assistant context."
+          },
+          "include_terms_of_service": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether terms of service are included in assistant context."
+          },
+          "guidance_urls": {
+            "type": "array",
+            "nullable": true,
+            "description": "List of public URLs used as additional assistant guidance sources.",
+            "items": {
+              "type": "string",
+              "format": "uri",
+              "maxLength": 2048
+            }
+          }
+        }
+      },
+      "RequestUpdateWidgetConfiguration": {
+        "type": "object",
+        "description": "Partial update request. All fields are optional.",
+        "properties": {
+          "widget_title": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200,
+            "description": "Widget title shown in the chat header."
+          },
+          "faq_and_guidance": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 50000,
+            "description": "Business FAQ and guidance text used by the assistant."
+          },
+          "business_hours": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 1000,
+            "description": "Business hours text shown to visitors or used for assistant guidance."
+          },
+          "welcome_message": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 1000,
+            "description": "Message shown when the widget chat opens."
+          },
+          "brand_color": {
+            "type": "string",
+            "nullable": true,
+            "description": "Widget brand color in hex format."
+          },
+          "text_color": {
+            "type": "string",
+            "nullable": true,
+            "description": "Widget text color in hex format."
+          },
+          "logo_url": {
+            "type": "string",
+            "nullable": true,
+            "format": "uri",
+            "description": "Public logo URL shown in the widget."
+          },
+          "actions": {
+            "type": "array",
+            "nullable": true,
+            "description": "Ordered list of configured portal actions.",
+            "items": {
+              "$ref": "#/components/schemas/ActionConfigItem"
+            }
+          },
+          "auto_popup_enabled": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether the widget auto-opens for visitors."
+          },
+          "auto_popup_delay": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0,
+            "maximum": 3600,
+            "description": "Auto-open delay in seconds."
+          },
+          "welcome_buttons": {
+            "type": "array",
+            "nullable": true,
+            "description": "Quick-reply buttons shown under the welcome message.",
+            "items": {
+              "$ref": "#/components/schemas/WelcomeButton"
+            }
+          },
+          "lead_capture_text": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 1000,
+            "description": "Prompt text used when collecting visitor lead details."
+          },
+          "lead_intent_data": {
+            "type": "array",
+            "nullable": true,
+            "maxItems": 10,
+            "description": "Per-intent lead-capture configuration: which fields to collect and how to message the visitor for each detected intent (max 10).",
+            "items": {
+              "$ref": "#/components/schemas/LeadIntentDataItem"
+            }
+          },
+          "button_text": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200,
+            "description": "Launcher button label shown before opening the widget."
+          },
+          "include_contact_info": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether contact information is included in assistant context."
+          },
+          "include_services": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether business services are included in assistant context."
+          },
+          "include_products": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether products are included in assistant context."
+          },
+          "include_booking_policies": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether booking policies are included in assistant context."
+          },
+          "include_terms_of_service": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether terms of service are included in assistant context."
+          },
+          "guidance_urls": {
+            "type": "array",
+            "nullable": true,
+            "description": "List of public URLs used as additional assistant guidance sources.",
+            "items": {
+              "type": "string",
+              "format": "uri",
+              "maxLength": 2048
+            }
+          }
+        }
+      },
+      "WidgetConfigurationResource": {
+        "$ref": "https://vcita.github.io/developers-hub/entities/online_presence/WidgetConfiguration.json"
+      },
+      "ListWidgetConfigurationsPayload": {
+        "type": "object",
+        "properties": {
+          "widget_configurations": {
+            "type": "array",
+            "description": "Widget configurations for the authenticated business on the current page.",
+            "items": {
+              "$ref": "#/components/schemas/WidgetConfigurationResource"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total number of widget configurations across all pages."
+          }
+        },
+        "required": [
+          "widget_configurations",
+          "total"
+        ]
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Business token (and optional Staff token where the API supports attribution). The business is derived from the authenticated token."
+      }
+    }
+  },
+  "paths": {
+    "/v3/online_presence/widget_configurations": {
+      "get": {
+        "operationId": "listWidgetConfigurations",
+        "summary": "Get all WidgetConfigurations",
+        "description": "Lists widget configurations. Available for **Staff tokens**",
+        "tags": [
+          "Web AI Widget"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "1-based page index",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "e.g. `created_at:desc` or `updated_at:asc`. Direction defaults to `asc` if omitted.",
+            "schema": {
+              "type": "string",
+              "example": "created_at:desc"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/ListWidgetConfigurationsPayload"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Semantic validation or bad query (e.g. legacy sort params)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "sort",
+                      "code": "invalid",
+                      "message": "sort field must be one of: created_at, updated_at, business_uid"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden \u2014 business mismatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found (masked as 404 for business mismatch in some cases)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createWidgetConfiguration",
+        "summary": "Create a WidgetConfigurations",
+        "description": "Creates a widget configuration for a business. Available for **Staff token**;",
+        "tags": [
+          "Web AI Widget"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestCreateWidgetConfiguration"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/WidgetConfigurationResource"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request syntax (e.g., invalid JSON payload)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Semantic validation or business-rule failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/online_presence/widget_configurations/{uid}": {
+      "get": {
+        "operationId": "getWidgetConfigurationByUid",
+        "summary": "Retrieve a WidgetConfigurations",
+        "description": "Returns one widget configuration. Available for **Staff token**",
+        "tags": [
+          "Web AI Widget"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/WidgetConfigurationResource"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "updateWidgetConfiguration",
+        "summary": "Update WidgetConfigurations",
+        "description": "Updates an existing widget configuration. Available fo **Staff token**",
+        "tags": [
+          "Web AI Widget"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestUpdateWidgetConfiguration"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/WidgetConfigurationResource"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request syntax (e.g., invalid JSON payload)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Semantic validation or business-rule failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteWidgetConfiguration",
+        "summary": "Delete a WidgetConfigurations",
+        "description": "Deletes a widget configuration. Available for **Staff token**",
+        "tags": [
+          "Web AI Widget"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The deleted widget configuration (`{ success: true, data }`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/WidgetConfigurationResource"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

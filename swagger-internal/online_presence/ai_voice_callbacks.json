@@ -1,0 +1,613 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Online Presence — AI Voice Callbacks",
+    "description": "Internal callback APIs used by voicecalls to connect PSTN calls to the AI Receptionist in webaiwidgetserver.",
+    "version": "3.0.0",
+    "contact": {}
+  },
+  "tags": [
+    {
+      "name": "AI Voice Callbacks",
+      "description": "Internal voicecalls-to-AI Receptionist callbacks. These endpoints are called only by the `voicecalls` application actor."
+    }
+  ],
+  "servers": [
+    {
+      "url": "https://api.vcita.biz",
+      "description": "API Gateway server"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "VoicecallsJoinCallRequest": {
+        "type": "object",
+        "description": "Request sent by voicecalls when Vonage asks for the NCCO that connects the PSTN leg to the AI Receptionist websocket.",
+        "properties": {
+          "voice_call_uid": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Internal voicecalls call UID used to correlate lifecycle and recording callbacks (e.g., \"vc_7f31d9a4\")."
+          },
+          "external_uuid": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "External provider conversation UUID, usually the Vonage conversation UUID (e.g., \"CON-123\")."
+          },
+          "call_uid": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Legacy correlation field accepted for older callers; prefer `external_uuid` for new integrations (e.g., \"CON-123\")."
+          },
+          "client_leg_uid": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Provider client leg UID for the PSTN leg (e.g., \"LEG-1\")."
+          }
+        },
+        "example": {
+          "voice_call_uid": "vc_7f31d9a4",
+          "external_uuid": "CON-123",
+          "client_leg_uid": "LEG-1"
+        }
+      },
+      "VoicecallsWarmupCallRequest": {
+        "type": "object",
+        "description": "Request sent by voicecalls before the websocket join callback so webaiwidgetserver can cache business, channel, and caller context.",
+        "properties": {
+          "business_uid": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Business UID that owns the incoming call (e.g., \"biz_123\")."
+          },
+          "client_uid": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Known client UID resolved by voicecalls, when available (e.g., \"cli_123\")."
+          },
+          "voice_call_uid": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Internal voicecalls call UID used to correlate lifecycle and recording callbacks (e.g., \"vc_7f31d9a4\")."
+          },
+          "external_uuid": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "External provider conversation UUID, usually the Vonage conversation UUID (e.g., \"CON-123\")."
+          },
+          "setting_uid": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Voicecalls setting UID used to derive the AI Receptionist channel UID (e.g., \"setting_123\")."
+          },
+          "from_number": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Caller phone number in E.164 format (e.g., \"+15551234567\")."
+          },
+          "to_number": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Dialed voicecalls phone number in E.164 format (e.g., \"+12125551234\")."
+          },
+          "recording_call_enabled": {
+            "type": "boolean",
+            "description": "Whether voicecalls is expected to send a recording callback after the call (e.g., true)."
+          }
+        },
+        "example": {
+          "business_uid": "biz_123",
+          "client_uid": "cli_123",
+          "voice_call_uid": "vc_7f31d9a4",
+          "external_uuid": "CON-123",
+          "setting_uid": "setting_123",
+          "from_number": "+15551234567",
+          "to_number": "+12125551234",
+          "recording_call_enabled": true
+        }
+      },
+      "VoicecallsCallEventRequest": {
+        "type": "object",
+        "description": "Call lifecycle event forwarded by voicecalls. Inbound completed events close the AI Receptionist voice session idempotently.",
+        "properties": {
+          "voice_call_uid": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Internal voicecalls call UID (e.g., \"vc_7f31d9a4\")."
+          },
+          "external_uuid": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "External provider conversation UUID, usually the Vonage conversation UUID (e.g., \"CON-123\")."
+          },
+          "conversation_id": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Legacy provider conversation id accepted for older event payloads (e.g., \"CON-123\")."
+          },
+          "status": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Call status from voicecalls or the provider. `completed` triggers close for inbound calls (e.g., \"completed\")."
+          },
+          "direction": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Call direction. Outbound completed events do not close the cached inbound AI session (e.g., \"inbound\")."
+          }
+        },
+        "additionalProperties": true,
+        "example": {
+          "voice_call_uid": "vc_7f31d9a4",
+          "external_uuid": "CON-123",
+          "conversation_id": "CON-123",
+          "status": "completed",
+          "direction": "inbound"
+        }
+      },
+      "VoicecallsCallRecordingRequest": {
+        "type": "object",
+        "description": "Recording metadata callback sent after voicecalls receives and signs the provider recording URL.",
+        "properties": {
+          "voice_call_uid": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Internal voicecalls call UID (e.g., \"vc_7f31d9a4\")."
+          },
+          "external_uuid": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "External provider conversation UUID, usually the Vonage conversation UUID (e.g., \"CON-123\")."
+          },
+          "call_uid": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Legacy call UID accepted for older recording payloads (e.g., \"CON-123\")."
+          },
+          "conversation_uid": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Legacy conversation UID accepted for older recording payloads (e.g., \"CON-123\")."
+          },
+          "recording_url": {
+            "type": "string",
+            "description": "Signed recording URL generated by voicecalls (e.g., \"https://recordings.example.com/calls/CON-123.wav\")."
+          },
+          "file_size": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Recording file size in bytes (e.g., 1048576)."
+          },
+          "recording_duration": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Recording duration in seconds (e.g., 95)."
+          }
+        },
+        "additionalProperties": true,
+        "example": {
+          "voice_call_uid": "vc_7f31d9a4",
+          "external_uuid": "CON-123",
+          "recording_url": "https://recordings.example.com/calls/CON-123.wav",
+          "file_size": 1048576,
+          "recording_duration": 95
+        }
+      },
+      "VoicecallsCallDeletedRequest": {
+        "type": "object",
+        "description": "Call deletion callback. The callback is idempotent and closes the matching AI Receptionist voice session when it is still active.",
+        "properties": {
+          "voice_call_uid": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Internal voicecalls call UID (e.g., \"vc_7f31d9a4\")."
+          },
+          "external_uuid": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "External provider conversation UUID, usually the Vonage conversation UUID (e.g., \"CON-123\")."
+          }
+        },
+        "additionalProperties": true,
+        "example": {
+          "voice_call_uid": "vc_7f31d9a4",
+          "external_uuid": "CON-123"
+        }
+      },
+      "VoicecallsOkResponse": {
+        "type": "object",
+        "description": "Unwrapped callback acknowledgement.",
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "example": {
+          "ok": true
+        }
+      },
+      "VoicecallsJoinCallResponse": {
+        "type": "object",
+        "description": "Unwrapped response containing the Vonage NCCO used to connect the call to the AI Receptionist websocket.",
+        "properties": {
+          "ncco": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        },
+        "required": [
+          "ncco"
+        ],
+        "example": {
+          "ncco": [
+            {
+              "action": "connect",
+              "endpoint": [
+                {
+                  "type": "websocket",
+                  "uri": "wss://webaiwidgetserver-dev.external.int-eks.vchost.co/v3/online_presence/chat/voice/pstn/ws?conversation_id=CON-123&token=token",
+                  "content-type": "audio/l16;rate=16000",
+                  "headers": {
+                    "voice_call_uid": "vc_7f31d9a4",
+                    "external_uuid": "CON-123",
+                    "client_leg_uid": "LEG-1"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ]
+            }
+          }
+        },
+        "required": [
+          "success",
+          "errors"
+        ]
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Application token for the `voicecalls` application actor."
+      }
+    }
+  },
+  "paths": {
+    "/v3/online_presence/chat/voicecalls/join-call": {
+      "post": {
+        "operationId": "joinAiVoiceCall",
+        "summary": "Return the AI Receptionist voice NCCO",
+        "description": "Returns the NCCO that connects a voicecalls PSTN leg to the AI Receptionist websocket. The caller must be the `voicecalls` application actor. Available for **Application tokens**.",
+        "tags": [
+          "AI Voice Callbacks"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoicecallsJoinCallRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "NCCO generated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoicecallsJoinCallResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - missing or invalid token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - caller is not the `voicecalls` application actor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Unauthorized caller for voicecalls callbacks"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/online_presence/chat/voicecalls/warmup-call": {
+      "post": {
+        "operationId": "warmupAiVoiceCall",
+        "summary": "Cache AI voice call context",
+        "description": "Caches business, channel, and caller context before voicecalls requests the websocket NCCO. The caller must be the `voicecalls` application actor. Available for **Application tokens**.",
+        "tags": [
+          "AI Voice Callbacks"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoicecallsWarmupCallRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Warmup context accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoicecallsOkResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - missing or invalid token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - caller is not the `voicecalls` application actor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/online_presence/chat/voicecalls/call-events": {
+      "post": {
+        "operationId": "processAiVoiceCallEvent",
+        "summary": "Process AI voice call lifecycle event",
+        "description": "Processes voicecalls lifecycle events. Inbound `completed` closes the AI voice session idempotently; outbound completed events are retained as context only. Available for **Application tokens**.",
+        "tags": [
+          "AI Voice Callbacks"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoicecallsCallEventRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Call event accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoicecallsOkResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - missing or invalid token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - caller is not the `voicecalls` application actor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/online_presence/chat/voicecalls/call-recording": {
+      "post": {
+        "operationId": "recordAiVoiceCallRecording",
+        "summary": "Record AI voice call recording metadata",
+        "description": "Stores recording metadata for the AI Receptionist voice conversation. If the conversation is already persisted, the row is updated; otherwise the metadata is buffered in warmup context and persisted when the session closes. Available for **Application tokens**.",
+        "tags": [
+          "AI Voice Callbacks"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoicecallsCallRecordingRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Recording metadata accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoicecallsOkResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - missing or invalid token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - caller is not the `voicecalls` application actor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/online_presence/chat/voicecalls/call-deleted": {
+      "post": {
+        "operationId": "deleteAiVoiceCall",
+        "summary": "Handle AI voice call deletion",
+        "description": "Handles call deletion from voicecalls and idempotently closes the matching AI Receptionist voice session if it is still active. Available for **Application tokens**.",
+        "tags": [
+          "AI Voice Callbacks"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoicecallsCallDeletedRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Call deletion accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoicecallsOkResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - missing or invalid token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - caller is not the `voicecalls` application actor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

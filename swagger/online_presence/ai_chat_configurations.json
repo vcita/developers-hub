@@ -1,0 +1,284 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Online Presence — AI Chat Configurations",
+    "description": "APIs for managing AI chat configuration under `/v3/online_presence/ai_chat_configurations`. Controls how the AI chat receptionist behaves across all channels.",
+    "version": "3.0.0",
+    "contact": {}
+  },
+  "tags": [
+    {
+      "name": "AI Chat Configuration",
+      "description": "AI chat behavior configuration for the authenticated business (**Staff tokens**)."
+    }
+  ],
+  "servers": [
+    {
+      "url": "https://api.vcita.biz",
+      "description": "API Gateway server"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "UpsertAiChatConfigRequest": {
+        "type": "object",
+        "description": "Request body for upserting the AI chat configuration. All fields are optional — only provided fields are merged with existing values.",
+        "properties": {
+          "faq_and_guidance": {
+            "type": "string",
+            "nullable": true,
+            "description": "Free-text FAQ and guidance instructions for the AI receptionist."
+          },
+          "business_hours": {
+            "type": "string",
+            "nullable": true,
+            "description": "Business hours text; null uses calendar-derived defaults."
+          },
+          "lead_intent_data": {
+            "type": "array",
+            "nullable": true,
+            "maxItems": 10,
+            "description": "Intent-based lead capture configuration.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "lead_intent": {
+                  "type": "string",
+                  "nullable": true,
+                  "description": "Lead intent name (e.g., \"General inquiry\")."
+                },
+                "lead_data_items": {
+                  "type": "string",
+                  "nullable": true,
+                  "description": "Comma-separated or free-text list of lead fields to collect."
+                },
+                "lead_message_to_visitor": {
+                  "type": "string",
+                  "nullable": true,
+                  "maxLength": 200,
+                  "description": "Guidance text for how the AI chat receptionist should explain what is being collected and what happens next."
+                }
+              }
+            }
+          },
+          "lead_capture_text": {
+            "type": "string",
+            "nullable": true,
+            "description": "Default lead-capture message shown to clients."
+          },
+          "include_contact_info": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether to include business contact info in AI guidance context."
+          },
+          "include_services": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether to include business services in AI guidance context."
+          },
+          "include_products": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether to include business products in AI guidance context."
+          },
+          "include_booking_policies": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether to include booking policies in AI guidance context."
+          },
+          "include_terms_of_service": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether to include terms of service in AI guidance context."
+          },
+          "guidance_urls": {
+            "type": "array",
+            "nullable": true,
+            "items": { "type": "string", "format": "uri" },
+            "description": "Extra URLs whose content is merged into AI guidance."
+          },
+          "ai_actions": {
+            "type": "array",
+            "nullable": true,
+            "description": "AI proactive action behavior.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "action_uid": {
+                  "type": "string",
+                  "description": "Portal action UID."
+                },
+                "action_key": {
+                  "type": "string",
+                  "description": "Action key/type (e.g., \"schedule\", \"contact\")."
+                },
+                "should_offer": {
+                  "type": "boolean",
+                  "description": "Whether the AI should proactively suggest this action."
+                },
+                "when_to_offer": {
+                  "type": "string",
+                  "nullable": true,
+                  "maxLength": 200,
+                  "description": "Guidance text for when the AI should suggest this action."
+                }
+              },
+              "required": ["action_uid", "action_key", "should_offer"]
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "enum": [false] },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": { "type": "string" },
+                "message": { "type": "string" },
+                "field": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Staff token"
+      }
+    }
+  },
+  "security": [{ "bearerAuth": [] }],
+  "paths": {
+    "/v3/online_presence/ai_chat_configurations": {
+      "get": {
+        "tags": ["AI Chat Configuration"],
+        "summary": "Retrieve an AIChatConfiguration",
+        "description": "Returns the AI chat configuration for the authenticated business. Available for **Staff tokens**.",
+        "operationId": "getAiChatConfiguration",
+        "responses": {
+          "200": {
+            "description": "AI chat configuration retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "https://vcita.github.io/developers-hub/entities/response.json" },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/online_presence/AiReceptionistConfiguration.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid token.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found — no AI chat configuration exists for this business yet.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "errors": [{ "code": "not_found", "message": "AI chat configuration not found for this business" }]
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["AI Chat Configuration"],
+        "summary": "Update an AIChatConfiguration",
+        "description": "Creates or updates the AI chat configuration for the authenticated business. Provided fields are merged with existing values; omitted fields are unchanged. Available for **Staff tokens**.",
+        "operationId": "upsertAiChatConfiguration",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpsertAiChatConfigRequest" },
+              "example": {
+                "faq_and_guidance": "Answer questions about pricing, emergency calls, and availability.",
+                "include_contact_info": true,
+                "include_services": true,
+                "lead_intent_data": [
+                  {
+                    "lead_intent": "General inquiry",
+                    "lead_data_items": "Full name, email, phone",
+                    "lead_message_to_visitor": "Please share your contact details and we will follow up shortly."
+                  }
+                ],
+                "ai_actions": [
+                  {
+                    "action_uid": "action_book",
+                    "action_key": "schedule",
+                    "should_offer": true,
+                    "when_to_offer": "Offer when client asks about scheduling."
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "AI chat configuration updated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "https://vcita.github.io/developers-hub/entities/response.json" },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/online_presence/AiReceptionistConfiguration.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid token.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity — validation error.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "errors": [{ "code": "invalid", "field": "ai_actions", "message": "ai_actions must be an array" }]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
