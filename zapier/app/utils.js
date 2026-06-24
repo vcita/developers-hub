@@ -71,4 +71,31 @@ const resolveBusinessUid = async (z, bundle) => {
   return (list[0] && (list[0].uid || list[0].id)) || null;
 };
 
-module.exports = { buildBody, safeJson, unwrapWebhook, toInputField, getByPath, resolveBusinessUid };
+// Resolve a client's primary matter UID. Business owners pick a Client (by name,
+// via the clients dropdown); the create attaches to that client's matter. There
+// is no list-all matters endpoint, but the client DETAIL endpoint carries the
+// client's matters[] — take the first (the default matter).
+const resolveMatterUid = async (z, bundle, clientId) => {
+  if (!clientId) return null;
+  const { BASE_URL } = require('./constants');
+  const response = await z.request({
+    url: `${BASE_URL}/platform/v1/clients/${encodeURIComponent(clientId)}`,
+    method: 'GET',
+  });
+  const matters = getByPath(response.data, 'data.client.matters') || [];
+  return (matters[0] && (matters[0].uid || matters[0].id)) || null;
+};
+
+// Set a nested value by path array (e.g. ['invoice','matter_uid']), creating
+// intermediate objects. Used to inject a resolved value into a built body.
+const setByPath = (obj, path, value) => {
+  let node = obj;
+  for (let i = 0; i < path.length - 1; i++) {
+    node[path[i]] = node[path[i]] || {};
+    node = node[path[i]];
+  }
+  node[path[path.length - 1]] = value;
+  return obj;
+};
+
+module.exports = { buildBody, safeJson, unwrapWebhook, toInputField, getByPath, resolveBusinessUid, resolveMatterUid, setByPath };

@@ -92,6 +92,27 @@ zapier/webhook_samples/*    ─┘
 - `beforeRequest` injects `Authorization: Bearer <token>`.
 - Token type: business-level **staff / app** token (see [scope.md](scope.md)).
 
+## Matters: pick a Client, not a matter UID
+
+Several creates (client_note, invoice, estimate) require a `matter_uid`. There is
+**no list-all matters endpoint** to back a dropdown: `GET /v2/search` returns
+`null` without a free-text query (and nests results at the top level, not under
+`data.matters`), and `GET /business/clients/v1/matters` requires a `filter`.
+Matters are inherently **per-client**.
+
+So instead of exposing a raw `matter_uid`, those creates set `client_matter: true`
+in the manifest. The generator then:
+
+- drops the `matter_uid` field(s) from the body,
+- exposes a single **Client** picker (`client_id`, backed by the `list_clients`
+  dropdown), and
+- at runtime resolves that client's matter via `utils.resolveMatterUid`
+  (`GET /platform/v1/clients/{id}` → `data.client.matters[0].uid`) and injects it
+  into the body at the original `matter_uid` path(s).
+
+Business owners think in clients, not matter UIDs — this matches their mental model
+and sidesteps the missing list endpoint.
+
 ## Webhook payload shape
 
 Payloads are **not** the entity schema. They are a batched envelope:

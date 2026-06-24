@@ -39,6 +39,11 @@ creates:
 ```
 Input fields are derived automatically from the endpoint's request body.
 
+If the create needs a `matter_uid`, add `client_matter: true` instead of exposing
+the raw UID. The user then picks a **Client** (clients dropdown) and the app
+resolves that client's matter at runtime (there is no list-all matters endpoint —
+see [docs/architecture.md](docs/architecture.md) → "Matters").
+
 ### Add a Trigger
 The event must exist in vcita's webhook subscribe enum.
 ```yaml

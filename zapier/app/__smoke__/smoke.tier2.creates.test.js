@@ -10,8 +10,7 @@
 // Cleanup: the app has no delete actions, so records are NOT auto-removed. Every
 // record is labelled "Zapier Smoke <ISO>" for easy manual cleanup in the sandbox.
 const { App, appTester, authData, TOKEN, RUN_CREATES, SANDBOX_UID } = require('./helpers');
-const { resolveBusinessUid, getByPath } = require('../utils');
-const { BASE_URL } = require('../constants');
+const { resolveBusinessUid } = require('../utils');
 
 const describeIfCreates = TOKEN && RUN_CREATES ? describe : describe.skip;
 
@@ -52,26 +51,8 @@ describeIfCreates('Zapier smoke — Tier 2 (DESTRUCTIVE creates, sandbox only)',
     ids.category = await src('list_service_categories');
     ids.service = await src('list_services');
     ids.staff = await src('list_staff');
-
-    // matter_uid: the list_matters dropdown (GET /v2/search) returns null on some
-    // businesses, and client rows omit matter_uid — but the client DETAIL endpoint
-    // (GET /platform/v1/clients/{id}) carries a matters[] array. Source from there.
-    if (ids.client) {
-      try {
-        ids.matter = await appTester(
-          (z) =>
-            z
-              .request({ url: `${BASE_URL}/platform/v1/clients/${ids.client}`, method: 'GET' })
-              .then((r) => {
-                const matters = getByPath(r.data, 'data.client.matters') || [];
-                return matters[0] && (matters[0].uid || matters[0].id);
-              }),
-          { authData }
-        );
-      } catch (e) {
-        ids.matter = undefined;
-      }
-    }
+    // matter_uid is no longer an input: client_note/invoice/estimate take a Client
+    // (client_id) and the app resolves that client's matter at runtime.
   });
 
   const create = (key, inputData) =>
@@ -107,9 +88,9 @@ describeIfCreates('Zapier smoke — Tier 2 (DESTRUCTIVE creates, sandbox only)',
 
   // --- one-hop foreign id (soft-skip if unavailable) ---
   test('create client_note', async () => {
-    if (!ids.matter) return skip('create client_note: no matter_uid available');
+    if (!ids.client) return skip('create client_note: no client_id available');
     await expect(
-      create('client_note', { matter_uid: ids.matter, content: label('Note') })
+      create('client_note', { client_id: ids.client, content: label('Note') })
     ).resolves.toBeDefined();
   });
 
@@ -142,10 +123,10 @@ describeIfCreates('Zapier smoke — Tier 2 (DESTRUCTIVE creates, sandbox only)',
 
   // --- structured payloads (items[]/dates). Item shape may need tuning per API. ---
   test('create invoice', async () => {
-    if (!ids.matter) return skip('create invoice: no matter_uid available');
+    if (!ids.client) return skip('create invoice: no client_id available');
     await expect(
       create('invoice', {
-        invoice__matter_uid: ids.matter,
+        client_id: ids.client,
         invoice__billing_address: '123 Smoke Street',
         invoice__currency: 'USD',
         invoice__issue_date: day(0),
@@ -156,10 +137,10 @@ describeIfCreates('Zapier smoke — Tier 2 (DESTRUCTIVE creates, sandbox only)',
   });
 
   test('create estimate', async () => {
-    if (!ids.matter) return skip('create estimate: no matter_uid available');
+    if (!ids.client) return skip('create estimate: no client_id available');
     await expect(
       create('estimate', {
-        estimate__matter_uid: ids.matter,
+        client_id: ids.client,
         estimate__billing_address: '123 Smoke Street',
         estimate__currency: 'USD',
         estimate__issue_date: day(0),

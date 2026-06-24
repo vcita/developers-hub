@@ -46,7 +46,7 @@ describeIfToken('Zapier smoke — Tier 1 (safe, live API)', () => {
   }
 
   // Each dropdown list endpoint returns an array. Do NOT assert non-empty:
-  // list_staff / list_matters return [] when business_uid can't resolve.
+  // list_staff / list_services return [] when business_uid can't resolve.
   if (listTriggers.length) {
     test.each(listTriggers)('dropdown %s: returns an array', async (key, trig) => {
       const rows = await appTester(trig.operation.perform, {

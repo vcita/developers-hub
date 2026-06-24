@@ -29,6 +29,79 @@ describe('dropdownRef (D004 — dynamic dropdown wiring)', () => {
   });
 });
 
+describe('emitCreate client_matter resolution (D030 — pick a Client, resolve its matter)', () => {
+  const vm = require('vm');
+  const loadCreate = (create, fields, { matters = [{ uid: 'matter-1' }] } = {}) => {
+    const src = gen.emitCreate(create, fields, [], { uid: 'sample' });
+    const requests = [];
+    const fakeRequire = (name) => {
+      if (name === '../constants') return { BASE_URL: 'https://api.test' };
+      if (name === '../utils') return require('../../zapier/app/utils');
+      throw new Error(`unexpected require: ${name}`);
+    };
+    const module = { exports: {} };
+    vm.runInNewContext(src, { require: fakeRequire, module, exports: module.exports });
+    const z = {
+      request: async (opts) => {
+        requests.push(opts);
+        // client-detail GET (matter resolution) vs the create POST
+        if (opts.method === 'GET') return { data: { data: { client: { matters } } } };
+        return { data: { ok: true } };
+      },
+    };
+    return { def: module.exports, z, requests };
+  };
+
+  const clientNoteFields = [
+    { key: 'matter_uid', path: ['matter_uid'], label: 'Matter Uid', type: 'string', required: true, isJson: false, dynamic: 'list_matters.id.label' },
+    { key: 'content', path: ['content'], label: 'Content', type: 'string', required: true, isJson: false },
+  ];
+
+  test('exposes a Client input field (not matter_uid) backed by the clients dropdown', () => {
+    const { def } = loadCreate({ key: 'client_note', noun: 'Client Note', label: 'Create Client Note', path: '/x', method: 'POST', client_matter: true }, clientNoteFields);
+    const keys = def.operation.inputFields.map((f) => f.key);
+    expect(keys).toContain('client_id');
+    expect(keys).not.toContain('matter_uid');
+    const client = def.operation.inputFields.find((f) => f.key === 'client_id');
+    expect(client.dynamic).toBe('list_clients.id.label');
+    expect(client.label).toBe('Client');
+    expect(client.required).toBe(true);
+  });
+
+  test('perform resolves matter from the chosen client and injects it into the body (top-level)', async () => {
+    const { def, z, requests } = loadCreate(
+      { key: 'client_note', noun: 'Client Note', label: 'Create Client Note', path: '/x', method: 'POST', client_matter: true },
+      clientNoteFields,
+      { matters: [{ uid: 'matter-77' }] }
+    );
+    await def.operation.perform(z, { inputData: { client_id: 'client-5', content: 'hi' } });
+    const post = requests.find((r) => r.method === 'POST');
+    expect(post.body).toEqual({ content: 'hi', matter_uid: 'matter-77' });
+  });
+
+  test('injects matter at a nested path (invoice.matter_uid) and keeps client_id out of the body', async () => {
+    const invoiceFields = [
+      { key: 'invoice__matter_uid', path: ['invoice', 'matter_uid'], label: 'Matter Uid', type: 'string', required: true, isJson: false, dynamic: 'list_matters.id.label' },
+      { key: 'invoice__currency', path: ['invoice', 'currency'], label: 'Currency', type: 'string', required: false, isJson: false },
+    ];
+    const { def, z, requests } = loadCreate(
+      { key: 'invoice', noun: 'Invoice', label: 'Create Invoice', path: '/i', method: 'POST', client_matter: true },
+      invoiceFields,
+      { matters: [{ uid: 'matter-88' }] }
+    );
+    await def.operation.perform(z, { inputData: { client_id: 'client-9', invoice__currency: 'USD' } });
+    const post = requests.find((r) => r.method === 'POST');
+    expect(post.body).toEqual({ invoice: { currency: 'USD', matter_uid: 'matter-88' } });
+  });
+
+  test('without client_matter, fields are unchanged (matter_uid stays a body field)', () => {
+    const { def } = loadCreate({ key: 'x', noun: 'X', label: 'Create X', path: '/x', method: 'POST' }, clientNoteFields);
+    const keys = def.operation.inputFields.map((f) => f.key);
+    expect(keys).toContain('matter_uid');
+    expect(keys).not.toContain('client_id');
+  });
+});
+
 describe('emitListTrigger query param resolution (D029 — {business_uid} in query)', () => {
   const vm = require('vm');
   // Load the emitted list-trigger source in a sandbox with stubbed deps so we can
