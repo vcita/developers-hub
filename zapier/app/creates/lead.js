@@ -219,9 +219,12 @@ const bodyFields = [
   }
 ];
 const pathFields = [];
-// client_matter (D030): Client picker replaces matter_uid; matter is resolved
-// from the chosen client and injected at these body paths.
+// client_matter (D030): matter_uid is resolved from the chosen client (either a
+// synthetic Client picker or an existing client_id field) and injected at these
+// body paths. CLIENT_FIELD is the synthetic UI-only field (null when reusing a
+// native client_id); CLIENT_SOURCE_KEY is the inputData key to resolve from.
 const CLIENT_FIELD = null;
+const CLIENT_SOURCE_KEY = null;
 const MATTER_PATHS = [];
 
 const inputFields = [
@@ -242,9 +245,9 @@ const perform = async (z, bundle) => {
     url = url.replace(`{${p}}`, encodeURIComponent(bundle.inputData[p]));
   }
   const body = buildBody(bundle.inputData, bodyFields);
-  if (CLIENT_FIELD && MATTER_PATHS.length) {
-    const matterUid = await resolveMatterUid(z, bundle, bundle.inputData[CLIENT_FIELD.key]);
-    if (CLIENT_FIELD.required && !matterUid) {
+  if (CLIENT_SOURCE_KEY && MATTER_PATHS.length) {
+    const matterUid = await resolveMatterUid(z, bundle, bundle.inputData[CLIENT_SOURCE_KEY]);
+    if (CLIENT_FIELD && CLIENT_FIELD.required && !matterUid) {
       throw new z.errors.Error(
         'Could not find a matter for the selected client. Pick a client that has at least one matter.',
         'MatterNotFound'

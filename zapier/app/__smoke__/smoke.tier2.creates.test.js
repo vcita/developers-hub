@@ -47,12 +47,26 @@ describeIfCreates('Zapier smoke — Tier 2 (DESTRUCTIVE creates, sandbox only)',
         return undefined;
       }
     };
+    const srcAll = async (k) => {
+      const t = App.triggers[k];
+      if (!t) return [];
+      try {
+        const rows = await appTester(t.operation.perform, {
+          authData,
+          meta: { isFillingDynamicDropdown: true },
+        });
+        return Array.isArray(rows) ? rows.map((r) => r.id).filter(Boolean) : [];
+      } catch (e) {
+        return [];
+      }
+    };
     ids.client = await src('list_clients');
     ids.category = await src('list_service_categories');
     ids.service = await src('list_services');
     ids.staff = await src('list_staff');
-    // matter_uid is no longer an input: client_note/invoice/estimate take a Client
-    // (client_id) and the app resolves that client's matter at runtime.
+    ids.services = await srcAll('list_services');
+    // matter_uid is no longer an input: client_note/invoice/estimate (and booking)
+    // take a Client (client_id); the app resolves that client's matter at runtime.
   });
 
   const create = (key, inputData) =>
@@ -150,30 +164,53 @@ describeIfCreates('Zapier smoke — Tier 2 (DESTRUCTIVE creates, sandbox only)',
     ).resolves.toBeDefined();
   });
 
-  test('create booking', async () => {
-    if (!ids.service || !ids.client || !ids.staff)
-      return skip('create booking: need service_id + client_id + staff_id');
-    try {
-      await expect(
-        create('booking', {
+  test('create booking (client_id; matter associated server-side)', async () => {
+    // Cap the iteration — booking POSTs are rate-limited; trying every service
+    // trips 429. A handful is enough to find a service without required fields.
+    const all = ids.services && ids.services.length ? ids.services : [ids.service].filter(Boolean);
+    const services = all.slice(0, 5);
+    if (!services.length || !ids.client || !ids.staff)
+      return skip('create booking: need at least one service + client_id + staff_id');
+
+    // Booking takes client_id (the platform associates the client's matter
+    // server-side). Do NOT send matter_uid — it is optional ("conversation
+    // context") and sending it 500s the endpoint. Some businesses require custom
+    // intake fields (form_data) we can't fill blindly; iterate services and
+    // soft-skip if every one needs them (sandbox config, not an app defect).
+    let booked = false;
+    let lastFormErr = null;
+    for (const serviceId of services) {
+      try {
+        const res = await create('booking', {
           business_id: businessUid,
-          service_id: ids.service,
+          service_id: serviceId,
           client_id: ids.client,
           staff_id: ids.staff,
-          start_time: new Date(Date.now() + 7 * 86400000).toISOString(),
+          start_time: new Date(Date.now() + 8 * 86400000).toISOString(),
           time_zone: 'UTC',
-        })
-      ).resolves.toBeDefined();
-    } catch (e) {
-      // The booking action itself works (it reached business-logic validation),
-      // but the sourced service may require custom intake-form fields we can't
-      // fill blindly. That's sandbox config, not an app defect — soft-skip it.
-      if (/FORM_VALIDATION_ERROR/.test(e && e.message)) {
-        return skip(
-          `create booking: service ${ids.service} requires custom intake fields — request reached form validation`
-        );
+        });
+        expect(res).toBeDefined();
+        booked = true;
+        break;
+      } catch (e) {
+        // Required custom intake fields = business config; the request reached
+        // business-logic form validation, so the action itself works. Try next.
+        if (/FORM_VALIDATION_ERROR/.test(e && e.message)) {
+          lastFormErr = serviceId;
+          continue;
+        }
+        // Rate-limited (booking POSTs are throttled) — transient, not an app defect.
+        if (/429|Too Many Requests|Throttled/i.test(e && e.message)) {
+          return skip(`create booking: rate-limited (429) after ${serviceId} — transient`);
+        }
+        throw e; // a real failure (auth, 400, 500, etc.)
       }
-      throw e;
+    }
+    if (!booked) {
+      return skip(
+        `create booking: all ${services.length} services require custom intake fields (last: ${lastFormErr}) — ` +
+          `request reached form validation; no service was fillable blindly in this sandbox`
+      );
     }
   });
 

@@ -113,6 +113,13 @@ in the manifest. The generator then:
 Business owners think in clients, not matter UIDs — this matches their mental model
 and sidesteps the missing list endpoint.
 
+**Booking is the exception** and does **not** use `client_matter`. Its `matter_uid`
+is optional ("conversation context") and sending it **500s** the endpoint. Booking
+takes `client_id` directly; the platform associates the client's matter server-side
+(and `client_id` also avoids the client-identity form validation). See the aiagents
+`post_scheduling_bookings` doc. Note: a business with required custom scheduling
+intake fields needs `form_data` filled — that's left to the user's Zap mapping.
+
 ## Webhook payload shape
 
 Payloads are **not** the entity schema. They are a batched envelope:

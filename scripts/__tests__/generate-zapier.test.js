@@ -94,6 +94,29 @@ describe('emitCreate client_matter resolution (D030 — pick a Client, resolve i
     expect(post.body).toEqual({ invoice: { currency: 'USD', matter_uid: 'matter-88' } });
   });
 
+  test('reuses an existing client_id body field as the matter source (no duplicate), keeps client_id in the body', async () => {
+    // Generic capability: a create that has a native client_id AND a matter_uid.
+    // (No current create wires this; booking deliberately does not use client_matter.)
+    const nativeClientFields = [
+      { key: 'client_id', path: ['client_id'], label: 'Client Id', type: 'string', required: false, isJson: false, dynamic: 'list_clients.id.label' },
+      { key: 'matter_uid', path: ['matter_uid'], label: 'Matter Uid', type: 'string', required: false, isJson: false },
+      { key: 'service_id', path: ['service_id'], label: 'Service Id', type: 'string', required: false, isJson: false },
+    ];
+    const { def, z, requests } = loadCreate(
+      { key: 'thing', noun: 'Thing', label: 'Create Thing', path: '/b', method: 'POST', client_matter: true },
+      nativeClientFields,
+      { matters: [{ uid: 'matter-55' }] }
+    );
+    const keys = def.operation.inputFields.map((f) => f.key);
+    // exactly one client_id, and matter_uid is no longer a user-facing field
+    expect(keys.filter((k) => k === 'client_id')).toHaveLength(1);
+    expect(keys).not.toContain('matter_uid');
+    await def.operation.perform(z, { inputData: { client_id: 'client-3', service_id: 'svc-1' } });
+    const post = requests.find((r) => r.method === 'POST');
+    // client_id stays in the body (API wants it) AND matter_uid is resolved from it
+    expect(post.body).toEqual({ client_id: 'client-3', service_id: 'svc-1', matter_uid: 'matter-55' });
+  });
+
   test('without client_matter, fields are unchanged (matter_uid stays a body field)', () => {
     const { def } = loadCreate({ key: 'x', noun: 'X', label: 'Create X', path: '/x', method: 'POST' }, clientNoteFields);
     const keys = def.operation.inputFields.map((f) => f.key);

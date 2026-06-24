@@ -162,23 +162,34 @@ const j = (v) => JSON.stringify(v, null, 2);
 const emitCreate = (create, fields, pathParams, sample) => {
   let bodyFields = fields; // path params are separate, added below
   // client_matter (D030): business owners pick a Client, not a matter_uid. Drop
-  // the matter_uid field(s) from the body, expose a single Client dropdown
-  // instead, and resolve the client's matter into the body at runtime.
-  let clientField = null;
+  // the matter_uid field(s) from the body and resolve the client's matter into
+  // the body at runtime. The client source is either an existing client_id body
+  // field (e.g. booking, which the API wants natively) or — when none exists
+  // (note/invoice/estimate) — a synthetic UI-only Client picker.
+  let clientField = null; // synthetic, UI-only (excluded from body)
+  let clientSourceKey = null; // inputData key to resolve the matter from
   let matterPaths = [];
   if (create.client_matter) {
     const matterFields = bodyFields.filter((f) => f.path[f.path.length - 1] === 'matter_uid');
     matterPaths = matterFields.map((f) => f.path);
     if (matterPaths.length) {
       bodyFields = bodyFields.filter((f) => f.path[f.path.length - 1] !== 'matter_uid');
-      clientField = {
-        key: 'client_id',
-        label: 'Client',
-        type: 'string',
-        required: matterFields.some((f) => f.required),
-        dynamic: 'list_clients.id.label',
-        helpText: 'The client to attach this to — their matter is resolved automatically.',
-      };
+      const existingClient = bodyFields.find((f) => f.path[f.path.length - 1] === 'client_id');
+      if (existingClient) {
+        // Reuse the native client_id (stays in the body); just source the matter from it.
+        existingClient.dynamic = 'list_clients.id.label';
+        clientSourceKey = existingClient.key;
+      } else {
+        clientField = {
+          key: 'client_id',
+          label: 'Client',
+          type: 'string',
+          required: matterFields.some((f) => f.required),
+          dynamic: 'list_clients.id.label',
+          helpText: 'The client to attach this to — their matter is resolved automatically.',
+        };
+        clientSourceKey = clientField.key;
+      }
     }
   }
   const pathFields = pathParams.map((p) => ({
@@ -199,9 +210,12 @@ const PATH_PARAMS = ${j(pathParams)};
 // Body field definitions (with internal path/isJson used to rebuild the body).
 const bodyFields = ${j(bodyFields)};
 const pathFields = ${j(pathFields)};
-// client_matter (D030): Client picker replaces matter_uid; matter is resolved
-// from the chosen client and injected at these body paths.
+// client_matter (D030): matter_uid is resolved from the chosen client (either a
+// synthetic Client picker or an existing client_id field) and injected at these
+// body paths. CLIENT_FIELD is the synthetic UI-only field (null when reusing a
+// native client_id); CLIENT_SOURCE_KEY is the inputData key to resolve from.
 const CLIENT_FIELD = ${j(clientField)};
+const CLIENT_SOURCE_KEY = ${j(clientSourceKey)};
 const MATTER_PATHS = ${j(matterPaths)};
 
 const inputFields = [
@@ -220,9 +234,9 @@ const perform = async (z, bundle) => {
     url = url.replace(\`{\${p}}\`, encodeURIComponent(bundle.inputData[p]));
   }
   const body = buildBody(bundle.inputData, bodyFields);
-  if (CLIENT_FIELD && MATTER_PATHS.length) {
-    const matterUid = await resolveMatterUid(z, bundle, bundle.inputData[CLIENT_FIELD.key]);
-    if (CLIENT_FIELD.required && !matterUid) {
+  if (CLIENT_SOURCE_KEY && MATTER_PATHS.length) {
+    const matterUid = await resolveMatterUid(z, bundle, bundle.inputData[CLIENT_SOURCE_KEY]);
+    if (CLIENT_FIELD && CLIENT_FIELD.required && !matterUid) {
       throw new z.errors.Error(
         'Could not find a matter for the selected client. Pick a client that has at least one matter.',
         'MatterNotFound'
