@@ -217,6 +217,10 @@ const pathFields = ${j(pathFields)};
 const CLIENT_FIELD = ${j(clientField)};
 const CLIENT_SOURCE_KEY = ${j(clientSourceKey)};
 const MATTER_PATHS = ${j(matterPaths)};
+// Body shaping: WRAP_ARRAY wraps the built body as { [WRAP_ARRAY]: [body] };
+// BODY_CONST merges constant keys at the top level (e.g. { new_api: true }).
+const WRAP_ARRAY = ${j(create.wrap_array || null)};
+const BODY_CONST = ${j(create.body_const || null)};
 
 const inputFields = [
   ...pathFields,
@@ -244,7 +248,10 @@ const perform = async (z, bundle) => {
     }
     if (matterUid) for (const p of MATTER_PATHS) setByPath(body, p, matterUid);
   }
-  const response = await z.request({ url, method: METHOD, body });
+  let payload = body;
+  if (WRAP_ARRAY) payload = { [WRAP_ARRAY]: [body], ...(BODY_CONST || {}) };
+  else if (BODY_CONST) payload = { ...body, ...BODY_CONST };
+  const response = await z.request({ url, method: METHOD, body: payload });
   return response.data;
 };
 
@@ -482,24 +489,41 @@ const main = () => {
   const specCache = {};
   const createKeys = [];
   for (const create of manifest.creates || []) {
-    const specFile = path.join(MCP_DIR, `${create.spec}.json`);
-    if (!fs.existsSync(specFile)) {
-      report.warnings.push(`create ${create.key}: spec ${create.spec}.json not found — skipped`);
-      continue;
+    let fields;
+    if (create.fields) {
+      // Explicit field definitions — for endpoints not in mcp_swagger (e.g. the
+      // staff appointments endpoint). Each entry is a flat input field.
+      fields = create.fields.map((f) => ({
+        key: f.key,
+        path: [f.key],
+        label: f.label || humanize(f.key),
+        type: f.type || 'string',
+        required: !!f.required,
+        isJson: !!f.isJson,
+        ...(f.default !== undefined ? { default: f.default } : {}),
+        ...(f.helpText ? { helpText: f.helpText } : {}),
+        ...(f.choices ? { choices: f.choices.map(String) } : {}),
+      }));
+    } else {
+      const specFile = path.join(MCP_DIR, `${create.spec}.json`);
+      if (!fs.existsSync(specFile)) {
+        report.warnings.push(`create ${create.key}: spec ${create.spec}.json not found — skipped`);
+        continue;
+      }
+      const spec = (specCache[create.spec] =
+        specCache[create.spec] || readJson(specFile));
+      const op = (spec.paths[create.path] || {})[create.method.toLowerCase()];
+      if (!op) {
+        report.warnings.push(
+          `create ${create.key}: ${create.method} ${create.path} not found in ${create.spec} — skipped`
+        );
+        continue;
+      }
+      const schema = op.requestBody && op.requestBody.content['application/json']
+        ? op.requestBody.content['application/json'].schema
+        : {};
+      fields = walkSchema(schema, spec, { path: [], depth: 0, parentRequired: true });
     }
-    const spec = (specCache[create.spec] =
-      specCache[create.spec] || readJson(specFile));
-    const op = (spec.paths[create.path] || {})[create.method.toLowerCase()];
-    if (!op) {
-      report.warnings.push(
-        `create ${create.key}: ${create.method} ${create.path} not found in ${create.spec} — skipped`
-      );
-      continue;
-    }
-    const schema = op.requestBody && op.requestBody.content['application/json']
-      ? op.requestBody.content['application/json'].schema
-      : {};
-    const fields = walkSchema(schema, spec, { path: [], depth: 0, parentRequired: true });
     // Wire dynamic dropdowns onto ID fields (D004).
     for (const f of fields) {
       const ref = dropdownRef(f.key, byLeaf);

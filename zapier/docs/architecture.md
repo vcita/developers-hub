@@ -113,12 +113,21 @@ in the manifest. The generator then:
 Business owners think in clients, not matter UIDs — this matches their mental model
 and sidesteps the missing list endpoint.
 
-**Booking is the exception** and does **not** use `client_matter`. Its `matter_uid`
-is optional ("conversation context") and sending it **500s** the endpoint. Booking
-takes `client_id` directly; the platform associates the client's matter server-side
-(and `client_id` also avoids the client-identity form validation). See the aiagents
-`post_scheduling_bookings` doc. Note: a business with required custom scheduling
-intake fields needs `form_data` filled — that's left to the user's Zap mapping.
+**Booking is the exception** and does **not** use `client_matter`. It posts to the
+staff appointments endpoint **`POST /business/scheduling/v1/appointments`**, not the
+client-facing `/scheduling/bookings` (which demands `form_data` custom-intake fields
+and 500s on `matter_uid`). The appointments endpoint creates directly on the calendar
+from a `client_id`; the platform associates the client's matter server-side. See the
+aiagents `book_appointment` workflow / `post_scheduling_appointments` doc.
+
+That endpoint is **not in `mcp_swagger`**, so the booking create defines its fields
+explicitly in the manifest (`fields:`) and uses three generator features:
+
+- **`fields:`** — explicit input fields when no swagger schema exists.
+- **`wrap_array` + `body_const`** — the built body is wrapped as
+  `{ <wrap_array>: [body], ...body_const }`, e.g. `{ appointments: [...], new_api: true }`.
+- **field `default:`** — a value sent even when the input is blank. `interaction_details`
+  defaults to `""` (valid for online/video; location/phone services need a real value).
 
 ## Webhook payload shape
 

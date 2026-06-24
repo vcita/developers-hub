@@ -47,7 +47,7 @@ describeIfCreates('Zapier smoke — Tier 2 (DESTRUCTIVE creates, sandbox only)',
         return undefined;
       }
     };
-    const srcAll = async (k) => {
+    const srcRows = async (k) => {
       const t = App.triggers[k];
       if (!t) return [];
       try {
@@ -55,7 +55,7 @@ describeIfCreates('Zapier smoke — Tier 2 (DESTRUCTIVE creates, sandbox only)',
           authData,
           meta: { isFillingDynamicDropdown: true },
         });
-        return Array.isArray(rows) ? rows.map((r) => r.id).filter(Boolean) : [];
+        return Array.isArray(rows) ? rows : [];
       } catch (e) {
         return [];
       }
@@ -64,9 +64,10 @@ describeIfCreates('Zapier smoke — Tier 2 (DESTRUCTIVE creates, sandbox only)',
     ids.category = await src('list_service_categories');
     ids.service = await src('list_services');
     ids.staff = await src('list_staff');
-    ids.services = await srcAll('list_services');
-    // matter_uid is no longer an input: client_note/invoice/estimate (and booking)
-    // take a Client (client_id); the app resolves that client's matter at runtime.
+    ids.serviceRows = await srcRows('list_services'); // full rows (need interaction_type/duration)
+    // matter_uid is no longer an input: client_note/invoice/estimate take a Client
+    // (client_id); the app resolves that client's matter at runtime. booking uses
+    // the staff appointments endpoint and also takes client_id directly.
   });
 
   const create = (key, inputData) =>
@@ -164,53 +165,40 @@ describeIfCreates('Zapier smoke — Tier 2 (DESTRUCTIVE creates, sandbox only)',
     ).resolves.toBeDefined();
   });
 
-  test('create booking (client_id; matter associated server-side)', async () => {
-    // Cap the iteration — booking POSTs are rate-limited; trying every service
-    // trips 429. A handful is enough to find a service without required fields.
-    const all = ids.services && ids.services.length ? ids.services : [ids.service].filter(Boolean);
-    const services = all.slice(0, 5);
-    if (!services.length || !ids.client || !ids.staff)
-      return skip('create booking: need at least one service + client_id + staff_id');
+  test('create booking (staff appointments endpoint, client_id)', async () => {
+    const svc = (ids.serviceRows || [])[0];
+    if (!svc || !ids.client || !ids.staff)
+      return skip('create booking: need a service + client_id + staff_id');
 
-    // Booking takes client_id (the platform associates the client's matter
-    // server-side). Do NOT send matter_uid — it is optional ("conversation
-    // context") and sending it 500s the endpoint. Some businesses require custom
-    // intake fields (form_data) we can't fill blindly; iterate services and
-    // soft-skip if every one needs them (sandbox config, not an app defect).
-    let booked = false;
-    let lastFormErr = null;
-    for (const serviceId of services) {
-      try {
-        const res = await create('booking', {
-          business_id: businessUid,
-          service_id: serviceId,
-          client_id: ids.client,
-          staff_id: ids.staff,
-          start_time: new Date(Date.now() + 8 * 86400000).toISOString(),
-          time_zone: 'UTC',
-        });
-        expect(res).toBeDefined();
-        booked = true;
-        break;
-      } catch (e) {
-        // Required custom intake fields = business config; the request reached
-        // business-logic form validation, so the action itself works. Try next.
-        if (/FORM_VALIDATION_ERROR/.test(e && e.message)) {
-          lastFormErr = serviceId;
-          continue;
-        }
-        // Rate-limited (booking POSTs are throttled) — transient, not an app defect.
-        if (/429|Too Many Requests|Throttled/i.test(e && e.message)) {
-          return skip(`create booking: rate-limited (429) after ${serviceId} — transient`);
-        }
-        throw e; // a real failure (auth, 400, 500, etc.)
+    // Build a real appointment: interaction_type from the service, end_time from
+    // its duration, and a UNIQUE slot (Date.now()) so reruns don't collide. The
+    // app wraps this as { appointments: [...], new_api: true } and sends
+    // interaction_details="" by default (valid for online/video services).
+    const durationMin = svc.duration || 30;
+    const start = new Date(Date.now() + 14 * 86400000 + (Date.now() % 600) * 60000);
+    const end = new Date(start.getTime() + durationMin * 60000);
+    try {
+      const res = await create('booking', {
+        client_id: ids.client,
+        service_id: svc.id,
+        staff_id: ids.staff,
+        title: label('Appointment'),
+        start_time: start.toISOString(),
+        end_time: end.toISOString(),
+        interaction_type: svc.interaction_type || 'online',
+        // interaction_details left blank — app sends "" (fine for online/video).
+      });
+      expect(res).toBeDefined();
+    } catch (e) {
+      // Location/phone services need a non-empty interaction_details we can't
+      // guess; that's service config, not an app defect. Soft-skip those.
+      if (/intercation details|interaction_details|can't be blank/i.test(e && e.message)) {
+        return skip(`create booking: service ${svc.id} needs interaction_details (location/phone) — app works`);
       }
-    }
-    if (!booked) {
-      return skip(
-        `create booking: all ${services.length} services require custom intake fields (last: ${lastFormErr}) — ` +
-          `request reached form validation; no service was fillable blindly in this sandbox`
-      );
+      if (/429|Too Many Requests|Throttled/i.test(e && e.message)) {
+        return skip('create booking: rate-limited (429) — transient');
+      }
+      throw e;
     }
   });
 

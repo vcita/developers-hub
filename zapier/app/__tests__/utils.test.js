@@ -97,6 +97,22 @@ describe('buildBody', () => {
   });
 });
 
+describe('buildBody field default (send a value even when the input is blank)', () => {
+  test('uses the field default when the input is missing/empty', () => {
+    const fields = [{ key: 'interaction_details', path: ['interaction_details'], default: '' }];
+    expect(buildBody({}, fields)).toEqual({ interaction_details: '' });
+    expect(buildBody({ interaction_details: '' }, fields)).toEqual({ interaction_details: '' });
+  });
+  test('prefers the provided input over the default', () => {
+    const fields = [{ key: 'interaction_details', path: ['interaction_details'], default: '' }];
+    expect(buildBody({ interaction_details: '123 Main St' }, fields)).toEqual({ interaction_details: '123 Main St' });
+  });
+  test('a field without a default is still skipped when blank', () => {
+    const fields = [{ key: 'notes', path: ['notes'] }];
+    expect(buildBody({ notes: '' }, fields)).toEqual({});
+  });
+});
+
 describe('safeJson', () => {
   test('parses valid JSON strings', () => {
     expect(safeJson('{"a":1}')).toEqual({ a: 1 });

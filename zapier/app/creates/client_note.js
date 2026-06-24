@@ -77,6 +77,10 @@ const MATTER_PATHS = [
     "matter_uid"
   ]
 ];
+// Body shaping: WRAP_ARRAY wraps the built body as { [WRAP_ARRAY]: [body] };
+// BODY_CONST merges constant keys at the top level (e.g. { new_api: true }).
+const WRAP_ARRAY = null;
+const BODY_CONST = null;
 
 const inputFields = [
   ...pathFields,
@@ -106,7 +110,10 @@ const perform = async (z, bundle) => {
     }
     if (matterUid) for (const p of MATTER_PATHS) setByPath(body, p, matterUid);
   }
-  const response = await z.request({ url, method: METHOD, body });
+  let payload = body;
+  if (WRAP_ARRAY) payload = { [WRAP_ARRAY]: [body], ...(BODY_CONST || {}) };
+  else if (BODY_CONST) payload = { ...body, ...BODY_CONST };
+  const response = await z.request({ url, method: METHOD, body: payload });
   return response.data;
 };
 

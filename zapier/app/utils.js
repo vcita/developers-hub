@@ -6,8 +6,13 @@
 const buildBody = (inputData, fields) => {
   const body = {};
   for (const field of fields) {
-    const value = inputData[field.key];
-    if (value === undefined || value === null || value === '') continue;
+    let value = inputData[field.key];
+    if (value === undefined || value === null || value === '') {
+      // Send the field's default (e.g. '') even when blank, so endpoints that
+      // require the key present but accept an empty value are satisfied.
+      if (field.default === undefined) continue;
+      value = field.default;
+    }
     const path = field.path || [field.key];
     let node = body;
     for (let i = 0; i < path.length - 1; i++) {

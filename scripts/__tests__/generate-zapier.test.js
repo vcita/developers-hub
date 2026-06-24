@@ -117,6 +117,20 @@ describe('emitCreate client_matter resolution (D030 — pick a Client, resolve i
     expect(post.body).toEqual({ client_id: 'client-3', service_id: 'svc-1', matter_uid: 'matter-55' });
   });
 
+  test('wrap_array + body_const: wraps the built body in an array and merges constants at top level', async () => {
+    const fields = [
+      { key: 'client_id', path: ['client_id'], label: 'Client', type: 'string', required: true, isJson: false },
+      { key: 'title', path: ['title'], label: 'Title', type: 'string', required: true, isJson: false },
+    ];
+    const { def, z, requests } = loadCreate(
+      { key: 'booking', noun: 'Appointment', label: 'Create Booking', path: '/a', method: 'POST', wrap_array: 'appointments', body_const: { new_api: true } },
+      fields
+    );
+    await def.operation.perform(z, { inputData: { client_id: 'c1', title: 'Hi' } });
+    const post = requests.find((r) => r.method === 'POST');
+    expect(post.body).toEqual({ appointments: [{ client_id: 'c1', title: 'Hi' }], new_api: true });
+  });
+
   test('without client_matter, fields are unchanged (matter_uid stays a body field)', () => {
     const { def } = loadCreate({ key: 'x', noun: 'X', label: 'Create X', path: '/x', method: 'POST' }, clientNoteFields);
     const keys = def.operation.inputFields.map((f) => f.key);

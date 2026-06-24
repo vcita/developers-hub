@@ -103,16 +103,33 @@ creates:
     path: /platform/v1/leadgen
     spec: sales
 
-  # booking does NOT use client_matter: matter_uid is optional ("conversation
-  # context") and sending it 500s the endpoint. Pass client_id instead — the
-  # platform associates the client's matter server-side (and client_id avoids
-  # client-identity form validation). See aiagents post_scheduling_bookings.
+  # booking: use the STAFF appointments endpoint (POST /business/scheduling/v1/
+  # appointments), not /scheduling/bookings. bookings is the client-facing flow
+  # that demands form_data (custom intake fields) and 500s on matter_uid; the
+  # appointments endpoint creates directly on the calendar from a client_id.
+  # This endpoint is NOT in mcp_swagger, so fields are defined explicitly here.
+  # Body is wrapped: { appointments: [ <fields> ], new_api: true }.
+  # See aiagents skills/chat-scheduling/workflows/book_appointment.md.
   - key: booking
     noun: Appointment
     label: Create Booking
     method: POST
-    path: /platform/v1/scheduling/bookings
-    spec: scheduling
+    path: /business/scheduling/v1/appointments
+    wrap_array: appointments
+    body_const: { new_api: true }
+    fields:
+      - { key: client_id, label: Client, required: true }   # clients dropdown via field_leaves
+      - { key: service_id, label: Service, required: true } # services dropdown
+      - { key: staff_id, label: Staff, required: true }     # staff dropdown
+      - { key: title, label: Title, required: true, helpText: "Appointment title (defaults to the service name)" }
+      - { key: start_time, label: Start Time, type: datetime, required: true, helpText: "ISO 8601, business-local time" }
+      - { key: end_time, label: End Time, type: datetime, required: true, helpText: "ISO 8601; default start + service duration" }
+      - { key: interaction_type, label: Interaction Type, helpText: "Use the service's interaction_type (e.g. online, skype, client_phone, business_location)" }
+      # interaction_details must be PRESENT even when empty (online/video accept "");
+      # default "" so a blank input is still sent. Location/phone types need a value.
+      - { key: interaction_details, label: Interaction Details, default: "", helpText: "Phone/address per interaction_type; leave blank for online/video" }
+      - { key: charge_type, label: Charge Type, choices: [no_price, fixed, custom], default: no_price }
+      - { key: source_type, label: Source, choices: [initiated_by_staff, initiated_by_client], default: initiated_by_staff }
 
   - key: product
     noun: Product
