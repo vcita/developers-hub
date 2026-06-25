@@ -6,10 +6,10 @@
     "version": "3.0",
     "x-generated": {
       "sourceFiles": [
+        "search.json",
         "manage_clients.json",
         "legacy_v1_clients.json",
         "client_settings.json",
-        "search.json",
         "notes.json",
         "clients_payments.json",
         "client_messaging.json",
@@ -295,6 +295,453 @@
     }
   ],
   "paths": {
+    "/v2/search": {
+      "get": {
+        "tags": [
+          "Search"
+        ],
+        "summary": "Search business data",
+        "description": "## Overview\nSearches across business data entities including clients, conversations, bookings, appointments, estimates, payments, and documents. The search is powered by an Elasticsearch-based Seeker service.\n\nThe behavior varies depending on the `entity` parameter:\n- **No entity or general entities**: Returns a combined result with `top_hits` grouped by entity type and `counts` per entity type.\n- **`entity=appointment`**: Returns a decorated list of appointments with pagination support for recurring appointment series.\n- **`entity=event_instance`**: Returns a decorated list of event instances with standard pagination.\n\n### Rate Limiting\nThis endpoint is rate-limited to **60 requests per 60 seconds** per staff member. Exceeding the limit returns a `429 Too Many Requests` response.\n\n### Staff Permissions\nSearch results are filtered based on the requesting staff member's permissions:\n- Clients are scoped to the staff member's accessible clients unless they have full access.\n- Payment and document results are hidden if the staff member lacks view permissions for those entities.\n- Client email, phone, and last name visibility depends on the staff's model view permissions.\n\nAvailable for **Staff and Internal tokens**.",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "description": "The search text to match against business data. Supports free-text search across entity fields (e.g., client name, email, phone number).",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "John"
+          },
+          {
+            "name": "entity",
+            "in": "query",
+            "description": "When set, restricts the search to a single entity type. The response format depends on the value:\n- `appointment` — Returns a decorated list of appointments with recurring series support and specialized pagination.\n- `event_instance` — Returns a decorated list of event instances with standard pagination.\n- `client`, `conversation`, `booking`, `estimate`, `payment`, `document` — Restricts the general search to the specified entity type, returning the standard `top_hits` + `counts` response format.\n\nWhen omitted, the search spans all entity types and returns the general `top_hits` + `counts` response.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "entities",
+            "in": "query",
+            "description": "Comma-separated list of entity types to include in the search results. Applicable when `entity` is not set. Possible values include: `client`, `conversation`, `booking`, `appointment`, `estimate`, `payment`, `document`.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "client,conversation,appointment"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number for pagination (1-based). For appointment searches with recurring series, this can also be an object with `virtual_count` and `physical_count` to properly paginate mixed physical and virtual appointments.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "Number of results per page.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 25
+            }
+          },
+          {
+            "name": "quick",
+            "in": "query",
+            "description": "When set, performs a quick search with potentially fewer results but faster response time.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search_filter[text_filter]",
+            "in": "query",
+            "description": "Additional text filter applied within the search. Used for more targeted filtering beyond the main `query` parameter.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search_filter[staff_filter]",
+            "in": "query",
+            "description": "Comma-separated list of staff UIDs to filter results by specific staff members.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "staff_abc123,staff_def456"
+          },
+          {
+            "name": "search_filter[from_filter]",
+            "in": "query",
+            "description": "Start date filter for time-based searches (e.g., appointments, events). ISO 8601 date format.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "example": "2026-01-01T00:00:00Z"
+          },
+          {
+            "name": "search_filter[to_filter]",
+            "in": "query",
+            "description": "End date filter for time-based searches (e.g., appointments, events). ISO 8601 date format.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "example": "2026-12-31T23:59:59Z"
+          },
+          {
+            "name": "search_filter[sort_type]",
+            "in": "query",
+            "description": "Field to sort by for appointment and event searches (used when `entity=appointment` or `entity=event_instance`). Forwarded to the Seeker service. The most common value is `start_time` to sort appointments by their start time. This parameter is only meaningful for entity-specific searches — for general search, use the top-level `sort_by` parameter instead.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "start_time"
+          },
+          {
+            "name": "search_filter[sort_order]",
+            "in": "query",
+            "description": "Sort direction for time-based results. Used in conjunction with `search_filter[sort_type]` for appointment and event searches. After Seeker returns results, the backend also uses this value to re-sort merged appointment lists (physical + virtual recurring instances) by `start_time`.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "search_filter[payment_status_state_filter]",
+            "in": "query",
+            "description": "Filter appointments by payment status. Accepts an array of payment status values (e.g., \"not_paid\", \"paid\").",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search_filter[tags_filter]",
+            "in": "query",
+            "description": "Filter results by tags. Used for tag-based client filtering.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search_filter[tags_relation]",
+            "in": "query",
+            "description": "Logical relation for multiple tag filters.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "or",
+                "and"
+              ],
+              "default": "or"
+            }
+          },
+          {
+            "name": "sort_by",
+            "in": "query",
+            "description": "Field to sort results by for **general search only** (when `entity` is not set). The value is mapped through a column identifier mapping for client card fields, or used directly if no mapping exists. **Not applicable to appointment or event searches** — use `search_filter[sort_type]` and `search_filter[sort_order]` instead.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort_order",
+            "in": "query",
+            "description": "Sort direction for the primary sort in **general search only** (when `entity` is not set). **Not applicable to appointment or event searches** — use `search_filter[sort_order]` instead.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "secondary_sort_by",
+            "in": "query",
+            "description": "Secondary field to sort results by, used as a tiebreaker when primary sort values are equal.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "secondary_sort_order",
+            "in": "query",
+            "description": "Sort direction for the secondary sort.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "select_all",
+            "in": "query",
+            "description": "When set to true, returns a slimmed-down version of client results suitable for bulk selection operations. Client first_name and last_name are excluded from the response.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "new_decoration",
+            "in": "query",
+            "description": "When set to `true`, uses the newer matter-based client decoration format. The response will contain `counts` and `matters` instead of the default `top_hits` format for client results.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          },
+          {
+            "name": "response_fields",
+            "in": "query",
+            "description": "Comma-separated list of fields to include in the response. Only supported when `new_decoration=true` and `entity=client`. When `matter_uid` and `contact_uid` are the only fields requested, the API uses an optimized path for faster response times.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "matter_uid,contact_uid"
+          },
+          {
+            "name": "tags",
+            "in": "query",
+            "description": "Filter results by specific tags.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sms_only",
+            "in": "query",
+            "description": "When set to `true`, filters results to only include SMS-related data.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          },
+          {
+            "name": "score_sort",
+            "in": "query",
+            "description": "When set to `false`, disables Elasticsearch relevance score-based sorting. By default, score sorting is enabled when the business has the `score_sort` feature and the search text filter contains a space.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          },
+          {
+            "name": "time_zone",
+            "in": "query",
+            "description": "Time zone to use for date/time calculations in search results (e.g., \"America/New_York\"). Defaults to the current user's or business's time zone.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "America/New_York"
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "description": "Source identifier for tracking where the search request originated. Used for internal metrics.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search completed successfully. The response format depends on the `entity` parameter:\n- **General search** (no entity): Returns `SearchResult` with `top_hits` and `counts`.\n- **entity=appointment**: Returns `AppointmentSearchResponse` with decorated appointments.\n- **entity=event_instance**: Returns `EventSearchResponse` with decorated events.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/SearchResult"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AppointmentSearchResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/EventSearchResponse"
+                    },
+                    {
+                      "type": "null",
+                      "description": "Returned when no query parameters are provided or when the search returns no results."
+                    }
+                  ]
+                },
+                "examples": {
+                  "general_search": {
+                    "summary": "General search across multiple entities",
+                    "value": {
+                      "top_hits": {
+                        "client": [
+                          {
+                            "uid": "c_abc123",
+                            "first_name": "John",
+                            "last_name": "Doe",
+                            "full_name": "John Doe",
+                            "email": "john.doe@example.com",
+                            "phone": "12025551234",
+                            "matter_uid": "m_xyz789",
+                            "matter_name": "John Doe",
+                            "created_at": "2026-01-15T10:30:00Z",
+                            "created_at_h": "Jan 15",
+                            "color_id": 5,
+                            "primary_staff_uid": "staff_abc123",
+                            "client_type": "regular"
+                          }
+                        ],
+                        "conversation": [],
+                        "appointment": []
+                      },
+                      "counts": {
+                        "client": 1,
+                        "conversation": 0,
+                        "appointment": 0
+                      }
+                    }
+                  },
+                  "appointment_search": {
+                    "summary": "Appointment-specific search",
+                    "value": {
+                      "success": true,
+                      "appointments": [
+                        {
+                          "id": "apt_abc123",
+                          "title": "Consultation",
+                          "staff_id": "staff_abc123",
+                          "staff_display_name": "Jane Smith",
+                          "state": "confirmed",
+                          "is_recurring": false,
+                          "start_time": "2026-02-15T09:00:00-05:00",
+                          "start_time_utc": "2026-02-15T14:00:00Z",
+                          "duration": 60,
+                          "client_id": "c_abc123",
+                          "client_first_name": "John",
+                          "client_last_name": "Doe",
+                          "client_full_name": "John Doe",
+                          "client_email": "john.doe@example.com",
+                          "payment_status": "not_paid",
+                          "no_show": false,
+                          "matter_id": "m_xyz789",
+                          "matter_name": "John Doe",
+                          "rsvp_state": "accepted"
+                        }
+                      ],
+                      "count": 1,
+                      "next_page": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing, invalid, or not allowed to access the requested resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": "401 Unauthorized"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found. No matching results were found for the given entity search (appointment or event_instance).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "code": "missing",
+                  "message": "Cant find match appointments"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests. The staff member has exceeded the rate limit of 60 requests per 60 seconds.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "error": "Too many requests"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Gateway Timeout. The Seeker search service is unavailable or timed out.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/business/clients/v1/apps/{app_code_name}/import": {
       "post": {
         "description": "## Overview\nImport clients to an app. Creates client records based on the provided field mappings.\n\n## Authentication\n**Available for Staff, App, and Directory tokens.**\n\n## Prerequisites\n1. The app specified by `app_code_name` must be assigned to the business\n2. The app must have `app_type` set to `import_clients`\n3. Use `POST /v3/apps/app_assignments` with `assignment_mode: 'internal'` to assign the app\n\n## Request Body\n- `import_params`: Configuration for the import process\n- `fields_mapping`: Maps client fields to their values",
@@ -4100,443 +4547,6 @@
         ]
       }
     },
-    "/v2/search": {
-      "get": {
-        "tags": [
-          "Search"
-        ],
-        "summary": "Search business data",
-        "description": "## Overview\nSearches across business data entities including clients, conversations, bookings, appointments, estimates, payments, and documents. The search is powered by an Elasticsearch-based Seeker service.\n\nThe behavior varies depending on the `entity` parameter:\n- **No entity or general entities**: Returns a combined result with `top_hits` grouped by entity type and `counts` per entity type.\n- **`entity=appointment`**: Returns a decorated list of appointments with pagination support for recurring appointment series.\n- **`entity=event_instance`**: Returns a decorated list of event instances with standard pagination.\n\n### Rate Limiting\nThis endpoint is rate-limited to **60 requests per 60 seconds** per staff member. Exceeding the limit returns a `429 Too Many Requests` response.\n\n### Staff Permissions\nSearch results are filtered based on the requesting staff member's permissions:\n- Clients are scoped to the staff member's accessible clients unless they have full access.\n- Payment and document results are hidden if the staff member lacks view permissions for those entities.\n- Client email, phone, and last name visibility depends on the staff's model view permissions.\n\nAvailable for **Staff and Internal tokens**.",
-        "parameters": [
-          {
-            "name": "query",
-            "in": "query",
-            "description": "The search text to match against business data. Supports free-text search across entity fields (e.g., client name, email, phone number).",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "example": "John"
-          },
-          {
-            "name": "entity",
-            "in": "query",
-            "description": "When set, restricts the search to a single entity type. The response format depends on the value:\n- `appointment` — Returns a decorated list of appointments with recurring series support and specialized pagination.\n- `event_instance` — Returns a decorated list of event instances with standard pagination.\n- `client`, `conversation`, `booking`, `estimate`, `payment`, `document` — Restricts the general search to the specified entity type, returning the standard `top_hits` + `counts` response format.\n\nWhen omitted, the search spans all entity types and returns the general `top_hits` + `counts` response.",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "entities",
-            "in": "query",
-            "description": "Comma-separated list of entity types to include in the search results. Applicable when `entity` is not set. Possible values include: `client`, `conversation`, `booking`, `appointment`, `estimate`, `payment`, `document`.",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "example": "client,conversation,appointment"
-          },
-          {
-            "name": "page",
-            "in": "query",
-            "description": "Page number for pagination (1-based). For appointment searches with recurring series, this can also be an object with `virtual_count` and `physical_count` to properly paginate mixed physical and virtual appointments.",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 1
-            }
-          },
-          {
-            "name": "per_page",
-            "in": "query",
-            "description": "Number of results per page.",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 25
-            }
-          },
-          {
-            "name": "quick",
-            "in": "query",
-            "description": "When set, performs a quick search with potentially fewer results but faster response time.",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "search_filter[text_filter]",
-            "in": "query",
-            "description": "Additional text filter applied within the search. Used for more targeted filtering beyond the main `query` parameter.",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "search_filter[staff_filter]",
-            "in": "query",
-            "description": "Comma-separated list of staff UIDs to filter results by specific staff members.",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "example": "staff_abc123,staff_def456"
-          },
-          {
-            "name": "search_filter[from_filter]",
-            "in": "query",
-            "description": "Start date filter for time-based searches (e.g., appointments, events). ISO 8601 date format.",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "format": "date-time"
-            },
-            "example": "2026-01-01T00:00:00Z"
-          },
-          {
-            "name": "search_filter[to_filter]",
-            "in": "query",
-            "description": "End date filter for time-based searches (e.g., appointments, events). ISO 8601 date format.",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "format": "date-time"
-            },
-            "example": "2026-12-31T23:59:59Z"
-          },
-          {
-            "name": "search_filter[sort_type]",
-            "in": "query",
-            "description": "Field to sort by for appointment and event searches (used when `entity=appointment` or `entity=event_instance`). Forwarded to the Seeker service. The most common value is `start_time` to sort appointments by their start time. This parameter is only meaningful for entity-specific searches — for general search, use the top-level `sort_by` parameter instead.",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "example": "start_time"
-          },
-          {
-            "name": "search_filter[sort_order]",
-            "in": "query",
-            "description": "Sort direction for time-based results. Used in conjunction with `search_filter[sort_type]` for appointment and event searches. After Seeker returns results, the backend also uses this value to re-sort merged appointment lists (physical + virtual recurring instances) by `start_time`.",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "asc",
-                "desc"
-              ]
-            }
-          },
-          {
-            "name": "search_filter[payment_status_state_filter]",
-            "in": "query",
-            "description": "Filter appointments by payment status. Accepts an array of payment status values (e.g., \"not_paid\", \"paid\").",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "search_filter[tags_filter]",
-            "in": "query",
-            "description": "Filter results by tags. Used for tag-based client filtering.",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "search_filter[tags_relation]",
-            "in": "query",
-            "description": "Logical relation for multiple tag filters.",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "or",
-                "and"
-              ],
-              "default": "or"
-            }
-          },
-          {
-            "name": "sort_by",
-            "in": "query",
-            "description": "Field to sort results by for **general search only** (when `entity` is not set). The value is mapped through a column identifier mapping for client card fields, or used directly if no mapping exists. **Not applicable to appointment or event searches** — use `search_filter[sort_type]` and `search_filter[sort_order]` instead.",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "sort_order",
-            "in": "query",
-            "description": "Sort direction for the primary sort in **general search only** (when `entity` is not set). **Not applicable to appointment or event searches** — use `search_filter[sort_order]` instead.",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "asc",
-                "desc"
-              ]
-            }
-          },
-          {
-            "name": "secondary_sort_by",
-            "in": "query",
-            "description": "Secondary field to sort results by, used as a tiebreaker when primary sort values are equal.",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "secondary_sort_order",
-            "in": "query",
-            "description": "Sort direction for the secondary sort.",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "asc",
-                "desc"
-              ]
-            }
-          },
-          {
-            "name": "select_all",
-            "in": "query",
-            "description": "When set to true, returns a slimmed-down version of client results suitable for bulk selection operations. Client first_name and last_name are excluded from the response.",
-            "required": false,
-            "schema": {
-              "type": "boolean"
-            }
-          },
-          {
-            "name": "new_decoration",
-            "in": "query",
-            "description": "When set to `true`, uses the newer matter-based client decoration format. The response will contain `counts` and `matters` instead of the default `top_hits` format for client results.",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "true",
-                "false"
-              ]
-            }
-          },
-          {
-            "name": "tags",
-            "in": "query",
-            "description": "Filter results by specific tags.",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "sms_only",
-            "in": "query",
-            "description": "When set to `true`, filters results to only include SMS-related data.",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "true",
-                "false"
-              ]
-            }
-          },
-          {
-            "name": "score_sort",
-            "in": "query",
-            "description": "When set to `false`, disables Elasticsearch relevance score-based sorting. By default, score sorting is enabled when the business has the `score_sort` feature and the search text filter contains a space.",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "true",
-                "false"
-              ]
-            }
-          },
-          {
-            "name": "time_zone",
-            "in": "query",
-            "description": "Time zone to use for date/time calculations in search results (e.g., \"America/New_York\"). Defaults to the current user's or business's time zone.",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "example": "America/New_York"
-          },
-          {
-            "name": "source",
-            "in": "query",
-            "description": "Source identifier for tracking where the search request originated. Used for internal metrics.",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Search completed successfully. The response format depends on the `entity` parameter:\n- **General search** (no entity): Returns `SearchResult` with `top_hits` and `counts`.\n- **entity=appointment**: Returns `AppointmentSearchResponse` with decorated appointments.\n- **entity=event_instance**: Returns `EventSearchResponse` with decorated events.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "oneOf": [
-                    {
-                      "$ref": "#/components/schemas/SearchResult"
-                    },
-                    {
-                      "$ref": "#/components/schemas/AppointmentSearchResponse"
-                    },
-                    {
-                      "$ref": "#/components/schemas/EventSearchResponse"
-                    },
-                    {
-                      "type": "null",
-                      "description": "Returned when no query parameters are provided or when the search returns no results."
-                    }
-                  ]
-                },
-                "examples": {
-                  "general_search": {
-                    "summary": "General search across multiple entities",
-                    "value": {
-                      "top_hits": {
-                        "client": [
-                          {
-                            "uid": "c_abc123",
-                            "first_name": "John",
-                            "last_name": "Doe",
-                            "full_name": "John Doe",
-                            "email": "john.doe@example.com",
-                            "phone": "12025551234",
-                            "matter_uid": "m_xyz789",
-                            "matter_name": "John Doe",
-                            "created_at": "2026-01-15T10:30:00Z",
-                            "created_at_h": "Jan 15",
-                            "color_id": 5,
-                            "primary_staff_uid": "staff_abc123",
-                            "client_type": "regular"
-                          }
-                        ],
-                        "conversation": [],
-                        "appointment": []
-                      },
-                      "counts": {
-                        "client": 1,
-                        "conversation": 0,
-                        "appointment": 0
-                      }
-                    }
-                  },
-                  "appointment_search": {
-                    "summary": "Appointment-specific search",
-                    "value": {
-                      "success": true,
-                      "appointments": [
-                        {
-                          "id": "apt_abc123",
-                          "title": "Consultation",
-                          "staff_id": "staff_abc123",
-                          "staff_display_name": "Jane Smith",
-                          "state": "confirmed",
-                          "is_recurring": false,
-                          "start_time": "2026-02-15T09:00:00-05:00",
-                          "start_time_utc": "2026-02-15T14:00:00Z",
-                          "duration": 60,
-                          "client_id": "c_abc123",
-                          "client_first_name": "John",
-                          "client_last_name": "Doe",
-                          "client_full_name": "John Doe",
-                          "client_email": "john.doe@example.com",
-                          "payment_status": "not_paid",
-                          "no_show": false,
-                          "matter_id": "m_xyz789",
-                          "matter_name": "John Doe",
-                          "rsvp_state": "accepted"
-                        }
-                      ],
-                      "count": 1,
-                      "next_page": null
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing, invalid, or not allowed to access the requested resource.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "error": "401 Unauthorized"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found. No matching results were found for the given entity search (appointment or event_instance).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "code": "missing",
-                  "message": "Cant find match appointments"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too Many Requests. The staff member has exceeded the rate limit of 60 requests per 60 seconds.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string"
-                    }
-                  }
-                },
-                "example": {
-                  "error": "Too many requests"
-                }
-              }
-            }
-          },
-          "504": {
-            "description": "Gateway Timeout. The Seeker search service is unavailable or timed out.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
     "/v3/clients/client_notes": {
       "get": {
         "summary": "Get all ClientNotes",
@@ -8075,70 +8085,7 @@
     }
   },
   "components": {
-    "securitySchemes": {
-      "Bearer": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT",
-        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
-      },
-      "ClientMessaging": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT",
-        "description": "Provide a valid client bearer token in the Authorization header. Example: 'Authorization: Bearer {client_token}'"
-      },
-      "Notes": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT",
-        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {token}'"
-      }
-    },
     "schemas": {
-      "ClientSettingsList": {
-        "type": "object",
-        "properties": {
-          "client_settings": {
-            "description": "List of Client Settings",
-            "type": "array",
-            "items": {
-              "$ref": "https://vcita.github.io/developers-hub/entities/clients/clientSettings.json"
-            }
-          }
-        }
-      },
-      "BulkUpdateRequest": {
-        "type": "object",
-        "properties": {
-          "client_settings": {
-            "type": "array",
-            "description": "Array of client settings to update (max 5000)",
-            "maxItems": 5000,
-            "items": {
-              "type": "object",
-              "required": [
-                "client_uid",
-                "opt_out_transactional_sms"
-              ],
-              "properties": {
-                "client_uid": {
-                  "type": "string",
-                  "description": "Unique identifier of the client",
-                  "example": "cmf62p00w2ns3chq"
-                },
-                "opt_out_transactional_sms": {
-                  "type": "boolean",
-                  "description": "Opt out from transactional SMS. Must be an explicit boolean value (true or false). Null values are not allowed."
-                }
-              }
-            }
-          }
-        },
-        "required": [
-          "client_settings"
-        ]
-      },
       "SearchResult": {
         "type": "object",
         "description": "General search result containing top hits grouped by entity type and counts per entity type.",
@@ -8664,6 +8611,49 @@
           }
         }
       },
+      "ClientSettingsList": {
+        "type": "object",
+        "properties": {
+          "client_settings": {
+            "description": "List of Client Settings",
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/clients/clientSettings.json"
+            }
+          }
+        }
+      },
+      "BulkUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "client_settings": {
+            "type": "array",
+            "description": "Array of client settings to update (max 5000)",
+            "maxItems": 5000,
+            "items": {
+              "type": "object",
+              "required": [
+                "client_uid",
+                "opt_out_transactional_sms"
+              ],
+              "properties": {
+                "client_uid": {
+                  "type": "string",
+                  "description": "Unique identifier of the client",
+                  "example": "cmf62p00w2ns3chq"
+                },
+                "opt_out_transactional_sms": {
+                  "type": "boolean",
+                  "description": "Opt out from transactional SMS. Must be an explicit boolean value (true or false). Null values are not allowed."
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "client_settings"
+        ]
+      },
       "CreateClientNoteRequest": {
         "type": "object",
         "properties": {
@@ -8985,6 +8975,26 @@
           "order",
           "filters"
         ]
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+      },
+      "ClientMessaging": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid client bearer token in the Authorization header. Example: 'Authorization: Bearer {client_token}'"
+      },
+      "Notes": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {token}'"
       }
     }
   },
