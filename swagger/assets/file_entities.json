@@ -1,0 +1,351 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Assets - File Entities",
+    "description": "API endpoints for managing relations between files and business entities (messages, invoices, payments, appointments, estimates). A relation links a file to an entity and records the client context at the time of linking.\n\nAccess control: staff actors must have access to the entity to view its file relations (verified via Core); client actors see only relations that belong to them.\n\nAvailable for **Staff & Client tokens**",
+    "version": "3.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.vcita.biz",
+      "description": "Production server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "File Entities",
+      "description": "Create, retrieve, and delete file-to-entity relations"
+    }
+  ],
+  "paths": {
+    "/v3/assets/file_entities": {
+      "post": {
+        "summary": "Create a file-entity relation",
+        "operationId": "createFileEntity",
+        "description": "Link an existing file to a business entity. The file must belong to the caller's business and have a linkable status (`uploaded`, `scanned`, or `linked`). Creating the same relation twice returns a 409 conflict.\n\nAvailable for **Staff & Client tokens**",
+        "tags": ["File Entities"],
+        "security": [{ "Bearer": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateFileEntityRequest" },
+              "example": {
+                "file_uid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "entity_type": "invoice",
+                "entity_uid": "inv-abc123xyz",
+                "client_uid": "cli-xyz789abc"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Relation created successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "https://vcita.github.io/developers-hub/entities/response.json" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "file_entity": {
+                              "$ref": "https://vcita.github.io/developers-hub/entities/assets/file_entity.json"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "file_entity": {
+                      "uid": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                      "file_uid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                      "entity_type": "invoice",
+                      "entity_uid": "inv-abc123xyz",
+                      "business_uid": "024bl3kv7jf8cu4u",
+                      "client_uid": "cli-xyz789abc",
+                      "created_at": "2026-01-15T10:30:00Z",
+                      "updated_at": "2026-01-15T10:30:00Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request — file is still processing or in an unusable state.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "errors": [{ "code": "FILE_NOT_READY", "message": "File is still being processed" }]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized — invalid or missing authentication token." },
+          "404": {
+            "description": "Not Found — the specified file does not exist or does not belong to this business.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "errors": [{ "code": "FILE_NOT_FOUND", "message": "File not found" }]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict — this file is already linked to this entity.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "errors": [{ "code": "RELATION_EXISTS", "message": "This file is already linked to this entity" }]
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "Get file relations for an entity",
+        "operationId": "listFileEntities",
+        "description": "Retrieve a paginated list of file relations for a given entity. Each relation includes the embedded file details (without the file UID).\n\n**Staff tokens**: relations are returned only if the caller has access to the entity (verified via Core). Returns empty if access is denied.\n\n**Client tokens**: only relations belonging to the authenticated client (`client_uid` match) are returned.\n\nAvailable for **Staff & Client tokens**",
+        "tags": ["File Entities"],
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "entity_type",
+            "in": "query",
+            "required": true,
+            "description": "Type of the entity to fetch relations for (e.g., \"invoice\", \"appointment\").",
+            "schema": {
+              "type": "string",
+              "enum": ["message", "invoice", "payment", "appointment", "estimate"]
+            }
+          },
+          {
+            "name": "entity_uid",
+            "in": "query",
+            "required": true,
+            "description": "Unique identifier of the entity (e.g., \"inv-abc123xyz\").",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Page number for pagination (e.g., 1, 2).",
+            "schema": { "type": "integer", "minimum": 1, "default": 1 }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "description": "Number of relations to return per page, maximum 100 (e.g., 20, 50).",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Relations retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "https://vcita.github.io/developers-hub/entities/response.json" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "file_entities": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "https://vcita.github.io/developers-hub/entities/assets/file_entity.json"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "file_entities": [
+                      {
+                        "uid": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+                        "file_uid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                        "entity_type": "invoice",
+                        "entity_uid": "inv-abc123xyz",
+                        "business_uid": "024bl3kv7jf8cu4u",
+                        "client_uid": "cli-xyz789abc",
+                        "file": {
+                          "name": "invoice_march.pdf",
+                          "status": "linked",
+                          "content_type": "application/pdf",
+                          "size": 204800,
+                          "url": "https://s3.amazonaws.com/vcita-main/biz_024bl3kv/files/invoice_march.pdf?X-Amz-Expires=600",
+                          "thumbnail_url": null,
+                          "thumbnail_small_url": null,
+                          "metadata": { "source": "portal" },
+                          "created_at": "2026-01-15T10:30:00Z",
+                          "updated_at": "2026-01-15T10:35:00Z"
+                        },
+                        "created_at": "2026-01-15T10:30:00Z",
+                        "updated_at": "2026-01-15T10:30:00Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized — invalid or missing authentication token." }
+        }
+      },
+      "delete": {
+        "summary": "Delete all relations for an entity",
+        "operationId": "deleteFileEntities",
+        "description": "Soft-delete all file relations for a given entity. Files that have no remaining active relations are also purged (S3 objects deleted, file record soft-deleted).\n\n**Client tokens**: deletion is allowed only if all files for the entity were created by the authenticated client. If any file was created by another actor, the entire request is rejected with 403.\n\nAvailable for **Staff & Client tokens**",
+        "tags": ["File Entities"],
+        "security": [{ "Bearer": [] }],
+        "parameters": [
+          {
+            "name": "entity_type",
+            "in": "query",
+            "required": true,
+            "description": "Type of the entity whose relations should be deleted (e.g., \"invoice\", \"appointment\").",
+            "schema": {
+              "type": "string",
+              "enum": ["message", "invoice", "payment", "appointment", "estimate"]
+            }
+          },
+          {
+            "name": "entity_uid",
+            "in": "query",
+            "required": true,
+            "description": "Unique identifier of the entity (e.g., \"inv-abc123xyz\").",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Relations deleted successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "https://vcita.github.io/developers-hub/entities/response.json" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "deleted_count": {
+                              "type": "integer",
+                              "description": "Number of relations that were deleted (e.g., 3)."
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "deleted_count": 3
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized — invalid or missing authentication token." },
+          "403": {
+            "description": "Forbidden — client actor attempted to delete relations for files they did not create.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "errors": [{ "code": "DELETE_NOT_ALLOWED", "message": "Clients can only delete relations for files they created" }]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CreateFileEntityRequest": {
+        "type": "object",
+        "required": ["file_uid", "entity_type", "entity_uid"],
+        "properties": {
+          "file_uid": {
+            "type": "string",
+            "description": "Unique identifier of the file to link (e.g., \"a1b2c3d4-e5f6-7890-abcd-ef1234567890\")."
+          },
+          "entity_type": {
+            "type": "string",
+            "enum": ["message", "invoice", "payment", "appointment", "estimate"],
+            "description": "Type of the entity to link the file to (e.g., \"invoice\", \"appointment\")."
+          },
+          "entity_uid": {
+            "type": "string",
+            "description": "Unique identifier of the entity (e.g., \"inv-abc123xyz\")."
+          },
+          "client_uid": {
+            "type": "string",
+            "description": "Optional client UID to associate with this relation (e.g., \"cli-xyz789abc\")."
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "enum": [false] },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": { "type": "string" },
+                "code": { "type": "string" },
+                "message": { "type": "string" }
+              },
+              "required": ["code", "message"]
+            }
+          }
+        },
+        "required": ["success", "errors"]
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header."
+      }
+    }
+  }
+}
