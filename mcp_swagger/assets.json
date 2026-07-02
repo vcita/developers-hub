@@ -1,177 +1,35 @@
 {
-  "openapi": "3.0.0",
+  "openapi": "3.1.0",
   "info": {
-    "title": "Assets - Files",
-    "description": "API endpoints for managing file uploads, storage, and retrieval. Supports asynchronous file processing including virus scanning, storage, thumbnail generation, and content deduplication. Files can be linked to various business entities such as invoices, messages, and appointments.",
-    "version": "3.0"
+    "title": "Assets",
+    "description": "Unified OpenAPI specification for assets domain",
+    "version": "3.0",
+    "x-generated": {
+      "sourceFiles": [
+        "files.json"
+      ],
+      "pathNormalizations": [],
+      "pathConflicts": [],
+      "componentConflicts": [],
+      "totalPaths": 3,
+      "totalComponents": 7
+    }
   },
   "servers": [
     {
-      "url": "https://api.vcita.biz/",
-      "description": "API Gateway server"
+      "url": "https://api.vcita.biz",
+      "description": "Unified API Gateway server"
     }
   ],
-  "components": {
-    "securitySchemes": {
-      "Bearer": {
-        "type": "http",
-        "scheme": "bearer"
-      }
-    },
-    "schemas": {
-      "Response": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "data": {
-            "type": "object"
-          }
-        },
-        "required": [
-          "success",
-          "data"
-        ]
-      },
-      "UploadFileRequest": {
-        "type": "object",
-        "properties": {
-          "file": {
-            "type": "string",
-            "format": "binary",
-            "description": "The file binary content to upload. Maximum size: 100MB."
-          },
-          "name": {
-            "type": "string",
-            "maxLength": 255,
-            "description": "Optional filename override. If not provided, the original filename from the uploaded file is used. Maximum length: 255 characters (e.g., \"document.pdf\", \"photo.jpg\")."
-          },
-          "metadata": {
-            "type": "object",
-            "description": "Optional JSON object containing arbitrary key-value pairs for additional file metadata (e.g., {\"source\": \"chat\", \"conversation_id\": \"conv_123\"})."
-          }
-        },
-        "required": ["file"]
-      },
-      "MultiFileResponse": {
-        "type": "object",
-        "properties": {
-          "files": {
-            "type": "array",
-            "items": {
-              "$ref": "https://vcita.github.io/developers-hub/entities/assets/file.json"
-            }
-          },
-          "pagination": {
-            "type": "object",
-            "properties": {
-              "page": {
-                "type": "integer"
-              },
-              "per_page": {
-                "type": "integer"
-              },
-              "total": {
-                "type": "integer"
-              },
-              "total_pages": {
-                "type": "integer"
-              }
-            }
-          }
-        },
-        "required": ["files"]
-      },
-      "CreateFileEntityRequest": {
-        "type": "object",
-        "properties": {
-          "file_uid": {
-            "type": "string",
-            "description": "Unique identifier of the file to link (e.g., \"file_123abc\"). Must reference an existing file in a usable state ('scanned', 'uploaded', or 'linked')."
-          },
-          "entity_type": {
-            "type": "string",
-            "enum": [
-              "message",
-              "invoice",
-              "payment",
-              "appointment",
-              "estimate"
-            ],
-            "description": "Type of entity the file is linked to (e.g., \"message\", \"invoice\")."
-          },
-          "entity_uid": {
-            "type": "string",
-            "description": "Unique identifier of the entity the file is linked to (e.g., \"inv_123abc\")."
-          },
-          "client_uid": {
-            "type": "string",
-            "description": "Optional client UID to associate with the relation (e.g., \"client_789abc\"). Ignored for Client tokens, where it is derived from the token."
-          }
-        },
-        "required": ["file_uid", "entity_type", "entity_uid"]
-      },
-      "FileEntitiesResponse": {
-        "type": "object",
-        "properties": {
-          "file_entities": {
-            "type": "array",
-            "items": {
-              "$ref": "https://vcita.github.io/developers-hub/entities/assets/fileEntity.json"
-            },
-            "description": "Array of file-entity relations, each including the linked file's details"
-          }
-        },
-        "required": ["file_entities"]
-      },
-      "DeleteFileEntitiesResponse": {
-        "type": "object",
-        "properties": {
-          "deleted_count": {
-            "type": "integer",
-            "description": "Number of file-entity relations that were soft deleted (e.g., 3)."
-          }
-        },
-        "required": ["deleted_count"]
-      },
-      "ErrorResponse": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "errors": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "field": {
-                  "type": "string",
-                  "description": "The field that caused the error (for validation errors)"
-                },
-                "code": {
-                  "type": "string",
-                  "description": "The code that caused the error (for validation errors)"
-                },
-                "message": {
-                  "type": "string",
-                  "description": "The message that describes the error (for validation errors)"
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  },
   "paths": {
     "/v3/assets/files": {
       "post": {
         "operationId": "FilesController_upload",
         "summary": "Create a new file",
         "description": "Create a new file for the specified business. The API returns immediately with status='pending'. File processing (virus scan, S3 upload, thumbnail generation) happens asynchronously in the background.\n\nIf a duplicate file is detected via SHA-256 content hash, the existing file is returned immediately with status='uploaded'.\n\nRate limit: 10 uploads per user per 10 minutes. Maximum file size: 100MB.\n\nAvailable for **Staff and Client tokens**.",
-        "tags": ["Files"],
+        "tags": [
+          "Files"
+        ],
         "security": [
           {
             "Bearer": []
@@ -188,8 +46,8 @@
           }
         },
         "responses": {
-          "201": {
-            "description": "File upload initiated successfully (new file, async processing started)",
+          "200": {
+            "description": "Duplicate file detected - existing file returned immediately (no processing needed)",
             "content": {
               "application/json": {
                 "schema": {
@@ -209,8 +67,8 @@
               }
             }
           },
-          "200": {
-            "description": "Duplicate file detected - existing file returned immediately (no processing needed)",
+          "201": {
+            "description": "File upload initiated successfully (new file, async processing started)",
             "content": {
               "application/json": {
                 "schema": {
@@ -258,7 +116,9 @@
         "operationId": "FilesController_findAll",
         "summary": "Get All Files",
         "description": "Retrieves files for the specified business, optionally filtered by status or a list of file UIDs. Results include pre-signed S3 URLs for file download and thumbnails when the file is ready. Soft-deleted files are never returned.\n\nAvailable for **Staff and Client tokens**.",
-        "tags": ["Files"],
+        "tags": [
+          "Files"
+        ],
         "security": [
           {
             "Bearer": []
@@ -359,7 +219,9 @@
         "operationId": "FilesController_findOne",
         "summary": "Get a file by UID",
         "description": "Retrieves a specific file by its unique identifier.\n\nUsed for status polling after upload to check if processing (scan, S3 upload, thumbnails) is complete. Response includes pre-signed S3 URLs when file is ready. Permission checks are performed via the Core service and cached for 15 minutes.\n\nAvailable for **Staff and Client tokens**.",
-        "tags": ["Files"],
+        "tags": [
+          "Files"
+        ],
         "security": [
           {
             "Bearer": []
@@ -411,9 +273,11 @@
       },
       "delete": {
         "operationId": "FilesController_delete",
-          "summary": "Delete a file",
-          "description": "Soft deletes a specific file.\n\n File will be permanently deleted in 30 days.\n\nAvailable for **Staff tokens only**.",
-        "tags": ["Files"],
+        "summary": "Delete a file",
+        "description": "Soft deletes a specific file.\n\n File will be permanently deleted in 30 days.\n\nAvailable for **Staff tokens only**.",
+        "tags": [
+          "Files"
+        ],
         "security": [
           {
             "Bearer": []
@@ -479,7 +343,9 @@
         "operationId": "FileEntitiesController_create",
         "summary": "Create a file-entity relation",
         "description": "Links an existing file to a business entity (e.g., an invoice, message, or appointment). The referenced file must already exist and be in a usable state ('scanned', 'uploaded', or 'linked'). Once a file has at least one active relation its status becomes 'linked', protecting it from cleanup.\n\nFor **Client tokens**, the client_uid is derived from the token and any value supplied in the body is ignored. For **Staff tokens**, client_uid may be provided to associate the relation with a specific client.\n\nAvailable for **Staff and Client tokens**.",
-        "tags": ["File Entities"],
+        "tags": [
+          "File Entities"
+        ],
         "security": [
           {
             "Bearer": []
@@ -545,7 +411,9 @@
         "operationId": "FileEntitiesController_findByEntity",
         "summary": "Get file relations by entity",
         "description": "Retrieves the file-entity relations for a given entity, each including the linked file's details. Results are paginated.\n\nAvailable for **Staff and Client tokens**.",
-        "tags": ["File Entities"],
+        "tags": [
+          "File Entities"
+        ],
         "security": [
           {
             "Bearer": []
@@ -634,7 +502,9 @@
         "operationId": "FileEntitiesController_deleteByEntity",
         "summary": "Delete all relations for an entity",
         "description": "Soft deletes every file-entity relation for the given entity and returns the number of relations deleted. Files left with no remaining active relations may become eligible for cleanup.\n\nAvailable for **Staff and Client tokens**.",
-        "tags": ["File Entities"],
+        "tags": [
+          "File Entities"
+        ],
         "security": [
           {
             "Bearer": []
@@ -698,5 +568,174 @@
         }
       }
     }
-  }
+  },
+  "components": {
+    "schemas": {
+      "Response": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "UploadFileRequest": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "description": "The file binary content to upload. Maximum size: 100MB."
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Optional filename override. If not provided, the original filename from the uploaded file is used. Maximum length: 255 characters (e.g., \"document.pdf\", \"photo.jpg\")."
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Optional JSON object containing arbitrary key-value pairs for additional file metadata (e.g., {\"source\": \"chat\", \"conversation_id\": \"conv_123\"})."
+          }
+        },
+        "required": [
+          "file"
+        ]
+      },
+      "MultiFileResponse": {
+        "type": "object",
+        "properties": {
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/assets/file.json"
+            }
+          },
+          "pagination": {
+            "type": "object",
+            "properties": {
+              "page": {
+                "type": "integer"
+              },
+              "per_page": {
+                "type": "integer"
+              },
+              "total": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "required": [
+          "files"
+        ]
+      },
+      "CreateFileEntityRequest": {
+        "type": "object",
+        "properties": {
+          "file_uid": {
+            "type": "string",
+            "description": "Unique identifier of the file to link (e.g., \"file_123abc\"). Must reference an existing file in a usable state ('scanned', 'uploaded', or 'linked')."
+          },
+          "entity_type": {
+            "type": "string",
+            "enum": [
+              "message",
+              "invoice",
+              "payment",
+              "appointment",
+              "estimate"
+            ],
+            "description": "Type of entity the file is linked to (e.g., \"message\", \"invoice\")."
+          },
+          "entity_uid": {
+            "type": "string",
+            "description": "Unique identifier of the entity the file is linked to (e.g., \"inv_123abc\")."
+          },
+          "client_uid": {
+            "type": "string",
+            "description": "Optional client UID to associate with the relation (e.g., \"client_789abc\"). Ignored for Client tokens, where it is derived from the token."
+          }
+        },
+        "required": [
+          "file_uid",
+          "entity_type",
+          "entity_uid"
+        ]
+      },
+      "FileEntitiesResponse": {
+        "type": "object",
+        "properties": {
+          "file_entities": {
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/assets/fileEntity.json"
+            },
+            "description": "Array of file-entity relations, each including the linked file's details"
+          }
+        },
+        "required": [
+          "file_entities"
+        ]
+      },
+      "DeleteFileEntitiesResponse": {
+        "type": "object",
+        "properties": {
+          "deleted_count": {
+            "type": "integer",
+            "description": "Number of file-entity relations that were soft deleted (e.g., 3)."
+          }
+        },
+        "required": [
+          "deleted_count"
+        ]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "The field that caused the error (for validation errors)"
+                },
+                "code": {
+                  "type": "string",
+                  "description": "The code that caused the error (for validation errors)"
+                },
+                "message": {
+                  "type": "string",
+                  "description": "The message that describes the error (for validation errors)"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT Bearer token authentication"
+      }
+    }
+  },
+  "tags": []
 }
