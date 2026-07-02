@@ -47,3 +47,37 @@ Only allow the following tokens to be documented:
 Internal is our documentation for Admin token
 Staff is sometimes mentioned in the code as Application User
 Directory is sometimes mentioned in the code as Applications
+
+## Capabilities (per-actor abilities)
+
+When an entity needs to tell the client what the **requesting actor** may do with a
+specific resource (so the UI can render read-only state, hide actions, etc.), expose
+a `capabilities` object rather than ad-hoc `can_*` fields. This keeps a single,
+extensible shape across endpoints and avoids colliding with the Roles & Permissions
+("permissions") vocabulary.
+
+Rules:
+- Name the object `capabilities`; mark it `readOnly` (output-only — never in request schemas).
+- Keys are **action verbs** the client can take: `create`, `read`, `update`, `delete`,
+  and domain actions like `share`, `export`. Prefer positive verbs — do **not** use a
+  `readonly` flag (an action is a capability; "read only" is a derived UI state).
+- Each property is a boolean; document its effect (e.g. "when false, an update is
+  rejected with HTTP 403").
+- Expose only the actions the entity actually supports; add more over time without
+  breaking clients.
+
+Example (see `entities/clients/client_note.json`):
+
+```json
+"capabilities": {
+  "type": "object",
+  "readOnly": true,
+  "description": "The requesting staff member's capabilities on this entity, computed server-side. Output-only.",
+  "properties": {
+    "update": { "type": "boolean", "description": "Whether the requester may edit this resource. When false, an update is rejected with HTTP 403." },
+    "delete": { "type": "boolean", "description": "Whether the requester may delete this resource. When false, a delete is rejected with HTTP 403." }
+  }
+}
+```
+
+Runtime payload: `"capabilities": { "update": true, "delete": false }`.
