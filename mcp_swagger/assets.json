@@ -6,8 +6,8 @@
     "version": "3.0",
     "x-generated": {
       "sourceFiles": [
-        "legacy_documents.json",
-        "files.json"
+        "files.json",
+        "legacy_documents.json"
       ],
       "pathNormalizations": [],
       "pathConflicts": [],
@@ -15,10 +15,10 @@
         {
           "type": "schema",
           "name": "ErrorResponse",
-          "resolution": "Renamed to ErrorResponse_files",
+          "resolution": "Renamed to ErrorResponse_legacy_documents",
           "files": [
             "merged",
-            "files.json"
+            "legacy_documents.json"
           ]
         }
       ],
@@ -33,6 +33,699 @@
     }
   ],
   "paths": {
+    "/v3/assets/files": {
+      "post": {
+        "operationId": "FilesController_upload",
+        "summary": "Create a new file",
+        "description": "Create a new file for the specified business. The API returns immediately with status='pending'. File processing (virus scan, S3 upload, thumbnail generation) happens asynchronously in the background.\n\nIf a duplicate file is detected via SHA-256 content hash, the existing file is returned immediately with status='uploaded'.\n\nRate limit: 10 uploads per user per 10 minutes. Maximum file size: 100MB.\n\nAvailable for **Staff and Client tokens**.",
+        "tags": [
+          "Files"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadFileRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Duplicate file detected - existing file returned immediately (no processing needed)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/assets/file.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "File upload initiated successfully (new file, async processing started)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/assets/file.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Invalid file type, name, or size",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Feature disabled for this business",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error in request data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - Rate limit exceeded (10 uploads per 10 minutes)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Files": []
+          }
+        ]
+      },
+      "get": {
+        "operationId": "FilesController_findAll",
+        "summary": "Get All Files",
+        "description": "Retrieves files for the specified business, optionally filtered by status or a list of file UIDs. Results include pre-signed S3 URLs for file download and thumbnails when the file is ready. Soft-deleted files are never returned.\n\nAvailable for **Staff and Client tokens**.",
+        "tags": [
+          "Files"
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Filter by file processing status (e.g., \"uploaded\", \"pending\"). Soft-deleted files are never returned regardless of this filter.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "scanning",
+                "scanned",
+                "uploaded",
+                "infected",
+                "failed",
+                "linked",
+                "deleted"
+              ]
+            }
+          },
+          {
+            "name": "file_uids",
+            "in": "query",
+            "required": false,
+            "description": "One or more file UIDs to fetch. Repeat the parameter for multiple values (e.g., \"file_123abc\", \"file_456def\").",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Page number for pagination (default: 1).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "description": "Number of files per page (default: 20, max: 100).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Files retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/MultiFileResponse"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Missing required parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions to access files for this entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Files": []
+          }
+        ]
+      }
+    },
+    "/v3/assets/files/{uid}": {
+      "get": {
+        "operationId": "FilesController_findOne",
+        "summary": "Get a file by UID",
+        "description": "Retrieves a specific file by its unique identifier.\n\nUsed for status polling after upload to check if processing (scan, S3 upload, thumbnails) is complete. Response includes pre-signed S3 URLs when file is ready. Permission checks are performed via the Core service and cached for 15 minutes.\n\nAvailable for **Staff and Client tokens**.",
+        "tags": [
+          "Files"
+        ],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the file to retrieve (e.g., \"file_123abc\").",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/assets/file.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions to access this file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - File does not exist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Files": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "FilesController_delete",
+        "summary": "Delete a file",
+        "description": "Soft deletes a specific file.\n\nFile will be permanently deleted in 30 days.\n\nAvailable for **Staff tokens only**.",
+        "tags": [
+          "Files"
+        ],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the file to delete (e.g., \"file_123abc\").",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File deleted successfully (soft delete). Returns the deleted file entity.\n\nFile will be permanently deleted in 30 days.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/assets/file.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions to delete this file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - File does not exist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error in request data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Files": []
+          }
+        ]
+      }
+    },
+    "/v3/assets/file_entities": {
+      "post": {
+        "operationId": "FileEntitiesController_create",
+        "summary": "Create a file-entity relation",
+        "description": "Links an existing file to a business entity (e.g., an invoice, message, or appointment). The referenced file must already exist and be in a usable state ('scanned', 'uploaded', or 'linked'). Once a file has at least one active relation its status becomes 'linked', protecting it from cleanup.\n\nFor **Client tokens**, the client_uid is derived from the token and any value supplied in the body is ignored. For **Staff tokens**, client_uid may be provided to associate the relation with a specific client.\n\nAvailable for **Staff and Client tokens**.",
+        "tags": [
+          "File Entities"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFileEntityRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Relation created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/assets/fileEntity.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - File is not ready or is in an unusable state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - File does not exist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict - A relation between this file and entity already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error in request data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Files": []
+          }
+        ]
+      },
+      "get": {
+        "operationId": "FileEntitiesController_findByEntity",
+        "summary": "Get file relations by entity",
+        "description": "Retrieves the file-entity relations for a given entity, each including the linked file's details. Results are paginated.\n\nAvailable for **Staff and Client tokens**.",
+        "tags": [
+          "File Entities"
+        ],
+        "parameters": [
+          {
+            "name": "entity_type",
+            "in": "query",
+            "required": true,
+            "description": "Type of entity to fetch relations for (e.g., \"invoice\", \"message\", \"appointment\").",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "message",
+                "invoice",
+                "payment",
+                "appointment",
+                "estimate"
+              ]
+            }
+          },
+          {
+            "name": "entity_uid",
+            "in": "query",
+            "required": true,
+            "description": "Unique identifier of the entity to fetch relations for (e.g., \"inv_123abc\").",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Page number for pagination (default: 1).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "description": "Number of relations per page (default: 20).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Relations retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/FileEntitiesResponse"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions to access relations for this entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Files": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "FileEntitiesController_deleteByEntity",
+        "summary": "Delete all relations for an entity",
+        "description": "Soft deletes every file-entity relation for the given entity and returns the number of relations deleted. Files left with no remaining active relations may become eligible for cleanup.\n\nAvailable for **Staff and Client tokens**.",
+        "tags": [
+          "File Entities"
+        ],
+        "parameters": [
+          {
+            "name": "entity_type",
+            "in": "query",
+            "required": true,
+            "description": "Type of entity whose relations should be deleted (e.g., \"invoice\", \"message\", \"appointment\").",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "message",
+                "invoice",
+                "payment",
+                "appointment",
+                "estimate"
+              ]
+            }
+          },
+          {
+            "name": "entity_uid",
+            "in": "query",
+            "required": true,
+            "description": "Unique identifier of the entity whose relations should be deleted (e.g., \"inv_123abc\").",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Relations deleted successfully (soft delete). Returns the number of relations removed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/DeleteFileEntitiesResponse"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions to delete relations for this entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Files": []
+          }
+        ]
+      }
+    },
     "/client_api/v1/portals/{business_uid}/contact/get_form": {
       "get": {
         "tags": [
@@ -793,637 +1486,10 @@
           }
         ]
       }
-    },
-    "/v3/assets/files": {
-      "post": {
-        "operationId": "FilesController_upload",
-        "summary": "Create a new file",
-        "description": "Create a new file for the specified business. The API returns immediately with status='pending'. File processing (virus scan, S3 upload, thumbnail generation) happens asynchronously in the background.\n\nIf a duplicate file is detected via SHA-256 content hash, the existing file is returned immediately with status='uploaded'.\n\nRate limit: 10 uploads per user per 10 minutes. Maximum file size: 100MB.\n\nAvailable for **Staff and Client tokens**.",
-        "tags": [
-          "Files"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "$ref": "#/components/schemas/UploadFileRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Duplicate file detected - existing file returned immediately (no processing needed)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/assets/file.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "201": {
-            "description": "File upload initiated successfully (new file, async processing started)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/assets/file.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request - Invalid file type, name, or size"
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing authentication token"
-          },
-          "403": {
-            "description": "Forbidden - Feature disabled for this business"
-          },
-          "422": {
-            "description": "Unprocessable Entity - Validation error in request data",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too Many Requests - Rate limit exceeded (10 uploads per 10 minutes)"
-          }
-        },
-        "security": [
-          {
-            "Files": []
-          }
-        ]
-      },
-      "get": {
-        "operationId": "FilesController_findAll",
-        "summary": "Get All Files",
-        "description": "Retrieves files for the specified business, optionally filtered by status or a list of file UIDs. Results include pre-signed S3 URLs for file download and thumbnails when the file is ready. Soft-deleted files are never returned.\n\nAvailable for **Staff and Client tokens**.",
-        "tags": [
-          "Files"
-        ],
-        "parameters": [
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "description": "Filter by file processing status (e.g., \"uploaded\", \"pending\"). Soft-deleted files are never returned regardless of this filter.",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "pending",
-                "scanning",
-                "scanned",
-                "uploaded",
-                "infected",
-                "failed",
-                "linked",
-                "deleted"
-              ]
-            }
-          },
-          {
-            "name": "file_uids",
-            "in": "query",
-            "required": false,
-            "description": "One or more file UIDs to fetch. Repeat the parameter for multiple values (e.g., \"file_123abc\", \"file_456def\").",
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            }
-          },
-          {
-            "name": "page",
-            "in": "query",
-            "required": false,
-            "description": "Page number for pagination (default: 1).",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "default": 1
-            }
-          },
-          {
-            "name": "per_page",
-            "in": "query",
-            "required": false,
-            "description": "Number of files per page (default: 20, max: 100).",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100,
-              "default": 20
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Files retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/MultiFileResponse"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request - Missing required parameters"
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing authentication token"
-          },
-          "403": {
-            "description": "Forbidden - Insufficient permissions to access files for this entity"
-          }
-        },
-        "security": [
-          {
-            "Files": []
-          }
-        ]
-      }
-    },
-    "/v3/assets/files/{uid}": {
-      "get": {
-        "operationId": "FilesController_findOne",
-        "summary": "Get a file by UID",
-        "description": "Retrieves a specific file by its unique identifier.\n\nUsed for status polling after upload to check if processing (scan, S3 upload, thumbnails) is complete. Response includes pre-signed S3 URLs when file is ready. Permission checks are performed via the Core service and cached for 15 minutes.\n\nAvailable for **Staff and Client tokens**.",
-        "tags": [
-          "Files"
-        ],
-        "parameters": [
-          {
-            "name": "uid",
-            "in": "path",
-            "required": true,
-            "description": "Unique identifier of the file to retrieve (e.g., \"file_123abc\").",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "File retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/assets/file.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing authentication token"
-          },
-          "403": {
-            "description": "Forbidden - Insufficient permissions to access this file"
-          },
-          "404": {
-            "description": "Not Found - File does not exist"
-          }
-        },
-        "security": [
-          {
-            "Files": []
-          }
-        ]
-      },
-      "delete": {
-        "operationId": "FilesController_delete",
-        "summary": "Delete a file",
-        "description": "Soft deletes a specific file.\n\n File will be permanently deleted in 30 days.\n\nAvailable for **Staff tokens only**.",
-        "tags": [
-          "Files"
-        ],
-        "parameters": [
-          {
-            "name": "uid",
-            "in": "path",
-            "required": true,
-            "description": "Unique identifier of the file to delete (e.g., \"file_123abc\").",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "File deleted successfully (soft delete). Returns the deleted file entity.\n\nFile will be permanently deleted in 30 days.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/assets/file.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing authentication token"
-          },
-          "403": {
-            "description": "Forbidden - Insufficient permissions to delete this file"
-          },
-          "404": {
-            "description": "Not Found - File does not exist"
-          },
-          "422": {
-            "description": "Unprocessable Entity - Validation error in request data",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "Files": []
-          }
-        ]
-      }
-    },
-    "/v3/assets/file_entities": {
-      "post": {
-        "operationId": "FileEntitiesController_create",
-        "summary": "Create a file-entity relation",
-        "description": "Links an existing file to a business entity (e.g., an invoice, message, or appointment). The referenced file must already exist and be in a usable state ('scanned', 'uploaded', or 'linked'). Once a file has at least one active relation its status becomes 'linked', protecting it from cleanup.\n\nFor **Client tokens**, the client_uid is derived from the token and any value supplied in the body is ignored. For **Staff tokens**, client_uid may be provided to associate the relation with a specific client.\n\nAvailable for **Staff and Client tokens**.",
-        "tags": [
-          "File Entities"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateFileEntityRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Relation created successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/assets/fileEntity.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request - File is not ready or is in an unusable state"
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing authentication token"
-          },
-          "404": {
-            "description": "Not Found - File does not exist"
-          },
-          "409": {
-            "description": "Conflict - A relation between this file and entity already exists"
-          },
-          "422": {
-            "description": "Unprocessable Entity - Validation error in request data",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "Files": []
-          }
-        ]
-      },
-      "get": {
-        "operationId": "FileEntitiesController_findByEntity",
-        "summary": "Get file relations by entity",
-        "description": "Retrieves the file-entity relations for a given entity, each including the linked file's details. Results are paginated.\n\nAvailable for **Staff and Client tokens**.",
-        "tags": [
-          "File Entities"
-        ],
-        "parameters": [
-          {
-            "name": "entity_type",
-            "in": "query",
-            "required": true,
-            "description": "Type of entity to fetch relations for (e.g., \"invoice\", \"message\", \"appointment\").",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "message",
-                "invoice",
-                "payment",
-                "appointment",
-                "estimate"
-              ]
-            }
-          },
-          {
-            "name": "entity_uid",
-            "in": "query",
-            "required": true,
-            "description": "Unique identifier of the entity to fetch relations for (e.g., \"inv_123abc\").",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "page",
-            "in": "query",
-            "required": false,
-            "description": "Page number for pagination (default: 1).",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "default": 1
-            }
-          },
-          {
-            "name": "per_page",
-            "in": "query",
-            "required": false,
-            "description": "Number of relations per page (default: 20).",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "default": 20
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Relations retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/FileEntitiesResponse"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing authentication token"
-          },
-          "403": {
-            "description": "Forbidden - Insufficient permissions to access relations for this entity"
-          }
-        },
-        "security": [
-          {
-            "Files": []
-          }
-        ]
-      },
-      "delete": {
-        "operationId": "FileEntitiesController_deleteByEntity",
-        "summary": "Delete all relations for an entity",
-        "description": "Soft deletes every file-entity relation for the given entity and returns the number of relations deleted. Files left with no remaining active relations may become eligible for cleanup.\n\nAvailable for **Staff and Client tokens**.",
-        "tags": [
-          "File Entities"
-        ],
-        "parameters": [
-          {
-            "name": "entity_type",
-            "in": "query",
-            "required": true,
-            "description": "Type of entity whose relations should be deleted (e.g., \"invoice\", \"message\", \"appointment\").",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "message",
-                "invoice",
-                "payment",
-                "appointment",
-                "estimate"
-              ]
-            }
-          },
-          {
-            "name": "entity_uid",
-            "in": "query",
-            "required": true,
-            "description": "Unique identifier of the entity whose relations should be deleted (e.g., \"inv_123abc\").",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Relations deleted successfully (soft delete). Returns the number of relations removed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/DeleteFileEntitiesResponse"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing authentication token"
-          },
-          "403": {
-            "description": "Forbidden - Insufficient permissions to delete relations for this entity"
-          }
-        },
-        "security": [
-          {
-            "Files": []
-          }
-        ]
-      }
     }
   },
   "components": {
     "schemas": {
-      "DocuformsSearchResponse": {
-        "type": "object",
-        "description": "Response for docuforms (documents/forms) search.",
-        "properties": {
-          "counts": {
-            "type": "integer",
-            "description": "Total number of matching docuforms activities."
-          },
-          "top_hits": {
-            "type": "object",
-            "properties": {
-              "docuforms_activity": {
-                "type": "array",
-                "description": "Array of matching docuforms activity records.",
-                "items": {
-                  "type": "object",
-                  "description": "A docuforms activity record.",
-                  "properties": {
-                    "uid": {
-                      "type": "string",
-                      "description": "Unique identifier of the docuform activity."
-                    },
-                    "type": {
-                      "type": "string",
-                      "description": "Type of the activity (e.g., invoice, estimate, form)."
-                    },
-                    "status": {
-                      "type": "string",
-                      "description": "Current status of the activity (e.g., sent, viewed)."
-                    },
-                    "signature_status": {
-                      "type": "string",
-                      "description": "Signature status of the document (e.g., pending, awaiting_signature, sent, signed, declined)."
-                    },
-                    "created_at": {
-                      "type": "string",
-                      "format": "date-time",
-                      "description": "The date and time when the activity was created."
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "DocumentSearchHit": {
-        "type": "object",
-        "description": "A document record returned from search results.",
-        "properties": {
-          "uid": {
-            "type": "string",
-            "description": "Unique identifier of the document."
-          },
-          "direction": {
-            "type": "string",
-            "description": "Direction of the document (e.g., \"business\" for outgoing, \"client\" for incoming). Note: internal \"pivot\" direction is mapped to \"business\"."
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "description": "The date and time when the document was created."
-          },
-          "created_at_h": {
-            "type": "string",
-            "description": "Human-readable formatted creation date."
-          }
-        }
-      },
-      "ErrorResponse": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "error": {
-            "type": "string",
-            "description": "Error message describing what went wrong."
-          }
-        }
-      },
       "Response": {
         "type": "object",
         "properties": {
@@ -1552,7 +1618,7 @@
           "deleted_count"
         ]
       },
-      "ErrorResponse_files": {
+      "ErrorResponse": {
         "type": "object",
         "properties": {
           "success": {
@@ -1577,6 +1643,87 @@
                 }
               }
             }
+          }
+        }
+      },
+      "DocuformsSearchResponse": {
+        "type": "object",
+        "description": "Response for docuforms (documents/forms) search.",
+        "properties": {
+          "counts": {
+            "type": "integer",
+            "description": "Total number of matching docuforms activities."
+          },
+          "top_hits": {
+            "type": "object",
+            "properties": {
+              "docuforms_activity": {
+                "type": "array",
+                "description": "Array of matching docuforms activity records.",
+                "items": {
+                  "type": "object",
+                  "description": "A docuforms activity record.",
+                  "properties": {
+                    "uid": {
+                      "type": "string",
+                      "description": "Unique identifier of the docuform activity."
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Type of the activity (e.g., invoice, estimate, form)."
+                    },
+                    "status": {
+                      "type": "string",
+                      "description": "Current status of the activity (e.g., sent, viewed)."
+                    },
+                    "signature_status": {
+                      "type": "string",
+                      "description": "Signature status of the document (e.g., pending, awaiting_signature, sent, signed, declined)."
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "The date and time when the activity was created."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "DocumentSearchHit": {
+        "type": "object",
+        "description": "A document record returned from search results.",
+        "properties": {
+          "uid": {
+            "type": "string",
+            "description": "Unique identifier of the document."
+          },
+          "direction": {
+            "type": "string",
+            "description": "Direction of the document (e.g., \"business\" for outgoing, \"client\" for incoming). Note: internal \"pivot\" direction is mapped to \"business\"."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the document was created."
+          },
+          "created_at_h": {
+            "type": "string",
+            "description": "Human-readable formatted creation date."
+          }
+        }
+      },
+      "ErrorResponse_legacy_documents": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message describing what went wrong."
           }
         }
       }
