@@ -1,0 +1,122 @@
+{
+  "type": "object",
+  "properties": {
+    "uid": {
+      "type": "string",
+      "description": "A unique identifier for the pulse item."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The timestamp when the pulse item was created, in ISO 8601 format."
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The timestamp when the pulse item was last updated, in ISO 8601 format."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "active", "dismissed", "completed", "approved"],
+      "description": "The current lifecycle status of the pulse item. Only 'active' items are returned by the list endpoint; 'dismissed' and 'completed' are terminal."
+    },
+    "category": {
+      "type": "string",
+      "enum": ["needs_attention", "opportunity", "fyi"],
+      "description": "The stored category of the pulse item. Note: this uses the singular 'opportunity', unlike the `category` query parameter and the `counts`/response-level `category` fields on the list endpoint, which use the plural 'opportunities' (and also include the virtual 'upcoming' category, which is never a stored value here)."
+    },
+    "priority": {
+      "type": "integer",
+      "description": "Relative ordering priority within a category. 1 = higher priority, 2 = lower priority."
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "maxItems": 1,
+      "description": "Optional tag(s) describing the item (e.g., 'Hot lead'). MVP limits this to a single tag."
+    },
+    "due_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Optional due/target time. When set and in the future, the item surfaces under the 'upcoming' category instead of its stored category."
+    },
+    "expired_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Optional expiry time for the pulse item."
+    },
+    "display": {
+      "type": "object",
+      "description": "Display-related information for the item, e.g. a title and the related client's name. Shape is producer-defined and may vary.",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "A human-readable title describing the pulse item."
+        },
+        "client_name": {
+          "type": "string",
+          "description": "The name of the client this pulse item relates to, when applicable."
+        }
+      }
+    },
+    "reason": {
+      "type": "string",
+      "description": "The reasoning behind the recommendation, typically produced by the LLM. May be absent while the item is still pending."
+    },
+    "context": {
+      "type": "object",
+      "description": "The context this pulse item is about.",
+      "properties": {
+        "context_uid": {
+          "type": "string",
+          "description": "A unique identifier for the related context (e.g., a matter or client UID)."
+        },
+        "context_type": {
+          "type": "string",
+          "description": "The type of context (e.g., 'matter', 'client')."
+        }
+      },
+      "required": ["context_uid", "context_type"]
+    },
+    "action": {
+      "type": "object",
+      "description": "The primary recommended action for this item, executed via `POST /v3/ai/pulse_items/{uid}/execute`. Only the first recommended action is exposed here, even if more were generated internally.",
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": ["reply", "estimate", "schedule", "acknowledge"],
+          "description": "The type of action recommended."
+        },
+        "payload": {
+          "type": "object",
+          "description": "Action-specific data. Structure depends on `action` (e.g., `{ \"message\": \"...\" }` for 'reply')."
+        }
+      }
+    }
+  },
+  "required": ["uid", "created_at", "updated_at", "status", "category", "priority", "context"],
+  "example": {
+    "uid": "rec-123",
+    "created_at": "2026-06-23T12:00:00.000Z",
+    "updated_at": "2026-06-23T12:30:00.000Z",
+    "status": "active",
+    "category": "needs_attention",
+    "priority": 1,
+    "tags": ["Hot lead"],
+    "due_at": "2026-06-08T09:00:00.000Z",
+    "display": {
+      "title": "Elizabeth's request needs a reply.",
+      "client_name": "Rashida Johnson"
+    },
+    "reason": "The client asked about availability and you have an open slot.",
+    "context": {
+      "context_uid": "ctx-456",
+      "context_type": "matter"
+    },
+    "action": {
+      "action": "reply",
+      "payload": { "message": "Hi there..." }
+    }
+  },
+  "description": "A curated, actionable feed item surfaced to staff — needing attention, an opportunity, upcoming, or FYI — backed by the underlying AIRecommendation record."
+}

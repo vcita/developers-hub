@@ -1,0 +1,377 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Pulse Items",
+    "description": "Pulse is a curated, actionable feed of AI-generated recommendations for staff — grouped into needs_attention, opportunities, upcoming, and fyi categories, scoped to either the requesting staff member ('my') or their whole business ('team').",
+    "version": "3.0",
+    "contact": {}
+  },
+  "tags": [
+    {
+      "name": "Pulse Items",
+      "description": "Operations for reading and acting on Pulse feed items"
+    }
+  ],
+  "servers": [
+    {
+      "url": "https://api.vcita.biz",
+      "description": "API Gateway server"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean" },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": { "type": "string", "description": "The name of the field that caused the error." },
+                "code": { "type": "string", "description": "A machine-readable error code (e.g., \"invalid\", \"not_found\")." },
+                "message": { "type": "string", "description": "A human-readable error message." }
+              }
+            }
+          }
+        },
+        "required": ["success", "errors"]
+      },
+      "PulseItemsListData": {
+        "type": "object",
+        "description": "List response for GET /v3/ai/pulse_items.",
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": ["needs_attention", "opportunities", "upcoming", "fyi"],
+            "description": "The category this page of results was filtered by. Uses the plural 'opportunities' and the virtual 'upcoming' category — distinct from the singular `category` enum on each item."
+          },
+          "counts": {
+            "type": "object",
+            "description": "Counts of active items per category for the requested view, independent of the current page.",
+            "properties": {
+              "needs_attention": { "type": "integer", "example": 7 },
+              "opportunities": { "type": "integer", "example": 4 },
+              "upcoming": { "type": "integer", "example": 3 },
+              "fyi": { "type": "integer", "example": 11 }
+            },
+            "required": ["needs_attention", "opportunities", "upcoming", "fyi"]
+          },
+          "items": {
+            "type": "array",
+            "description": "The page of pulse items for the requested category.",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/ai/PulseItem.json"
+            }
+          },
+          "page": {
+            "type": "object",
+            "description": "Pagination metadata for the requested category.",
+            "properties": {
+              "page": { "type": "integer", "description": "Current page number (1-based).", "example": 1 },
+              "per_page": { "type": "integer", "description": "Number of items per page.", "example": 25 },
+              "total": { "type": "integer", "description": "Total number of items in the requested category.", "example": 7 },
+              "total_pages": { "type": "integer", "description": "Total number of pages for the requested category.", "example": 1 }
+            },
+            "required": ["page", "per_page", "total", "total_pages"]
+          }
+        },
+        "required": ["category", "counts", "items", "page"]
+      },
+      "PulseItemDetailData": {
+        "type": "object",
+        "properties": {
+          "pulse_item": {
+            "type": "object",
+            "$ref": "https://vcita.github.io/developers-hub/entities/ai/PulseItem.json"
+          }
+        },
+        "required": ["pulse_item"]
+      },
+      "UpdatePulseItemRequest": {
+        "type": "object",
+        "properties": {
+          "display": {
+            "type": "object",
+            "description": "Replaces the item's display block (e.g., `{ \"title\": \"Updated title\" }`)."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Replaces the item's reasoning text."
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+      }
+    }
+  },
+  "paths": {
+    "/v3/ai/pulse_items": {
+      "get": {
+        "operationId": "PulseItemsController_getPulseItems",
+        "summary": "Get Pulse Items by category",
+        "description": "## Overview\nReturns one category of active Pulse Items plus all-category counts, paginated.\n\nAvailable for **Staff tokens**.",
+        "parameters": [
+          {
+            "name": "view",
+            "in": "query",
+            "required": false,
+            "description": "Scope of items to return: the requesting staff member only, or the whole business. Defaults to 'my'.",
+            "schema": { "type": "string", "enum": ["my", "team"], "default": "my" }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "description": "Category to filter by. Defaults to 'needs_attention'.",
+            "schema": { "type": "string", "enum": ["needs_attention", "opportunities", "upcoming", "fyi"], "default": "needs_attention" }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Page number of results (1-based).",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 10000, "default": 1 }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "description": "How many items to return per page. Max: 100.",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 25 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A category page of Pulse Items plus counts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "https://vcita.github.io/developers-hub/entities/response.json" },
+                    {
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/PulseItemsListData" }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "category": "needs_attention",
+                    "counts": { "needs_attention": 7, "opportunities": 4, "upcoming": 3, "fyi": 11 },
+                    "items": [
+                      {
+                        "uid": "rec-123",
+                        "created_at": "2026-06-23T12:00:00.000Z",
+                        "updated_at": "2026-06-23T12:30:00.000Z",
+                        "status": "active",
+                        "category": "needs_attention",
+                        "priority": 1,
+                        "tags": ["Hot lead"],
+                        "due_at": "2026-06-08T09:00:00.000Z",
+                        "display": { "title": "Elizabeth's request needs a reply.", "client_name": "Rashida Johnson" },
+                        "reason": "The client asked about availability and you have an open slot.",
+                        "context": { "context_uid": "ctx-456", "context_type": "matter" },
+                        "action": { "action": "reply", "payload": { "message": "Hi there..." } }
+                      }
+                    ],
+                    "page": { "page": 1, "per_page": 25, "total": 7, "total_pages": 1 }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query parameter (e.g., an unrecognized `view` or `category` value)",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing bearer token",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
+          }
+        },
+        "tags": ["Pulse Items"],
+        "security": [{ "Bearer": [] }]
+      }
+    },
+    "/v3/ai/pulse_items/{uid}": {
+      "get": {
+        "operationId": "PulseItemsController_getPulseItem",
+        "summary": "Get a single Pulse Item with full detail",
+        "description": "## Overview\nRetrieve a single Pulse Item by UID, scoped to the requesting staff member.\n\nAvailable for **Staff tokens**.",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the Pulse Item",
+            "schema": { "type": "string" },
+            "example": "rec-123"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested Pulse Item",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "https://vcita.github.io/developers-hub/entities/response.json" },
+                    { "properties": { "data": { "$ref": "#/components/schemas/PulseItemDetailData" } } }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing bearer token",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
+          },
+          "404": {
+            "description": "Pulse Item not found, or does not belong to the requesting staff member",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
+          }
+        },
+        "tags": ["Pulse Items"],
+        "security": [{ "Bearer": [] }]
+      },
+      "put": {
+        "operationId": "PulseItemsController_updatePulseItem",
+        "summary": "Update a Pulse Item by uid",
+        "description": "## Overview\nUpdate the `display` and/or `reason` of a Pulse Item.\n\nAvailable for **Staff tokens**.",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the Pulse Item",
+            "schema": { "type": "string" },
+            "example": "rec-123"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdatePulseItemRequest" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated Pulse Item",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "https://vcita.github.io/developers-hub/entities/response.json" },
+                    { "properties": { "data": { "type": "object", "$ref": "https://vcita.github.io/developers-hub/entities/ai/PulseItem.json" } } }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing bearer token",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
+          },
+          "404": {
+            "description": "Pulse Item not found, or does not belong to the requesting staff member",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
+          }
+        },
+        "tags": ["Pulse Items"],
+        "security": [{ "Bearer": [] }]
+      }
+    },
+    "/v3/ai/pulse_items/{uid}/execute": {
+      "post": {
+        "operationId": "PulseItemsController_execute",
+        "summary": "Execute the primary action of a Pulse Item",
+        "description": "## Overview\nTransitions the Pulse Item to 'completed'. Idempotent once the item is already dismissed or completed.\n\nAvailable for **Staff tokens**.",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the Pulse Item",
+            "schema": { "type": "string" },
+            "example": "rec-123"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The Pulse Item after execution",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "https://vcita.github.io/developers-hub/entities/response.json" },
+                    { "properties": { "data": { "type": "object", "$ref": "https://vcita.github.io/developers-hub/entities/ai/PulseItem.json" } } }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing bearer token",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
+          },
+          "404": {
+            "description": "Pulse Item not found, or does not belong to the requesting staff member",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
+          }
+        },
+        "tags": ["Pulse Items"],
+        "security": [{ "Bearer": [] }]
+      }
+    },
+    "/v3/ai/pulse_items/{uid}/dismiss": {
+      "post": {
+        "operationId": "PulseItemsController_dismiss",
+        "summary": "Dismiss a Pulse Item",
+        "description": "## Overview\nTransitions the Pulse Item to 'dismissed'. Idempotent once the item is already dismissed or completed.\n\nAvailable for **Staff tokens**.",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the Pulse Item",
+            "schema": { "type": "string" },
+            "example": "rec-123"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The Pulse Item after dismissal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "https://vcita.github.io/developers-hub/entities/response.json" },
+                    { "properties": { "data": { "type": "object", "$ref": "https://vcita.github.io/developers-hub/entities/ai/PulseItem.json" } } }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing bearer token",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
+          },
+          "404": {
+            "description": "Pulse Item not found, or does not belong to the requesting staff member",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
+          }
+        },
+        "tags": ["Pulse Items"],
+        "security": [{ "Bearer": [] }]
+      }
+    }
+  }
+}
