@@ -31,7 +31,7 @@ function renderEndpoints() {
   
   for (const [domain, endpoints] of Object.entries(grouped)) {
     const domainSelected = endpoints.filter(e => AppState.selectedEndpoints.has(e.id)).length;
-    const isExpanded = true; // Could track expanded state
+    const isExpanded = AppState.expandedDomains.has(domain); // Check tracked state (default collapsed)
     
     html += `
       <div class="domain-group ${isExpanded ? 'expanded' : ''}">
@@ -39,7 +39,7 @@ function renderEndpoints() {
           <span class="expand-icon">${isExpanded ? '▼' : '▶'}</span>
           <span class="domain-name">${domain.toUpperCase()}</span>
           <span class="domain-count">(${endpoints.length} endpoints, ${domainSelected} selected)</span>
-          <button class="btn btn-small" onclick="event.stopPropagation(); selectDomain('${domain}')">Select All</button>
+          <button class="btn btn-small" onclick="event.stopPropagation(); event.preventDefault(); selectDomain('${domain}')">Select All</button>
         </div>
         <div class="domain-endpoints">
     `;
@@ -52,11 +52,17 @@ function renderEndpoints() {
         : 'No token info';
       const tokenClass = endpoint.tokenInfo.found ? '' : 'missing-token';
       
+      // Workflow verification status
+      const status = endpoint.workflowStatus || 'none';
+      const statusLabel = getWorkflowStatusLabel(status);
+      const statusClass = `workflow-status-${normalizeStatus(status)}`;
+      
       html += `
         <div class="endpoint ${isSelected ? 'selected' : ''}" data-endpoint-id="${endpoint.id}" onclick="toggleEndpointSelection('${endpoint.id}')">
           <input type="checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleEndpointSelection('${endpoint.id}')">
           <span class="method ${methodClass}">${endpoint.method}</span>
           <span class="path">${endpoint.path}</span>
+          <span class="workflow-status ${statusClass}" title="Workflow status: ${status}">${statusLabel}</span>
           <span class="token-badge ${tokenClass}">${tokenBadge}</span>
           <span class="summary">${endpoint.summary || ''}</span>
         </div>
@@ -77,13 +83,22 @@ function renderEndpoints() {
  * Toggle domain group expansion
  */
 function toggleDomainGroup(domain) {
+  // Update the state (persisted across re-renders)
+  if (AppState.expandedDomains.has(domain)) {
+    AppState.expandedDomains.delete(domain);
+  } else {
+    AppState.expandedDomains.add(domain);
+  }
+  
+  // Update DOM directly for immediate feedback
   const groups = document.querySelectorAll('.domain-group');
   for (const group of groups) {
     if (group.querySelector('.domain-name')?.textContent === domain.toUpperCase()) {
-      group.classList.toggle('expanded');
+      const isExpanded = AppState.expandedDomains.has(domain);
+      group.classList.toggle('expanded', isExpanded);
       const icon = group.querySelector('.expand-icon');
       if (icon) {
-        icon.textContent = group.classList.contains('expanded') ? '▼' : '▶';
+        icon.textContent = isExpanded ? '▼' : '▶';
       }
     }
   }
@@ -114,4 +129,36 @@ function toggleEndpointSelection(endpointId) {
     if (checkbox) checkbox.checked = isSelected;
     el.classList.toggle('selected', isSelected);
   }
+}
+
+/**
+ * Normalize workflow status to a CSS-friendly key
+ * Merges similar statuses (e.g., "skip" and "skipped")
+ */
+function normalizeStatus(status) {
+  if (!status) return 'none';
+  const s = status.toLowerCase().trim();
+  if (s === 'skip' || s === 'skipped') return 'skipped';
+  if (s === 'verified' || s === 'success') return 'verified';
+  if (s === 'pending') return 'pending';
+  if (s === 'failed') return 'failed';
+  if (s === 'deprecated') return 'deprecated';
+  if (s === 'none') return 'none';
+  return 'none';
+}
+
+/**
+ * Get a display label for a workflow status
+ */
+function getWorkflowStatusLabel(status) {
+  const normalized = normalizeStatus(status);
+  const labels = {
+    'verified': 'Verified',
+    'pending': 'Pending',
+    'failed': 'Failed',
+    'skipped': 'Skipped',
+    'deprecated': 'Deprecated',
+    'none': 'No Workflow'
+  };
+  return labels[normalized] || status;
 }

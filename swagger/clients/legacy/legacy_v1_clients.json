@@ -12,7 +12,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Gets a list of clients or search by client attributes.",
+        "description": "## Overview\nRetrieves a paginated list of clients for the business. Supports searching by various attributes and filtering by update timestamp.\n\n## Authentication\n**Available for Staff, App, and Directory Tokens.**",
         "parameters": [
           {
             "description": "Search Term",
@@ -55,7 +55,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Success",
+            "description": "Success - Returns list of clients matching the search criteria",
             "examples": {
               "application/json": {
                 "data": {
@@ -87,6 +87,12 @@
                 "status": "OK"
               }
             }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Invalid request parameters"
+          },
+          "429": {
+            "description": "Too Many Requests - Rate limit exceeded for this business"
           }
         },
         "security": [
@@ -119,7 +125,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Creates a Client and returns the new client's data and the client's JWT token",
+        "description": "## Overview\nCreates a new client record for the business. If a client with the same email already exists, returns a 409 Conflict error.\n\n## Authentication\n**Available for Staff, App, and Directory Tokens.**",
         "parameters": [
           {
             "in": "body",
@@ -143,8 +149,9 @@
                   "type": "string"
                 },
                 "email": {
-                  "description": "Email Address",
-                  "type": "string"
+                  "description": "Email Address. Must be a valid email format (e.g., user@example.com)",
+                  "type": "string",
+                  "format": "email"
                 },
                 "first_name": {
                   "description": "First Name",
@@ -153,6 +160,11 @@
                 "last_name": {
                   "description": "Last Name",
                   "type": "string"
+                },
+                "opt_in": {
+                  "description": "Marketing email opt-in status. Accepts boolean values (`true` / `false`) or string values (`\"1\"` / `\"0\"`). When set to `true` (or `\"1\"`), the client is opted in to receive marketing emails; when set to `false` (or `\"0\"`), the client is opted out. This is distinct from `opt_in_transactional_sms`, which controls transactional SMS consent.",
+                  "type": "boolean",
+                  "example": true
                 },
                 "opt_in_transactional_sms": {
                   "description": "Whether the client opts in to receive transactional SMS messages.",
@@ -179,18 +191,26 @@
                   "type": "string"
                 },
                 "staff_id": {
-                  "description": "Staff ID",
-                  "type": "string"
+                  "description": "Staff ID. Reference to the staff member (see staff entity).",
+                  "type": "string",
+                  "x-reference-to": "staff"
                 },
                 "status": {
-                  "description": "Use a client status to categorize clients according to their relationship with your business",
-                  "type": "string"
+                  "description": "Use a client status to categorize clients according to their relationship with your business. Valid values: lead, customer, loyal, inactive",
+                  "type": "string",
+                  "enum": [
+                    "lead",
+                    "customer",
+                    "loyal",
+                    "inactive"
+                  ]
                 },
                 "tags": {
                   "description": "The tag system is based on customized labels that you create, so you can sort your data using personalized words, phrases or themes that are meaningful to you and your business",
                   "type": "string"
                 }
               },
+              "required": ["first_name"],
               "type": "object"
             }
           }
@@ -261,12 +281,158 @@
         "x-auth-type": "Application & Application User"
       }
     },
+    "/clients/bulk": {
+      "put": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "## Overview\nBulk update client marketing opt-in status for multiple clients in a single operation.\n\n## Currently Supported Field\nThis endpoint currently supports updating **only** the `opt_in` field. Any request containing other fields will be rejected with a validation error.\n\n## Field Format\n- `opt_in` - Marketing opt-in status. Accepts:\n  - String values: `\"1\"` (opted-in) or `\"0\"` (opted-out)\n  - Boolean values: `true` or `false` (automatically converted to `\"1\"` or `\"0\"`)\n\n## Limits\n- Maximum 5000 clients per request\n- All clients must belong to the authenticated business\n- Duplicate client IDs are not allowed\n- Additional rate limits apply per business\n\n## Authentication\n**Available for Staff, App, and Directory tokens.**\n\n## Behavior\n- Atomic operation - either all clients update successfully or the request fails\n- If any client is not found or validation fails, no clients are updated\n- If the business doesn't have an opt-in field configured, returns success with `updated: false`",
+        "operationId": "bulkUpdateClients",
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": ["clients"],
+              "properties": {
+                "clients": {
+                  "type": "array",
+                  "description": "Array of client updates. Maximum 5000 clients.",
+                  "minItems": 1,
+                  "maxItems": 5000,
+                  "items": {
+                    "type": "object",
+                    "required": ["id", "opt_in"],
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "description": "Client UID",
+                        "example": "czpvt3f246p4cw9i"
+                      },
+                      "opt_in": {
+                        "description": "Marketing opt-in status. Accepts \"1\", \"0\", true, or false.",
+                        "example": true
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "examples": {
+              "application/json": {
+                "clients": [
+                  {
+                    "id": "czpvt3f246p4cw9i",
+                    "opt_in": true
+                  },
+                  {
+                    "id": "d1qwu4g357q5dx0j",
+                    "opt_in": false
+                  }
+                ]
+              }
+            }
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success - All clients updated, operation skipped (no opt-in field), or empty request",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "example": "OK"
+                },
+                "data": {
+                  "type": "object",
+                  "properties": {
+                    "updated": {
+                      "type": "boolean",
+                      "description": "True if clients were updated. False when opt-in field not configured or empty request."
+                    },
+                    "count": {
+                      "type": "integer",
+                      "description": "Number of client records updated"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human-readable status message"
+                    }
+                  },
+                  "required": ["updated", "count", "message"]
+                }
+              }
+            },
+            "examples": {
+              "application/json": {
+                "status": "OK",
+                "data": {
+                  "updated": true,
+                  "count": 2,
+                  "message": "Clients updated successfully"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error (invalid field, duplicates, exceeds max size, or clients not found)",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "example": "Error"
+                },
+                "error": {
+                  "type": "string",
+                  "example": "Only 'opt_in' field is allowed in bulk updates"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          }
+        },
+        "security": [
+          {
+            "default": [
+              "platform"
+            ]
+          }
+        ],
+        "summary": "Bulk Update Clients",
+        "tags": [
+          "Clients"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "PUT",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///platform/v1/clients/bulk"
+        },
+        "x-auth-type": "Application & Application User"
+      }
+    },
     "/clients/merges/merge_clients": {
       "put": {
         "consumes": [
           "application/json"
         ],
-        "description": "Merge two or more duplicate clients into one primary client. The request body can be empty but must be sent.",
+        "description": "## Overview\nMerge two or more duplicate clients into one primary client.\n\n## Authentication\n**Available for Staff, App, and Directory tokens.**\n\n## Query Parameters\n- `to_client_uid` (required): UID of the destination primary client\n- `from_client_uids` (required): Comma-separated UIDs of clients to merge into the primary client\n\n## Business Rules\n- Clients must represent different contact persons to be merged\n- Clients related to the same contact cannot be merged (returns 422 error)\n- Use `GET /platform/v1/clients/merges/possible_merge_master` to check merge eligibility first\n\n## Request Body\nThe request body can be empty but must be sent (e.g., `{}`).",
         "parameters": [
           {
             "description": "UID of the destination primary client.",
@@ -276,7 +442,7 @@
             "type": "string"
           },
           {
-            "description": "UIDs of all the clients to be merged into the to_client_uid, comma separated",
+            "description": "UIDs of all the clients to be merged into the to_client_uid, as a non-empty comma-separated string (e.g., 'uid1,uid2').",
             "in": "query",
             "name": "from_client_uids",
             "required": true,
@@ -297,9 +463,11 @@
         ],
         "responses": {
           "200": {
-            "description": "Success",
+            "description": "Success. Response includes master_ids (array of primary client UIDs) and clients (array of decorated client objects).",
             "examples": {
               "application/json": {
+                "master_ids": ["80g6241rk3zldz2h"],
+                "clients": [],
                 "status": "OK"
               }
             }
@@ -337,10 +505,10 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Returns a list of client UIDs that can be used as a primary client for the merge.",
+        "description": "## Overview\nReturns a list of client UIDs that can be used as a primary client for the merge.\n\n## Authentication\n**Available for Staff, App, and Directory Tokens.**\n\n## Required Parameters\n- `client_ids` (required): Comma-separated client UIDs to check for merge eligibility.\n\n## Business Rules\n- **Clients with multiple matters cannot be merged** - If any selected client has more than one matter/project, the merge is not allowed\n- Returns 422 if multiple clients are related to the same contact (e.g., pets belonging to the same owner)\n- Clients must be independent contacts to be eligible for merge\n- The error message format is: '{Term} cannot be merged since you selected more than 1 {term} related to the same contact'",
         "parameters": [
           {
-            "description": "List of client uids, comma separated",
+            "description": "List of client UIDs to check for merge eligibility, as a non-empty comma-separated string (e.g., 'uid1,uid2').",
             "in": "query",
             "name": "client_ids",
             "required": true,
@@ -396,16 +564,17 @@
         "consumes": [
           "application/json"
         ],
+        "description": "## Overview\nRedeem a credit from the authenticated client's active package to pay for an appointment or service session. This marks the associated payment status as paid (price set to $0) and decrements one credit from the client's package. If multiple packages qualify, the **soonest-expiring package** is used first.\n\n## Authentication\n**Available for Client Tokens only.**\n\n## Required Parameters\n- `payment_status_id` (string) — The ID of the payment status record to pay using a package credit. Must reference a pending/unpaid payment status linked to an appointment.\n\n## Notes\n- Returns 422 \"There is no package to use\" if no active client packages with available credits exist for the relevant service.\n- Returns 422 if the payment status is already paid.\n- There is also a Staff-facing version at `POST /platform/v1/payment/client_packages/update_usage` that accepts **Staff tokens** (and **Directory/App tokens** with the `X-On-Behalf-Of` header).\n- This endpoint is in Alpha and may change.",
         "parameters": [
-
           {
             "in": "body",
             "name": "body",
             "schema": {
               "properties": {
                 "payment_status_id": {
-                  "description": "Payment status ID",
-                  "type": "string"
+                  "description": "Payment status ID - Must reference a pending/unpaid payment status. Already paid statuses will return 422 error 'Payment status is already paid'.",
+                  "type": "string",
+                  "x-reference-to": "payment_status"
                 }
               },
               "required": [
@@ -420,7 +589,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Package updated by client",
+            "description": "Package credit successfully applied to the payment status. The payment status is marked as paid with price 0, and a booking credit redemption record is created.",
             "examples": {
               "application/json": {
                 "data": {
@@ -431,10 +600,19 @@
             }
           },
           "422": {
-            "description": "Failure",
+            "description": "Validation error - The request was valid but could not be processed. Common reasons include: no suitable package exists for the service, the payment status is already paid, or the client has no active packages with available credits for this service.",
             "examples": {
               "application/json": {
-                "error": "Error Message",
+                "error": "There is no package to use",
+                "status": "Error"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error - May occur due to a known bug when the payment_status_id references a virtual booking that fails to be retrieved. The error message will contain 'undefined local variable or method `exception''. To avoid this, ensure the payment_status_id references a regular payment status that exists in the client's payment history.",
+            "examples": {
+              "application/json": {
+                "error": "undefined local variable or method `exception' for Components::Payments::ClientPackagesAPI:Module",
                 "status": "Error"
               }
             }
@@ -472,14 +650,15 @@
         "consumes": [
           "application/json"
         ],
+        "description": "## Overview\nCheck whether the authenticated client has an active package with available credits for the service associated with a given payment status. Use this to determine if the \"pay with package\" option should be shown to the client before calling the `update_usage` endpoint.\n\n## Authentication\n**Available for Client Tokens only.**\n\n## Required Parameters\n- `payment_status_id` (query, string) — The ID of the payment status to check. Must reference a pending/unpaid payment status.\n\n## Response\n- Returns `has_package: true` if a suitable active package with available credits exists for the service.\n- Returns `has_package: false` if no suitable package is available.\n\n## Notes\n- Returns 422 if the payment status is already paid.\n- This endpoint is in Alpha and may change.",
         "parameters": [
-
           {
-            "description": "Payment status ID",
+            "description": "Payment status ID - must be a pending/unpaid payment status",
             "in": "query",
             "name": "payment_status_id",
             "required": true,
-            "type": "string"
+            "type": "string",
+            "x-reference-to": "payment_status"
           }
         ],
         "produces": [
@@ -487,7 +666,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Validation Occurred",
+            "description": "Validation Occurred - Returns has_package=true if a suitable package exists",
             "examples": {
               "application/json": {
                 "data": {
@@ -498,10 +677,19 @@
             }
           },
           "422": {
-            "description": "Failure",
+            "description": "Validation Error - Common reasons: payment_status_id is already paid, or references an invalid payment status",
             "examples": {
               "application/json": {
-                "error": "Error Message",
+                "error": "Payment status is already paid",
+                "status": "Error"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error - Known bug: May occur when the payment_status_id parameter is missing, empty, or references a virtual booking that cannot be retrieved. The error message contains 'undefined local variable or method `exception''. To avoid this, ensure the payment_status_id is provided and references a valid payment status from the client's payment history.",
+            "examples": {
+              "application/json": {
+                "error": "undefined local variable or method `exception' for Components::Payments::ClientPackagesAPI:Module",
                 "status": "Error"
               }
             }
@@ -514,7 +702,7 @@
             ]
           }
         ],
-        "summary": "Validate Client Package has redemption [Alpha]",
+        "summary": "Validate Credit Availability [Alpha]",
         "tags": [
           "Client Packages"
         ],
@@ -539,7 +727,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Deletes a Client.",
+        "description": "## Overview\nDeletes a Client Available for **Staff, App, and Directory tokens**.",
         "parameters": [
           {
             "description": "Client UID",
@@ -617,7 +805,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Retrieves a Client.",
+        "description": "## Overview\nRetrieves a Client.\n\n## Authentication\n**Available for Staff, App, and Directory Tokens.**",
         "parameters": [
           {
             "description": "Client UID",
@@ -701,7 +889,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Update a Client.",
+        "description": "## Overview\nUpdate a Client Available for **Staff, App, and Directory tokens**.",
         "parameters": [
           {
             "description": "Client UID",
@@ -720,8 +908,9 @@
                   "type": "string"
                 },
                 "created_at": {
-                  "description": "Client creation date",
-                  "type": "string"
+                  "description": "Client creation date. Read-only - automatically managed by the system and ignored in updates.",
+                  "type": "string",
+                  "readOnly": true
                 },
                 "custom_field1": {
                   "description": "Custom Field 1",
@@ -736,16 +925,17 @@
                   "type": "string"
                 },
                 "email": {
-                  "description": "Email Address",
-                  "type": "string"
+                  "description": "Email Address. Must be a valid email format (e.g., user@example.com)",
+                  "type": "string",
+                  "format": "email"
                 },
                 "first_name": {
                   "description": "First Name",
                   "type": "string"
                 },
                 "force_nullifying": {
-                  "description": "If true, allows address and mobile_phone to be overridden with `null` or `\"\"`.",
-                  "type": "string"
+                  "description": "If true, allows nullable fields (address, mobile_phone) to be cleared by sending `null` or empty string. Must be boolean true or string \"true\".",
+                  "type": "boolean"
                 },
                 "last_name": {
                   "description": "Last Name",
@@ -755,8 +945,21 @@
                   "description": "Phone Number. Send `null` or `\"\"` to clear this field if force_nullifying is true.",
                   "type": "string"
                 },
+                "opt_in": {
+                  "description": "Marketing email opt-in status. Accepts boolean values (`true` / `false`) or string values (`\"1\"` / `\"0\"`). When set to `true` (or `\"1\"`), the client is opted in to receive marketing emails; when set to `false` (or `\"0\"`), the client is opted out. This is distinct from `opt_in_transactional_sms`, which controls transactional SMS consent.",
+                  "type": "boolean",
+                  "example": true
+                },
                 "phone": {
                   "description": "Phone Number",
+                  "type": "string"
+                },
+                "source_name": {
+                  "description": "Source name. Updates the client's source label (e.g., \"website\", \"client_portal\", \"contact_form\"). The new value is reflected in the `source` field on subsequent GET responses. Note: unlike `POST /platform/v1/clients`, this does NOT create or update the underlying source record, so existing `source_url`, `channel`, and `campaign` values remain unchanged.",
+                  "type": "string"
+                },
+                "source_url": {
+                  "description": "Source URL. Persists the URL on the client record but, unlike `POST /platform/v1/clients`, does NOT update the underlying source record. As a result, the value will not be reflected in the `source_url` field returned by subsequent GET responses (which is read from the source record). To change the visible `source_url`, `channel`, or `campaign` of an existing client, the source record itself must be updated through other means.",
                   "type": "string"
                 },
                 "spam": {
@@ -768,16 +971,23 @@
                   "type": "string"
                 },
                 "status": {
-                  "description": "Use a client status to categorize clients according to their relationship with your business",
-                  "type": "string"
+                  "description": "Use a client status to categorize clients according to their relationship with your business. Valid values: lead, customer, loyal, inactive",
+                  "type": "string",
+                  "enum": [
+                    "lead",
+                    "customer",
+                    "loyal",
+                    "inactive"
+                  ]
                 },
                 "tags": {
                   "description": "The tag system is based on customized labels that you create, so you can sort your data using personalized words, phrases or themes that are meaningful to you and your business",
                   "type": "string"
                 },
                 "updated_at": {
-                  "description": "Client last update date",
-                  "type": "string"
+                  "description": "Client last update date. Read-only - automatically managed by the system and ignored in updates.",
+                  "type": "string",
+                  "readOnly": true
                 }
               },
               "type": "object"
@@ -840,157 +1050,19 @@
         "x-auth-type": "Application & Application User"
       }
     },
-    "/clients/{client_id}/conversations": {
-      "get": {
-        "consumes": [
-          "application/json"
-        ],
-        "description": "Gets a list of conversations for a client",
-        "parameters": [
-          {
-            "description": "Client UID",
-            "in": "path",
-            "name": "client_id",
-            "required": true,
-            "type": "string"
-          }
-        ],
-        "produces": [
-          "application/json"
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "examples": {
-              "application/json": {
-                "data": {
-                  "conversations": [
-                    {
-                      "business_id": "2f27ca024eb96133",
-                      "business_unread": false,
-                      "client_id": "od0tuoli2prraw3y",
-                      "client_unread": false,
-                      "created_at": "2025-08-05T06:56:33.583Z",
-                      "deep_link": "/app/conversations/uuk21b7xv53er6zq",
-                      "id": "uuk21b7xv53er6zq",
-                      "last_business_action": "",
-                      "last_client_action": null,
-                      "staff_id": "6ad7601fd821c8d2",
-                      "title": null,
-                      "updated_at": "2025-08-05T06:56:33.583Z"
-                    }
-                  ]
-                },
-                "status": "OK"
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "default": [
-              "platform"
-            ]
-          }
-        ],
-        "summary": "Get Conversations For A Client",
-        "tags": [
-          "Conversations"
-        ],
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-amazon-apigateway-integration": {
-          "httpMethod": "GET",
-          "responses": {
-            "default": {
-              "statusCode": "200"
-            }
-          },
-          "type": "http_proxy",
-          "uri": "https:///platform/v1/clients/{client_id}/conversations"
-        },
-        "x-auth-type": "Application & Application User"
-      }
-    },
-    "/clients/{client_id}/documents": {
-      "get": {
-        "consumes": [
-          "application/json"
-        ],
-        "description": "Gets a list of documents for a client",
-        "parameters": [
-          {
-            "description": "Client UID",
-            "in": "path",
-            "name": "client_id",
-            "required": true,
-            "type": "string"
-          },
-          {
-            "description": "Page number of results. Default: 1",
-            "in": "query",
-            "name": "page",
-            "required": false,
-            "type": "integer"
-          },
-          {
-            "description": "How many items to return per page. Default: 25. Max: 100",
-            "in": "query",
-            "name": "per_page",
-            "required": false,
-            "type": "integer"
-          }
-        ],
-        "produces": [
-          "application/json"
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "examples": {
-              "application/json": {
-                "data": {
-                  "documents": []
-                },
-                "status": "OK"
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "default": [
-              "platform"
-            ]
-          }
-        ],
-        "summary": "Get Documents For A Client",
-        "tags": [
-          "Documents"
-        ],
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-amazon-apigateway-integration": {
-          "httpMethod": "GET",
-          "responses": {
-            "default": {
-              "statusCode": "200"
-            }
-          },
-          "type": "http_proxy",
-          "uri": "https:///platform/v1/clients/{client_id}/documents"
-        },
-        "x-auth-type": "Application & Application User"
-      }
-    },
     "/clients/{client_id}/estimates": {
       "get": {
         "consumes": [
           "application/json"
         ],
+        "description": "## Overview\nGets a list of estimates for a client.\n\n## Authentication\n**Available for Directory tokens only.** Requires `X-On-Behalf-Of` header with the business UID.\n\n**Note**: Staff OAuth tokens fail with 422 'Unauthorized' even with `payments.manage` permission due to authorization type mismatch in the backend. Use Directory tokens with `X-On-Behalf-Of` header instead.\n\n**Note on Authorization Header**: Both `Authorization: Bearer <token>` and legacy `Authorization: Token <token>` formats are supported.\n\n## Error Responses\nAuthorization failures return HTTP 422 with `{status:'Error', error:'Unauthorized'}` rather than 401/403.",
         "parameters": [
+          {
+            "description": "A unique identifer of the business. Can be the Business UID or nickname\\external ID",
+            "in": "header",
+            "name": "X-On-Behalf-Of",
+            "type": "string"
+          },
           {
             "description": "client's id",
             "in": "path",
@@ -1012,7 +1084,6 @@
             "required": false,
             "type": "string"
           }
-
         ],
         "produces": [
           "application/json"
@@ -1068,6 +1139,15 @@
                 "status": "OK"
               }
             }
+          },
+          "422": {
+            "description": "Unauthorized - User does not have permission to access this client's estimates",
+            "examples": {
+              "application/json": {
+                "status": "Error",
+                "error": "Unauthorized"
+              }
+            }
           }
         },
         "security": [
@@ -1097,7 +1177,7 @@
           "type": "http_proxy",
           "uri": "https:///platform/v1/clients/{client_id}/estimates"
         },
-        "x-auth-type": "Application & Application User"
+        "x-auth-type": "Application"
       }
     },
     "/clients/{client_id}/invoices": {
@@ -1105,8 +1185,8 @@
         "consumes": [
           "application/json"
         ],
+        "description": "## Overview\nGets a list of invoices for a client.\n\n## Authentication\n**Available for Staff, App, and Directory Tokens.**\n\n## Prerequisites\n**Requires business feature `invoicing_features`** (payments module) to be enabled. Returns 403 Forbidden or 422 Unauthorized if the feature is not enabled.\n\n## Error Responses\n- **403 Forbidden**: Business does not have invoicing_features enabled\n- **422 Unauthorized**: `{status:'Error', error:'Unauthorized'}` - Legacy error format for feature gate failures",
         "parameters": [
-
           {
             "description": "client's id",
             "in": "path",
@@ -1181,7 +1261,7 @@
                         }
                       ],
                       "note": "Invoice for your service",
-                      "payment_balance": 5.0,
+                      "payment_balance": 5,
                       "payment_state": "pending",
                       "source_data": {
                         "campaign": null,
@@ -1230,144 +1310,13 @@
         "x-auth-type": "Application & Application User"
       }
     },
-    "/clients/{client_id}/payment/client_packages": {
-      "get": {
-        "consumes": [
-          "application/json"
-        ],
-        "parameters": [
-          {
-            "description": "Client ID",
-            "in": "path",
-            "name": "client_id",
-            "required": true,
-            "type": "string"
-          },
-
-          {
-            "description": "Page offset",
-            "in": "query",
-            "name": "page",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "description": "Page size (default: 25)",
-            "in": "query",
-            "name": "per_page",
-            "required": false,
-            "type": "string"
-          }
-        ],
-        "produces": [
-          "application/json"
-        ],
-        "responses": {
-          "200": {
-            "description": "Client Packages Returned",
-            "examples": {
-              "application/json": {
-                "data": {
-                  "client_packages": [
-                    {
-                      "active": "true",
-                      "amount": 100.0,
-                      "booking_credits": [
-                        {
-                          "bookings_usage": "0",
-                          "credit_items": [
-                            {
-                              "bookings_usage": 0,
-                              "item_id": "mzuk2kkt7vjnxdwo",
-                              "item_type": "SERVICE"
-                            }
-                          ],
-                          "id": "vu1rovse0166a9d9",
-                          "total_bookings": "10"
-                        }
-                      ],
-                      "bookings_usage": "0",
-                      "business_id": "vqzqruk6nyclxpp6",
-                      "client_id": "9yxsdkr1hdjtocpv",
-                      "conversation_id": "war7ow99zh14qlty",
-                      "created_at": "2020-06-01T21:05:00.562Z",
-                      "currency": "USD",
-                      "id": "m73jkvg4bf2z71b2",
-                      "image_path": "",
-                      "name": "Music Lessons",
-                      "package_id": "v2fvy50p8gjuvnvb",
-                      "payment_status_id": "6v5ybwkavv0z9hff",
-                      "payment_status_state": "pending",
-                      "products": [
-                        {
-                          "id": "03nmq2uih783ro0g",
-                          "name": "product1_name",
-                          "quantity": 2
-                        },
-                        {
-                          "id": "57ndq2uih503rca8",
-                          "name": "product2_name",
-                          "quantity": 4
-                        }
-                      ],
-                      "staff_id": "mg9d91uh92bclwzg",
-                      "total_bookings": "10",
-                      "valid_from": "2020-06-01",
-                      "valid_until": "2020-07-01"
-                    }
-                  ]
-                },
-                "status": "OK"
-              }
-            }
-          },
-          "422": {
-            "description": "Failure",
-            "examples": {
-              "application/json": {
-                "error": "Error Message",
-                "status": "Error"
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "default": [
-              "platform"
-            ]
-          }
-        ],
-        "summary": "Get Client Packages List Of Client [Alpha]",
-        "tags": [
-          "Client Packages"
-        ],
-        "x-amazon-apigateway-auth": {
-          "type": "NONE"
-        },
-        "x-amazon-apigateway-integration": {
-          "httpMethod": "GET",
-          "requestParameters": {
-            "integration.request.path.client_id": "method.request.path.client_id"
-          },
-          "responses": {
-            "default": {
-              "statusCode": "200"
-            }
-          },
-          "type": "http_proxy",
-          "uri": "https:///platform/v1/clients/{client_id}/payment/client_packages"
-        },
-        "x-auth-type": "Application & Application User"
-      }
-    },
     "/clients/{client_id}/payments": {
       "get": {
         "consumes": [
           "application/json"
         ],
+        "description": "## Overview\nGets a list of payments for a client.\n\n## Authentication\n**Available for Staff, App, and Directory Tokens.**",
         "parameters": [
-
           {
             "description": "client's id",
             "in": "path",
@@ -1450,6 +1399,15 @@
                 "status": "OK"
               }
             }
+          },
+          "422": {
+            "description": "Unauthorized - User does not have permission to access this client's payments",
+            "examples": {
+              "application/json": {
+                "status": "Error",
+                "error": "Unauthorized"
+              }
+            }
           }
         },
         "security": [
@@ -1505,5 +1463,15 @@
     }
   },
   "swagger": "2.0",
-  "x-throttling-tier": "8ReqPerSec"
+  "x-throttling-tier": "8ReqPerSec",
+  "components": {
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+      }
+    }
+  }
 }

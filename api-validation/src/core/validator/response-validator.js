@@ -15,6 +15,7 @@ const FAILURE_REASONS = {
   AUTH_FAILED: 'AUTH_FAILED',
   ENDPOINT_NOT_FOUND: 'ENDPOINT_NOT_FOUND',
   RESOURCE_NOT_FOUND: 'RESOURCE_NOT_FOUND', // Resource/entity not found (404 with valid API response)
+  VALIDATION_ERROR: 'VALIDATION_ERROR', // API returned validation error (may use wrong status code like 404)
   CONFLICT: 'CONFLICT', // 409 Conflict - operation cannot be performed due to current state
   TIMEOUT: 'TIMEOUT',
   REF_RESOLUTION_FAILED: 'REF_RESOLUTION_FAILED',
@@ -24,7 +25,8 @@ const FAILURE_REASONS = {
   DOC_ISSUE: 'DOC_ISSUE',
   PARAM_NAME_MISMATCH: 'PARAM_NAME_MISMATCH',
   EXPECTED_ERROR: 'EXPECTED_ERROR', // API returned documented error response
-  BAD_GATEWAY_FALLBACK: 'BAD_GATEWAY_FALLBACK' // Primary URL returned 502, succeeded on fallback URL
+  BAD_GATEWAY_FALLBACK: 'BAD_GATEWAY_FALLBACK', // Primary URL returned 502, succeeded on fallback URL
+  SWAGGER_TYPE_MISMATCH: 'SWAGGER_TYPE_MISMATCH' // API error indicates swagger has wrong type definition
 };
 
 // Friendly message templates
@@ -49,6 +51,9 @@ const FRIENDLY_MESSAGES = {
   
   [FAILURE_REASONS.RESOURCE_NOT_FOUND]: (resourceInfo) => 
     `Resource not found (404). The requested ${resourceInfo || 'entity'} does not exist. This is a valid API response.`,
+  
+  [FAILURE_REASONS.VALIDATION_ERROR]: (message, field) => 
+    `Validation error: ${message || 'Invalid request data'}${field ? ` (field: ${field})` : ''}. The request body or parameters may not match the expected format.`,
   
   [FAILURE_REASONS.CONFLICT]: (message) => 
     `Conflict (409). ${message || 'The operation cannot be performed due to the current state of the resource.'}`,
@@ -78,7 +83,10 @@ const FRIENDLY_MESSAGES = {
     `API returned ${status} error response. This is expected behavior per documentation.`,
   
   [FAILURE_REASONS.BAD_GATEWAY_FALLBACK]: (primaryUrl, fallbackUrl, primaryStatus) =>
-    `Primary URL (${primaryUrl}) returned bad gateway error (status ${primaryStatus || 502}). Request succeeded using fallback URL (${fallbackUrl}).`
+    `Primary URL (${primaryUrl}) returned bad gateway error (status ${primaryStatus || 502}). Request succeeded using fallback URL (${fallbackUrl}).`,
+  
+  [FAILURE_REASONS.SWAGGER_TYPE_MISMATCH]: (field, swaggerType, apiExpectedType) =>
+    `Swagger type mismatch: Field '${field}' is defined as '${swaggerType}' in swagger, but API expects '${apiExpectedType}'. Update the swagger type definition.`
 };
 
 /**
@@ -421,6 +429,7 @@ function buildValidationResult({
     path: endpoint.path,
     summary: endpoint.summary || null,
     description: endpoint.description || null,
+    swaggerFile: endpoint.swaggerFile || endpoint.domain, // Include swagger file path for reference
     status,
     httpStatus,
     duration: `${duration}ms`,
@@ -479,6 +488,67 @@ function buildValidationResult({
   }
   
   return result;
+}
+
+/**
+ * Detect if a response contains validation errors (API may use wrong status code)
+ * Some APIs return 404 for validation errors which should be recoverable
+ * @param {Object} responseData - Response body
+ * @returns {Object|null} - { isValidationError: boolean, message: string, field: string }
+ */
+function detectValidationError(responseData) {
+  if (!responseData || typeof responseData !== 'object') {
+    return null;
+  }
+  
+  // Check for common validation error patterns
+  const errors = responseData.errors || [];
+  if (!Array.isArray(errors) || errors.length === 0) {
+    return null;
+  }
+  
+  // Look for validation-related error codes or messages
+  const validationPatterns = [
+    /not valid/i,
+    /invalid/i,
+    /required/i,
+    /missing/i,
+    /must be/i,
+    /should be/i,
+    /cannot be/i,
+    /expected/i,
+    /format/i,
+    /type/i,
+    /validation/i,
+    /bad.?request/i
+  ];
+  
+  const validationCodes = ['missing', 'invalid', 'required', 'bad_request', 'validation', 'type_error'];
+  
+  for (const error of errors) {
+    const code = (error.code || '').toLowerCase();
+    const message = error.message || '';
+    
+    // Check if error code indicates validation
+    if (validationCodes.some(c => code.includes(c))) {
+      return {
+        isValidationError: true,
+        message: message,
+        field: error.field || null
+      };
+    }
+    
+    // Check if error message indicates validation
+    if (validationPatterns.some(pattern => pattern.test(message))) {
+      return {
+        isValidationError: true,
+        message: message,
+        field: error.field || null
+      };
+    }
+  }
+  
+  return null;
 }
 
 /**
@@ -541,6 +611,307 @@ function detectResourceNotFound(responseData) {
 }
 
 /**
+ * Check if 404 response indicates a true endpoint/routing error (path doesn't exist)
+ * vs a missing resource/entity (path exists but entity not found)
+ * 
+ * This function looks for explicit routing error messages that indicate
+ * the API path itself is wrong, not just a missing resource.
+ * 
+ * @param {Object} responseData - Response body
+ * @returns {Object|null} - { isEndpointNotFound: boolean, routingInfo: string }
+ */
+function detectEndpointNotFound(responseData) {
+  if (!responseData || typeof responseData !== 'object') {
+    return null;
+  }
+  
+  // Extract message from various response formats
+  let errorMessage = '';
+  if (typeof responseData === 'string') {
+    errorMessage = responseData;
+  } else if (responseData.message) {
+    errorMessage = responseData.message;
+  } else if (responseData.error) {
+    errorMessage = typeof responseData.error === 'string' 
+      ? responseData.error 
+      : responseData.error.message || '';
+  } else if (responseData.errors && Array.isArray(responseData.errors) && responseData.errors.length > 0) {
+    errorMessage = responseData.errors[0].message || responseData.errors[0].code || '';
+  }
+  
+  // Patterns that indicate routing/path errors (NOT resource errors)
+  const routingErrorPatterns = [
+    /route not found/i,
+    /endpoint not found/i,
+    /cannot (get|post|put|patch|delete)/i,
+    /no route/i,
+    /path not found/i,
+    /not implemented/i,
+    /unknown route/i,
+    /unknown endpoint/i,
+    /invalid path/i,
+    /method not allowed/i,
+    /api not found/i,
+    /service not available/i,
+    /no matching route/i,
+    /^\s*<!DOCTYPE/i,  // HTML error page (often from proxy/gateway)
+    /Bad Gateway/i,
+    /502/,
+    /503/
+  ];
+  
+  const isEndpointNotFound = routingErrorPatterns.some(pattern => pattern.test(errorMessage));
+  
+  if (isEndpointNotFound) {
+    return { 
+      isEndpointNotFound: true, 
+      routingInfo: errorMessage.substring(0, 200) 
+    };
+  }
+  
+  // Also check if response looks like a generic gateway/proxy error
+  // These typically don't have our API's error structure
+  const hasNoApiStructure = !responseData.success && 
+                            !responseData.errors && 
+                            !responseData.error && 
+                            !responseData.data &&
+                            !responseData.code;
+  
+  // If we get a raw HTML page or no API structure with certain messages, it's likely routing
+  if (hasNoApiStructure && responseData.statusCode === 404) {
+    return {
+      isEndpointNotFound: true,
+      routingInfo: 'No API response structure - likely gateway/proxy error'
+    };
+  }
+  
+  return null;
+}
+
+/**
+ * Detect if an API validation error indicates a swagger type mismatch
+ * This catches cases where swagger defines a field as one type (e.g., string) 
+ * but the API actually expects a different type (e.g., number)
+ * 
+ * @param {Object} responseData - Response body with error info
+ * @param {Object} requestBody - The request body that was sent
+ * @param {Object} requestSchema - The swagger schema for the request body
+ * @param {boolean} returnAll - If true, returns ALL mismatches; if false, returns only the first
+ * @returns {Object|Object[]|null} - Single mismatch, array of mismatches, or null
+ */
+function detectSwaggerTypeMismatch(responseData, requestBody, requestSchema, returnAll = false) {
+  if (!responseData || typeof responseData !== 'object') {
+    return returnAll ? [] : null;
+  }
+  
+  // Extract errors array
+  const errors = responseData.errors || [];
+  if (!Array.isArray(errors) || errors.length === 0) {
+    return returnAll ? [] : null;
+  }
+  
+  // Type keywords that indicate what the API expects
+  const typePatterns = [
+    { pattern: /must be (?:a |an )?(number|numeric|integer|int)/i, expectedType: 'number' },
+    { pattern: /must be (?:a |an )?(string|text)/i, expectedType: 'string' },
+    { pattern: /must be (?:a |an )?(boolean|bool|true|false)/i, expectedType: 'boolean' },
+    { pattern: /must be (?:a |an )?(array|list)/i, expectedType: 'array' },
+    { pattern: /must be (?:a |an )?(object)/i, expectedType: 'object' },
+    { pattern: /(?:is not|isn't) (?:a |an )?(number|numeric|integer)/i, expectedType: 'number' },
+    { pattern: /(?:is not|isn't) (?:a |an )?(string|text)/i, expectedType: 'string' },
+    { pattern: /(?:is not|isn't) (?:a |an )?(boolean|bool)/i, expectedType: 'boolean' },
+    { pattern: /invalid type.*expected (number|integer|string|boolean|array|object)/i, expectedType: '$1' },
+    { pattern: /expected (number|integer|string|boolean|array|object)/i, expectedType: '$1' },
+    { pattern: /type mismatch.*expected (number|integer|string|boolean|array|object)/i, expectedType: '$1' },
+  ];
+  
+  const mismatches = [];
+  
+  for (const error of errors) {
+    const message = error.message || '';
+    const field = error.field || null;
+    
+    if (!field || !message) continue;
+    
+    // Check if the error message indicates a type expectation
+    for (const { pattern, expectedType } of typePatterns) {
+      const match = message.match(pattern);
+      if (match) {
+        const apiExpectedType = expectedType === '$1' ? match[1].toLowerCase() : expectedType;
+        
+        // Now check what type the swagger says this field should be
+        const swaggerType = findSwaggerFieldType(field, requestSchema);
+        
+        // If swagger type exists and doesn't match what API expects, it's a mismatch
+        if (swaggerType && swaggerType !== apiExpectedType && 
+            // Handle integer vs number equivalence
+            !(swaggerType === 'integer' && apiExpectedType === 'number') &&
+            !(swaggerType === 'number' && apiExpectedType === 'integer')) {
+          const mismatch = {
+            field,
+            swaggerType,
+            apiExpectedType,
+            message,
+            suggestion: `Update swagger to change '${field}' from type '${swaggerType}' to '${apiExpectedType}'`
+          };
+          
+          if (!returnAll) {
+            return mismatch;
+          }
+          mismatches.push(mismatch);
+          break; // Only one mismatch per error entry
+        }
+      }
+    }
+  }
+  
+  return returnAll ? mismatches : (mismatches[0] || null);
+}
+
+/**
+ * Convert a value to the target type
+ * @param {any} value - The value to convert
+ * @param {string} targetType - The target type ('number', 'string', 'boolean', 'integer')
+ * @returns {any} The converted value
+ */
+function convertValueToType(value, targetType) {
+  if (value === null || value === undefined) {
+    return value;
+  }
+  
+  switch (targetType) {
+    case 'number':
+    case 'integer':
+      const num = Number(value);
+      return isNaN(num) ? (targetType === 'integer' ? 0 : 0.0) : num;
+    case 'string':
+      return String(value);
+    case 'boolean':
+      if (typeof value === 'string') {
+        return value.toLowerCase() === 'true' || value === '1';
+      }
+      return Boolean(value);
+    default:
+      return value;
+  }
+}
+
+/**
+ * Apply type conversions to a request body based on detected mismatches
+ * @param {Object} requestBody - The original request body
+ * @param {Object[]} mismatches - Array of { field, apiExpectedType } objects
+ * @returns {Object} New request body with converted types
+ */
+function applyTypeConversions(requestBody, mismatches) {
+  if (!requestBody || !mismatches || mismatches.length === 0) {
+    return requestBody;
+  }
+  
+  // Deep clone to avoid mutating original
+  const newBody = JSON.parse(JSON.stringify(requestBody));
+  
+  for (const mismatch of mismatches) {
+    const { field, apiExpectedType } = mismatch;
+    
+    // Handle nested fields (e.g., 'payment_method.uid')
+    const parts = field.split('.');
+    let current = newBody;
+    
+    // Navigate to parent
+    for (let i = 0; i < parts.length - 1; i++) {
+      if (current && typeof current === 'object') {
+        // Check direct property
+        if (current[parts[i]] !== undefined) {
+          current = current[parts[i]];
+        }
+        // Check wrapped objects (common pattern: { entity: { properties } })
+        else {
+          let found = false;
+          for (const key of Object.keys(current)) {
+            if (typeof current[key] === 'object' && current[key] !== null && current[key][parts[i]] !== undefined) {
+              current = current[key][parts[i]];
+              found = true;
+              break;
+            }
+          }
+          if (!found) {
+            current = null;
+            break;
+          }
+        }
+      } else {
+        current = null;
+        break;
+      }
+    }
+    
+    // Set the converted value
+    const lastPart = parts[parts.length - 1];
+    if (current && typeof current === 'object') {
+      if (current[lastPart] !== undefined) {
+        current[lastPart] = convertValueToType(current[lastPart], apiExpectedType);
+      }
+      // Check wrapped objects
+      else {
+        for (const key of Object.keys(current)) {
+          if (typeof current[key] === 'object' && current[key] !== null && current[key][lastPart] !== undefined) {
+            current[key][lastPart] = convertValueToType(current[key][lastPart], apiExpectedType);
+            break;
+          }
+        }
+      }
+    }
+  }
+  
+  return newBody;
+}
+
+/**
+ * Find the type of a field in a swagger schema (recursively searches nested objects)
+ * @param {string} fieldPath - The field name or path (e.g., 'amount' or 'payment_method.type')
+ * @param {Object} schema - The swagger schema
+ * @returns {string|null} - The type of the field or null if not found
+ */
+function findSwaggerFieldType(fieldPath, schema) {
+  if (!schema || !fieldPath) return null;
+  
+  // Handle nested paths (e.g., 'payment_method.type')
+  const parts = fieldPath.split('.');
+  let currentSchema = schema;
+  
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    
+    // Look in properties
+    if (currentSchema.properties && currentSchema.properties[part]) {
+      currentSchema = currentSchema.properties[part];
+    }
+    // Look in nested object wrappers (common pattern: { entity_name: { properties: ... } })
+    else {
+      // Search through all properties for nested objects
+      let found = false;
+      if (currentSchema.properties) {
+        for (const [key, value] of Object.entries(currentSchema.properties)) {
+          if (value.type === 'object' && value.properties && value.properties[part]) {
+            currentSchema = value.properties[part];
+            found = true;
+            break;
+          }
+        }
+      }
+      if (!found) return null;
+    }
+    
+    // If this is the last part, return the type
+    if (i === parts.length - 1) {
+      return currentSchema.type || null;
+    }
+  }
+  
+  return currentSchema.type || null;
+}
+
+/**
  * Validate HTTP status code
  * @param {number} actualStatus - Actual HTTP status
  * @param {Object} expectedResponses - Expected responses from spec
@@ -568,6 +939,36 @@ function validateStatusCode(actualStatus, expectedResponses, responseData = null
   }
   
   if (actualStatus === 404) {
+    // First check if this is actually a validation error (API returns 404 for invalid data)
+    const validationCheck = detectValidationError(responseData);
+    if (validationCheck?.isValidationError) {
+      return {
+        valid: false,
+        error: {
+          reason: FAILURE_REASONS.VALIDATION_ERROR,
+          expected: expectedCodes,
+          actual: actualStatus,
+          message: validationCheck.message,
+          field: validationCheck.field
+        }
+      };
+    }
+    
+    // Check for explicit routing/endpoint errors FIRST
+    // These indicate the path itself is wrong (not a missing resource)
+    const endpointNotFoundCheck = detectEndpointNotFound(responseData);
+    if (endpointNotFoundCheck?.isEndpointNotFound) {
+      return {
+        valid: false,
+        error: {
+          reason: FAILURE_REASONS.ENDPOINT_NOT_FOUND,
+          expected: expectedCodes,
+          actual: actualStatus,
+          routingInfo: endpointNotFoundCheck.routingInfo
+        }
+      };
+    }
+    
     // Distinguish between endpoint not found vs resource not found
     const resourceCheck = detectResourceNotFound(responseData);
     
@@ -583,12 +984,16 @@ function validateStatusCode(actualStatus, expectedResponses, responseData = null
       };
     }
     
+    // DEFAULT: Assume it's a resource not found (missing UID/entity)
+    // This is more common than a truly missing endpoint - if the endpoint path was wrong,
+    // most API gateways return explicit "route not found" messages
     return {
       valid: false,
       error: {
-        reason: FAILURE_REASONS.ENDPOINT_NOT_FOUND,
+        reason: FAILURE_REASONS.RESOURCE_NOT_FOUND,
         expected: expectedCodes,
-        actual: actualStatus
+        actual: actualStatus,
+        resourceInfo: 'unknown resource (404 without explicit error message)'
       }
     };
   }
@@ -701,6 +1106,9 @@ function getSuggestion(reason, context = {}) {
     case FAILURE_REASONS.ENDPOINT_NOT_FOUND:
       return `Verify the endpoint path is correct in the documentation.`;
     
+    case FAILURE_REASONS.VALIDATION_ERROR:
+      return `Check the request body format and required fields. The API may expect different field names or structure than documented.`;
+    
     case FAILURE_REASONS.RESOURCE_NOT_FOUND:
       return `The endpoint works correctly but returned 404 because the test resource doesn't exist. This is expected behavior - consider adding test data or documenting 404 responses.`;
     
@@ -716,6 +1124,9 @@ function getSuggestion(reason, context = {}) {
     case FAILURE_REASONS.BAD_GATEWAY_FALLBACK:
       return `The primary API gateway returned 502 Bad Gateway but the fallback URL succeeded. Investigate gateway/load balancer issues on the primary URL.`;
     
+    case FAILURE_REASONS.SWAGGER_TYPE_MISMATCH:
+      return `The swagger defines field '${context.field}' as type '${context.swaggerType}' but the API expects '${context.apiExpectedType}'. Update the swagger schema to use the correct type.`;
+    
     default:
       return null;
   }
@@ -729,6 +1140,12 @@ module.exports = {
   getSuggestion,
   maskSensitiveHeaders,
   truncateData,
+  detectSwaggerTypeMismatch,
+  detectValidationError,
+  detectResourceNotFound,
+  findSwaggerFieldType,
+  convertValueToType,
+  applyTypeConversions,
   FAILURE_REASONS,
   FRIENDLY_MESSAGES
 };

@@ -126,9 +126,10 @@ async function loadSwaggerFilesAsync(swaggerPath) {
  * Extract endpoints from a swagger spec
  * @param {Object} spec - OpenAPI specification object
  * @param {string} domain - Domain name
+ * @param {string} [swaggerFile] - Path to the swagger file
  * @returns {Object[]} Array of endpoint objects
  */
-function extractEndpoints(spec, domain) {
+function extractEndpoints(spec, domain, swaggerFile = null) {
   const endpoints = [];
   const paths = spec.paths || {};
   
@@ -180,6 +181,26 @@ function extractEndpoints(spec, domain) {
       // Check if path has UID parameter
       const hasUidParam = path.includes('{uid}') || path.includes('{id}');
       
+      // Check if endpoint requires X-On-Behalf-Of header
+      // Can be specified via:
+      // 1. x-on-behalf-of extension
+      // 2. Description containing "X-On-Behalf-Of"
+      // 3. Header parameter named "X-On-Behalf-Of"
+      let requiresOnBehalfOf = operation['x-on-behalf-of'] === true;
+      if (!requiresOnBehalfOf && operation.description) {
+        // Detect from description patterns like "X-On-Behalf-Of header" or "on behalf of"
+        const desc = operation.description.toLowerCase();
+        requiresOnBehalfOf = desc.includes('x-on-behalf-of') || 
+                            (desc.includes('directory') && desc.includes('on behalf of'));
+      }
+      if (!requiresOnBehalfOf && parameters.length > 0) {
+        // Check if X-On-Behalf-Of is defined as a header parameter
+        const hasOnBehalfOfHeader = parameters.some(
+          p => p.in === 'header' && p.name?.toLowerCase() === 'x-on-behalf-of'
+        );
+        requiresOnBehalfOf = hasOnBehalfOfHeader;
+      }
+      
       endpoints.push({
         domain,
         path,
@@ -191,6 +212,7 @@ function extractEndpoints(spec, domain) {
         resource,
         hasUidParam,
         tokenInfo,
+        requiresOnBehalfOf, // Flag indicating X-On-Behalf-Of header is required
         parameters: {
           path: pathParams,
           query: queryParams
@@ -200,7 +222,8 @@ function extractEndpoints(spec, domain) {
         responses, // Full responses object for status code validation
         security: operation.security || [],
         operationId: operation.operationId || null,
-        deprecated: operation.deprecated || false
+        deprecated: operation.deprecated || false,
+        swaggerFile: swaggerFile || domain // Include swagger file path for reference
       });
     }
   }
@@ -229,7 +252,7 @@ function parseAllSwaggers(swaggerPath) {
       filePath
     };
     
-    const endpoints = extractEndpoints(spec, domain);
+    const endpoints = extractEndpoints(spec, domain, filePath);
     allEndpoints.push(...endpoints);
     byDomain[domain] = endpoints;
   }
@@ -263,7 +286,7 @@ async function parseAllSwaggersAsync(swaggerPath) {
       filePath
     };
     
-    const endpoints = extractEndpoints(spec, domain);
+    const endpoints = extractEndpoints(spec, domain, filePath);
     allEndpoints.push(...endpoints);
     byDomain[domain] = endpoints;
   }

@@ -27,7 +27,8 @@ function createApiClient(config) {
   // Attach config for fallback URL access
   instance._config = {
     baseUrl: config.baseUrl,
-    fallbackUrl: config.fallbackUrl || null
+    fallbackUrl: config.fallbackUrl || null,
+    partnersUrl: config.partnersUrl || null
   };
   
   return instance;
@@ -43,10 +44,11 @@ function createApiClient(config) {
 function buildRequestConfig(endpoint, config, context = {}) {
   // Select appropriate token (with fallback for undocumented endpoints or placeholder tokens)
   // Pass path for path-based token preference (e.g., /client/* endpoints prefer client token)
-  const { tokenType, token, isFallback, originalRequired, shouldSkip, skipReason } = selectToken(
+  // Pass configParams for client token validation (expiry, business_uid match)
+  const { tokenType, token, isFallback, originalRequired, shouldSkip, skipReason, needsClientToken } = selectToken(
     endpoint.tokenInfo.tokens, 
     config.tokens, 
-    { useFallback: true, path: endpoint.path }
+    { useFallback: true, path: endpoint.path, configParams: config.params }
   );
   
   // Skip if endpoint requires privileged tokens we don't have
@@ -141,10 +143,20 @@ function buildRequestConfig(endpoint, config, context = {}) {
   };
   
   // Add authorization header
+  // Admin tokens use "Admin" prefix, all others use "Bearer"
   if (token) {
-    requestConfig.headers['Authorization'] = `Bearer ${token}`;
+    const authPrefix = tokenType === 'admin' ? 'Admin' : 'Bearer';
+    requestConfig.headers['Authorization'] = `${authPrefix} ${token}`;
   }
   
+  // Add X-On-Behalf-Of header if endpoint requires it
+  // This is used for Directory tokens acting on behalf of a business
+  // See: https://developers.intandem.tech/docs/directory-owners-partners
+  if (endpoint.requiresOnBehalfOf && staticParams.business_uid) {
+    requestConfig.headers['X-On-Behalf-Of'] = staticParams.business_uid;
+    console.log(`  [API Client] Adding X-On-Behalf-Of header (required by endpoint): ${staticParams.business_uid}`);
+  }
+
   // Build query parameters from endpoint definition
   const queryParams = {};
   
@@ -238,7 +250,8 @@ function buildRequestConfig(endpoint, config, context = {}) {
     tokenType,
     hasToken: !!token,
     isFallbackToken: isFallback,
-    originalRequired // Track what token was originally required (if fallback used)
+    originalRequired, // Track what token was originally required (if fallback used)
+    needsClientToken // Signal that a client token should be acquired
   };
 }
 
@@ -251,10 +264,11 @@ function buildRequestConfig(endpoint, config, context = {}) {
  */
 async function buildRequestConfigAsync(endpoint, config, context = {}) {
   // Select appropriate token
-  const { tokenType, token, isFallback, originalRequired, shouldSkip, skipReason } = selectToken(
+  // Pass configParams for client token validation (expiry, business_uid match)
+  const { tokenType, token, isFallback, originalRequired, shouldSkip, skipReason, needsClientToken } = selectToken(
     endpoint.tokenInfo.tokens, 
     config.tokens, 
-    { useFallback: true, path: endpoint.path }
+    { useFallback: true, path: endpoint.path, configParams: config.params }
   );
   
   // Skip if endpoint requires privileged tokens we don't have
@@ -343,14 +357,25 @@ async function buildRequestConfigAsync(endpoint, config, context = {}) {
     headers: {}
   };
   
+  // Admin tokens use "Admin" prefix, all others use "Bearer"
   if (token) {
-    requestConfig.headers['Authorization'] = `Bearer ${token}`;
+    const authPrefix = tokenType === 'admin' ? 'Admin' : 'Bearer';
+    requestConfig.headers['Authorization'] = `${authPrefix} ${token}`;
   }
   
-  // AI config
+  // Add X-On-Behalf-Of header if endpoint requires it
+  // This is used for Directory tokens acting on behalf of a business
+  // See: https://developers.intandem.tech/docs/directory-owners-partners
+  if (endpoint.requiresOnBehalfOf && staticParams.business_uid) {
+    requestConfig.headers['X-On-Behalf-Of'] = staticParams.business_uid;
+    console.log(`  [API Client Async] Adding X-On-Behalf-Of header (required by endpoint): ${staticParams.business_uid}`);
+  }
+  
+  // AI config — param generator uses OpenAI (gpt-4o-mini)
   const aiConfig = {
     enabled: config.ai?.enabled || false,
-    apiKey: config.ai?.anthropicApiKey
+    apiKey: config.ai?.openaiApiKey,
+    model: config.ai?.models?.paramGenerator || 'gpt-4o-mini'
   };
   
   const dynamicParams = context.params || {};
@@ -392,7 +417,8 @@ async function buildRequestConfigAsync(endpoint, config, context = {}) {
     tokenType,
     hasToken: !!token,
     isFallbackToken: isFallback,
-    originalRequired
+    originalRequired,
+    needsClientToken
   };
 }
 
@@ -461,17 +487,84 @@ function substituteBodyParams(body, staticParams = {}, dynamicParams = {}) {
 }
 
 /**
- * Check if a property name represents a uid/id field
+ * Check if a property name represents a uid/id field (standard pattern)
  * @param {string} propName - Property name
  * @returns {boolean}
  */
-function isUidField(propName) {
+function isStandardUidField(propName) {
   const lower = propName.toLowerCase();
   return lower.endsWith('_uid') || 
          lower.endsWith('_id') || 
          lower === 'uid' || 
          lower === 'id';
 }
+
+/**
+ * Check if a property name represents a reference field (broader pattern)
+ * Includes standard uid/id fields plus common reference field names
+ * @param {string} propName - Property name
+ * @returns {boolean}
+ */
+function isReferenceField(propName) {
+  if (isStandardUidField(propName)) return true;
+  
+  const lower = propName.toLowerCase();
+  
+  // Common reference field names that typically reference other entities
+  const referenceFieldPatterns = [
+    'key',           // permission key, config key, etc.
+    'code',          // role code, status code, etc.
+    'type',          // entity type references
+    'role',          // role references
+    'permission',    // permission references
+    'category',      // category references
+    'tag',           // tag references
+  ];
+  
+  // Check if field name matches or ends with these patterns
+  for (const pattern of referenceFieldPatterns) {
+    if (lower === pattern || lower.endsWith(`_${pattern}`)) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * Check if a field description indicates it's a reference to another entity
+ * @param {string} description - Field description
+ * @returns {boolean}
+ */
+function isReferenceByDescription(description) {
+  if (!description) return false;
+  
+  const lower = description.toLowerCase();
+  
+  // Patterns that indicate a reference field
+  const referenceIndicators = [
+    'reference to',
+    'identifier of',
+    'must be a valid',
+    'must be valid',
+    'one of the available',
+    'existing',
+    'from the',
+    'belongs to',
+    'foreign key',
+    'must exist',
+    'valid identifier',
+    'references',
+    'refers to',
+    'linked to',
+    'associated with',
+  ];
+  
+  return referenceIndicators.some(indicator => lower.includes(indicator));
+}
+
+// Alias for backward compatibility
+const isUidField = isStandardUidField;
 
 /**
  * Generate a value for a required query parameter based on its schema
@@ -570,13 +663,14 @@ function generateMinimalPayload(endpoint, resolvedParams = {}) {
 
 /**
  * Generate complete object from JSON schema
- * Includes all properties, handling uid/id fields specially
+ * Includes all properties, handling uid/id and reference fields specially
  * @param {Object} schema - JSON schema
  * @param {string[]} requiredFields - Required field names
  * @param {Object} resolvedParams - Resolved uid/id parameters
+ * @param {string} parentPath - Parent path for nested fields (e.g., "permissions[]")
  * @returns {Object} Generated object
  */
-function generateFromSchema(schema, requiredFields = [], resolvedParams = {}) {
+function generateFromSchema(schema, requiredFields = [], resolvedParams = {}, parentPath = '') {
   if (!schema) return {};
   
   // Handle allOf - merge all schemas
@@ -587,7 +681,7 @@ function generateFromSchema(schema, requiredFields = [], resolvedParams = {}) {
       if (subSchema.required) {
         mergedRequired = [...mergedRequired, ...subSchema.required];
       }
-      Object.assign(merged, generateFromSchema(subSchema, mergedRequired, resolvedParams));
+      Object.assign(merged, generateFromSchema(subSchema, mergedRequired, resolvedParams, parentPath));
     }
     return merged;
   }
@@ -605,34 +699,49 @@ function generateFromSchema(schema, requiredFields = [], resolvedParams = {}) {
     // Process ALL properties (not just required)
     for (const [propName, propSchema] of Object.entries(properties)) {
       const isRequired = required.includes(propName);
-      const isUid = isUidField(propName);
+      const fullPath = parentPath ? `${parentPath}.${propName}` : propName;
       
-      // For uid/id fields, check if we have a resolved value
-      if (isUid) {
+      // Check if this is a reference field by various methods
+      const isStdUid = isStandardUidField(propName);
+      const isRefByName = isReferenceField(propName);
+      const isRefByDesc = isReferenceByDescription(propSchema.description);
+      const hasExplicitRef = propSchema['x-reference-to'];
+      
+      // Determine if this field needs a resolved value (not a generated placeholder)
+      // For nested array items (e.g., permissions[].key), use broader detection
+      const isNestedInArray = parentPath.includes('[]');
+      const needsResolvedValue = isStdUid || hasExplicitRef || 
+        (isNestedInArray && (isRefByName || isRefByDesc));
+      
+      if (needsResolvedValue) {
         // Try to find a matching resolved param
         const paramKey = propName;
+        const fullPathKey = fullPath.replace(/\[\]\./g, '_');
         const altKey = propName.replace(/_uid$/, '_id').replace(/_id$/, '_uid');
         
         if (resolvedParams[paramKey]) {
           obj[propName] = resolvedParams[paramKey];
+        } else if (resolvedParams[fullPathKey]) {
+          obj[propName] = resolvedParams[fullPathKey];
         } else if (resolvedParams[altKey]) {
           obj[propName] = resolvedParams[altKey];
         } else if (isRequired) {
-          // Required uid/id with no resolved value - use placeholder
+          // Required reference field with no resolved value - use placeholder
+          // Mark it clearly as needing resolution
           obj[propName] = generateValue(propSchema, propName, resolvedParams);
         }
-        // Skip non-required uid/id fields with no resolved value
+        // Skip non-required reference fields with no resolved value
         continue;
       }
       
-      // For non-uid fields, include all of them with generated values
-      obj[propName] = generateValue(propSchema, propName, resolvedParams);
+      // For non-reference fields, include all of them with generated values
+      obj[propName] = generateValue(propSchema, propName, resolvedParams, parentPath);
     }
     
     return obj;
   }
   
-  return generateValue(schema, '', resolvedParams);
+  return generateValue(schema, '', resolvedParams, parentPath);
 }
 
 /**
@@ -640,13 +749,14 @@ function generateFromSchema(schema, requiredFields = [], resolvedParams = {}) {
  * @param {Object} schema - Property schema
  * @param {string} propName - Property name (for uid/id handling)
  * @param {Object} resolvedParams - Resolved parameters
+ * @param {string} parentPath - Parent path for nested fields
  * @returns {*} Generated value
  */
-function generateValue(schema, propName = '', resolvedParams = {}) {
+function generateValue(schema, propName = '', resolvedParams = {}, parentPath = '') {
   if (!schema) return null;
   
   // For uid/id fields, try to find a matching resolved param
-  if (propName && isUidField(propName)) {
+  if (propName && isStandardUidField(propName)) {
     const altKey = propName.replace(/_uid$/, '_id').replace(/_id$/, '_uid');
     if (resolvedParams[propName]) return resolvedParams[propName];
     if (resolvedParams[altKey]) return resolvedParams[altKey];
@@ -656,19 +766,19 @@ function generateValue(schema, propName = '', resolvedParams = {}) {
   if (schema.allOf) {
     const merged = {};
     for (const subSchema of schema.allOf) {
-      Object.assign(merged, generateValue(subSchema, propName, resolvedParams));
+      Object.assign(merged, generateValue(subSchema, propName, resolvedParams, parentPath));
     }
     return merged;
   }
   
   // Handle oneOf - use first option
   if (schema.oneOf && schema.oneOf.length > 0) {
-    return generateValue(schema.oneOf[0], propName, resolvedParams);
+    return generateValue(schema.oneOf[0], propName, resolvedParams, parentPath);
   }
   
   // Handle anyOf - use first option
   if (schema.anyOf && schema.anyOf.length > 0) {
-    return generateValue(schema.anyOf[0], propName, resolvedParams);
+    return generateValue(schema.anyOf[0], propName, resolvedParams, parentPath);
   }
   
   // Handle $ref that wasn't dereferenced (external refs)
@@ -711,18 +821,25 @@ function generateValue(schema, propName = '', resolvedParams = {}) {
     case 'array':
       // Generate one item if items schema is provided
       if (schema.items) {
-        const item = generateValue(schema.items, '', resolvedParams);
+        // For arrays of objects, pass the array path (e.g., "permissions[]")
+        const arrayPath = parentPath ? `${parentPath}.${propName}[]` : `${propName}[]`;
+        if (schema.items.type === 'object' && schema.items.properties) {
+          // Use generateFromSchema for object items to get proper reference handling
+          const item = generateFromSchema(schema.items, schema.items.required || [], resolvedParams, arrayPath);
+          return Object.keys(item).length > 0 ? [item] : [];
+        }
+        const item = generateValue(schema.items, '', resolvedParams, arrayPath);
         return item !== null ? [item] : [];
       }
       return [];
     
     case 'object':
-      return generateFromSchema(schema, schema.required || [], resolvedParams);
+      return generateFromSchema(schema, schema.required || [], resolvedParams, parentPath);
     
     default:
       // No type specified but has properties - treat as object
       if (schema.properties) {
-        return generateFromSchema(schema, schema.required || [], resolvedParams);
+        return generateFromSchema(schema, schema.required || [], resolvedParams, parentPath);
       }
       return null;
   }
@@ -764,12 +881,129 @@ function isBadGatewayError(response) {
  * Execute an API request with optional fallback on Bad Gateway
  * @param {Object} client - Axios instance
  * @param {Object} requestConfig - Request configuration
+ * @param {Object} options - Execution options
+ * @param {boolean} options.useFallback - If true, use fallback URL directly instead of trying primary first
  * @returns {Promise<Object>} Response with timing and fallback info
  */
-async function executeRequest(client, requestConfig) {
+async function executeRequest(client, requestConfig, options = {}) {
   const startTime = Date.now();
   const primaryUrl = client._config?.baseUrl;
   const fallbackUrl = client._config?.fallbackUrl;
+  const partnersUrl = client._config?.partnersUrl;
+  
+  // Partners API endpoints (/v1/partners/*) require a dedicated base URL and Token auth
+  const isPartnersEndpoint = requestConfig.url && requestConfig.url.includes('/partners/');
+  if (isPartnersEndpoint && partnersUrl) {
+    console.log(`  [Partners] Detected partners endpoint, using Partners API URL: ${partnersUrl}`);
+    
+    // Partners API uses HTTP Token authentication instead of Bearer
+    const updatedHeaders = { ...requestConfig.headers };
+    if (updatedHeaders['Authorization'] && updatedHeaders['Authorization'].startsWith('Bearer ')) {
+      const token = updatedHeaders['Authorization'].replace('Bearer ', '');
+      updatedHeaders['Authorization'] = `Token token="${token}"`;
+      console.log(`  [Partners] Switched auth from Bearer to Token format`);
+    }
+    
+    try {
+      const partnersResponse = await axios.request({
+        ...requestConfig,
+        url: partnersUrl + requestConfig.url,
+        timeout: client.defaults.timeout,
+        validateStatus: () => true,
+        headers: {
+          ...client.defaults.headers.common,
+          ...updatedHeaders
+        }
+      });
+      
+      const duration = Date.now() - startTime;
+      
+      return {
+        success: true,
+        response: partnersResponse,
+        duration,
+        error: null,
+        usedFallback: false,
+        usedPartnersUrl: true,
+        fallbackInfo: {
+          primaryUrl,
+          partnersUrl,
+          partnersStatus: partnersResponse.status,
+          fallbackDuration: duration
+        }
+      };
+    } catch (partnersError) {
+      const duration = Date.now() - startTime;
+      console.log(`  [Partners] Partners API request failed: ${partnersError.message}`);
+      
+      return {
+        success: false,
+        response: partnersError.response || null,
+        duration,
+        error: {
+          message: partnersError.message,
+          code: partnersError.code,
+          isTimeout: partnersError.code === 'ECONNABORTED',
+          isNetworkError: partnersError.code === 'ERR_NETWORK' || !partnersError.response
+        },
+        usedFallback: false,
+        usedPartnersUrl: true
+      };
+    }
+  }
+  
+  // If useFallback is true and fallbackUrl is configured, go directly to fallback
+  if (options.useFallback && fallbackUrl) {
+    console.log(`  [Fallback] Using fallback URL directly (workflow setting): ${fallbackUrl}`);
+    
+    try {
+      const fallbackResponse = await axios.request({
+        ...requestConfig,
+        url: fallbackUrl + requestConfig.url,
+        timeout: client.defaults.timeout,
+        validateStatus: () => true,
+        headers: {
+          ...client.defaults.headers.common,
+          ...requestConfig.headers
+        }
+      });
+      
+      const duration = Date.now() - startTime;
+      
+      return {
+        success: true,
+        response: fallbackResponse,
+        duration,
+        error: null,
+        usedFallback: true,
+        usedFallbackDirect: true, // Flag to indicate this was a direct fallback (not reactive)
+        fallbackInfo: {
+          primaryUrl,
+          fallbackUrl,
+          primaryStatus: null, // Never tried primary
+          fallbackStatus: fallbackResponse.status,
+          fallbackDuration: duration
+        }
+      };
+    } catch (fallbackError) {
+      const duration = Date.now() - startTime;
+      console.log(`  [Fallback] Direct fallback request failed: ${fallbackError.message}`);
+      
+      return {
+        success: false,
+        response: fallbackError.response || null,
+        duration,
+        error: {
+          message: fallbackError.message,
+          code: fallbackError.code,
+          isTimeout: fallbackError.code === 'ECONNABORTED',
+          isNetworkError: fallbackError.code === 'ERR_NETWORK' || !fallbackError.response
+        },
+        usedFallback: true,
+        usedFallbackDirect: true
+      };
+    }
+  }
   
   try {
     const response = await client.request(requestConfig);
@@ -908,6 +1142,123 @@ function generateCurlCommand(requestConfig, baseUrl) {
   return parts.join(' \\\n  ');
 }
 
+/**
+ * Check if an endpoint requires multipart/form-data based on swagger parameters
+ * @param {Object} endpoint - Endpoint object with parameters
+ * @returns {boolean} True if endpoint uses formData parameters or file uploads
+ */
+function isMultipartEndpoint(endpoint) {
+  if (!endpoint || !endpoint.parameters) return false;
+  
+  // Check if any parameter has "in: formData" or type "file"
+  const allParams = [
+    ...(endpoint.parameters.formData || []),
+    ...(endpoint.parameters.query || []),
+    ...(endpoint.parameters.body || [])
+  ];
+  
+  // Check for formData parameters
+  if (endpoint.parameters.formData && endpoint.parameters.formData.length > 0) {
+    return true;
+  }
+  
+  // Check for file type parameters
+  for (const param of allParams) {
+    if (param.type === 'file' || param.schema?.type === 'file') {
+      return true;
+    }
+  }
+  
+  // Check description for multipart hints
+  const description = endpoint.description || '';
+  if (description.toLowerCase().includes('multipart/form-data') ||
+      description.toLowerCase().includes('file upload')) {
+    return true;
+  }
+  
+  return false;
+}
+
+/**
+ * Build FormData for multipart requests
+ * @param {Object} formFields - Key-value pairs for form fields
+ * @param {Array} fileFields - Array of file attachments {field_name, file_path, filename}
+ * @param {string} testFilesDir - Directory containing test files
+ * @returns {Object} Object with { formData, headers } or null if building fails
+ */
+function buildMultipartFormData(formFields = {}, fileFields = [], testFilesDir = null) {
+  const FormData = require('form-data');
+  const fs = require('fs');
+  const path = require('path');
+  
+  const formData = new FormData();
+  const filesDir = testFilesDir || path.resolve(__dirname, '../../../test-files');
+  
+  // Add form fields (text fields)
+  for (const [key, value] of Object.entries(formFields)) {
+    formData.append(key, String(value));
+  }
+  
+  // Add file fields
+  for (const file of fileFields) {
+    const { field_name, file_path, filename } = file;
+    const absolutePath = path.resolve(filesDir, file_path);
+    
+    if (fs.existsSync(absolutePath)) {
+      const fileStream = fs.createReadStream(absolutePath);
+      const uploadFilename = filename || path.basename(file_path);
+      formData.append(field_name, fileStream, uploadFilename);
+    } else {
+      console.warn(`[Multipart] File not found: ${absolutePath}`);
+    }
+  }
+  
+  return {
+    formData,
+    headers: formData.getHeaders()
+  };
+}
+
+/**
+ * Generate cURL command for multipart request
+ * @param {Object} requestConfig - Request configuration
+ * @param {string} baseUrl - Base URL
+ * @param {Object} formFields - Form fields
+ * @param {Array} fileFields - File fields
+ * @returns {string} cURL command
+ */
+function generateMultipartCurlCommand(requestConfig, baseUrl, formFields = {}, fileFields = []) {
+  const parts = ['curl'];
+  
+  // Method
+  parts.push(`-X ${requestConfig.method.toUpperCase()}`);
+  
+  // URL
+  const url = `${baseUrl}${requestConfig.url}`;
+  parts.push(`'${url}'`);
+  
+  // Headers (excluding Content-Type which curl will set for form data)
+  for (const [key, value] of Object.entries(requestConfig.headers || {})) {
+    if (key.toLowerCase() === 'authorization') {
+      parts.push(`-H '${key}: Bearer ***'`);
+    } else if (key.toLowerCase() !== 'content-type') {
+      parts.push(`-H '${key}: ${value}'`);
+    }
+  }
+  
+  // Form fields
+  for (const [key, value] of Object.entries(formFields)) {
+    parts.push(`-F '${key}=${value}'`);
+  }
+  
+  // File fields
+  for (const file of fileFields) {
+    parts.push(`-F '${file.field_name}=@${file.file_path}'`);
+  }
+  
+  return parts.join(' \\\n  ');
+}
+
 module.exports = {
   createApiClient,
   buildRequestConfig,
@@ -916,5 +1267,8 @@ module.exports = {
   extractUidFromResponse,
   generateMinimalPayload,
   generateFromSchema,
-  generateCurlCommand
+  generateCurlCommand,
+  isMultipartEndpoint,
+  buildMultipartFormData,
+  generateMultipartCurlCommand
 };

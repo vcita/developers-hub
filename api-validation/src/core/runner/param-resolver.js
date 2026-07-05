@@ -142,6 +142,11 @@ const PARAM_SOURCES = {
     field: 'uid',
     arrayPath: 'data.payment_requests'
   },
+  payment_status_id: { 
+    endpoint: '/business/payments/v1/payment_requests', 
+    field: 'uid',
+    arrayPath: 'data.payment_requests'
+  },
   scheduled_payments_rule_uid: { 
     endpoint: '/business/payments/v1/scheduled_payments_rules', 
     field: 'uid',
@@ -158,6 +163,13 @@ const PARAM_SOURCES = {
     endpoint: '/v3/ai/bizai_chats', 
     field: 'uid',
     arrayPath: 'data.bizai_chats'  // Note: no underscore between "biz" and "ai"
+  },
+  
+  // Apps
+  app_code_name: { 
+    endpoint: '/platform/v1/apps', 
+    field: 'app_code_name',
+    arrayPath: 'apps'
   },
   
   // Generic uid/id - these are typically resource-specific
@@ -197,6 +209,27 @@ const LIST_ENDPOINT_OVERRIDES = {
 };
 
 /**
+ * Query parameter sources for endpoints that need query params from other API calls
+ * Maps endpoint patterns to their prerequisite calls and parameter extraction
+ * Format: 'endpoint_pattern': { param_name: { prerequisite_endpoint, extract_from, use_config_param } }
+ */
+const QUERY_PARAM_PREREQUISITES = {
+  // GET /platform/v1/businesses needs email filter from an existing business
+  '/platform/v1/businesses': {
+    email: {
+      // First call this endpoint to get data
+      prerequisite_endpoint: '/platform/v1/businesses/{business_uid}',
+      // The config param to substitute in the prerequisite endpoint
+      use_config_param: 'business_uid',
+      // Path to extract the value from the prerequisite response
+      extract_from: 'data.business.admin_account.email',
+      // Description for documentation
+      description: 'Admin email from existing business'
+    }
+  }
+};
+
+/**
  * Context-aware parameter mapping
  * When a generic param like {uid} appears in a path, this maps it to a specific param name
  * based on the path context (e.g., /contacts/{uid} -> client_uid)
@@ -207,9 +240,8 @@ const PATH_CONTEXT_PARAMS = {
   '/contacts/': 'client_uid',
   '/clients/': 'client_uid',
   
-  // Add more context mappings as needed:
-  // '/invoices/': 'invoice_uid',
-  // '/bookings/': 'booking_uid',
+  // payment_statuses uses payment_request UID as its {id}
+  '/payment_statuses/': 'payment_request_id',
 };
 
 /**
@@ -624,11 +656,45 @@ function createParamResolver(config) {
   };
 }
 
+/**
+ * Get query parameter prerequisites for an endpoint path
+ * @param {string} path - API path (e.g., '/platform/v1/businesses')
+ * @returns {Object|null} Prerequisites object or null if none needed
+ */
+function getQueryParamPrerequisites(path) {
+  // Remove query string if present
+  const basePath = path.split('?')[0];
+  return QUERY_PARAM_PREREQUISITES[basePath] || null;
+}
+
+/**
+ * Build prerequisite endpoint path with config params substituted
+ * @param {Object} prereq - Prerequisite config object
+ * @param {Object} configParams - Config params (e.g., { business_uid: '00wutb5f1a08a8kn' })
+ * @returns {string|null} Full prerequisite endpoint path or null
+ */
+function buildPrerequisiteEndpoint(prereq, configParams) {
+  if (!prereq || !prereq.prerequisite_endpoint) return null;
+  
+  let endpoint = prereq.prerequisite_endpoint;
+  
+  // Substitute config params
+  if (prereq.use_config_param && configParams[prereq.use_config_param]) {
+    endpoint = endpoint.replace(
+      `{${prereq.use_config_param}}`, 
+      configParams[prereq.use_config_param]
+    );
+  }
+  
+  return endpoint;
+}
+
 module.exports = {
   PARAM_SOURCES,
   STATIC_PARAMS,
   LIST_ENDPOINT_OVERRIDES,
   PATH_CONTEXT_PARAMS,
+  QUERY_PARAM_PREREQUISITES,
   isStaticParam,
   hasParamSource,
   getParamSource,
@@ -642,5 +708,7 @@ module.exports = {
   deriveListEndpoint,
   generateResourceKey,
   smartExtractUid,
-  resolveParamByContext
+  resolveParamByContext,
+  getQueryParamPrerequisites,
+  buildPrerequisiteEndpoint
 };

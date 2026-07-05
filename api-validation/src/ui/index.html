@@ -18,6 +18,9 @@
         <button id="check-tokens-btn" class="btn btn-sm btn-secondary" onclick="App.checkTokens()" title="Validate tokens and refresh expired ones">
           🔐 Check Tokens
         </button>
+        <button id="run-setup-btn" class="btn btn-sm btn-secondary" onclick="App.runSetup()" title="Create fresh test business with valid tokens">
+          ⚙️ Run Setup
+        </button>
         <button id="reload-swaggers-btn" class="btn btn-sm btn-secondary" onclick="App.reloadSwaggers()" title="Reload swagger files to pick up documentation changes">
           🔄 Reload Docs
         </button>
@@ -56,6 +59,40 @@
             <option value="app">App</option>
           </select>
         </div>
+        <div class="filter-group">
+          <label for="status-filter-toggle">Status:</label>
+          <div id="status-filter" class="multi-select" title="Select one or more workflow statuses">
+            <button type="button" id="status-filter-toggle" class="multi-select-toggle" aria-haspopup="listbox" aria-expanded="false">
+              All
+            </button>
+            <div id="status-filter-menu" class="multi-select-menu hidden" role="listbox" aria-multiselectable="true">
+              <label class="multi-select-option">
+                <input type="checkbox" value="verified">
+                Verified
+              </label>
+              <label class="multi-select-option">
+                <input type="checkbox" value="pending">
+                Pending
+              </label>
+              <label class="multi-select-option">
+                <input type="checkbox" value="failed">
+                Failed
+              </label>
+              <label class="multi-select-option">
+                <input type="checkbox" value="skipped">
+                Skipped
+              </label>
+              <label class="multi-select-option">
+                <input type="checkbox" value="deprecated">
+                Deprecated
+              </label>
+              <label class="multi-select-option">
+                <input type="checkbox" value="none">
+                No Workflow
+              </label>
+            </div>
+          </div>
+        </div>
         <div class="filter-group search-group">
           <label for="search-filter">Search:</label>
           <input type="text" id="search-filter" placeholder="Search endpoints...">
@@ -89,15 +126,43 @@
       </div>
     </section>
 
+    <!-- Validation Mode Section -->
+    <section class="validation-mode-section">
+      <div class="validation-mode">
+        <label>Mode:</label>
+        <div class="mode-toggle">
+          <button id="mode-full" class="mode-btn active" onclick="App.setValidationMode('full')">Full Validation</button>
+          <button id="mode-base-url" class="mode-btn" onclick="App.setValidationMode('base-url-scan')">Base URL Scan</button>
+          <button id="mode-token-fix" class="mode-btn" onclick="App.setValidationMode('token-doc-fix')">Token Doc Fix</button>
+        </div>
+        <span id="mode-description" class="mode-description">Run full API validation with schema checks and AI healing.</span>
+      </div>
+    </section>
+
     <!-- Endpoints Section -->
     <section class="endpoints-section">
       <div class="endpoints-header">
         <h2>Endpoints <span id="selected-count">(0 selected)</span></h2>
         <div class="endpoints-actions">
+          <a href="#" id="paste-endpoints-link" class="paste-endpoints-link" onclick="App.openPasteModal(); return false;">📋 Paste List</a>
           <button id="select-all-btn" class="btn btn-secondary">Select All</button>
           <button id="deselect-all-btn" class="btn btn-secondary">Deselect All</button>
           <button id="run-btn" class="btn btn-primary" disabled>Run Selected</button>
           <button id="stop-btn" class="btn btn-danger hidden">⏹ Stop</button>
+        </div>
+        <div id="full-validation-options" class="endpoints-options">
+          <div class="checkbox-inline">
+            <label title="Run setup to create fresh test business before running tests">
+              <input type="checkbox" id="run-setup-before">
+              Run Setup First
+            </label>
+          </div>
+          <div class="checkbox-inline">
+            <label title="AI healer will automatically update swagger/entity JSON files based on code analysis evidence">
+              <input type="checkbox" id="auto-fix-swagger">
+              Auto-fix Swagger Files
+            </label>
+          </div>
         </div>
       </div>
       <div id="endpoints-list" class="endpoints-list">
@@ -133,7 +198,7 @@
       <div id="progress-log" class="progress-log"></div>
     </section>
 
-    <!-- Results Section -->
+    <!-- Results Section (Full Validation) -->
     <section id="results-section" class="results-section hidden">
       <div class="results-header">
         <h2>Results</h2>
@@ -143,6 +208,7 @@
           <span class="badge badge-warn">⚠️ Warned: <span id="results-warned">0</span></span>
           <span class="badge badge-error">🔶 Errors: <span id="results-errored">0</span></span>
           <span class="badge badge-skip">⏭️ Skipped: <span id="results-skipped">0</span></span>
+          <span class="badge badge-swagger hidden" title="Swagger files auto-fixed by AI healer">📝 Swagger Fixed: <span id="results-swagger-changes">0</span></span>
         </div>
         <div class="results-actions">
           <button id="preview-report-btn" class="btn btn-secondary" onclick="ResultsViewer.previewReport()">
@@ -151,10 +217,114 @@
           <button id="download-csv-btn" class="btn btn-secondary" onclick="ResultsViewer.downloadCSV()">
             📊 Download CSV
           </button>
+          <button id="save-full-report-btn" class="btn btn-primary" onclick="ResultsViewer.saveFullReport()">
+            💾 Save Full Report
+          </button>
+          <button id="auto-fix-btn" class="btn btn-accent" onclick="ResultsViewer.autoFixAllFailed()" title="Run AI agent to fix all failed endpoints one by one">
+            🤖 Auto-Fix All Failed
+          </button>
         </div>
       </div>
       <div id="results-list" class="results-list"></div>
     </section>
+
+    <!-- Scan Results Section (Base URL Scan) -->
+    <section id="scan-results-section" class="results-section hidden">
+      <div class="results-header">
+        <h2>Base URL Scan Results</h2>
+        <div class="scan-results-summary">
+          <span class="badge badge-scan-primary">🟢 Primary Works: <span id="scan-primary-works">0</span></span>
+          <span class="badge badge-scan-fallback">🟡 Fallback Needed: <span id="scan-fallback-needed">0</span></span>
+          <span class="badge badge-scan-broken-primary">🟠 Fallback Broken: <span id="scan-fallback-broken">0</span></span>
+          <span class="badge badge-scan-broken">🔴 Both Failing: <span id="scan-both-failing">0</span></span>
+          <span class="badge badge-scan-none">⚪ No Workflow: <span id="scan-no-workflow">0</span></span>
+        </div>
+        <div class="scan-actions">
+          <button id="scan-export-csv-btn" class="btn btn-sm btn-secondary" onclick="App.exportScanCsv()" title="Export scan results as CSV">📥 Export CSV</button>
+          <button id="scan-quick-fix-btn" class="btn btn-sm btn-primary" onclick="App.quickFixFallbacks()" title="Remove useFallbackApi from workflows where primary now works">🔧 Quick Fix</button>
+          <button id="scan-auto-fix-btn" class="btn btn-sm btn-accent" onclick="ResultsViewer.autoFixScanFailed()" title="Run AI agent to fix all failed scan endpoints">🤖 Auto-Fix Failed</button>
+        </div>
+      </div>
+      <div id="scan-results-list" class="scan-results-list"></div>
+    </section>
+
+    <!-- Token Doc Fix Results Section -->
+    <section id="token-fix-results-section" class="results-section hidden">
+      <div class="results-header">
+        <h2>Token Doc Fix Results</h2>
+        <div class="token-fix-results-summary">
+          <span class="badge badge-pass">✅ Swagger Updated: <span id="token-fix-updated">0</span></span>
+          <span class="badge badge-scan-primary">🧪 Test Passed: <span id="token-fix-test-passed">0</span></span>
+          <span class="badge badge-fail">❌ Test Failed: <span id="token-fix-test-failed">0</span></span>
+          <span class="badge badge-skip">⏭️ Skipped (no test): <span id="token-fix-skipped">0</span></span>
+          <span class="badge badge-scan-none">⚪ No Workflow: <span id="token-fix-no-workflow">0</span></span>
+        </div>
+        <div class="token-fix-actions">
+          <button id="token-fix-auto-fix-btn" class="btn btn-sm btn-accent" onclick="ResultsViewer.autoFixTokenFixFailed()" title="Run AI agent to fix all failed token-fix endpoints">🤖 Auto-Fix Failed</button>
+        </div>
+      </div>
+      <div id="token-fix-results-list" class="token-fix-results-list"></div>
+    </section>
+  </div>
+
+  <!-- Auto-Fix Panel -->
+  <section id="fix-panel" class="fix-panel hidden">
+    <div class="fix-panel-header">
+      <h2>🤖 Auto-Fix Agent</h2>
+      <div class="fix-panel-controls">
+        <span id="fix-status" class="fix-status">Ready</span>
+        <button id="fix-stop-btn" class="btn btn-sm btn-danger" onclick="FixRunner.stopSession()" disabled>⏹ Stop</button>
+        <button class="btn btn-sm btn-secondary" onclick="FixRunner.hidePanel()">✕ Close</button>
+      </div>
+    </div>
+    <div id="fix-user-prompt-section" class="fix-user-prompt-section"></div>
+    <div class="fix-progress-container">
+      <div class="fix-progress-track">
+        <div id="fix-progress-bar" class="fix-progress-fill"></div>
+      </div>
+      <span id="fix-progress-text" class="fix-progress-text"></span>
+    </div>
+    <div class="fix-panel-body">
+      <div class="fix-queue-panel">
+        <h3>Fix Queue</h3>
+        <div id="fix-queue" class="fix-queue">
+          <div class="fix-queue-empty">Click "Auto-Fix All Failed" to start</div>
+        </div>
+      </div>
+      <div class="fix-thinking-panel">
+        <h3>Agent Thinking</h3>
+        <div id="fix-thinking-stream" class="fix-thinking-stream"></div>
+      </div>
+    </div>
+    <div id="fix-summary" class="fix-summary hidden"></div>
+  </section>
+
+  <!-- Paste Endpoints Modal -->
+  <div id="paste-endpoints-modal" class="modal hidden">
+    <div class="modal-content paste-modal-content">
+      <div class="modal-header">
+        <h2>📋 Paste Endpoints List</h2>
+        <div class="modal-actions">
+          <button class="btn btn-primary" onclick="App.applyPastedEndpoints()">
+            ✓ Select Endpoints
+          </button>
+          <button class="btn btn-secondary" onclick="App.closePasteModal()">
+            ✕ Close
+          </button>
+        </div>
+      </div>
+      <div class="modal-body paste-modal-body">
+        <p class="paste-instructions">
+          Paste a comma-separated list of endpoints to select them for testing. 
+          Format: <code>METHOD /path</code> (e.g., <code>GET /v1/clients, POST /v1/payments</code>)
+        </p>
+        <textarea id="paste-endpoints-input" class="paste-textarea" placeholder="GET /v1/clients, POST /v1/payments, PUT /v1/invoices/{id}"></textarea>
+        <div id="paste-preview" class="paste-preview hidden">
+          <span class="preview-label">Will select:</span>
+          <span id="paste-match-count" class="preview-count">0 endpoints</span>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Report Preview Modal -->
@@ -179,5 +349,6 @@
   <script src="js/endpoint-list.js"></script>
   <script src="js/test-runner.js"></script>
   <script src="js/results-viewer.js"></script>
+  <script src="js/fix-runner.js"></script>
 </body>
 </html>

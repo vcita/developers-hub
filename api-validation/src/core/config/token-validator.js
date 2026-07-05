@@ -400,6 +400,68 @@ async function validateAndRefreshTokens(config) {
   };
 }
 
+/**
+ * Validate that the staff token is associated with the configured business
+ * This catches the subtle case where a staff token exists but belongs to a different business
+ * 
+ * @param {Object} config - Full configuration object with tokens and params
+ * @returns {Promise<Object>} { valid: boolean, error: string|null }
+ */
+async function validateTokenBusinessAssociation(config) {
+  const { tokens, params, baseUrl } = config;
+  const staffToken = tokens?.staff;
+  const businessId = params?.business_id || params?.business_uid;
+  
+  if (!staffToken) {
+    return { valid: false, error: 'No staff token configured' };
+  }
+  
+  if (!businessId) {
+    return { valid: false, error: 'No business_id configured' };
+  }
+  
+  console.log('\n🔗 Validating token-business association...');
+  console.log(`  Business ID: ${businessId}`);
+  console.log(`  Staff Token: ${staffToken.substring(0, 20)}...`);
+  
+  // Use the base URL from config, falling back to environment or default
+  const apiBaseUrl = baseUrl || process.env.API_BASE_URL || 'https://app.meet2know.com/api2';
+  
+  // Call a simple endpoint that requires staff-business association
+  // /platform/v1/services is a good test because it requires the staff to belong to the business
+  const testUrl = `${apiBaseUrl}/platform/v1/services?business_id=${businessId}&per_page=1`;
+  
+  try {
+    const response = await makeRequest(testUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${staffToken}`
+      }
+    });
+    
+    if (response.status === 401 || response.status === 403) {
+      const error = `Staff token is not associated with business ${businessId}. Run setup-business.js to create a properly associated token.`;
+      console.log(`  ✗ ${error}`);
+      return { valid: false, error };
+    }
+    
+    if (response.status === 200) {
+      console.log(`  ✓ Token is valid for business ${businessId}`);
+      return { valid: true, error: null };
+    }
+    
+    // Unexpected status
+    const error = `Unexpected response status ${response.status} when validating token-business association`;
+    console.log(`  ⚠ ${error}`);
+    return { valid: false, error };
+    
+  } catch (error) {
+    const errorMsg = `Failed to validate token-business association: ${error.message}`;
+    console.log(`  ✗ ${errorMsg}`);
+    return { valid: false, error: errorMsg };
+  }
+}
+
 module.exports = {
   decodeJwt,
   validateJwtToken,
@@ -407,5 +469,6 @@ module.exports = {
   validateAllTokens,
   generateClientToken,
   updateTokensFile,
-  validateAndRefreshTokens
+  validateAndRefreshTokens,
+  validateTokenBusinessAssociation
 };

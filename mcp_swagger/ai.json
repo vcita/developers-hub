@@ -6,10 +6,12 @@
     "version": "3.0",
     "x-generated": {
       "sourceFiles": [
-        "bizai.json",
+        "business_rules.json",
         "recommendations.json",
-        "staff_ai_settings.json",
+        "bizai.json",
         "ai_smart_reply.json",
+        "generic_ai.json",
+        "staff_ai_settings.json",
         "ai_generation_feedback.json"
       ],
       "pathNormalizations": [],
@@ -23,10 +25,19 @@
             "merged",
             "ai_smart_reply.json"
           ]
+        },
+        {
+          "type": "schema",
+          "name": "ErrorResponse",
+          "resolution": "Renamed to ErrorResponse_staff_ai_settings",
+          "files": [
+            "merged",
+            "staff_ai_settings.json"
+          ]
         }
       ],
-      "totalPaths": 10,
-      "totalComponents": 22
+      "totalPaths": 19,
+      "totalComponents": 30
     }
   },
   "servers": [
@@ -36,11 +47,1100 @@
     }
   ],
   "paths": {
+    "/v3/ai/business_rules/bulk": {
+      "post": {
+        "operationId": "BusinessRulesController_createBulkImportJob",
+        "summary": "Bulk import business rules",
+        "description": "## Overview\nCreate an async job to extract business rules from raw text using LLM. The system analyzes content, extracts rules, classifies by category, and deduplicates against existing rules.\n\n## Webhook Notification\nWhen the job completes, a webhook notification will be sent to subscribers of the `business_rules_bulk_import/completed` event. The webhook payload includes the complete list of created business rules.\n\n**To receive notifications:**\n1. Subscribe to the webhook event: `POST /platform/v1/webhook/subscribe` with `{\"event\": \"business_rules_bulk_import/completed\", \"target_url\": \"https://your-domain.com/webhook\"}`\n2. Your webhook will receive the job results including all created business rules\n\n**Webhook Payload Structure:**\n```json\n{\n  \"event\": \"business_rules_bulk_import/completed\",\n  \"data\": {\n    \"job_uid\": \"job-xxx\",\n    \"business_uid\": \"biz-xxx\",\n    \"status\": \"completed\",\n    \"business_rules\": [\n      {\n        \"uid\": \"br-xxx\",\n        \"content\": \"Rule content\",\n        \"category_code\": \"policies_and_info\",\n        \"status\": \"pending_approval\",\n        \"created_at\": \"2026-03-01T10:30:00.000Z\"\n      }\n    ],\n    \"created_rules\": 15,\n    \"skipped_duplicates\": 8\n  }\n}\n```\n\nAvailable for **Staff** tokens.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Request to create a bulk import job for business rules extraction",
+                "properties": {
+                  "content": {
+                    "type": "string",
+                    "description": "Raw unstructured text content to analyze for rule extraction (e.g., business profile, email threads, policy documents). Maximum 100KB.",
+                    "maxLength": 102400
+                  },
+                  "category_code": {
+                    "type": "string",
+                    "description": "The category of business rules to extract from the content. All extracted rules will be assigned to this category. If no category supplied, the system will attempt to infer the category based on the content.\n\nAvailable values:\n* `tone_of_voice` - Rules about communication style and tone.\n* `policies_and_info` - Rules about business operations and policies.\n* `things_to_avoid` - Rules about what the AI should not do or say.\n* `faq` - Frequently asked questions and their answers.\n* `client_facing_bot_policies` - Rules specifically for client-facing bot interactions.",
+                    "enum": [
+                      "tone_of_voice",
+                      "policies_and_info",
+                      "things_to_avoid",
+                      "faq",
+                      "client_facing_bot_policies"
+                    ],
+                    "example": "policies_and_info"
+                  },
+                  "schema_description": {
+                    "type": "string",
+                    "description": "Optional description of the content structure to help LLM understand the format (e.g., \"Structured business profile from onboarding intake. Fields: business identity, hours, About Us narrative, services list, service area, special notes.\").",
+                    "maxLength": 1000
+                  },
+                  "ingestion_prompt": {
+                    "type": "string",
+                    "description": "Optional instructions for the LLM on how to extract and categorize rules from the content (e.g., \"Extract FAQ pairs from services. Infer tone from About Us. Special Notes become individual policies_and_info rules.\").",
+                    "maxLength": 2000
+                  }
+                },
+                "required": [
+                  "content"
+                ]
+              },
+              "example": {
+                "content": "Business Name: Duane's Body Shop, Inc.\nPhone: (701) 223-4924\nAddress: 1107 S 18TH ST, BISMARCK, ND 58504\n\nHours:\nMon-Fri: 7:30 AM - 5:30 PM\nSat-Sun: CLOSED\n\nAbout Us:\nFamily-owned since 1983, no appointment needed estimates, lifetime warranty on repairs. I-CAR Gold Certified.\n\nServices:\n- Collision & Body Repairs\n- Paintless Dent Repair\n- Hail Damage Repair\n\nSpecial Notes:\n- 10% military and first responder discount\n- Lifetime warranty on all repairs",
+                "category_code": "policies_and_info",
+                "schema_description": "Structured business profile from onboarding intake. Fields: business identity, hours, About Us narrative, services list, service area, special notes.",
+                "ingestion_prompt": "Extract FAQ pairs from services. Infer tone from About Us. Special Notes become individual policies_and_info rules."
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Bulk import job created successfully and queued for processing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/BulkImportJobCreatedResponse"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "job_uid": "job-a1b2c3d4-5678-90ef-ghij-klmnopqrstuv",
+                    "status": "pending"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - malformed request or invalid syntax",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "content",
+                      "code": "required",
+                      "message": "content is required"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "content",
+                      "code": "string.max",
+                      "message": "content must not exceed 100KB"
+                    },
+                    {
+                      "field": "options.deduplication_threshold",
+                      "code": "number.max",
+                      "message": "deduplication_threshold must be between 0 and 1"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "rate_limit_exceeded",
+                      "message": "Rate limit exceeded. Maximum 5 requests per minute."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "BizAI Business Rules"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/ai/business_rules": {
+      "get": {
+        "operationId": "BusinessRulesController_getBusinessRules",
+        "summary": "Get all BusinessRules",
+        "description": "## Overview\nGet a list of all business rules for the authenticated business. Optionally filter by category.\n\nAvailable for **Staff** tokens.",
+        "parameters": [
+          {
+            "name": "category_code",
+            "required": false,
+            "in": "query",
+            "description": "Filter by rule category code",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "tone_of_voice",
+                "policies_and_info",
+                "things_to_avoid",
+                "faq",
+                "client_facing_bot_policies"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Business rules retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/BusinessRuleListResponseDto"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "business_rules": [
+                      {
+                        "uid": "br-a1b2c3d4-5678-90ef-ghij-klmnopqrstuv",
+                        "business_uid": "biz-1234abcd-5678-90ef-ghij-klmnopqrstuv",
+                        "content": "Always use a friendly and professional tone when communicating with clients",
+                        "status": "active",
+                        "source": "system",
+                        "created_by_staff_uid": "stf-9876wxyz-5432-10ab-cdef-ghijklmnopqr",
+                        "updated_by_staff_uid": null,
+                        "sort_order": 0,
+                        "metadata": null,
+                        "created_at": "2024-12-15T10:30:00.000Z",
+                        "updated_at": "2024-12-15T10:30:00.000Z",
+                        "category_code": "tone_of_voice"
+                      },
+                      {
+                        "uid": "br-e5f6a7b8-9012-34cd-efgh-ijklmnopqrst",
+                        "business_uid": "biz-1234abcd-5678-90ef-ghij-klmnopqrstuv",
+                        "content": "Q: What are your business hours? A: We are open Monday to Friday, 9 AM to 5 PM.",
+                        "status": "active",
+                        "source": "system",
+                        "created_by_staff_uid": "stf-9876wxyz-5432-10ab-cdef-ghijklmnopqr",
+                        "updated_by_staff_uid": null,
+                        "sort_order": 1,
+                        "metadata": {
+                          "question": "What are your business hours?",
+                          "answer": "We are open Monday to Friday, 9 AM to 5 PM.",
+                          "confidence": 0.87,
+                          "reasoning": "Detected consistent business hours mentioned across multiple client conversations"
+                        },
+                        "created_at": "2024-12-15T11:00:00.000Z",
+                        "updated_at": "2024-12-15T11:00:00.000Z",
+                        "category_code": "faq"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "BizAI Business Rules"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "BusinessRulesController_createBusinessRule",
+        "summary": "Create a BusinessRule",
+        "description": "## Overview\nCreate a new business rule for the authenticated business.\n\nAvailable for **Staff** tokens.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBusinessRuleRequestDto"
+              },
+              "example": {
+                "content": "Always use a friendly and professional tone",
+                "sort_order": 0,
+                "category_code": "tone_of_voice"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Business rule created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/BusinessRule.json"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "business_rule": {
+                      "uid": "br-a1b2c3d4-5678-90ef-ghij-klmnopqrstuv",
+                      "business_uid": "biz-1234abcd-5678-90ef-ghij-klmnopqrstuv",
+                      "content": "Always use a friendly and professional tone",
+                      "status": "active",
+                      "source": "user",
+                      "created_by_staff_uid": "stf-9876wxyz-5432-10ab-cdef-ghijklmnopqr",
+                      "updated_by_staff_uid": null,
+                      "sort_order": 0,
+                      "metadata": null,
+                      "created_at": "2024-12-15T10:30:00.000Z",
+                      "updated_at": "2024-12-15T10:30:00.000Z",
+                      "category_code": "tone_of_voice"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - malformed request or invalid syntax",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "category_code",
+                      "code": "required",
+                      "message": "category_code is required"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "category_code",
+                      "code": "invalid",
+                      "message": "category_code must be one of: tone_of_voice, policies_and_info, things_to_avoid, faq"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "BizAI Business Rules"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/ai/business_rule_histories": {
+      "get": {
+        "operationId": "BusinessRulesController_getHistory",
+        "summary": "Get all BusinessRule History Records",
+        "description": "## Overview\nGet the change history for business rules. Supports optional filtering by rule UID and action type, with pagination.\n\nAvailable for **Staff** tokens.",
+        "parameters": [
+          {
+            "name": "rule_uid",
+            "required": false,
+            "in": "query",
+            "description": "Filter history by a specific business rule UID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "action",
+            "required": false,
+            "in": "query",
+            "description": "Filter history by the type of action performed",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "created",
+                "updated",
+                "deleted"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number for pagination (0-indexed). Defaults to 0.",
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          },
+          {
+            "name": "per_page",
+            "required": false,
+            "in": "query",
+            "description": "Number of records per page. Defaults to 25.",
+            "schema": {
+              "type": "integer",
+              "default": 25
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "History records retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/BusinessRuleHistoryListResponseDto"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "business_rule_histories": [
+                      {
+                        "uid": "hist-a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                        "rule_uid": "br-a1b2c3d4-5678-90ef-ghij-klmnopqrstuv",
+                        "business_uid": "biz-1234abcd-5678-90ef-ghij-klmnopqrstuv",
+                        "content": "Always use a friendly and professional tone",
+                        "source": "user",
+                        "action": "created",
+                        "changed_by_staff_uid": "stf-9876wxyz-5432-10ab-cdef-ghijklmnopqr",
+                        "changed_at": "2024-12-15T10:30:00.000Z",
+                        "created_at": "2024-12-15T10:30:00.000Z",
+                        "updated_at": "2024-12-15T10:30:00.000Z",
+                        "category_code": "tone_of_voice"
+                      }
+                    ],
+                    "total": 1
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "BizAI Business Rules"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/ai/business_rule_histories/{uid}": {
+      "get": {
+        "operationId": "BusinessRulesController_getHistoryRecord",
+        "summary": "Retrieve a BusinessRule History Record",
+        "description": "## Overview\nRetrieve a specific history record by its unique identifier (UID).\n\nAvailable for **Staff** tokens.",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the history record",
+            "schema": {
+              "type": "string"
+            },
+            "example": "hist-a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "History record retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/BusinessRuleHistory.json"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "business_rule_histories": [
+                      {
+                        "uid": "hist-a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                        "rule_uid": "br-a1b2c3d4-5678-90ef-ghij-klmnopqrstuv",
+                        "business_uid": "biz-1234abcd-5678-90ef-ghij-klmnopqrstuv",
+                        "content": "Always use a friendly and professional tone",
+                        "source": "user",
+                        "action": "updated",
+                        "changed_by_staff_uid": "stf-9876wxyz-5432-10ab-cdef-ghijklmnopqr",
+                        "changed_at": "2024-12-16T14:30:00.000Z",
+                        "created_at": "2024-12-16T14:30:00.000Z",
+                        "updated_at": "2024-12-16T14:30:00.000Z",
+                        "category_code": "tone_of_voice"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - history record belongs to another business",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "History record not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "BizAI Business Rules"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/ai/business_rules/{uid}": {
+      "get": {
+        "operationId": "BusinessRulesController_getBusinessRule",
+        "summary": "Retrieve a BusinessRule",
+        "description": "## Overview\nRetrieve a specific business rule based on its unique identifier (UID).\n\nAvailable for **Staff** tokens.",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the business rule",
+            "schema": {
+              "type": "string"
+            },
+            "example": "br-a1b2c3d4-5678-90ef-ghij-klmnopqrstuv"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Business rule retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/BusinessRule.json"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "business_rule": {
+                      "uid": "br-a1b2c3d4-5678-90ef-ghij-klmnopqrstuv",
+                      "business_uid": "biz-1234abcd-5678-90ef-ghij-klmnopqrstuv",
+                      "content": "Always use a friendly and professional tone when communicating with clients",
+                      "status": "active",
+                      "source": "system",
+                      "created_by_staff_uid": "stf-9876wxyz-5432-10ab-cdef-ghijklmnopqr",
+                      "updated_by_staff_uid": null,
+                      "sort_order": 0,
+                      "metadata": null,
+                      "created_at": "2024-12-15T10:30:00.000Z",
+                      "updated_at": "2024-12-15T10:30:00.000Z",
+                      "category_code": "tone_of_voice"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - rule belongs to another business",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Business rule not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "BizAI Business Rules"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "put": {
+        "operationId": "BusinessRulesController_updateBusinessRule",
+        "summary": "Update a BusinessRule",
+        "description": "## Overview\nUpdate an existing business rule by UID. All fields are optional - only provided fields will be updated.\n\nAvailable for **Staff** tokens.",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the business rule",
+            "schema": {
+              "type": "string"
+            },
+            "example": "br-a1b2c3d4-5678-90ef-ghij-klmnopqrstuv"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateBusinessRuleRequestDto"
+              },
+              "example": {
+                "content": "Always maintain a warm, friendly, and professional tone in all client communications",
+                "status": "active"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Business rule updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/BusinessRule.json"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "business_rule": {
+                      "uid": "br-a1b2c3d4-5678-90ef-ghij-klmnopqrstuv",
+                      "business_uid": "biz-1234abcd-5678-90ef-ghij-klmnopqrstuv",
+                      "content": "Always maintain a warm, friendly, and professional tone in all client communications",
+                      "status": "active",
+                      "source": "system",
+                      "created_by_staff_uid": "stf-9876wxyz-5432-10ab-cdef-ghijklmnopqr",
+                      "updated_by_staff_uid": "stf-9876wxyz-5432-10ab-cdef-ghijklmnopqr",
+                      "sort_order": 0,
+                      "metadata": null,
+                      "created_at": "2024-12-15T10:30:00.000Z",
+                      "updated_at": "2024-12-16T14:00:00.000Z",
+                      "category_code": "tone_of_voice"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - malformed request or invalid syntax",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - rule belongs to another business",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Business rule not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "status",
+                      "code": "invalid",
+                      "message": "Status must be one of: active, pending_approval, inactive"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "BizAI Business Rules"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "BusinessRulesController_deleteBusinessRule",
+        "summary": "Delete a BusinessRule",
+        "description": "## Overview\nDelete a business rule by UID.\n\nAvailable for **Staff** tokens.",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the business rule",
+            "schema": {
+              "type": "string"
+            },
+            "example": "br-a1b2c3d4-5678-90ef-ghij-klmnopqrstuv"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Business rule deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - rule belongs to another business",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Business rule not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "BizAI Business Rules"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/ai/ai_recommendations": {
+      "get": {
+        "tags": [
+          "AI Recommendations"
+        ],
+        "summary": "Get all AIRecommendations",
+        "description": "## Overview\nRetrieve a list of AIRecommendations with optional filtering by status, target, and context.\n\nAvailable for **Staff, Directory, and Client tokens**",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by recommendation status."
+          },
+          {
+            "name": "target",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by target actor UID."
+          },
+          {
+            "name": "context",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by context UID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of AIRecommendations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/AIRecommendationList"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "AI Recommendations"
+        ],
+        "summary": "Create an AIRecommendation",
+        "description": "## Overview\nCreate a new AIRecommendation.\n\n**Available for Staff tokens**",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AIRecommendationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "AIRecommendation created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/AIRecommendation.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/ai/ai_recommendations/{uid}": {
+      "put": {
+        "tags": [
+          "AI Recommendations"
+        ],
+        "summary": "Update an AIRecommendation",
+        "description": "## Overview\nUpdate an existing AIRecommendation by UID.\n\n**Available for Staff tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AIRecommendationUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "AIRecommendation updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/AIRecommendation.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v3/ai/bizai_chats": {
       "get": {
         "operationId": "ChatsController_getChats",
         "summary": "Get all BizAIChats",
-        "description": "Get a list of all chat sessions\n\nAvailable for **Staff Tokens**",
+        "description": "## Overview\nGet a list of all chat sessions.\n\nAvailable for **Staff, Directory, and Client tokens**",
         "parameters": [
           {
             "name": "page",
@@ -112,7 +1212,7 @@
       "post": {
         "operationId": "ChatsController_createChat",
         "summary": "Create a BizAIChat",
-        "description": "Create a new chat session between a user and an agent\n\nAvailable for **Staff Tokens**",
+        "description": "## Overview\nCreate a new chat session between a user and an agent Available for **Staff Tokens**.",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -161,7 +1261,7 @@
       "get": {
         "operationId": "ChatsController_getChat",
         "summary": "Retrieve a BizAIChat",
-        "description": "Retrieve a specific BizAIChat session based on it’s unique identifier (UID)\n\nAvailable for **Staff Tokens**",
+        "description": "## Overview\nRetrieve a specific BizAIChat session based on its unique identifier (UID).\n\nAvailable for **Staff, Directory, and Client tokens**",
         "parameters": [
           {
             "name": "uid",
@@ -211,7 +1311,7 @@
       "get": {
         "operationId": "ChatMessagesController_getMessages",
         "summary": "Get all BizAIChatMessages",
-        "description": "Get all BizAIChatMessages exchanged within a specific chat\n\nAvailable for **Staff Tokens**",
+        "description": "## Overview\nGet all BizAIChatMessages exchanged within a specific chat.\n\nAvailable for **Staff, Directory, and Client tokens**",
         "parameters": [
           {
             "name": "ai_chat_uid",
@@ -292,7 +1392,7 @@
       "post": {
         "operationId": "ChatMessagesController_createMessage",
         "summary": "Create a BizAIChatMessage",
-        "description": "Create a new BizAIChatMessage in a BizAIChat thread and get an AI response\n\nAvailable for **Staff Tokens**",
+        "description": "## Overview\nCreate a new BizAIChatMessage in a BizAIChat thread and get an AI response Available for **Staff Tokens**.",
         "parameters": [
           {
             "name": "bizai_chat_uid",
@@ -336,194 +1436,245 @@
         ]
       }
     },
-    "/v3/ai/ai_recommendations": {
-      "get": {
-        "tags": [
-          "AI Recommendations"
-        ],
-        "summary": "Get all AIRecommendations",
-        "description": "Retrieve a list of AIRecommendations with optional filtering by status, target, and context. **Available for Staff tokens**",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "status",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            },
-            "description": "Filter by recommendation status."
-          },
-          {
-            "name": "target",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            },
-            "description": "Filter by target actor UID."
-          },
-          {
-            "name": "context",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            },
-            "description": "Filter by context UID."
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "A list of AIRecommendations",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/AIRecommendationList"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        }
-      },
+    "/v3/ai/ai_smart_replies": {
       "post": {
         "tags": [
-          "AI Recommendations"
+          "AI SmartReply"
         ],
-        "summary": "Create an AIRecommendation",
-        "description": "Create a new AIRecommendation. **Available for Staff tokens**",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
+        "summary": "Create a new  AISmartReply",
+        "description": "## Overview\nGenerate a new, on-demand, smart reply between a business and a client. For example, when a user wants to edit their own reply text, provide custom instructions, or modify a previously-generated AI reply.\n\n**Available for Staff tokens**",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/AIRecommendationRequest"
+                "$ref": "#/components/schemas/AISmartReplyRequest"
               }
             }
           }
         },
         "responses": {
           "201": {
-            "description": "AIRecommendation created",
+            "description": " AISmartReply created successfully",
             "content": {
               "application/json": {
                 "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
                     },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/AIRecommendation.json"
-                        }
-                      }
+                    "data": {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/ai/AISmartReply.json"
                     }
-                  ]
+                  }
                 }
               }
             }
+          },
+          "400": {
+            "description": "Invalid request parameters"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "500": {
+            "description": "Internal Server Error - AI smart reply generation failed. This can occur when the AI agent fails to generate a response (e.g., no output generated, processing errors). This is expected behavior for certain edge cases."
           }
-        }
-      }
-    },
-    "/v3/ai/ai_recommendations/{uid}": {
-      "get": {
-        "tags": [
-          "AI Recommendations"
-        ],
-        "summary": "Get an AIRecommendation",
-        "description": "Retrieve a specific AIRecommendation by UID. **Available for Staff tokens**",
+        },
         "security": [
           {
             "Bearer": []
           }
+        ]
+      },
+      "get": {
+        "tags": [
+          "AI SmartReply"
         ],
+        "summary": "List all AISmartReplies",
+        "description": "## Overview\nRetrieve a list of smart replies with optional filtering.\n\nAvailable for **Staff, Directory, and Client tokens**",
         "parameters": [
           {
-            "name": "uid",
-            "in": "path",
-            "required": true,
+            "name": "matter_uid",
+            "in": "query",
+            "description": "Filter by matter UID",
+            "required": false,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number for pagination",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "Number of items per page",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "maximum": 100
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "AIRecommendation retrieved",
+            "description": "List of smart replies retrieved successfully",
             "content": {
               "application/json": {
                 "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
                     },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/AIRecommendation.json"
-                        }
-                      }
+                    "data": {
+                      "$ref": "#/components/schemas/SmartReplyListResponse"
                     }
-                  ]
+                  }
                 }
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized"
           }
-        }
-      },
-      "put": {
-        "tags": [
-          "AI Recommendations"
-        ],
-        "summary": "Update an AIRecommendation",
-        "description": "Update an existing AIRecommendation by UID. **Available for Staff tokens**",
+        },
         "security": [
           {
             "Bearer": []
           }
+        ]
+      }
+    },
+    "/v3/ai/chat_completions": {
+      "post": {
+        "tags": [
+          "AI Chat Completions"
         ],
-        "parameters": [
-          {
-            "name": "uid",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "summary": "Create a ChatCompletion",
+        "description": "## Overview\nCreate chat completions using multiple LLM providers (OpenAI, Anthropic, Google). Supports text and multimodal input (images, audio, video, files), streaming responses via SSE, async mode for long-running thinking models, tool calling (function calling), and structured output (JSON schema).\n\n### Supported Models\n| Provider | Models |\n|----------|--------|\n| OpenAI | `openai/gpt-5`, `openai/gpt-4o`, `openai/gpt-4o-mini`, `openai/o3-mini`, `openai/o1` |\n| Anthropic | `anthropic/claude-sonnet-4-5-20250929`, `anthropic/claude-haiku-4-5-20251001`, `anthropic/claude-3-5-sonnet-latest`, `anthropic/claude-3-5-haiku-latest` |\n| Google | `google/gemini-2.5-pro`, `google/gemini-2.0-flash`, `google/gemini-2.0-pro` |\n\n### Streaming\nBy default, responses are streamed as Server-Sent Events (SSE). Set `stream: false` for a single JSON response.\n\n### Async Mode\nSet `async: true` to queue the request and receive a run UID. Poll `GET /v3/ai/chat_completion_runs/{uid}` for the result. Recommended for thinking models.\n\n**Available for Staff tokens**",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/AIRecommendationUpdateRequest"
+                "$ref": "https://vcita.github.io/developers-hub/entities/ai/ChatCompletionRequest.json"
+              },
+              "examples": {
+                "simple": {
+                  "summary": "Simple text completion",
+                  "value": {
+                    "model": "openai/gpt-4o-mini",
+                    "messages": [
+                      {
+                        "role": "user",
+                        "content": "Say hello"
+                      }
+                    ],
+                    "stream": false,
+                    "max_tokens": 100
+                  }
+                },
+                "tool_calling": {
+                  "summary": "With function calling",
+                  "value": {
+                    "model": "openai/gpt-4o-mini",
+                    "messages": [
+                      {
+                        "role": "user",
+                        "content": "What is the weather in Paris?"
+                      }
+                    ],
+                    "stream": false,
+                    "tools": [
+                      {
+                        "type": "function",
+                        "function": {
+                          "name": "get_weather",
+                          "description": "Get current weather for a location",
+                          "parameters": {
+                            "type": "object",
+                            "properties": {
+                              "location": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "location"
+                            ]
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                "structured_output": {
+                  "summary": "With JSON schema output",
+                  "value": {
+                    "model": "openai/gpt-4o-mini",
+                    "messages": [
+                      {
+                        "role": "user",
+                        "content": "Extract: John is 30 years old"
+                      }
+                    ],
+                    "stream": false,
+                    "response_format": {
+                      "type": "json_schema",
+                      "json_schema": {
+                        "name": "person",
+                        "schema": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string"
+                            },
+                            "age": {
+                              "type": "integer"
+                            }
+                          },
+                          "required": [
+                            "name",
+                            "age"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                "async": {
+                  "summary": "Async mode for thinking models",
+                  "value": {
+                    "model": "openai/o1",
+                    "messages": [
+                      {
+                        "role": "user",
+                        "content": "Solve this complex problem..."
+                      }
+                    ],
+                    "async": true
+                  }
+                }
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "AIRecommendation updated",
+            "description": "Successful non-streaming completion.",
             "content": {
               "application/json": {
                 "schema": {
@@ -534,7 +1685,34 @@
                     {
                       "properties": {
                         "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/AIRecommendation.json"
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/ChatCompletion.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "Server-Sent Events stream. Each event is a JSON chunk with `data:` prefix, ending with `data: [DONE]`."
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Async mode: job queued successfully. Poll the returned run UID for the result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/ChatCompletionRun.json"
                         }
                       }
                     }
@@ -542,27 +1720,335 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad Request - The request body is malformed or contains invalid syntax.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "invalid_syntax",
+                      "message": "Request body contains invalid JSON."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - The bearer token is missing, expired, or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error with valid syntax.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "model",
+                      "code": "invalid",
+                      "message": "Unsupported model format. Expected provider/model (e.g., 'openai/gpt-4o')."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - Rate limit exceeded (10 requests per minute).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "rate_limit_exceeded",
+                      "message": "Rate limit exceeded. Maximum 10 requests per minute. Please retry after 60 seconds."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bad Gateway - The upstream LLM provider returned an error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "provider_error",
+                      "message": "The LLM provider returned an error. Please try again later."
+                    }
+                  ]
+                }
+              }
+            }
           }
-        }
-      }
-    },
-    "/v3/ai/ai_recommended_actions/{uid}": {
-      "get": {
-        "tags": [
-          "AI Recommended Actions"
-        ],
-        "summary": "Retrieve an AIRecommendedAction",
-        "description": "Retrieve a specific AIRecommendedAction by UID. **Available for Staff tokens**",
+        },
         "security": [
           {
             "Bearer": []
           }
+        ]
+      }
+    },
+    "/v3/ai/audio_transcriptions": {
+      "post": {
+        "tags": [
+          "AI Audio Transcriptions"
         ],
+        "summary": "Create an AudioTranscription",
+        "description": "## Overview\nTranscribe audio files using multiple providers (OpenAI Whisper, OpenAI GPT-4o Transcribe, Google Chirp). Supports file upload via multipart form data.\n\n### Supported Models\n| Provider | Models |\n|----------|--------|\n| OpenAI | `openai/whisper-1`, `openai/gpt-4o-transcribe` |\n| Google | `google/chirp-2` |\n\n### Async Mode\nSet `async: true` to queue the transcription and receive a run UID. Poll `GET /v3/ai/transcription_runs/{uid}` for the result. Recommended for long audio files or diarization.\n\n**Available for Staff tokens**",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Audio file to transcribe (max 25MB). Supported formats: mp3, mp4, m4a, wav, webm, flac, ogg."
+                  },
+                  "model": {
+                    "type": "string",
+                    "description": "Model identifier in provider/model format (e.g., \"openai/gpt-4o-transcribe\", \"openai/whisper-1\", \"google/chirp-2\").",
+                    "example": "openai/gpt-4o-transcribe"
+                  },
+                  "language": {
+                    "type": "string",
+                    "description": "ISO-639-1 language code for the audio content (e.g., \"en\" for English, \"es\" for Spanish, \"he\" for Hebrew). When omitted, the provider will auto-detect the language."
+                  },
+                  "prompt": {
+                    "type": "string",
+                    "description": "Optional guiding prompt to improve transcription accuracy. Useful for providing context, domain-specific terminology, or correcting recurring misrecognitions."
+                  },
+                  "response_format": {
+                    "type": "string",
+                    "enum": [
+                      "json",
+                      "text",
+                      "srt",
+                      "verbose_json",
+                      "vtt"
+                    ],
+                    "description": "Desired response format. 'json' returns a simple JSON with text, 'text' returns plain text, 'srt' returns SubRip subtitle format, 'verbose_json' returns detailed JSON with word-level timestamps, 'vtt' returns WebVTT subtitle format. Defaults to 'json'."
+                  },
+                  "temperature": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "description": "Sampling temperature between 0 and 1. Higher values make the output more random, while lower values make it more deterministic. Defaults to 0."
+                  },
+                  "async": {
+                    "type": "boolean",
+                    "description": "Process the request asynchronously. Returns a run UID immediately that can be polled via GET /v3/ai/transcription_runs/{uid}. Recommended for long audio files or when diarization is needed.",
+                    "default": false
+                  }
+                },
+                "required": [
+                  "file",
+                  "model"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful transcription.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/AudioTranscription.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Async mode: job queued successfully. Poll the returned run UID for the result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/TranscriptionRun.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - The request is malformed or contains invalid syntax.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "invalid_syntax",
+                      "message": "Request body is malformed or missing required multipart form data."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - The bearer token is missing, expired, or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload Too Large - The uploaded audio file exceeds the 25MB size limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "file",
+                      "code": "too_large",
+                      "message": "File size exceeds the maximum allowed limit of 25MB."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error with valid syntax.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "model",
+                      "code": "invalid",
+                      "message": "Unsupported model. Supported models: openai/whisper-1, openai/gpt-4o-transcribe, google/chirp-2."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - Rate limit exceeded (10 requests per minute).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "rate_limit_exceeded",
+                      "message": "Rate limit exceeded. Maximum 10 requests per minute. Please retry after 60 seconds."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/ai/chat_completion_runs/{uid}": {
+      "get": {
+        "tags": [
+          "AI Chat Completion Runs"
+        ],
+        "summary": "Retrieve a ChatCompletionRun",
+        "description": "## Overview\nGet the status and result of an async chat completion job. Poll this endpoint until status is COMPLETED or FAILED.\n\n**Available for Staff tokens**",
         "parameters": [
           {
             "name": "uid",
             "in": "path",
             "required": true,
+            "description": "Unique identifier of the chat completion run (e.g., \"0ce1af9d-3337-419b-933c-02ea21d4d9ca\").",
             "schema": {
               "type": "string"
             }
@@ -570,7 +2056,7 @@
         ],
         "responses": {
           "200": {
-            "description": "AIRecommendedAction retrieved",
+            "description": "Chat completion run retrieved successfully.",
             "content": {
               "application/json": {
                 "schema": {
@@ -581,7 +2067,7 @@
                     {
                       "properties": {
                         "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/AIRecommendedAction.json"
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/ChatCompletionRun.json"
                         }
                       }
                     }
@@ -589,8 +2075,315 @@
                 }
               }
             }
+          },
+          "401": {
+            "description": "Unauthorized - The bearer token is missing, expired, or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - No chat completion run exists with the specified UID.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "uid",
+                      "code": "not_found",
+                      "message": "Chat completion run not found."
+                    }
+                  ]
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/ai/chat_completion_runs": {
+      "get": {
+        "tags": [
+          "AI Chat Completion Runs"
+        ],
+        "summary": "List ChatCompletionRuns",
+        "description": "## Overview\nRetrieve a paginated list of chat completion runs for the authenticated client. Supports sorting by field and direction.\n\n**Available for Staff tokens**",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number for pagination (e.g., 1, 2, 3). Defaults to 1.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "Number of items per page, between 1 and 100. Defaults to 20.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Sort field and direction in the format 'field:direction' (e.g., \"created_at:desc\", \"status:asc\").",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of chat completion runs retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/ChatCompletionRunList"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - The bearer token is missing, expired, or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/ai/transcription_runs/{uid}": {
+      "get": {
+        "tags": [
+          "AI Transcription Runs"
+        ],
+        "summary": "Retrieve a TranscriptionRun",
+        "description": "## Overview\nGet the status and result of an async transcription job. Poll this endpoint until status is COMPLETED or FAILED.\n\n**Available for Staff tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the transcription run (e.g., \"85ade9f5-2690-48e8-ae5b-b07d6b57b457\").",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transcription run retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/TranscriptionRun.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - The bearer token is missing, expired, or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - No transcription run exists with the specified UID.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "uid",
+                      "code": "not_found",
+                      "message": "Transcription run not found."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/ai/transcription_runs": {
+      "get": {
+        "tags": [
+          "AI Transcription Runs"
+        ],
+        "summary": "List TranscriptionRuns",
+        "description": "## Overview\nRetrieve a paginated list of transcription runs for the authenticated client. Supports sorting by field and direction.\n\n**Available for Staff tokens**",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number for pagination (e.g., 1, 2, 3). Defaults to 1.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "Number of items per page, between 1 and 100. Defaults to 20.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Sort field and direction in the format 'field:direction' (e.g., \"created_at:desc\", \"status:asc\").",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of transcription runs retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/TranscriptionRunList"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - The bearer token is missing, expired, or invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       }
     },
     "/v3/ai/staff_ai_settings/{staff_uid}": {
@@ -599,12 +2392,7 @@
           "Staff AI Settings"
         ],
         "summary": "Retrieve a StaffAiSettings",
-        "description": "Retrieve a specific StaffAiSettings based on staff unique identifier.\n\n**Available for Staff tokens only** - Users can only access their own settings.",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
+        "description": "## Overview\nRetrieve a specific StaffAiSettings based on staff unique identifier.\n\n**Available for Staff tokens**",
         "parameters": [
           {
             "name": "staff_uid",
@@ -660,19 +2448,19 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       },
       "put": {
         "tags": [
           "Staff AI Settings"
         ],
         "summary": "Update a StaffAiSettings",
-        "description": "Update AI settings for a specific staff member based on their unique identifier.\n\n**Available for Staff tokens only** - Users can only update their own settings.",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
+        "description": "## Overview\nUpdate AI settings for a specific staff member based on their unique identifier. Users can only update their own settings.\n\n**Available for Staff tokens**",
         "parameters": [
           {
             "name": "staff_uid",
@@ -748,178 +2536,12 @@
               }
             }
           }
-        }
-      }
-    },
-    "/v3/ai/ai_smart_replies": {
-      "post": {
-        "tags": [
-          "AI SmartReply"
-        ],
-        "summary": "Create a new  AISmartReply",
-        "description": "Generate a new, on-demand, smart reply between a business and a client. For example, when a user wants to edit their own reply text, provide custom instructions, or modify a previously-generated AI reply. **Available for Staff tokens**",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AISmartReplyRequest"
-              }
-            }
-          }
         },
-        "responses": {
-          "201": {
-            "description": " AISmartReply created successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    },
-                    "data": {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/ai/AISmartReply.json"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request parameters"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
-          }
-        }
-      },
-      "get": {
-        "tags": [
-          "AI SmartReply"
-        ],
-        "summary": "List all AISmartReplies",
-        "description": "Retrieve a list of smart replies with optional filtering. **Available for Staff tokens**",
         "security": [
           {
             "Bearer": []
           }
-        ],
-        "parameters": [
-          {
-            "name": "matter_uid",
-            "in": "query",
-            "description": "Filter by matter UID",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "page",
-            "in": "query",
-            "description": "Page number for pagination",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 1
-            }
-          },
-          {
-            "name": "per_page",
-            "in": "query",
-            "description": "Number of items per page",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 20,
-              "maximum": 100
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of smart replies retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    },
-                    "data": {
-                      "$ref": "#/components/schemas/SmartReplyListResponse"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          }
-        }
-      }
-    },
-    "/v3/ai/ai_smart_replies/{uid}": {
-      "get": {
-        "tags": [
-          "AI SmartReply"
-        ],
-        "summary": "Get a smart reply",
-        "description": "Retrieve a specific smart reply by its unique identifier. **Available for Staff tokens**",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "uid",
-            "in": "path",
-            "description": "The unique identifier of the AISmartReply",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Smart reply retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": {
-                      "type": "boolean"
-                    },
-                    "data": {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/ai/AISmartReply.json"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "404": {
-            "description": "Smart reply not found"
-          }
-        }
+        ]
       }
     },
     "/v3/ai/ai_generation_feedbacks": {
@@ -928,13 +2550,8 @@
           "AI Generation Feedback"
         ],
         "summary": "Create new AI generation feedback",
-        "description": "Submit feedback for AI-generated content. **Available for Staff tokens**",
+        "description": "## Overview\nSubmit feedback for AI-generated content.\n\n**Available for Staff tokens**",
         "operationId": "createAiGenerationFeedback",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -972,13 +2589,336 @@
           },
           "403": {
             "description": "Forbidden"
+          },
+          "404": {
+            "description": "Entity not found - The referenced `entity_uid` does not exist for the specified `entity_type`"
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       }
     }
   },
   "components": {
     "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "The name of the field that caused the error (e.g., \"category_code\", \"content\")."
+                },
+                "code": {
+                  "type": "string",
+                  "description": "A machine-readable error code (e.g., \"invalid\", \"required\", \"not_found\")."
+                },
+                "message": {
+                  "type": "string",
+                  "description": "A human-readable error message describing the issue."
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "success",
+          "errors"
+        ]
+      },
+      "CreateBusinessRuleRequestDto": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "The content or text of the business rule (e.g., \"Always use a friendly and professional tone\"). For FAQ rules, include both the question and answer.",
+            "example": "Always use a friendly and professional tone"
+          },
+          "sort_order": {
+            "type": "integer",
+            "description": "Sort order for displaying rules within a category (e.g., 0). Lower values appear first. Defaults to 0 if not provided.",
+            "example": 0
+          },
+          "category_code": {
+            "type": "string",
+            "description": "The category code of the business rule. Determines how the AI agent uses this rule.\n\nAvailable values:\n* `tone_of_voice` - Rules about communication style and tone the AI should adopt when interacting with clients.\n* `policies_and_info` - Rules about business operations, pricing, and scheduling policies.\n* `things_to_avoid` - Rules about topics, phrases, or actions the AI should not mention or perform.\n* `faq` - Frequently asked questions and their answers.\n* `client_facing_bot_policies` - Rules specifically for client-facing bot interactions, defining bot behavior, limitations, and escalation policies.",
+            "enum": [
+              "tone_of_voice",
+              "policies_and_info",
+              "things_to_avoid",
+              "faq",
+              "client_facing_bot_policies"
+            ],
+            "example": "tone_of_voice"
+          }
+        },
+        "required": [
+          "category_code",
+          "content"
+        ]
+      },
+      "UpdateBusinessRuleRequestDto": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "The content or text of the business rule (e.g., \"Always maintain a warm, friendly, and professional tone in all client communications\")."
+          },
+          "status": {
+            "type": "string",
+            "description": "The status of the business rule.\n\nAvailable values:\n* `active` - The rule is in effect and used by the AI agent.\n* `pending_approval` - The rule is awaiting staff review.\n* `inactive` - The rule is deactivated and not used by the AI agent.",
+            "enum": [
+              "active",
+              "pending_approval",
+              "inactive"
+            ]
+          },
+          "sort_order": {
+            "type": "integer",
+            "description": "Sort order for displaying rules within a category (e.g., 0). Lower values appear first."
+          },
+          "category_code": {
+            "type": "string",
+            "description": "The category code of the business rule. Determines how the AI agent uses this rule.\n\nAvailable values:\n* `tone_of_voice` - Rules about communication style and tone.\n* `policies_and_info` - Rules about business operations and policies.\n* `things_to_avoid` - Rules about what the AI should not do or say.\n* `faq` - Frequently asked questions and their answers.\n* `client_facing_bot_policies` - Rules specifically for client-facing bot interactions.",
+            "enum": [
+              "tone_of_voice",
+              "policies_and_info",
+              "things_to_avoid",
+              "faq",
+              "client_facing_bot_policies"
+            ]
+          }
+        }
+      },
+      "BusinessRuleHistoryListResponseDto": {
+        "type": "object",
+        "properties": {
+          "business_rule_histories": {
+            "description": "List of history records",
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/ai/BusinessRuleHistory.json"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total number of history records matching the query"
+          }
+        },
+        "required": [
+          "business_rule_histories",
+          "total"
+        ]
+      },
+      "BusinessRuleListResponseDto": {
+        "type": "object",
+        "properties": {
+          "business_rules": {
+            "description": "List of BusinessRules",
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/ai/BusinessRule.json"
+            }
+          }
+        },
+        "required": [
+          "business_rules"
+        ]
+      },
+      "BulkImportJobCreatedResponse": {
+        "type": "object",
+        "description": "Response when bulk import job is successfully created",
+        "properties": {
+          "job_uid": {
+            "type": "string",
+            "description": "Unique identifier of the created bulk import job (e.g., \"job-a1b2c3d4-5678-90ef-ghij-klmnopqrstuv\")."
+          },
+          "status": {
+            "type": "string",
+            "description": "Initial status of the job, always 'pending' when first created.",
+            "enum": [
+              "pending"
+            ]
+          }
+        },
+        "required": [
+          "job_uid",
+          "status"
+        ]
+      },
+      "AIRecommendationRequest": {
+        "type": "object",
+        "properties": {
+          "actions": {
+            "type": "array",
+            "description": "A list of recommended actions related to this entity.",
+            "items": {
+              "$ref": "#/components/schemas/AIRecommendationActionRequest"
+            }
+          },
+          "display": {
+            "type": "object",
+            "description": "Contains display-related information for the recommendation.",
+            "properties": {
+              "title": {
+                "type": "string",
+                "description": "A human-readable title describing the recommendation."
+              }
+            }
+          },
+          "context": {
+            "type": "object",
+            "description": "The context in which the recommendation was generated.",
+            "properties": {
+              "context_uid": {
+                "type": "string",
+                "description": "A unique identifier for the context associated with this recommendation."
+              },
+              "context_type": {
+                "type": "string",
+                "description": "The type of context (e.g., 'user_message', 'booking_request').",
+                "enum": [
+                  "matter",
+                  "client",
+                  "business"
+                ]
+              }
+            }
+          },
+          "target": {
+            "type": "object",
+            "description": "The target entity for this recommendation, typically representing the user or business involved.",
+            "properties": {
+              "target_actor_uid": {
+                "type": "string",
+                "description": "A unique identifier for the target actor (e.g., a user or business)."
+              },
+              "target_actor_type": {
+                "type": "string",
+                "description": "The type of target actor (e.g., 'customer', 'business').",
+                "enum": [
+                  "staff",
+                  "directory"
+                ]
+              }
+            }
+          },
+          "status": {
+            "type": "object",
+            "properties": {
+              "dismissed": {
+                "type": "boolean",
+                "description": "Indicates whether the recommendation has been dismissed."
+              },
+              "dismissed_source_type": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "user",
+                  "system",
+                  null
+                ],
+                "description": "The source that dismissed the recommendation. Null when the recommendation has not been dismissed."
+              }
+            }
+          }
+        },
+        "required": [
+          "user_description",
+          "staff_uid",
+          "sources",
+          "actions"
+        ]
+      },
+      "AIRecommendationUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "object",
+            "properties": {
+              "dismissed": {
+                "type": "boolean",
+                "description": "Indicates whether the recommendation has been dismissed."
+              },
+              "dismissed_source_type": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "user",
+                  "system",
+                  null
+                ],
+                "description": "The source that dismissed the recommendation. Null when the recommendation has not been dismissed."
+              }
+            }
+          }
+        }
+      },
+      "AIRecommendationList": {
+        "type": "object",
+        "properties": {
+          "airecommendations": {
+            "description": "List of AI Recommendations",
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/ai/AIRecommendation.json"
+            }
+          }
+        }
+      },
+      "AIRecommendationActionRequest": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "reply",
+              "estimate",
+              "schedule"
+            ],
+            "description": "The type of action recommended. Possible values:\n- 'reply': Suggests responding to a user message.\n- 'estimate': Suggests providing a price estimate.\n- 'schedule': Suggests scheduling an appointment or meeting."
+          },
+          "display": {
+            "type": "object",
+            "description": "Contains display-related information for the recommendation.",
+            "properties": {
+              "btn_text": {
+                "type": "string",
+                "description": "A human-readable title describing the recommendation."
+              }
+            }
+          },
+          "reason": {
+            "type": "string",
+            "description": "The reason why this action is recommended, providing context for decision-making."
+          },
+          "payload": {
+            "type": "object",
+            "description": "Additional data related to the recommended action. The structure depends on the action type."
+          },
+          "evidence": {
+            "type": "array",
+            "description": "A list of supporting statements or facts justifying the recommendation.",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "Response": {
         "type": "object",
         "properties": {
@@ -1199,7 +3139,7 @@
             ]
           },
           "content": {
-            "description": "An object representing the content sent to the bot. Each prompt type must have its own object (“Text Content Object” for “text” and “Prompt Content Object” for “prompt”).",
+            "description": "An object representing the content sent to the bot. Each prompt type must have its own object (\"Text Content Object\" for \"text\" and \"Prompt Content Object\" for \"prompt\"). Note: content must be an object, not a string.",
             "oneOf": [
               {
                 "$ref": "#/components/schemas/TextContentDto"
@@ -1218,7 +3158,14 @@
         "required": [
           "type",
           "content"
-        ]
+        ],
+        "example": {
+          "type": "text",
+          "content": {
+            "text": "Hello, I need help with drafting a contract for my client."
+          },
+          "streaming": true
+        }
       },
       "MessageStreamResponseDto": {
         "type": "object",
@@ -1245,160 +3192,83 @@
           "finish_reason"
         ]
       },
-      "AIRecommendationRequest": {
+      "Response_ai_smart_reply": {
         "type": "object",
         "properties": {
-          "actions": {
-            "type": "array",
-            "description": "A list of recommended actions related to this entity.",
-            "items": {
-              "$ref": "#/components/schemas/AIRecommendationActionRequest"
-            }
+          "success": {
+            "type": "boolean"
           },
-          "display": {
-            "type": "object",
-            "description": "Contains display-related information for the recommendation.",
-            "properties": {
-              "title": {
-                "type": "string",
-                "description": "A human-readable title describing the recommendation."
-              }
-            }
-          },
-          "context": {
-            "type": "object",
-            "description": "The context in which the recommendation was generated.",
-            "properties": {
-              "context_uid": {
-                "type": "string",
-                "description": "A unique identifier for the context associated with this recommendation."
-              },
-              "context_type": {
-                "type": "string",
-                "description": "The type of context (e.g., 'user_message', 'booking_request').",
-                "enum": [
-                  "matter",
-                  "client",
-                  "business"
-                ]
-              }
-            }
-          },
-          "target": {
-            "type": "object",
-            "description": "The target entity for this recommendation, typically representing the user or business involved.",
-            "properties": {
-              "target_actor_uid": {
-                "type": "string",
-                "description": "A unique identifier for the target actor (e.g., a user or business)."
-              },
-              "target_actor_type": {
-                "type": "string",
-                "description": "The type of target actor (e.g., 'customer', 'business').",
-                "enum": [
-                  "staff",
-                  "directory"
-                ]
-              }
-            }
-          },
-          "status": {
-            "type": "object",
-            "properties": {
-              "dismissed": {
-                "type": "boolean",
-                "description": "Indicates whether the recommendation has been dismissed."
-              },
-              "dismissed_source_type": {
-                "type": "string",
-                "enum": [
-                  "user",
-                  "system"
-                ]
-              }
-            }
+          "data": {
+            "type": "object"
           }
         },
         "required": [
-          "user_description",
-          "staff_uid",
-          "sources",
-          "actions"
+          "success",
+          "data"
         ]
       },
-      "AIRecommendationUpdateRequest": {
+      "AISmartReplyRequest": {
         "type": "object",
         "properties": {
-          "status": {
-            "type": "object",
-            "properties": {
-              "dismissed": {
-                "type": "boolean",
-                "description": "Indicates whether the recommendation has been dismissed."
-              },
-              "dismissed_source_type": {
-                "type": "string",
-                "enum": [
-                  "user",
-                  "system"
-                ]
-              }
-            }
+          "matter_uid": {
+            "type": "string",
+            "description": "The unique identifier of the associated matter"
+          },
+          "user_input_reference_id": {
+            "type": "string",
+            "description": "The unique identifier of the user input reference. If not provided, defaults to 'prmpt-smart-reply-00001'",
+            "default": "prmpt-smart-reply-00001"
+          },
+          "client_uid": {
+            "type": "string",
+            "description": "The unique identifier of the client"
+          },
+          "custom_instructions": {
+            "type": "string",
+            "description": "Optional custom instructions to guide the AI reply generation"
           }
-        }
+        },
+        "required": [
+          "matter_uid",
+          "client_uid"
+        ]
       },
-      "AIRecommendationList": {
+      "SmartReplyListResponse": {
         "type": "object",
         "properties": {
-          "airecommendations": {
-            "description": "List of Coupons",
+          "smart_replies": {
             "type": "array",
             "items": {
-              "$ref": "https://vcita.github.io/developers-hub/entities/ai/AIRecommendation.json"
+              "$ref": "https://vcita.github.io/developers-hub/entities/ai/AISmartReply.json"
             }
           }
         }
       },
-      "AIRecommendationActionRequest": {
+      "ChatCompletionRunList": {
         "type": "object",
+        "description": "A list of chat completion runs.",
         "properties": {
-          "action": {
-            "type": "string",
-            "enum": [
-              "reply",
-              "estimate",
-              "schedule"
-            ],
-            "description": "The type of action recommended. Possible values:\n- 'reply': Suggests responding to a user message.\n- 'estimate': Suggests providing a price estimate.\n- 'schedule': Suggests scheduling an appointment or meeting."
-          },
-          "display": {
-            "type": "object",
-            "description": "Contains display-related information for the recommendation.",
-            "properties": {
-              "btn_text": {
-                "type": "string",
-                "description": "A human-readable title describing the recommendation."
-              }
-            }
-          },
-          "reason": {
-            "type": "string",
-            "description": "The reason why this action is recommended, providing context for decision-making."
-          },
-          "payload": {
-            "type": "object",
-            "description": "Additional data related to the recommended action. The structure depends on the action type."
-          },
-          "evidence": {
+          "chat_completion_runs": {
             "type": "array",
-            "description": "A list of supporting statements or facts justifying the recommendation.",
             "items": {
-              "type": "string"
+              "$ref": "https://vcita.github.io/developers-hub/entities/ai/ChatCompletionRun.json"
             }
           }
         }
       },
-      "ErrorResponse": {
+      "TranscriptionRunList": {
+        "type": "object",
+        "description": "A list of transcription runs.",
+        "properties": {
+          "transcription_runs": {
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/ai/TranscriptionRun.json"
+            }
+          }
+        }
+      },
+      "ErrorResponse_staff_ai_settings": {
         "type": "object",
         "properties": {
           "success": {
@@ -1492,57 +3362,6 @@
           }
         }
       },
-      "Response_ai_smart_reply": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "data": {
-            "type": "object"
-          }
-        },
-        "required": [
-          "success",
-          "data"
-        ]
-      },
-      "AISmartReplyRequest": {
-        "type": "object",
-        "properties": {
-          "matter_uid": {
-            "type": "string",
-            "description": "The unique identifier of the associated matter"
-          },
-          "user_input_reference_id": {
-            "type": "string",
-            "description": "The unique identifier of the user input reference"
-          },
-          "client_uid": {
-            "type": "string",
-            "description": "The unique identifier of the client"
-          },
-          "custom_instructions": {
-            "type": "string",
-            "description": "Optional custom instructions to guide the AI reply generation"
-          }
-        },
-        "required": [
-          "matter_uid",
-          "user_input_reference_id"
-        ]
-      },
-      "SmartReplyListResponse": {
-        "type": "object",
-        "properties": {
-          "smart_replies": {
-            "type": "array",
-            "items": {
-              "$ref": "https://vcita.github.io/developers-hub/entities/ai/AISmartReply.json"
-            }
-          }
-        }
-      },
       "AiGenerationFeedbackRequest": {
         "type": "object",
         "properties": {
@@ -1571,7 +3390,9 @@
           },
           "entity_uid": {
             "type": "string",
-            "description": "The unique identifier of the related entity"
+            "format": "uuid",
+            "description": "The unique identifier of the related entity. **Important**: You must first create or retrieve an entity of the specified `entity_type`, then use its UID here. For example:\n\n1. Create an AISmartReply via `POST /v3/ai/ai_smart_replies`\n2. Use the returned `uid` as `entity_uid` with `entity_type='AISmartReply'`\n\nReturns 404 if the entity does not exist.",
+            "example": "d290f1ee-6c54-4b01-90e6-d701748f0851"
           },
           "name": {
             "type": "string",
@@ -1588,7 +3409,14 @@
           "entity_type",
           "entity_uid",
           "name"
-        ]
+        ],
+        "example": {
+          "type": "text",
+          "value": "too_formal",
+          "entity_type": "AISmartReply",
+          "entity_uid": "d290f1ee-6c54-4b01-90e6-d701748f0851",
+          "name": "[AISmartReply] Business Dismiss Reason"
+        }
       }
     },
     "securitySchemes": {
@@ -1596,7 +3424,7 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "JWT",
-        "description": "JWT Bearer token authentication"
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
       }
     }
   },
@@ -1604,6 +3432,22 @@
     {
       "name": "AI SmartReply",
       "description": "Operations related to smart reply generation and management"
+    },
+    {
+      "name": "AI Chat Completions",
+      "description": "Create chat completions using multiple LLM providers"
+    },
+    {
+      "name": "AI Audio Transcriptions",
+      "description": "Transcribe audio files using multiple providers"
+    },
+    {
+      "name": "AI Chat Completion Runs",
+      "description": "Manage async chat completion runs"
+    },
+    {
+      "name": "AI Transcription Runs",
+      "description": "Manage async transcription runs"
     },
     {
       "name": "AI Generation Feedback",

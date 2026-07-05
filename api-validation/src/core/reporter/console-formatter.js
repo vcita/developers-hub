@@ -143,11 +143,8 @@ function printFailures(failures) {
     // Print expected vs actual for schema mismatches
     if (details.errors && details.errors.length > 0) {
       console.log(colors.dim + box.innerVertical + colors.reset);
-      for (const error of details.errors.slice(0, 3)) { // Limit to 3 errors
+      for (const error of details.errors) {
         console.log(colors.dim + box.innerVertical + colors.reset + colors.dim + `    • ${error.path || 'root'}: ${error.message}` + colors.reset);
-      }
-      if (details.errors.length > 3) {
-        console.log(colors.dim + box.innerVertical + colors.reset + colors.dim + `    ... and ${details.errors.length - 3} more errors` + colors.reset);
       }
     }
     

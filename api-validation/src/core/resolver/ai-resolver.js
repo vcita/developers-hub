@@ -1,11 +1,17 @@
 /**
  * AI-Assisted Endpoint Resolver
- * Uses Anthropic Claude to intelligently find list endpoints for detail endpoints
+ * Uses AI to intelligently find list endpoints for detail endpoints
+ * 
+ * Model: gpt-4.1-nano (OpenAI) — trivial pattern-matching task, cheapest model suffices
+ * Excellent alternatives: gpt-4o-mini (OpenAI)
  */
 
-const Anthropic = require('@anthropic-ai/sdk');
+const OpenAI = require('openai');
 const fs = require('fs');
 const path = require('path');
+
+// Default model for this component
+const DEFAULT_MODEL = 'gpt-4.1-nano';
 
 // Path to learned mappings file
 const LEARNED_MAPPINGS_FILE = path.join(__dirname, '../../config/learned-mappings.json');
@@ -158,10 +164,11 @@ Respond with ONLY the endpoint path (e.g., /platform/v1/estimates), or "NONE" if
  * @param {string} detailPath - Detail endpoint path
  * @param {string} paramName - Parameter name
  * @param {Object[]} allEndpoints - All swagger endpoints
- * @param {string} apiKey - Anthropic API key
+ * @param {string} apiKey - OpenAI API key
+ * @param {string} [model] - Model override (defaults to gpt-4.1-nano)
  * @returns {Promise<string|null>} Suggested list endpoint or null
  */
-async function askAIForListEndpoint(detailPath, paramName, allEndpoints, apiKey) {
+async function askAIForListEndpoint(detailPath, paramName, allEndpoints, apiKey, model) {
   if (!apiKey) {
     console.log('[AI Resolver] No API key configured, skipping AI resolution');
     return null;
@@ -181,23 +188,25 @@ async function askAIForListEndpoint(detailPath, paramName, allEndpoints, apiKey)
     return null;
   }
   
+  const resolverModel = model || DEFAULT_MODEL;
+  
   try {
-    const client = new Anthropic({ apiKey });
+    const client = new OpenAI({ apiKey });
     
     const availableEndpoints = extractListEndpoints(allEndpoints);
     const prompt = buildPrompt(detailPath, paramName, availableEndpoints);
     
-    console.log(`[AI Resolver] Asking AI for list endpoint for: ${detailPath}`);
+    console.log(`[AI Resolver] Asking AI (${resolverModel}) for list endpoint for: ${detailPath}`);
     
-    const message = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+    const completion = await client.chat.completions.create({
+      model: resolverModel,
       max_tokens: 100,
       messages: [
         { role: 'user', content: prompt }
       ]
     });
     
-    const response = message.content[0]?.text?.trim();
+    const response = completion.choices[0]?.message?.content?.trim();
     console.log(`[AI Resolver] AI response: ${response}`);
     
     if (!response || response === 'NONE' || response.toUpperCase() === 'NONE') {

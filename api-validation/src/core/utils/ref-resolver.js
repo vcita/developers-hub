@@ -1,6 +1,10 @@
 /**
  * Reference Resolver
  * Resolves $ref URLs to their actual schemas
+ * 
+ * NOTE: GitHub Pages entity URLs (https://vcita.github.io/developers-hub/entities/...)
+ * are automatically resolved to local files in the entities/ folder for faster
+ * testing without needing to deploy changes first.
  */
 
 const fs = require('fs');
@@ -10,6 +14,12 @@ const http = require('http');
 
 // Cache for resolved schemas
 const schemaCache = new Map();
+
+// GitHub Pages URL prefix that maps to local entities folder
+const GITHUB_PAGES_ENTITIES_URL = 'https://vcita.github.io/developers-hub/entities/';
+
+// Local entities folder path (relative to api-validation folder)
+const LOCAL_ENTITIES_PATH = path.resolve(__dirname, '../../../../entities');
 
 /**
  * Fetch a remote schema
@@ -54,6 +64,28 @@ function loadLocalSchema(filePath) {
 }
 
 /**
+ * Convert a GitHub Pages entity URL to a local file path
+ * @param {string} url - GitHub Pages URL
+ * @returns {string|null} Local file path or null if not a GitHub Pages entity URL
+ */
+function githubPagesToLocalPath(url) {
+  if (url.startsWith(GITHUB_PAGES_ENTITIES_URL)) {
+    // Extract the relative path after /entities/
+    const relativePath = url.substring(GITHUB_PAGES_ENTITIES_URL.length);
+    const localPath = path.join(LOCAL_ENTITIES_PATH, relativePath);
+    
+    // Check if the local file exists
+    if (fs.existsSync(localPath)) {
+      return localPath;
+    }
+    
+    // Log warning but don't fail - will fall back to remote
+    console.warn(`[ref-resolver] Local entity file not found: ${localPath}, will fetch from remote`);
+  }
+  return null;
+}
+
+/**
  * Resolve a $ref to its schema
  * @param {string} ref - Reference URL or path
  * @param {string} baseDir - Base directory for relative paths
@@ -68,8 +100,23 @@ async function resolveRef(ref, baseDir = null) {
   let schema;
   
   if (ref.startsWith('http://') || ref.startsWith('https://')) {
-    // Remote URL
-    schema = await fetchRemoteSchema(ref);
+    // Check if this is a GitHub Pages entity URL that can be resolved locally
+    const localPath = githubPagesToLocalPath(ref);
+    
+    if (localPath) {
+      // Resolve from local entities folder
+      try {
+        schema = loadLocalSchema(localPath);
+        // console.log(`[ref-resolver] Resolved ${ref} from local: ${localPath}`);
+      } catch (error) {
+        console.warn(`[ref-resolver] Failed to load local entity ${localPath}: ${error.message}`);
+        // Fall back to remote
+        schema = await fetchRemoteSchema(ref);
+      }
+    } else {
+      // Remote URL (not a GitHub Pages entity or local file doesn't exist)
+      schema = await fetchRemoteSchema(ref);
+    }
   } else if (ref.startsWith('#/')) {
     // Local reference within same document - return as-is for now
     return { $ref: ref };
@@ -248,6 +295,52 @@ function getCacheStats() {
   };
 }
 
+/**
+ * Get the configured local entities path
+ * @returns {string} Path to local entities folder
+ */
+function getLocalEntitiesPath() {
+  return LOCAL_ENTITIES_PATH;
+}
+
+/**
+ * Check if local entity resolution is available
+ * @returns {Object} Status of local entity resolution
+ */
+function checkLocalEntities() {
+  const exists = fs.existsSync(LOCAL_ENTITIES_PATH);
+  let entityCount = 0;
+  
+  if (exists) {
+    try {
+      const countFiles = (dir) => {
+        let count = 0;
+        const items = fs.readdirSync(dir);
+        for (const item of items) {
+          const fullPath = path.join(dir, item);
+          const stat = fs.statSync(fullPath);
+          if (stat.isDirectory()) {
+            count += countFiles(fullPath);
+          } else if (item.endsWith('.json')) {
+            count++;
+          }
+        }
+        return count;
+      };
+      entityCount = countFiles(LOCAL_ENTITIES_PATH);
+    } catch (e) {
+      // Ignore errors
+    }
+  }
+  
+  return {
+    enabled: exists,
+    path: LOCAL_ENTITIES_PATH,
+    entityCount,
+    githubPagesPrefix: GITHUB_PAGES_ENTITIES_URL
+  };
+}
+
 module.exports = {
   resolveRef,
   resolveAllRefs,
@@ -257,5 +350,8 @@ module.exports = {
   clearCache,
   getCacheStats,
   fetchRemoteSchema,
-  loadLocalSchema
+  loadLocalSchema,
+  githubPagesToLocalPath,
+  getLocalEntitiesPath,
+  checkLocalEntities
 };

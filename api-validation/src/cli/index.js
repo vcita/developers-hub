@@ -16,6 +16,7 @@ const { createRateLimiter } = require('../core/runner/rate-limiter');
 const { validateAgainstSchema, validateStatusCode, buildValidationResult, getSuggestion, FAILURE_REASONS } = require('../core/validator/response-validator');
 const { createReport, addDocumentationIssue, addResult, finalizeReport, saveReport, getFailures } = require('../core/reporter/report-generator');
 const { printReport, printProgress, clearProgress, colors } = require('../core/reporter/console-formatter');
+const workflowRepo = require('../core/workflows/repository');
 
 const program = new Command();
 
@@ -204,7 +205,18 @@ async function runValidation(options) {
   const total = sequence.length;
   
   for (const testItem of sequence) {
-    const { endpoint, phase, captureUid, requiresUid, skip, skipReason, resourceKey } = testItem;
+    let { endpoint, phase, captureUid, requiresUid, skip, skipReason, resourceKey } = testItem;
+    
+    // Check for user-approved skip workflows BEFORE running the test
+    if (!skip) {
+      const endpointKey = `${endpoint.method} ${endpoint.path}`;
+      const existingWorkflow = workflowRepo.get(endpointKey);
+      if (existingWorkflow && existingWorkflow.status === 'skip') {
+        skip = true;
+        skipReason = existingWorkflow.skipReason || existingWorkflow.summary || 'User-approved skip workflow';
+        console.log(`${colors.dim}⏭️ Skipping ${endpointKey}: ${skipReason}${colors.reset}`);
+      }
+    }
     
     // Handle skipped tests
     if (skip) {

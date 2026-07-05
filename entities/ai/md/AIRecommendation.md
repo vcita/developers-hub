@@ -11,7 +11,6 @@ The AIRecommendation entity.
 | updated_at | The timestamp when the recommendation was last updated, in ISO 8601 format. | string |  |
 | actions | A list of recommended actions related to this entity. | array of ref to AIRecommendedAction.jsons | Yes |
 | display | Contains display-related information for the recommendation. | object | Yes |
-| reason | A brief explanation of why the recommendation was generated. | string |  |
 | context | The context in which the recommendation was generated. | object | Yes |
 | target | The target entity for this recommendation, typically representing the user or business involved. | object | Yes |
 | status |  | object | Yes |
@@ -41,7 +40,7 @@ The AIRecommendation entity.
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
 | dismissed | Indicates whether the recommendation has been dismissed. | boolean |  |
-| dismissed_source_type |  | string (enum: `user`, `system`) |  |
+| dismissed_source_type | The source that dismissed the recommendation. Null when the recommendation has not been dismissed. | string,null (enum: `user`, `system`, `null`) |  |
 
 ## Example
 
