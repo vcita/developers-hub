@@ -50,6 +50,21 @@ triggers:
     noun: Service
     create: service
     sample: zapier/webhook_samples/service/update.json
+  # tags: fire when a tag is added to / removed from clients. Payload carries the
+  # tag `name`, `business_id`, and the affected `clients` array.
+  - event: tag/add
+    noun: Tag
+    create: tag_add
+  - event: tag/delete
+    noun: Tag
+    create: tag_remove
+  # messages: two directions. client_sent_message = inbound (client → business);
+  # business_sent_message = outbound. Both carry conversation_id + message_id.
+  - event: message/client_sent_message
+    noun: Message
+  - event: message/business_sent_message
+    noun: Message
+    create: message
   # lead: no lead/* webhook is documented, so there is no trigger — the lead
   # CREATE action below still stands.
 
@@ -144,6 +159,41 @@ creates:
     method: POST
     path: /v2/settings/services
     spec: sales
+
+  # tags: PUT/DELETE /business/clients/v1/tags take an array of matter UIDs
+  # (body.matters.uids). Business owners think in Clients, so expose a single
+  # Client picker and resolve their matter into that array at runtime
+  # (client_matter_array). Fields are explicit (the array target is auto-filled;
+  # only `tags` is user-supplied). new_api enables the bulk behavior: PUT wants it
+  # in the body, DELETE as a query param.
+  - key: tag_add
+    noun: Tag
+    label: Add Tags to Client
+    method: PUT
+    path: /business/clients/v1/tags
+    client_matter_array: matters.uids
+    body_const: { new_api: true }
+    fields:
+      - { key: tags, label: Tags, isJson: true, required: true, helpText: 'Tag strings to add, as a JSON array (e.g. ["vip","newsletter"]).' }
+
+  - key: tag_remove
+    noun: Tag
+    label: Remove Tags from Client
+    method: DELETE
+    path: /business/clients/v1/tags
+    client_matter_array: matters.uids
+    query: { new_api: true }
+    fields:
+      - { key: tags, label: Tags, isJson: true, required: true, helpText: 'Tag strings to remove, as a JSON array (e.g. ["vip"]).' }
+
+  # message: send a message to a client. client_id gets the Clients dropdown and
+  # staff_id the Staff dropdown (via field_leaves); direction is a required enum.
+  - key: message
+    noun: Message
+    label: Send Message
+    method: POST
+    path: /platform/v1/messages
+    spec: communication
 
 # ---------------------------------------------------------------------------
 # Dropdowns — dynamic dropdowns for ID input fields (D004). Each entry becomes

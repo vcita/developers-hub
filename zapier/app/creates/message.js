@@ -2,131 +2,101 @@
 const { BASE_URL } = require('../constants');
 const { buildBody, toInputField, resolveMatterUid, setByPath } = require('../utils');
 
-const PATH = "/business/scheduling/v1/appointments";
+const PATH = "/platform/v1/messages";
 const METHOD = "POST";
 const PATH_PARAMS = [];
 
 // Body field definitions (with internal path/isJson used to rebuild the body).
 const bodyFields = [
   {
-    "key": "client_id",
+    "key": "message__channels",
     "path": [
+      "message",
+      "channels"
+    ],
+    "label": "Channels",
+    "type": "string",
+    "required": false,
+    "isJson": false,
+    "helpText": "Comma-separated list of delivery channels (e.g., \"sms\", \"email\"). When omitted, the message is sent to all available channels."
+  },
+  {
+    "key": "message__client_id",
+    "path": [
+      "message",
       "client_id"
     ],
-    "label": "Client",
+    "label": "Client Id",
     "type": "string",
     "required": true,
     "isJson": false,
+    "helpText": "The UID of the recipient client. Required to identify the target contact and resolve the conversation.",
     "dynamic": "list_clients.id.label"
   },
   {
-    "key": "service_id",
+    "key": "message__conversation_title",
     "path": [
-      "service_id"
+      "message",
+      "conversation_title"
     ],
-    "label": "Service",
+    "label": "Conversation Title",
     "type": "string",
-    "required": true,
+    "required": false,
     "isJson": false,
-    "dynamic": "list_services.id.label"
+    "helpText": "Title for the conversation. Optional; used when creating a new conversation."
   },
   {
-    "key": "staff_id",
+    "key": "message__conversation_uid",
     "path": [
-      "staff_id"
+      "message",
+      "conversation_uid"
     ],
-    "label": "Staff",
+    "label": "Conversation Uid",
+    "type": "string",
+    "required": false,
+    "isJson": false,
+    "helpText": "UID of an existing conversation to add the message to. If omitted, the system creates or uses the client's default conversation."
+  },
+  {
+    "key": "message__direction",
+    "path": [
+      "message",
+      "direction"
+    ],
+    "label": "Direction",
     "type": "string",
     "required": true,
     "isJson": false,
+    "helpText": "The direction of the message. Required. Valid values: \"client_to_business\", \"business_to_client\".",
+    "choices": [
+      "client_to_business",
+      "business_to_client"
+    ]
+  },
+  {
+    "key": "message__staff_id",
+    "path": [
+      "message",
+      "staff_id"
+    ],
+    "label": "Staff Id",
+    "type": "string",
+    "required": false,
+    "isJson": false,
+    "helpText": "UID of the staff member sending the message. Optional — if omitted, the staff is auto-assigned based on business assignment rules.",
     "dynamic": "list_staff.id.label"
   },
   {
-    "key": "title",
+    "key": "message__text",
     "path": [
-      "title"
+      "message",
+      "text"
     ],
-    "label": "Title",
+    "label": "Text",
     "type": "string",
     "required": true,
     "isJson": false,
-    "helpText": "Appointment title (defaults to the service name)"
-  },
-  {
-    "key": "start_time",
-    "path": [
-      "start_time"
-    ],
-    "label": "Start Time",
-    "type": "datetime",
-    "required": true,
-    "isJson": false,
-    "helpText": "ISO 8601, business-local time"
-  },
-  {
-    "key": "end_time",
-    "path": [
-      "end_time"
-    ],
-    "label": "End Time",
-    "type": "datetime",
-    "required": true,
-    "isJson": false,
-    "helpText": "ISO 8601; default start + service duration"
-  },
-  {
-    "key": "interaction_type",
-    "path": [
-      "interaction_type"
-    ],
-    "label": "Interaction Type",
-    "type": "string",
-    "required": false,
-    "isJson": false,
-    "helpText": "Use the service's interaction_type (e.g. online, skype, client_phone, business_location)"
-  },
-  {
-    "key": "interaction_details",
-    "path": [
-      "interaction_details"
-    ],
-    "label": "Interaction Details",
-    "type": "string",
-    "required": false,
-    "isJson": false,
-    "default": "",
-    "helpText": "Phone/address per interaction_type; leave blank for online/video"
-  },
-  {
-    "key": "charge_type",
-    "path": [
-      "charge_type"
-    ],
-    "label": "Charge Type",
-    "type": "string",
-    "required": false,
-    "isJson": false,
-    "default": "no_price",
-    "choices": [
-      "no_price",
-      "fixed",
-      "custom"
-    ]
-  },
-  {
-    "key": "source_type",
-    "path": [
-      "source_type"
-    ],
-    "label": "Source",
-    "type": "string",
-    "required": false,
-    "isJson": false,
-    "default": "initiated_by_staff",
-    "choices": [
-      "initiated_by_staff",
-      "initiated_by_client"
-    ]
+    "helpText": "The text content of the message. Required. Plain text only — do not include HTML tags."
   }
 ];
 const pathFields = [];
@@ -144,10 +114,8 @@ const CLIENT_MATTER_ARRAY_PATH = null;
 const QUERY = null;
 // Body shaping: WRAP_ARRAY wraps the built body as { [WRAP_ARRAY]: [body] };
 // BODY_CONST merges constant keys at the top level (e.g. { new_api: true }).
-const WRAP_ARRAY = "appointments";
-const BODY_CONST = {
-  "new_api": true
-};
+const WRAP_ARRAY = null;
+const BODY_CONST = null;
 
 const inputFields = [
   ...pathFields,
@@ -158,28 +126,13 @@ const inputFields = [
 // Static sample of the created record (D012). Reuses the linked trigger's real
 // payload where the manifest pairs one; otherwise a minimal stub.
 const sample = {
-  "business_id": "j9q05nvfv12w79vl",
-  "appointment_id": "3in0a3b32nut67l6",
-  "conversation_id": "pto6yng4e908c8g0",
-  "title": "Introductory Phone Call",
-  "client_id": "54gjvtadfbxiom7y",
+  "business_id": "s5ek7tfgp068i2st",
   "staff_id": "e6j4i1ofy2pf0dmg",
-  "start_time": "2019-10-29T10:00:00.000+02:00",
-  "end_time": "2019-10-29T10:30:00.000+02:00",
-  "duration": 30,
-  "service_uid": "02nbrfqxys1gmoj2",
-  "notes": "",
-  "interaction_details": "123456",
-  "currency": "ILS",
-  "payment_id": null,
-  "where": "phone",
-  "source_data": {
-    "id": 215954943,
-    "name": "initiated_by_staff",
-    "channel": null,
-    "campaign": null,
-    "website_url": null
-  }
+  "conversation_id": "pto6yng4e908c8g0",
+  "message_id": "fjo0q77g2a4hmotc",
+  "message": "Thank you for your message",
+  "client_id": "54gjvtadfbxiom7y",
+  "created_at": "2019-10-29T09:36:59.105+02:00"
 };
 
 const perform = async (z, bundle) => {
@@ -211,11 +164,11 @@ const perform = async (z, bundle) => {
 };
 
 module.exports = {
-  key: "booking",
-  noun: "Appointment",
+  key: "message",
+  noun: "Message",
   display: {
-    label: "Create Booking",
-    description: "Create a appointment in inTandem.",
+    label: "Send Message",
+    description: "Create a message in inTandem.",
   },
   operation: { inputFields, perform, sample },
 };

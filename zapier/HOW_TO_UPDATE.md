@@ -44,6 +44,19 @@ the raw UID. The user then picks a **Client** (clients dropdown) and the app
 resolves that client's matter at runtime (there is no list-all matters endpoint —
 see [docs/architecture.md](docs/architecture.md) → "Matters").
 
+If the endpoint takes an **array** of matter UIDs (e.g. tags:
+`body.matters.uids`), use `client_matter_array: matters.uids` (a dotted path)
+instead. It exposes the same Client picker and injects the resolved matter as a
+one-element array at that path.
+
+Other optional create keys:
+- `body_const: { k: v }` — merge constant keys into the top-level body (e.g.
+  `{ new_api: true }`).
+- `query: { k: v }` — send constant query params with the request (e.g.
+  `DELETE …/tags?new_api=true`).
+- `fields: [...]` — define input fields explicitly instead of deriving them from
+  the spec (for endpoints not in `mcp_swagger`, or to hand-pick fields).
+
 ### Add a Trigger
 The event must exist in vcita's webhook subscribe enum.
 ```yaml
