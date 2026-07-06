@@ -153,8 +153,8 @@
       },
       "get": {
         "operationId": "FilesController_findAll",
-        "summary": "Get All Files",
-        "description": "Retrieves files for the specified business, optionally filtered by status or a list of file UIDs. Results include pre-signed S3 URLs for file download and thumbnails when the file is ready. Soft-deleted files are never returned.\n\nAvailable for **Staff and Client tokens**.",
+        "summary": "Get all files",
+        "description": "Retrieves the files you uploaded, optionally filtered by status or a list of file UIDs. Each token only sees files it created itself; files uploaded by other users are not returned. Results include pre-signed URLs for file download and thumbnails when the file is ready. Soft-deleted files are never returned.\n\nAvailable for **Staff and Client tokens**.",
         "tags": [
           "Files"
         ],
@@ -237,7 +237,7 @@
             }
           },
           "400": {
-            "description": "Bad request - Missing required parameters",
+            "description": "Bad request - Invalid query parameters",
             "content": {
               "application/json": {
                 "schema": {
@@ -248,16 +248,6 @@
           },
           "401": {
             "description": "Unauthorized - Invalid or missing authentication token",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden - Insufficient permissions to access files for this entity",
             "content": {
               "application/json": {
                 "schema": {
@@ -277,8 +267,8 @@
     "/v3/assets/files/{uid}": {
       "get": {
         "operationId": "FilesController_findOne",
-        "summary": "Get a file by UID",
-        "description": "Retrieves a specific file by its unique identifier.\n\nUsed for status polling after upload to check if processing (scan, S3 upload, thumbnails) is complete. Response includes pre-signed S3 URLs when file is ready. Permission checks are performed via the Core service and cached for 15 minutes.\n\nAvailable for **Staff and Client tokens**.",
+        "summary": "Get a file",
+        "description": "Retrieves a specific file by its unique identifier. Only the file you uploaded is returned; requesting a file created by another user returns 404.\n\nUsed for status polling after upload to check if processing (scan, storage, thumbnails) is complete. Response includes pre-signed URLs when the file is ready.\n\nAvailable for **Staff and Client tokens**.",
         "tags": [
           "Files"
         ],
@@ -325,18 +315,8 @@
               }
             }
           },
-          "403": {
-            "description": "Forbidden - Insufficient permissions to access this file",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
           "404": {
-            "description": "Not Found - File does not exist",
+            "description": "Not Found - File does not exist, or was uploaded by another user",
             "content": {
               "application/json": {
                 "schema": {
@@ -440,20 +420,20 @@
         ]
       }
     },
-    "/v3/assets/file_entities": {
+    "/v3/assets/file_relations": {
       "post": {
-        "operationId": "FileEntitiesController_create",
-        "summary": "Create a file-entity relation",
+        "operationId": "FileRelationsController_create",
+        "summary": "Create a file relation",
         "description": "Links an existing file to a business entity (e.g., an invoice, message, or appointment). The referenced file must already exist and be in a usable state ('scanned', 'uploaded', or 'linked'). Once a file has at least one active relation its status becomes 'linked', protecting it from cleanup.\n\nFor **Client tokens**, the client_uid is derived from the token and any value supplied in the body is ignored. For **Staff tokens**, client_uid may be provided to associate the relation with a specific client.\n\nAvailable for **Staff and Client tokens**.",
         "tags": [
-          "File Entities"
+          "File Relations"
         ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateFileEntityRequest"
+                "$ref": "#/components/schemas/CreateFileRelationRequest"
               }
             }
           }
@@ -471,7 +451,7 @@
                     {
                       "properties": {
                         "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/assets/fileEntity.json"
+                          "$ref": "https://vcita.github.io/developers-hub/entities/assets/fileRelation.json"
                         }
                       }
                     }
@@ -538,11 +518,11 @@
         ]
       },
       "get": {
-        "operationId": "FileEntitiesController_findByEntity",
+        "operationId": "FileRelationsController_findByEntity",
         "summary": "Get file relations by entity",
-        "description": "Retrieves the file-entity relations for a given entity, each including the linked file's details. Results are paginated.\n\nAvailable for **Staff and Client tokens**.",
+        "description": "Retrieves the file relations for a given entity, each including the linked file's details. Results are paginated.\n\nStaff access is scoped to the linked entity: a staff sees relations for any entity they can access, regardless of who uploaded the file. Client access is scoped to the client's own relations.\n\nAvailable for **Staff and Client tokens**.",
         "tags": [
-          "File Entities"
+          "File Relations"
         ],
         "parameters": [
           {
@@ -606,7 +586,7 @@
                     {
                       "properties": {
                         "data": {
-                          "$ref": "#/components/schemas/FileEntitiesResponse"
+                          "$ref": "#/components/schemas/FileRelationsResponse"
                         }
                       }
                     }
@@ -643,11 +623,11 @@
         ]
       },
       "delete": {
-        "operationId": "FileEntitiesController_deleteByEntity",
-        "summary": "Delete all relations for an entity",
-        "description": "Soft deletes every file-entity relation for the given entity and returns the number of relations deleted. Files left with no remaining active relations may become eligible for cleanup.\n\nAvailable for **Staff and Client tokens**.",
+        "operationId": "FileRelationsController_deleteByEntity",
+        "summary": "Delete all entity files",
+        "description": "Soft deletes every file relation for the given entity and returns the number of relations deleted. Files left with no remaining active relations may become eligible for cleanup.\n\nAvailable for **Staff and Client tokens**.",
         "tags": [
-          "File Entities"
+          "File Relations"
         ],
         "parameters": [
           {
@@ -689,7 +669,7 @@
                     {
                       "properties": {
                         "data": {
-                          "$ref": "#/components/schemas/DeleteFileEntitiesResponse"
+                          "$ref": "#/components/schemas/DeleteFileRelationsResponse"
                         }
                       }
                     }
@@ -1558,7 +1538,7 @@
           "files"
         ]
       },
-      "CreateFileEntityRequest": {
+      "CreateFileRelationRequest": {
         "type": "object",
         "properties": {
           "file_uid": {
@@ -1591,27 +1571,27 @@
           "entity_uid"
         ]
       },
-      "FileEntitiesResponse": {
+      "FileRelationsResponse": {
         "type": "object",
         "properties": {
-          "file_entities": {
+          "file_relations": {
             "type": "array",
             "items": {
-              "$ref": "https://vcita.github.io/developers-hub/entities/assets/fileEntity.json"
+              "$ref": "https://vcita.github.io/developers-hub/entities/assets/fileRelation.json"
             },
-            "description": "Array of file-entity relations, each including the linked file's details"
+            "description": "Array of file relations, each including the linked file's details"
           }
         },
         "required": [
-          "file_entities"
+          "file_relations"
         ]
       },
-      "DeleteFileEntitiesResponse": {
+      "DeleteFileRelationsResponse": {
         "type": "object",
         "properties": {
           "deleted_count": {
             "type": "integer",
-            "description": "Number of file-entity relations that were soft deleted (e.g., 3)."
+            "description": "Number of file relations that were soft deleted (e.g., 3)."
           }
         },
         "required": [
@@ -1631,15 +1611,15 @@
               "properties": {
                 "field": {
                   "type": "string",
-                  "description": "The field that caused the error (for validation errors)"
+                  "description": "The name of the field that had an error (for validation errors) (e.g., \"name\", \"file\")."
                 },
                 "code": {
                   "type": "string",
-                  "description": "The code that caused the error (for validation errors)"
+                  "description": "The code that caused the error (for validation errors) (e.g., \"FILE_REQUIRED\", \"VALIDATION_ERROR\")."
                 },
-                "message": {
+                "description": {
                   "type": "string",
-                  "description": "The message that describes the error (for validation errors)"
+                  "description": "A description of the error (for validation errors) (e.g., \"File is required\")."
                 }
               }
             }
