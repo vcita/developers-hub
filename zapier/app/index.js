@@ -10,6 +10,10 @@ const triggers = {
   "appointment_scheduled": require('./triggers/appointment_scheduled'),
   "appointment_cancelled": require('./triggers/appointment_cancelled'),
   "service_updated": require('./triggers/service_updated'),
+  "tag_add": require('./triggers/tag_add'),
+  "tag_delete": require('./triggers/tag_delete'),
+  "message_client_sent_message": require('./triggers/message_client_sent_message'),
+  "message_business_sent_message": require('./triggers/message_business_sent_message'),
   "list_clients": require('./triggers/list_clients'),
   "list_services": require('./triggers/list_services'),
   "list_estimates": require('./triggers/list_estimates'),
@@ -27,6 +31,9 @@ const creates = {
   "booking": require('./creates/booking'),
   "product": require('./creates/product'),
   "service": require('./creates/service'),
+  "tag_add": require('./creates/tag_add'),
+  "tag_remove": require('./creates/tag_remove'),
+  "message": require('./creates/message'),
 };
 
 module.exports = {

@@ -226,6 +226,11 @@ const pathFields = [];
 const CLIENT_FIELD = null;
 const CLIENT_SOURCE_KEY = null;
 const MATTER_PATHS = [];
+// CLIENT_MATTER_ARRAY_PATH: when set, the resolved matter is injected here as a
+// one-element array (e.g. ['matters','uids'] -> body.matters.uids = [matterUid]).
+const CLIENT_MATTER_ARRAY_PATH = null;
+// QUERY: constant query params sent with the request (e.g. { new_api: true }).
+const QUERY = null;
 // Body shaping: WRAP_ARRAY wraps the built body as { [WRAP_ARRAY]: [body] };
 // BODY_CONST merges constant keys at the top level (e.g. { new_api: true }).
 const WRAP_ARRAY = null;
@@ -249,7 +254,7 @@ const perform = async (z, bundle) => {
     url = url.replace(`{${p}}`, encodeURIComponent(bundle.inputData[p]));
   }
   const body = buildBody(bundle.inputData, bodyFields);
-  if (CLIENT_SOURCE_KEY && MATTER_PATHS.length) {
+  if (CLIENT_SOURCE_KEY && (MATTER_PATHS.length || CLIENT_MATTER_ARRAY_PATH)) {
     const matterUid = await resolveMatterUid(z, bundle, bundle.inputData[CLIENT_SOURCE_KEY]);
     if (CLIENT_FIELD && CLIENT_FIELD.required && !matterUid) {
       throw new z.errors.Error(
@@ -257,12 +262,17 @@ const perform = async (z, bundle) => {
         'MatterNotFound'
       );
     }
-    if (matterUid) for (const p of MATTER_PATHS) setByPath(body, p, matterUid);
+    if (matterUid) {
+      for (const p of MATTER_PATHS) setByPath(body, p, matterUid);
+      if (CLIENT_MATTER_ARRAY_PATH) setByPath(body, CLIENT_MATTER_ARRAY_PATH, [matterUid]);
+    }
   }
   let payload = body;
   if (WRAP_ARRAY) payload = { [WRAP_ARRAY]: [body], ...(BODY_CONST || {}) };
   else if (BODY_CONST) payload = { ...body, ...BODY_CONST };
-  const response = await z.request({ url, method: METHOD, body: payload });
+  const request = { url, method: METHOD, body: payload };
+  if (QUERY) request.params = QUERY;
+  const response = await z.request(request);
   return response.data;
 };
 

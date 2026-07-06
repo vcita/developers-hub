@@ -2,119 +2,22 @@
 const { BASE_URL } = require('../constants');
 const { buildBody, toInputField, resolveMatterUid, setByPath } = require('../utils');
 
-const PATH = "/business/payments/v1/products";
-const METHOD = "POST";
+const PATH = "/business/clients/v1/tags";
+const METHOD = "DELETE";
 const PATH_PARAMS = [];
 
 // Body field definitions (with internal path/isJson used to rebuild the body).
 const bodyFields = [
   {
-    "key": "product__cost",
+    "key": "tags",
     "path": [
-      "product",
-      "cost"
+      "tags"
     ],
-    "label": "Cost",
-    "type": "number",
-    "required": false,
-    "isJson": false,
-    "helpText": "Product cost"
-  },
-  {
-    "key": "product__currency",
-    "path": [
-      "product",
-      "currency"
-    ],
-    "label": "Currency",
-    "type": "string",
-    "required": false,
-    "isJson": false,
-    "helpText": "Product currency"
-  },
-  {
-    "key": "product__description",
-    "path": [
-      "product",
-      "description"
-    ],
-    "label": "Description",
-    "type": "string",
-    "required": false,
-    "isJson": false,
-    "helpText": "Product description"
-  },
-  {
-    "key": "product__display",
-    "path": [
-      "product",
-      "display"
-    ],
-    "label": "Display",
-    "type": "boolean",
-    "required": false,
-    "isJson": false,
-    "helpText": "Display on products list. Default: true"
-  },
-  {
-    "key": "product__image_url",
-    "path": [
-      "product",
-      "image_url"
-    ],
-    "label": "Image Url",
-    "type": "string",
-    "required": false,
-    "isJson": false,
-    "helpText": "Product image URL"
-  },
-  {
-    "key": "product__name",
-    "path": [
-      "product",
-      "name"
-    ],
-    "label": "Name",
+    "label": "Tags",
     "type": "string",
     "required": true,
-    "isJson": false,
-    "helpText": "Product name"
-  },
-  {
-    "key": "product__price",
-    "path": [
-      "product",
-      "price"
-    ],
-    "label": "Price",
-    "type": "number",
-    "required": true,
-    "isJson": false,
-    "helpText": "Product price"
-  },
-  {
-    "key": "product__sku",
-    "path": [
-      "product",
-      "sku"
-    ],
-    "label": "Sku",
-    "type": "string",
-    "required": false,
-    "isJson": false,
-    "helpText": "Product SKU - must be unique per business"
-  },
-  {
-    "key": "product__tax_ids",
-    "path": [
-      "product",
-      "tax_ids"
-    ],
-    "label": "Tax Ids",
-    "type": "text",
-    "required": false,
     "isJson": true,
-    "helpText": "Product Tax IDs (JSON)"
+    "helpText": "Tag strings to remove, as a JSON array (e.g. [\"vip\"])."
   }
 ];
 const pathFields = [];
@@ -122,14 +25,26 @@ const pathFields = [];
 // synthetic Client picker or an existing client_id field) and injected at these
 // body paths. CLIENT_FIELD is the synthetic UI-only field (null when reusing a
 // native client_id); CLIENT_SOURCE_KEY is the inputData key to resolve from.
-const CLIENT_FIELD = null;
-const CLIENT_SOURCE_KEY = null;
+const CLIENT_FIELD = {
+  "key": "client_id",
+  "label": "Client",
+  "type": "string",
+  "required": true,
+  "dynamic": "list_clients.id.label",
+  "helpText": "The client to tag — their matter is resolved automatically."
+};
+const CLIENT_SOURCE_KEY = "client_id";
 const MATTER_PATHS = [];
 // CLIENT_MATTER_ARRAY_PATH: when set, the resolved matter is injected here as a
 // one-element array (e.g. ['matters','uids'] -> body.matters.uids = [matterUid]).
-const CLIENT_MATTER_ARRAY_PATH = null;
+const CLIENT_MATTER_ARRAY_PATH = [
+  "matters",
+  "uids"
+];
 // QUERY: constant query params sent with the request (e.g. { new_api: true }).
-const QUERY = null;
+const QUERY = {
+  "new_api": true
+};
 // Body shaping: WRAP_ARRAY wraps the built body as { [WRAP_ARRAY]: [body] };
 // BODY_CONST merges constant keys at the top level (e.g. { new_api: true }).
 const WRAP_ARRAY = null;
@@ -144,7 +59,12 @@ const inputFields = [
 // Static sample of the created record (D012). Reuses the linked trigger's real
 // payload where the manifest pairs one; otherwise a minimal stub.
 const sample = {
-  "uid": "sample-product-uid"
+  "name": "jul",
+  "business_id": 123,
+  "clients": [
+    "j9q05nvfv12w79vl",
+    "k7zcc3nhb1aijzms"
+  ]
 };
 
 const perform = async (z, bundle) => {
@@ -176,11 +96,11 @@ const perform = async (z, bundle) => {
 };
 
 module.exports = {
-  key: "product",
-  noun: "Product",
+  key: "tag_remove",
+  noun: "Tag",
   display: {
-    label: "Create Product",
-    description: "Create a product in inTandem.",
+    label: "Remove Tags from Client",
+    description: "Create a tag in inTandem.",
   },
   operation: { inputFields, perform, sample },
 };

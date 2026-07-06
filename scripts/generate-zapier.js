@@ -192,6 +192,26 @@ const emitCreate = (create, fields, pathParams, sample) => {
       }
     }
   }
+  // client_matter_array (D030 for array endpoints): some endpoints take a list of
+  // matter UIDs (e.g. tags: body.matters.uids). Expose a single Client picker and
+  // inject the resolved matter as a one-element array at the given dotted path.
+  let clientMatterArrayPath = null;
+  if (create.client_matter_array) {
+    clientMatterArrayPath = String(create.client_matter_array).split('.');
+    // Drop any raw field that targets this array path — it's filled from the client.
+    bodyFields = bodyFields.filter(
+      (f) => (f.path || [f.key]).join('.') !== create.client_matter_array
+    );
+    clientField = {
+      key: 'client_id',
+      label: 'Client',
+      type: 'string',
+      required: true,
+      dynamic: 'list_clients.id.label',
+      helpText: 'The client to tag — their matter is resolved automatically.',
+    };
+    clientSourceKey = clientField.key;
+  }
   const pathFields = pathParams.map((p) => ({
     key: p,
     label: humanize(p),
@@ -217,6 +237,11 @@ const pathFields = ${j(pathFields)};
 const CLIENT_FIELD = ${j(clientField)};
 const CLIENT_SOURCE_KEY = ${j(clientSourceKey)};
 const MATTER_PATHS = ${j(matterPaths)};
+// CLIENT_MATTER_ARRAY_PATH: when set, the resolved matter is injected here as a
+// one-element array (e.g. ['matters','uids'] -> body.matters.uids = [matterUid]).
+const CLIENT_MATTER_ARRAY_PATH = ${j(clientMatterArrayPath)};
+// QUERY: constant query params sent with the request (e.g. { new_api: true }).
+const QUERY = ${j(create.query || null)};
 // Body shaping: WRAP_ARRAY wraps the built body as { [WRAP_ARRAY]: [body] };
 // BODY_CONST merges constant keys at the top level (e.g. { new_api: true }).
 const WRAP_ARRAY = ${j(create.wrap_array || null)};
@@ -238,7 +263,7 @@ const perform = async (z, bundle) => {
     url = url.replace(\`{\${p}}\`, encodeURIComponent(bundle.inputData[p]));
   }
   const body = buildBody(bundle.inputData, bodyFields);
-  if (CLIENT_SOURCE_KEY && MATTER_PATHS.length) {
+  if (CLIENT_SOURCE_KEY && (MATTER_PATHS.length || CLIENT_MATTER_ARRAY_PATH)) {
     const matterUid = await resolveMatterUid(z, bundle, bundle.inputData[CLIENT_SOURCE_KEY]);
     if (CLIENT_FIELD && CLIENT_FIELD.required && !matterUid) {
       throw new z.errors.Error(
@@ -246,12 +271,17 @@ const perform = async (z, bundle) => {
         'MatterNotFound'
       );
     }
-    if (matterUid) for (const p of MATTER_PATHS) setByPath(body, p, matterUid);
+    if (matterUid) {
+      for (const p of MATTER_PATHS) setByPath(body, p, matterUid);
+      if (CLIENT_MATTER_ARRAY_PATH) setByPath(body, CLIENT_MATTER_ARRAY_PATH, [matterUid]);
+    }
   }
   let payload = body;
   if (WRAP_ARRAY) payload = { [WRAP_ARRAY]: [body], ...(BODY_CONST || {}) };
   else if (BODY_CONST) payload = { ...body, ...BODY_CONST };
-  const response = await z.request({ url, method: METHOD, body: payload });
+  const request = { url, method: METHOD, body: payload };
+  if (QUERY) request.params = QUERY;
+  const response = await z.request(request);
   return response.data;
 };
 
