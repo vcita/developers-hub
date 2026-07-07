@@ -1,0 +1,161 @@
+{
+  "type": "object",
+  "description": "Represents a relationship between a file and a business entity (e.g., invoice, message, appointment). This allows files to be attached to various entities across the platform. When a file has at least one active relation, its status becomes 'linked' and it is protected from cleanup jobs.",
+  "properties": {
+    "uid": {
+      "type": "string",
+      "readOnly": true,
+      "description": "Unique identifier for the file-entity relation record (e.g., \"rel_123abc\")."
+    },
+    "file_uid": {
+      "type": "string",
+      "description": "Unique identifier of the file being linked (e.g., \"file_456def\"). Must reference an existing file with status 'scanned', 'uploaded', or 'linked'."
+    },
+    "entity_type": {
+      "type": "string",
+      "enum": [
+        "message",
+        "invoice",
+        "payment",
+        "appointment",
+        "estimate"
+      ],
+      "description": "Type of entity the file is attached to. **message**: Email message. **invoice**: Invoice document. **payment**: Payment record. **appointment**: Scheduled appointment. **estimate**: Estimate/quote document."
+    },
+    "entity_uid": {
+      "type": "string",
+      "description": "Unique identifier of the entity the file is attached to (e.g., \"inv_789xyz\" for an invoice, \"msg_123abc\" for a message)."
+    },
+    "business_uid": {
+      "type": "string",
+      "readOnly": true,
+      "description": "Unique identifier of the business that owns both the file and the entity (e.g., \"biz_456xyz\"). Inherited from the file record."
+    },
+    "client_uid": {
+      "type": "string",
+      "nullable": true,
+      "description": "Unique identifier of the client associated with this relation, if applicable (e.g., \"client_789abc\"). Used for client-specific files like uploaded documents or images. Null for business-level files."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "description": "Timestamp when the relation was created, in ISO 8601 format (e.g., \"2026-01-27T10:35:00Z\")."
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "description": "Timestamp when the relation was last updated, in ISO 8601 format (e.g., \"2026-01-27T10:35:30Z\")."
+    },
+    "deleted_at": {
+      "type": "string",
+      "format": "date-time",
+      "nullable": true,
+      "readOnly": true,
+      "description": "Timestamp when the relation was soft deleted, in ISO 8601 format (e.g., \"2026-01-27T12:00:00Z\"). Null if the relation is still active. When all relations for a file are deleted, the file may become eligible for cleanup."
+    },
+    "file": {
+      "type": "object",
+      "readOnly": true,
+      "nullable": true,
+      "description": "Details of the linked file, included when relations are fetched by entity. Omitted on relation creation.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Original filename including extension (e.g., \"invoice_2026_Q1.pdf\")."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "scanning",
+            "scanned",
+            "uploaded",
+            "infected",
+            "failed",
+            "linked",
+            "deleted"
+          ],
+          "description": "Current processing status of the linked file."
+        },
+        "content_type": {
+          "type": "string",
+          "description": "MIME type of the linked file (e.g., \"application/pdf\", \"image/jpeg\")."
+        },
+        "size": {
+          "type": "integer",
+          "format": "int64",
+          "description": "File size in bytes (e.g., 2048576)."
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "nullable": true,
+          "description": "Pre-signed S3 URL for downloading the original file. Null for pending/infected files."
+        },
+        "thumbnail_url": {
+          "type": "string",
+          "format": "uri",
+          "nullable": true,
+          "description": "Pre-signed S3 URL for the 400x400 pixel thumbnail. Null for non-image files or pending uploads."
+        },
+        "thumbnail_small_url": {
+          "type": "string",
+          "format": "uri",
+          "nullable": true,
+          "description": "Pre-signed S3 URL for the 150x150 pixel thumbnail. Null for non-image files or pending uploads."
+        },
+        "metadata": {
+          "type": "object",
+          "nullable": true,
+          "description": "Optional JSON object containing arbitrary key-value pairs for additional file metadata."
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the file record was created, in ISO 8601 format."
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the file record was last updated, in ISO 8601 format."
+        }
+      }
+    }
+  },
+  "required": [
+    "uid",
+    "file_uid",
+    "entity_type",
+    "entity_uid",
+    "business_uid",
+    "created_at",
+    "updated_at"
+  ],
+  "example": {
+    "uid": "rel_abc123def456",
+    "file_uid": "file_789xyz",
+    "entity_type": "invoice",
+    "entity_uid": "inv_456abc",
+    "business_uid": "biz_123xyz",
+    "client_uid": "client_789def",
+    "created_at": "2026-01-27T10:35:00Z",
+    "updated_at": "2026-01-27T10:35:00Z",
+    "deleted_at": null,
+    "file": {
+      "name": "invoice_2026_Q1.pdf",
+      "status": "linked",
+      "content_type": "application/pdf",
+      "size": 2048576,
+      "url": "https://s3.amazonaws.com/files-bucket/biz_123xyz/2026/01/27/file_789xyz/original?signature=abc123...",
+      "thumbnail_url": "https://s3.amazonaws.com/files-bucket/biz_123xyz/2026/01/27/file_789xyz/thumb_400.jpg?signature=def456...",
+      "thumbnail_small_url": "https://s3.amazonaws.com/files-bucket/biz_123xyz/2026/01/27/file_789xyz/thumb_150.jpg?signature=ghi789...",
+      "metadata": {
+        "source": "chat"
+      },
+      "created_at": "2026-01-27T10:30:00Z",
+      "updated_at": "2026-01-27T10:30:45Z"
+    }
+  }
+}
