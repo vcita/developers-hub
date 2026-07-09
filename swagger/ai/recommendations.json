@@ -96,7 +96,7 @@
                 "upcoming"
               ]
             },
-            "description": "Filter by recommendation category: 'needs_attention', 'opportunity', or 'fyi'. 'upcoming' is a derived filter (not a stored category value): it returns recommendations of any category whose 'due_at' is in the future."
+            "description": "Filter by category bucket. Buckets are mutually exclusive; a record maps to exactly one, evaluated in this order: 'upcoming' - records whose 'due_at' is in the future (derived, regardless of stored category); 'fyi' - non-future records whose 'execution_policy' is 'auto_execute' (derived, regardless of stored category); 'needs_attention' / 'opportunity' - records with that stored category, a non-future 'due_at', and 'execution_policy' = 'requires_human_approval'."
           },
           {
             "name": "producer",
@@ -143,23 +143,23 @@
                           "properties": {
                             "counts": {
                               "type": "object",
-                              "description": "Returned only when 'include=counts' is requested. Number of recommendations per bucket across the full set matching every query filter except 'category' (that is: 'target', 'context', 'status', and 'producer' are all applied; 'category' is intentionally ignored). This lets the caller show how many items exist in each category regardless of the category currently being requested. The counts are computed scope-wide - they are also independent of pagination, so they reflect totals even for buckets not present in the returned page. Every matching recommendation is counted in exactly one bucket (no overlap): any recommendation whose 'due_at' is in the future is counted under 'upcoming' regardless of its stored category, and the remaining buckets count their category excluding those future-dated items.",
+                              "description": "Returned only when 'include=counts' is requested. Number of recommendations per bucket across the full set matching every query filter except 'category' (that is: 'target', 'context', 'status', and 'producer' are all applied; 'category' is intentionally ignored). This lets the caller show how many items exist in each bucket regardless of the category currently being requested. The counts are computed scope-wide - they are also independent of pagination, so they reflect totals even for buckets not present in the returned page. Every matching recommendation is counted in exactly one bucket (no overlap), evaluated in this order: future 'due_at' -> 'upcoming'; else 'execution_policy' = 'auto_execute' -> 'fyi'; else by stored category -> 'needs_attention' or 'opportunity'.",
                               "properties": {
                                 "needs_attention": {
                                   "type": "integer",
-                                  "description": "Recommendations with category 'needs_attention' whose 'due_at' is in the past, now, or absent."
+                                  "description": "Recommendations with stored category 'needs_attention', a non-future 'due_at', and 'execution_policy' = 'requires_human_approval'."
                                 },
                                 "upcoming": {
                                   "type": "integer",
-                                  "description": "Recommendations whose 'due_at' is in the future, regardless of stored category. Derived bucket - these are excluded from their category's count."
+                                  "description": "Recommendations whose 'due_at' is in the future, regardless of stored category. Derived bucket - these are excluded from every other bucket."
                                 },
                                 "opportunity": {
                                   "type": "integer",
-                                  "description": "Recommendations with category 'opportunity' whose 'due_at' is in the past, now, or absent."
+                                  "description": "Recommendations with stored category 'opportunity', a non-future 'due_at', and 'execution_policy' = 'requires_human_approval'."
                                 },
                                 "fyi": {
                                   "type": "integer",
-                                  "description": "Recommendations with category 'fyi' whose 'due_at' is in the past, now, or absent."
+                                  "description": "Non-future recommendations whose 'execution_policy' is 'auto_execute', regardless of stored category. Derived bucket."
                                 }
                               }
                             }
@@ -287,7 +287,7 @@
         "properties": {
           "producer": {
             "type": "string",
-            "description": "Upstream agent or partner system that produced this recommendation (for example: 'client_agent', 'lead_capture_agent')."
+            "description": "Upstream agent or partner system that produced this recommendation (for example: 'client_agent', 'lead_capture_agent', 'partner_x')."
           },
           "actions": {
             "type": "array",
@@ -310,11 +310,10 @@
             "type": "string",
             "enum": [
               "needs_attention",
-              "opportunity",
-              "fyi"
+              "opportunity"
             ],
             "default": "needs_attention",
-            "description": "The recommendation category proposed by the producer, used for categorization in the interface: 'needs_attention' (requires the user's attention), 'opportunity' (a potential value opportunity), or 'fyi' (informational only)."
+            "description": "The recommendation category proposed by the producer, used for categorization in the interface: 'needs_attention' (requires the user's attention) or 'opportunity' (a potential value opportunity)."
           },
           "priority": {
             "type": "string",
@@ -324,6 +323,15 @@
             ],
             "default": "standard",
             "description": "Relative ordering priority within the same category: 'high' (higher priority, surfaced first) or 'standard' (default priority)."
+          },
+          "execution_policy": {
+            "type": "string",
+            "enum": [
+              "auto_execute",
+              "requires_human_approval"
+            ],
+            "default": "requires_human_approval",
+            "description": "Defines whether this recommendation is auto-executed by an agent or requires human review before execution: 'auto_execute' (may be executed automatically by the system or an authorized agent) or 'requires_human_approval' (must be reviewed and approved by a human before execution)."
           },
           "tags": {
             "type": "array",
