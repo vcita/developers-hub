@@ -14,7 +14,7 @@
       "post": {
         "summary": "Create an announcement",
         "operationId": "createAnnouncement",
-        "description": "## Overview\nBroadcasts a message with an optional action button to a set of clients. Delivered immediately to each client's conversation over the requested channels (email/SMS).\n\n**Limits (announcements only, not campaigns):**\n- Maximum **20 clients** per announcement (`422` otherwise).\n- Trial businesses may send to at most **1 client** (`403` otherwise).\n- Businesses with the `pkg.crm.limit_bulk_actions` feature cannot send a bulk announcement whose `button_url` links to `online-scheduling` or `activity/dashboard` (`403`).\n- A `make-payment` `button_url` requires the staff `can_view_payments` permission; otherwise staff need full client access. `button_url` host is validated against the business livesite (external links rejected).\n\nAvailable for **Staff tokens**.",
+        "description": "## Overview\nBroadcasts a message with an optional action button to up to 20 clients, delivered immediately to each client's conversation over email and/or SMS; trial businesses may target only one client, and the action button URL must point to the business livesite. Requires the staff member to have marketing permissions (`has_marketing_permissions`).\n\nAvailable for **Staff tokens**.",
         "tags": [
           "Announcements"
         ],
@@ -25,7 +25,49 @@
             "required": true,
             "description": "Announcement payload.",
             "schema": {
-              "$ref": "#/definitions/AnnouncementRequest"
+              "type": "object",
+              "properties": {
+                "subject": {
+                  "type": "string",
+                  "description": "Announcement subject (e.g., \"We miss you!\")."
+                },
+                "text": {
+                  "type": "string",
+                  "description": "Announcement body text."
+                },
+                "announcement_type": {
+                  "type": "string",
+                  "description": "Announcement type (e.g., \"custom\", \"recover_document\")."
+                },
+                "action_text": {
+                  "type": "string",
+                  "maxLength": 255,
+                  "description": "Label for the action button (max 255 chars)."
+                },
+                "button_url": {
+                  "type": "string",
+                  "description": "Action button URL. Host must match the business livesite (external links rejected)."
+                },
+                "client_ids": {
+                  "type": "string",
+                  "description": "Comma-separated client UIDs (e.g., \"cli1,cli2\"). Maximum 20 clients."
+                },
+                "client_id": {
+                  "type": "string",
+                  "description": "Single client UID (alternative to client_ids)."
+                },
+                "conversation_ids": {
+                  "type": "string",
+                  "description": "Optional comma-separated conversation UIDs; resolved from clients when omitted."
+                },
+                "staff_id": {
+                  "type": "string",
+                  "description": "UID of the sending staff member."
+                }
+              },
+              "required": [
+                "text"
+              ]
             }
           }
         ],
@@ -86,7 +128,7 @@
       "get": {
         "summary": "List campaigns",
         "operationId": "listCampaigns",
-        "description": "## Overview\nReturns the business's campaigns. Pass `automatic=1` to list automated (trigger-based) campaigns; omit it for manual campaigns. Requires the staff member to have marketing permissions (`has_marketing_permissions`); otherwise the request returns `403`.\n\nAvailable for **Staff tokens**.",
+        "description": "## Overview\nReturns the business's campaigns; pass `automatic=1` to list automated (trigger-based) campaigns instead of manual ones. Requires the staff member to have marketing permissions (`has_marketing_permissions`).\n\nAvailable for **Staff tokens**.",
         "tags": [
           "Campaigns"
         ],
@@ -175,7 +217,7 @@
       "post": {
         "summary": "Create a campaign",
         "operationId": "createCampaign",
-        "description": "## Overview\nCreates a manual campaign. To make it automated, include the `automatic_campaign` object (or create a trigger via the campaign_triggers API). Requires the staff member to have marketing permissions (`has_marketing_permissions`); otherwise the request returns `403`.\n\nAvailable for **Staff tokens**.",
+        "description": "## Overview\nCreates a manual campaign; include the `automatic_campaign` object to make it automated. Requires the staff member to have marketing permissions (`has_marketing_permissions`).\n\nAvailable for **Staff tokens**.",
         "tags": [
           "Campaigns"
         ],
@@ -186,7 +228,123 @@
             "required": true,
             "description": "Campaign payload.",
             "schema": {
-              "$ref": "#/definitions/CampaignRequest"
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Internal campaign name (e.g., \"Spring Sale\")."
+                },
+                "title": {
+                  "type": "string",
+                  "description": "Display title."
+                },
+                "subject": {
+                  "type": "string",
+                  "description": "Email subject line."
+                },
+                "body": {
+                  "type": "string",
+                  "maxLength": 65535,
+                  "description": "Email HTML body (max 65535 chars)."
+                },
+                "sms_content": {
+                  "type": "string",
+                  "maxLength": 550,
+                  "description": "SMS body (max 550 chars)."
+                },
+                "button_text": {
+                  "type": "string",
+                  "description": "Call-to-action button label."
+                },
+                "button_text_color": {
+                  "type": "string",
+                  "description": "Button text color (hex, e.g., \"#ffffff\")."
+                },
+                "button_background_color": {
+                  "type": "string",
+                  "description": "Button background color (hex)."
+                },
+                "background_color": {
+                  "type": "string",
+                  "description": "Campaign background color (hex)."
+                },
+                "image": {
+                  "type": "string",
+                  "description": "Campaign image URL."
+                },
+                "action_data": {
+                  "type": "object",
+                  "description": "Call-to-action config with name, url, and options."
+                },
+                "channel": {
+                  "type": "string",
+                  "enum": [
+                    "email",
+                    "sms"
+                  ],
+                  "description": "Delivery channel."
+                },
+                "campaign_type": {
+                  "type": "string",
+                  "enum": [
+                    "basic",
+                    "pro"
+                  ],
+                  "description": "Campaign tier."
+                },
+                "archived": {
+                  "type": "boolean",
+                  "description": "Whether the campaign is archived."
+                },
+                "automatic_campaign": {
+                  "type": "object",
+                  "description": "Automated (trigger-based) configuration; include to make the campaign automatic.",
+                  "properties": {
+                    "active": {
+                      "type": "boolean",
+                      "description": "Whether the automated campaign is active."
+                    },
+                    "channel": {
+                      "type": "string",
+                      "enum": [
+                        "email",
+                        "sms"
+                      ],
+                      "description": "Delivery channel."
+                    },
+                    "campaign_type": {
+                      "type": "string",
+                      "enum": [
+                        "new_lead",
+                        "new_customer",
+                        "new_loyal",
+                        "birthday",
+                        "win_back",
+                        "new_review",
+                        "custom_date",
+                        "first_completed_booking"
+                      ],
+                      "description": "Trigger type (which client event fires the automated send)."
+                    },
+                    "recipients_filter": {
+                      "type": "string",
+                      "description": "Serialized JSON recipient filter."
+                    },
+                    "date_filter": {
+                      "type": "string",
+                      "description": "Serialized JSON date filter."
+                    },
+                    "delivery_time": {
+                      "type": "string",
+                      "description": "Time of day to deliver (e.g., \"09:00\")."
+                    },
+                    "send_secondary": {
+                      "type": "boolean",
+                      "description": "Also send over the secondary channel."
+                    }
+                  }
+                }
+              }
             }
           }
         ],
@@ -263,7 +421,7 @@
       "get": {
         "summary": "Get a campaign",
         "operationId": "getCampaign",
-        "description": "## Overview\nReturns a single campaign by UID. Requires the staff member to have marketing permissions (`has_marketing_permissions`); otherwise the request returns `403`.\n\nAvailable for **Staff tokens**.",
+        "description": "## Overview\nReturns a single campaign by UID. Requires the staff member to have marketing permissions (`has_marketing_permissions`).\n\nAvailable for **Staff tokens**.",
         "tags": [
           "Campaigns"
         ],
@@ -338,7 +496,7 @@
       "put": {
         "summary": "Update a campaign",
         "operationId": "updateCampaign",
-        "description": "## Overview\nUpdates a campaign. Original `source` and `staff_uid` are preserved. Requires the staff member to have marketing permissions (`has_marketing_permissions`); otherwise the request returns `403`.\n\nAvailable for **Staff tokens**.",
+        "description": "## Overview\nUpdates a campaign; the original source and owning staff are preserved. Requires the staff member to have marketing permissions (`has_marketing_permissions`).\n\nAvailable for **Staff tokens**.",
         "tags": [
           "Campaigns"
         ],
@@ -356,7 +514,123 @@
             "required": true,
             "description": "Fields to update.",
             "schema": {
-              "$ref": "#/definitions/CampaignRequest"
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Internal campaign name (e.g., \"Spring Sale\")."
+                },
+                "title": {
+                  "type": "string",
+                  "description": "Display title."
+                },
+                "subject": {
+                  "type": "string",
+                  "description": "Email subject line."
+                },
+                "body": {
+                  "type": "string",
+                  "maxLength": 65535,
+                  "description": "Email HTML body (max 65535 chars)."
+                },
+                "sms_content": {
+                  "type": "string",
+                  "maxLength": 550,
+                  "description": "SMS body (max 550 chars)."
+                },
+                "button_text": {
+                  "type": "string",
+                  "description": "Call-to-action button label."
+                },
+                "button_text_color": {
+                  "type": "string",
+                  "description": "Button text color (hex, e.g., \"#ffffff\")."
+                },
+                "button_background_color": {
+                  "type": "string",
+                  "description": "Button background color (hex)."
+                },
+                "background_color": {
+                  "type": "string",
+                  "description": "Campaign background color (hex)."
+                },
+                "image": {
+                  "type": "string",
+                  "description": "Campaign image URL."
+                },
+                "action_data": {
+                  "type": "object",
+                  "description": "Call-to-action config with name, url, and options."
+                },
+                "channel": {
+                  "type": "string",
+                  "enum": [
+                    "email",
+                    "sms"
+                  ],
+                  "description": "Delivery channel."
+                },
+                "campaign_type": {
+                  "type": "string",
+                  "enum": [
+                    "basic",
+                    "pro"
+                  ],
+                  "description": "Campaign tier."
+                },
+                "archived": {
+                  "type": "boolean",
+                  "description": "Whether the campaign is archived."
+                },
+                "automatic_campaign": {
+                  "type": "object",
+                  "description": "Automated (trigger-based) configuration; include to make the campaign automatic.",
+                  "properties": {
+                    "active": {
+                      "type": "boolean",
+                      "description": "Whether the automated campaign is active."
+                    },
+                    "channel": {
+                      "type": "string",
+                      "enum": [
+                        "email",
+                        "sms"
+                      ],
+                      "description": "Delivery channel."
+                    },
+                    "campaign_type": {
+                      "type": "string",
+                      "enum": [
+                        "new_lead",
+                        "new_customer",
+                        "new_loyal",
+                        "birthday",
+                        "win_back",
+                        "new_review",
+                        "custom_date",
+                        "first_completed_booking"
+                      ],
+                      "description": "Trigger type (which client event fires the automated send)."
+                    },
+                    "recipients_filter": {
+                      "type": "string",
+                      "description": "Serialized JSON recipient filter."
+                    },
+                    "date_filter": {
+                      "type": "string",
+                      "description": "Serialized JSON date filter."
+                    },
+                    "delivery_time": {
+                      "type": "string",
+                      "description": "Time of day to deliver (e.g., \"09:00\")."
+                    },
+                    "send_secondary": {
+                      "type": "boolean",
+                      "description": "Also send over the secondary channel."
+                    }
+                  }
+                }
+              }
             }
           }
         ],
@@ -436,7 +710,7 @@
       "post": {
         "summary": "Send a campaign",
         "operationId": "sendCampaign",
-        "description": "## Overview\n**Delivers** the campaign to its recipients now (or schedules it when `scheduled_to` is set). This is a side-effecting operation. Preview reach first with `confirmation_data` / `estimate_recipients`. Requires the staff member to have marketing permissions (`has_marketing_permissions`); otherwise the request returns `403`.\n\nAvailable for **Staff tokens**.",
+        "description": "## Overview\nDelivers the campaign to its recipients now, or schedules it when `scheduled_to` is set; preview reach first with the confirmation_data and estimate_recipients endpoints. Requires the staff member to have marketing permissions (`has_marketing_permissions`).\n\nAvailable for **Staff tokens**.",
         "tags": [
           "Campaigns"
         ],
@@ -454,7 +728,63 @@
             "required": true,
             "description": "Send options.",
             "schema": {
-              "$ref": "#/definitions/SendCampaignRequest"
+              "type": "object",
+              "properties": {
+                "channel": {
+                  "type": "string",
+                  "enum": [
+                    "email",
+                    "sms"
+                  ],
+                  "description": "Delivery channel."
+                },
+                "subject": {
+                  "type": "string",
+                  "description": "Override subject for this send."
+                },
+                "sms_content": {
+                  "type": "string",
+                  "description": "Override SMS content for this send."
+                },
+                "test": {
+                  "type": "boolean",
+                  "description": "Send a test to the business only."
+                },
+                "send_secondary": {
+                  "type": "boolean",
+                  "description": "Also send over the secondary channel."
+                },
+                "send_again": {
+                  "type": "boolean",
+                  "description": "Allow re-sending to recipients who already received it."
+                },
+                "double_opt_in": {
+                  "type": "boolean",
+                  "description": "Require double opt-in for SMS."
+                },
+                "scheduled_to": {
+                  "type": "string",
+                  "description": "ISO 8601 time to schedule the send (must be in the future). Omit to send now."
+                },
+                "all_clients": {
+                  "type": "boolean",
+                  "description": "Target all clients."
+                },
+                "tags": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Target clients matching these tags."
+                },
+                "recipients": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Explicit client UIDs to target."
+                }
+              }
             }
           }
         ],
@@ -507,7 +837,7 @@
       "post": {
         "summary": "Clone a campaign",
         "operationId": "cloneCampaign",
-        "description": "## Overview\nCreates a copy of an existing campaign. Requires the staff member to have marketing permissions (`has_marketing_permissions`); otherwise the request returns `403`.\n\nAvailable for **Staff tokens**.",
+        "description": "## Overview\nCreates a copy of an existing campaign. Requires the staff member to have marketing permissions (`has_marketing_permissions`).\n\nAvailable for **Staff tokens**.",
         "tags": [
           "Campaigns"
         ],
@@ -584,7 +914,7 @@
       "post": {
         "summary": "Clone a suggested campaign",
         "operationId": "cloneSuggestionCampaign",
-        "description": "## Overview\nCreates a campaign from a suggested/preset campaign. Requires the staff member to have marketing permissions (`has_marketing_permissions`); otherwise the request returns `403`.\n\nAvailable for **Staff tokens**.",
+        "description": "## Overview\nCreates a campaign from a suggested or preset campaign. Requires the staff member to have marketing permissions (`has_marketing_permissions`).\n\nAvailable for **Staff tokens**.",
         "tags": [
           "Campaigns"
         ],
@@ -661,7 +991,7 @@
       "post": {
         "summary": "Archive a campaign",
         "operationId": "archiveCampaign",
-        "description": "## Overview\nArchives (soft-deletes) a campaign. There is no hard-delete; archiving is the delete operation. Requires the staff member to have marketing permissions (`has_marketing_permissions`); otherwise the request returns `403`.\n\nAvailable for **Staff tokens**.",
+        "description": "## Overview\nArchives (soft-deletes) a campaign; archiving is the delete operation, there is no hard destroy. Requires the staff member to have marketing permissions (`has_marketing_permissions`).\n\nAvailable for **Staff tokens**.",
         "tags": [
           "Campaigns"
         ],
@@ -711,7 +1041,7 @@
       "post": {
         "summary": "Pre-send recipient validation",
         "operationId": "campaignConfirmationData",
-        "description": "## Overview\nDry-run that validates recipients before sending: how many will receive email/SMS and which are blocked, unsubscribed, already-received, or missing contact details. No messages are sent. Requires the staff member to have marketing permissions (`has_marketing_permissions`); otherwise the request returns `403`.\n\nAvailable for **Staff tokens**.",
+        "description": "## Overview\nDry-run that reports how many recipients will receive email/SMS and which are blocked, unsubscribed, already-received, or missing contact details; no messages are sent. Requires the staff member to have marketing permissions (`has_marketing_permissions`).\n\nAvailable for **Staff tokens**.",
         "tags": [
           "Campaigns"
         ],
@@ -729,7 +1059,63 @@
             "required": true,
             "description": "Recipient/channel selection to validate.",
             "schema": {
-              "$ref": "#/definitions/SendCampaignRequest"
+              "type": "object",
+              "properties": {
+                "channel": {
+                  "type": "string",
+                  "enum": [
+                    "email",
+                    "sms"
+                  ],
+                  "description": "Delivery channel."
+                },
+                "subject": {
+                  "type": "string",
+                  "description": "Override subject for this send."
+                },
+                "sms_content": {
+                  "type": "string",
+                  "description": "Override SMS content for this send."
+                },
+                "test": {
+                  "type": "boolean",
+                  "description": "Send a test to the business only."
+                },
+                "send_secondary": {
+                  "type": "boolean",
+                  "description": "Also send over the secondary channel."
+                },
+                "send_again": {
+                  "type": "boolean",
+                  "description": "Allow re-sending to recipients who already received it."
+                },
+                "double_opt_in": {
+                  "type": "boolean",
+                  "description": "Require double opt-in for SMS."
+                },
+                "scheduled_to": {
+                  "type": "string",
+                  "description": "ISO 8601 time to schedule the send (must be in the future). Omit to send now."
+                },
+                "all_clients": {
+                  "type": "boolean",
+                  "description": "Target all clients."
+                },
+                "tags": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Target clients matching these tags."
+                },
+                "recipients": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Explicit client UIDs to target."
+                }
+              }
             }
           }
         ],
@@ -776,7 +1162,7 @@
       "get": {
         "summary": "Estimate recipients",
         "operationId": "estimateCampaignRecipients",
-        "description": "## Overview\nReturns the estimated number of recipients for the campaign's current targeting. Requires the staff member to have marketing permissions (`has_marketing_permissions`); otherwise the request returns `403`.\n\nAvailable for **Staff tokens**.",
+        "description": "## Overview\nReturns the estimated number of recipients for the campaign's current targeting. Requires the staff member to have marketing permissions (`has_marketing_permissions`).\n\nAvailable for **Staff tokens**.",
         "tags": [
           "Campaigns"
         ],
@@ -822,7 +1208,7 @@
       "get": {
         "summary": "List campaign recipients",
         "operationId": "listCampaignRecipients",
-        "description": "## Overview\nReturns per-recipient tracking rows for a campaign. Filterable by status, name, and channel. Requires the staff member to have marketing permissions (`has_marketing_permissions`); otherwise the request returns `403`.\n\nAvailable for **Staff tokens**.",
+        "description": "## Overview\nReturns per-recipient tracking rows for a campaign, filterable by status, name, and channel. Requires the staff member to have marketing permissions (`has_marketing_permissions`).\n\nAvailable for **Staff tokens**.",
         "tags": [
           "Campaigns"
         ],
@@ -839,7 +1225,7 @@
             "name": "filter[by_status]",
             "required": false,
             "type": "string",
-            "description": "Filter recipients by status (e.g. `delivered`, `bounced`, `viewed`)."
+            "description": "Filter recipients by status (e.g., \"delivered\", \"bounced\", \"viewed\")."
           },
           {
             "in": "query",
@@ -910,7 +1296,7 @@
       "get": {
         "summary": "Get campaign counters",
         "operationId": "getCampaignCounters",
-        "description": "## Overview\nReturns aggregate funnel counters (added, delivered, viewed, clicked, acted, bounced, spam) for a campaign. Requires the staff member to have marketing permissions (`has_marketing_permissions`); otherwise the request returns `403`.\n\nAvailable for **Staff tokens**.",
+        "description": "## Overview\nReturns aggregate funnel counters (added, delivered, viewed, clicked, acted, bounced, spam) for a campaign. Requires the staff member to have marketing permissions (`has_marketing_permissions`).\n\nAvailable for **Staff tokens**.",
         "tags": [
           "Campaigns"
         ],
@@ -976,7 +1362,7 @@
       "get": {
         "summary": "List suggested campaigns",
         "operationId": "listSuggestedCampaigns",
-        "description": "## Overview\nReturns suggested/preset campaigns the business can clone. Requires the staff member to have marketing permissions (`has_marketing_permissions`); otherwise the request returns `403`.\n\nAvailable for **Staff tokens**.",
+        "description": "## Overview\nReturns suggested or preset campaigns the business can clone. Requires the staff member to have marketing permissions (`has_marketing_permissions`).\n\nAvailable for **Staff tokens**.",
         "tags": [
           "Campaigns"
         ],
@@ -1028,7 +1414,7 @@
       "get": {
         "summary": "List suggested campaigns by category",
         "operationId": "listSuggestedCampaignsByCategory",
-        "description": "## Overview\nReturns suggested campaigns grouped by category. Requires the staff member to have marketing permissions (`has_marketing_permissions`); otherwise the request returns `403`.\n\nAvailable for **Staff tokens**.",
+        "description": "## Overview\nReturns suggested campaigns grouped by category. Requires the staff member to have marketing permissions (`has_marketing_permissions`).\n\nAvailable for **Staff tokens**.",
         "tags": [
           "Campaigns"
         ],
@@ -1082,7 +1468,7 @@
       "get": {
         "summary": "List scheduled campaigns",
         "operationId": "listScheduledCampaigns",
-        "description": "## Overview\nReturns scheduled and sent campaign instances. Supports manual/automatic and delivery-method filters and a `sent_at` range. Requires the staff member to have marketing permissions (`has_marketing_permissions`); otherwise the request returns `403`.\n\nAvailable for **Staff tokens**.",
+        "description": "## Overview\nReturns scheduled and sent campaign instances, with manual/automatic, delivery-method, and sent-at range filters. Requires the staff member to have marketing permissions (`has_marketing_permissions`).\n\nAvailable for **Staff tokens**.",
         "tags": [
           "Scheduled Campaigns"
         ],
@@ -1117,14 +1503,14 @@
             "name": "sent_at_filter[range][gte]",
             "required": false,
             "type": "string",
-            "description": "Lower bound for sent-at range (ISO 8601)."
+            "description": "Lower bound for the sent-at range (ISO 8601)."
           },
           {
             "in": "query",
             "name": "sent_at_filter[range][lte]",
             "required": false,
             "type": "string",
-            "description": "Upper bound for sent-at range (ISO 8601)."
+            "description": "Upper bound for the sent-at range (ISO 8601)."
           },
           {
             "in": "query",
@@ -1173,7 +1559,7 @@
       "put": {
         "summary": "Cancel a scheduled campaign",
         "operationId": "cancelScheduledCampaign",
-        "description": "## Overview\nCancels a scheduled campaign instance so it will not be sent. Requires the staff member to have marketing permissions (`has_marketing_permissions`); otherwise the request returns `403`.\n\nAvailable for **Staff tokens**.",
+        "description": "## Overview\nCancels a scheduled campaign instance so it will not be sent. Requires the staff member to have marketing permissions (`has_marketing_permissions`).\n\nAvailable for **Staff tokens**.",
         "tags": [
           "Scheduled Campaigns"
         ],
@@ -1189,9 +1575,18 @@
             "in": "body",
             "name": "body",
             "required": true,
-            "description": "Set `cancel` to true.",
+            "description": "Set cancel to true.",
             "schema": {
-              "$ref": "#/definitions/CancelScheduledCampaignRequest"
+              "type": "object",
+              "properties": {
+                "cancel": {
+                  "type": "boolean",
+                  "description": "Set to true to cancel the scheduled campaign."
+                }
+              },
+              "required": [
+                "cancel"
+              ]
             }
           }
         ],
@@ -1232,7 +1627,7 @@
       "put": {
         "summary": "Reschedule a scheduled campaign",
         "operationId": "changeScheduledCampaignTime",
-        "description": "## Overview\nChanges the delivery time of a scheduled campaign. `scheduled_to` must be in the future. Requires the staff member to have marketing permissions (`has_marketing_permissions`); otherwise the request returns `403`.\n\nAvailable for **Staff tokens**.",
+        "description": "## Overview\nChanges the delivery time of a scheduled campaign; the new time must be in the future. Requires the staff member to have marketing permissions (`has_marketing_permissions`).\n\nAvailable for **Staff tokens**.",
         "tags": [
           "Scheduled Campaigns"
         ],
@@ -1250,7 +1645,16 @@
             "required": true,
             "description": "New scheduled time.",
             "schema": {
-              "$ref": "#/definitions/ChangeTimeRequest"
+              "type": "object",
+              "properties": {
+                "scheduled_to": {
+                  "type": "string",
+                  "description": "New delivery time (ISO 8601, must be in the future)."
+                }
+              },
+              "required": [
+                "scheduled_to"
+              ]
             }
           }
         ],
@@ -1313,7 +1717,7 @@
             "name": "filter[campaign_type]",
             "required": false,
             "type": "string",
-            "description": "Template campaign type (e.g. `pro`)."
+            "description": "Template campaign type (e.g., \"pro\")."
           },
           {
             "in": "query",
@@ -1475,7 +1879,7 @@
       "post": {
         "summary": "Create a campaign trigger",
         "operationId": "createCampaignTrigger",
-        "description": "## Overview\nCreates an automated-campaign trigger that sends a campaign when an event/condition matches (e.g. birthday, new lead).\n\nAvailable for **Staff tokens**.",
+        "description": "## Overview\nCreates an automated-campaign trigger that sends a campaign when a client event matches (e.g., birthday, new lead).\n\nAvailable for **Staff tokens**.",
         "tags": [
           "Campaign Triggers"
         ],
@@ -1493,7 +1897,51 @@
             "required": true,
             "description": "Trigger configuration.",
             "schema": {
-              "$ref": "#/definitions/CampaignTriggerRequest"
+              "type": "object",
+              "properties": {
+                "active": {
+                  "type": "boolean",
+                  "description": "Whether the trigger is active."
+                },
+                "channel": {
+                  "type": "string",
+                  "enum": [
+                    "email",
+                    "sms"
+                  ],
+                  "description": "Delivery channel."
+                },
+                "campaign_type": {
+                  "type": "string",
+                  "enum": [
+                    "new_lead",
+                    "new_customer",
+                    "new_loyal",
+                    "birthday",
+                    "win_back",
+                    "new_review",
+                    "custom_date",
+                    "first_completed_booking"
+                  ],
+                  "description": "Trigger type (which client event fires the automated send)."
+                },
+                "recipients_filter": {
+                  "type": "string",
+                  "description": "Serialized JSON recipient filter."
+                },
+                "date_filter": {
+                  "type": "string",
+                  "description": "Serialized JSON date filter."
+                },
+                "delivery_time": {
+                  "type": "string",
+                  "description": "Time of day to deliver (e.g., \"09:00\")."
+                },
+                "send_secondary": {
+                  "type": "boolean",
+                  "description": "Also send over the secondary channel."
+                }
+              }
             }
           }
         ],
@@ -1589,7 +2037,7 @@
       "put": {
         "summary": "Update a campaign trigger",
         "operationId": "updateCampaignTrigger",
-        "description": "## Overview\nUpdates a campaign trigger (e.g. activate/deactivate, change filters or delivery time).\n\nAvailable for **Staff tokens**.",
+        "description": "## Overview\nUpdates a campaign trigger, e.g., activate or deactivate it or change its filters or delivery time.\n\nAvailable for **Staff tokens**.",
         "tags": [
           "Campaign Triggers"
         ],
@@ -1607,7 +2055,51 @@
             "required": true,
             "description": "Trigger fields to update.",
             "schema": {
-              "$ref": "#/definitions/CampaignTriggerRequest"
+              "type": "object",
+              "properties": {
+                "active": {
+                  "type": "boolean",
+                  "description": "Whether the trigger is active."
+                },
+                "channel": {
+                  "type": "string",
+                  "enum": [
+                    "email",
+                    "sms"
+                  ],
+                  "description": "Delivery channel."
+                },
+                "campaign_type": {
+                  "type": "string",
+                  "enum": [
+                    "new_lead",
+                    "new_customer",
+                    "new_loyal",
+                    "birthday",
+                    "win_back",
+                    "new_review",
+                    "custom_date",
+                    "first_completed_booking"
+                  ],
+                  "description": "Trigger type (which client event fires the automated send)."
+                },
+                "recipients_filter": {
+                  "type": "string",
+                  "description": "Serialized JSON recipient filter."
+                },
+                "date_filter": {
+                  "type": "string",
+                  "description": "Serialized JSON date filter."
+                },
+                "delivery_time": {
+                  "type": "string",
+                  "description": "Time of day to deliver (e.g., \"09:00\")."
+                },
+                "send_secondary": {
+                  "type": "boolean",
+                  "description": "Also send over the secondary channel."
+                }
+              }
             }
           }
         ],
@@ -1659,7 +2151,7 @@
       "get": {
         "summary": "Get SMS keyword settings",
         "operationId": "getCampaignKeyword",
-        "description": "## Overview\nReturns the business's SMS opt-in keyword configuration (Tatango).\n\nAvailable for **Staff tokens**.",
+        "description": "## Overview\nReturns the business's SMS opt-in keyword configuration.\n\nAvailable for **Staff tokens**.",
         "tags": [
           "Campaign SMS Keyword"
         ],
@@ -1748,7 +2240,16 @@
             "required": true,
             "description": "Keyword to set.",
             "schema": {
-              "$ref": "#/definitions/SetKeywordRequest"
+              "type": "object",
+              "properties": {
+                "keyword": {
+                  "type": "string",
+                  "description": "The SMS opt-in keyword to set (e.g., \"JOIN\")."
+                }
+              },
+              "required": [
+                "keyword"
+              ]
             }
           }
         ],
@@ -1805,7 +2306,16 @@
             "required": true,
             "description": "Success message text.",
             "schema": {
-              "$ref": "#/definitions/SetSuccessMessageRequest"
+              "type": "object",
+              "properties": {
+                "success_message": {
+                  "type": "string",
+                  "description": "Confirmation message sent after opt-in."
+                }
+              },
+              "required": [
+                "success_message"
+              ]
             }
           }
         ],
@@ -1846,341 +2356,6 @@
           }
         ]
       }
-    }
-  },
-  "definitions": {
-    "AnnouncementRequest": {
-      "type": "object",
-      "properties": {
-        "subject": {
-          "type": "string",
-          "description": "Announcement subject (e.g., \"We miss you!\")."
-        },
-        "text": {
-          "type": "string",
-          "description": "Announcement body text. Required."
-        },
-        "announcement_type": {
-          "type": "string",
-          "description": "Announcement type (e.g., \"custom\", \"recover_document\")."
-        },
-        "action_text": {
-          "type": "string",
-          "description": "Label for the action button (max 255 chars)."
-        },
-        "button_url": {
-          "type": "string",
-          "description": "Action button URL. Host must match the business livesite (external links rejected)."
-        },
-        "client_ids": {
-          "type": "string",
-          "description": "Comma-separated client UIDs (e.g., \"cli1,cli2\"). Max 20 clients."
-        },
-        "client_id": {
-          "type": "string",
-          "description": "Single client UID (alternative to client_ids)."
-        },
-        "conversation_ids": {
-          "type": "string",
-          "description": "Optional comma-separated conversation UIDs; resolved from clients when omitted."
-        },
-        "staff_id": {
-          "type": "string",
-          "description": "UID of the sending staff member."
-        }
-      },
-      "required": [
-        "text"
-      ]
-    },
-    "CampaignRequest": {
-      "type": "object",
-      "description": "Campaign create/update payload. Read-only fields (uid, counters, campaign_url, timestamps) are omitted.",
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "Internal campaign name (e.g., \"Spring Sale\")."
-        },
-        "title": {
-          "type": "string",
-          "description": "Display title."
-        },
-        "subject": {
-          "type": "string",
-          "description": "Email subject line."
-        },
-        "body": {
-          "type": "string",
-          "description": "Email HTML body (max 65535 chars)."
-        },
-        "sms_content": {
-          "type": "string",
-          "description": "SMS body (max 550 chars)."
-        },
-        "button_text": {
-          "type": "string",
-          "description": "Call-to-action button label."
-        },
-        "button_text_color": {
-          "type": "string",
-          "description": "Button text color (hex, e.g., \"#ffffff\")."
-        },
-        "button_background_color": {
-          "type": "string",
-          "description": "Button background color (hex)."
-        },
-        "background_color": {
-          "type": "string",
-          "description": "Campaign background color (hex)."
-        },
-        "image": {
-          "type": "string",
-          "description": "Campaign image URL."
-        },
-        "original_image_url": {
-          "type": "string",
-          "description": "Original (unprocessed) image URL."
-        },
-        "action_data": {
-          "type": "object",
-          "description": "Call-to-action config: {name, url, options}."
-        },
-        "channel": {
-          "type": "string",
-          "enum": [
-            "email",
-            "sms"
-          ],
-          "description": "Delivery channel."
-        },
-        "campaign_type": {
-          "type": "string",
-          "enum": [
-            "basic",
-            "pro"
-          ],
-          "description": "Campaign tier."
-        },
-        "archived": {
-          "type": "boolean",
-          "description": "Whether the campaign is archived."
-        },
-        "source": {
-          "type": "string",
-          "description": "Origin of the campaign (backend-managed for create)."
-        },
-        "staff_uid": {
-          "type": "string",
-          "description": "Owning staff UID."
-        },
-        "automatic_campaign": {
-          "$ref": "#/definitions/AutomaticCampaign"
-        }
-      }
-    },
-    "AutomaticCampaign": {
-      "type": "object",
-      "description": "Automated (trigger-based) campaign configuration nested on a campaign.",
-      "properties": {
-        "active": {
-          "type": "boolean",
-          "description": "Whether the automated campaign is active."
-        },
-        "channel": {
-          "type": "string",
-          "enum": [
-            "email",
-            "sms"
-          ],
-          "description": "Delivery channel."
-        },
-        "campaign_type": {
-          "type": "string",
-          "enum": [
-            "new_lead",
-            "new_customer",
-            "new_loyal",
-            "birthday",
-            "win_back",
-            "new_review",
-            "custom_date",
-            "first_completed_booking"
-          ],
-          "description": "Trigger type."
-        },
-        "recipients_filter": {
-          "type": "string",
-          "description": "Serialized JSON recipient filter."
-        },
-        "date_filter": {
-          "type": "string",
-          "description": "Serialized JSON date filter."
-        },
-        "delivery_time": {
-          "type": "string",
-          "description": "Time of day to deliver (e.g., \"09:00\")."
-        },
-        "send_secondary": {
-          "type": "boolean",
-          "description": "Whether to also send over the secondary channel."
-        }
-      }
-    },
-    "SendCampaignRequest": {
-      "type": "object",
-      "description": "Options for sending or validating a campaign send.",
-      "properties": {
-        "channel": {
-          "type": "string",
-          "enum": [
-            "email",
-            "sms"
-          ],
-          "description": "Delivery channel."
-        },
-        "subject": {
-          "type": "string",
-          "description": "Override subject for this send."
-        },
-        "sms_content": {
-          "type": "string",
-          "description": "Override SMS content for this send."
-        },
-        "test": {
-          "type": "boolean",
-          "description": "Send a test to the business only."
-        },
-        "send_secondary": {
-          "type": "boolean",
-          "description": "Also send over the secondary channel."
-        },
-        "send_again": {
-          "type": "boolean",
-          "description": "Allow re-sending to recipients who already received it."
-        },
-        "double_opt_in": {
-          "type": "boolean",
-          "description": "Require double opt-in for SMS."
-        },
-        "scheduled_to": {
-          "type": "string",
-          "description": "ISO 8601 time to schedule the send (future). Omit to send now."
-        },
-        "all_clients": {
-          "type": "boolean",
-          "description": "Target all clients."
-        },
-        "tags": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "Target clients matching these tags."
-        },
-        "recipients": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "Explicit client UIDs to target."
-        }
-      }
-    },
-    "CancelScheduledCampaignRequest": {
-      "type": "object",
-      "properties": {
-        "cancel": {
-          "type": "boolean",
-          "description": "Set to true to cancel."
-        }
-      },
-      "required": [
-        "cancel"
-      ]
-    },
-    "ChangeTimeRequest": {
-      "type": "object",
-      "properties": {
-        "scheduled_to": {
-          "type": "string",
-          "description": "New delivery time (ISO 8601, must be in the future)."
-        }
-      },
-      "required": [
-        "scheduled_to"
-      ]
-    },
-    "CampaignTriggerRequest": {
-      "type": "object",
-      "description": "Automated-campaign trigger configuration.",
-      "properties": {
-        "active": {
-          "type": "boolean",
-          "description": "Whether the trigger is active."
-        },
-        "channel": {
-          "type": "string",
-          "enum": [
-            "email",
-            "sms"
-          ],
-          "description": "Delivery channel."
-        },
-        "campaign_type": {
-          "type": "string",
-          "enum": [
-            "new_lead",
-            "new_customer",
-            "new_loyal",
-            "birthday",
-            "win_back",
-            "new_review",
-            "custom_date",
-            "first_completed_booking"
-          ],
-          "description": "Trigger type."
-        },
-        "recipients_filter": {
-          "type": "string",
-          "description": "Serialized JSON recipient filter."
-        },
-        "date_filter": {
-          "type": "string",
-          "description": "Serialized JSON date filter."
-        },
-        "delivery_time": {
-          "type": "string",
-          "description": "Time of day to deliver (e.g., \"09:00\")."
-        },
-        "send_secondary": {
-          "type": "boolean",
-          "description": "Also send over the secondary channel."
-        }
-      }
-    },
-    "SetKeywordRequest": {
-      "type": "object",
-      "properties": {
-        "keyword": {
-          "type": "string",
-          "description": "The SMS opt-in keyword to set (e.g., \"JOIN\")."
-        }
-      },
-      "required": [
-        "keyword"
-      ]
-    },
-    "SetSuccessMessageRequest": {
-      "type": "object",
-      "properties": {
-        "success_message": {
-          "type": "string",
-          "description": "Confirmation message sent after opt-in."
-        }
-      },
-      "required": [
-        "success_message"
-      ]
     }
   },
   "securityDefinitions": {
