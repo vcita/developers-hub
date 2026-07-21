@@ -6,8 +6,8 @@
     "version": "3.0",
     "x-generated": {
       "sourceFiles": [
-        "business_rules.json",
         "recommendations.json",
+        "business_rules.json",
         "bizai.json",
         "ai_smart_reply.json",
         "generic_ai.json",
@@ -47,6 +47,273 @@
     }
   ],
   "paths": {
+    "/v3/ai/ai_recommendations": {
+      "get": {
+        "tags": [
+          "AI Recommendations"
+        ],
+        "summary": "Get all AIRecommendations",
+        "description": "## Overview\nRetrieve a list of AIRecommendations with optional filtering by status, target, and context.\n\nAvailable for **Staff, Directory, and Client tokens**",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number of results.",
+            "schema": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 10000,
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "How many items to return per page. Max: 100",
+            "schema": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Sort by fields. Example: sort=created_at:asc,updated_at:desc",
+            "schema": {
+              "type": "string",
+              "default": "updated_at:desc"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "completed",
+                "dismissed",
+                "approved",
+                "snoozed"
+              ]
+            },
+            "description": "Filter by recommendation lifecycle state: 'active', 'completed', 'dismissed', 'approved', or 'snoozed'."
+          },
+          {
+            "name": "target",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by target actor UID."
+          },
+          {
+            "name": "context",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by context UID."
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "needs_attention",
+                "opportunity",
+                "fyi",
+                "upcoming"
+              ]
+            },
+            "description": "Filter by category bucket. Each record belongs to one bucket only, checked in this order:\nupcoming – due_at is in the future (based on time, even if the stored category is different).\nfyi – due_at is not in the future and execution_policy is auto_execute (again, based on fields, not stored category).\nneeds_attention / opportunity – stored category is one of these, due_at is not in the future, and execution_policy is requires_human_approval."
+          },
+          {
+            "name": "producer",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by the record's 'producer' (creation source). When omitted, only legacy records with an empty 'producer' are returned (default). Pass 'any' to return only records that have a non-empty 'producer', or pass a specific producer value (for example: 'client_agent') to return only records from that producer."
+          },
+          {
+            "name": "include",
+            "in": "query",
+            "description": "Optional data sets to include in the response, beyond the recommendations list. Supported values: 'counts' (adds per-category totals under 'meta.counts'). Repeat the parameter to request multiple. When omitted, no extra data is returned and 'meta' is absent.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "counts"
+                ]
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of AIRecommendations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/AIRecommendationList"
+                        },
+                        "meta": {
+                          "type": "object",
+                          "description": "Additional response metadata not tied to the returned page of recommendations. Present only when requested via the 'include' query parameter.",
+                          "properties": {
+                            "counts": {
+                              "type": "object",
+                              "description": "Returned only when 'include=counts' is requested. Number of recommendations per bucket across the full set matching every query filter except 'category' (that is: 'target', 'context', 'status', and 'producer' are all applied; 'category' is intentionally ignored). This lets the caller show how many items exist in each bucket regardless of the category currently being requested. The counts are computed scope-wide - they are also independent of pagination, so they reflect totals even for buckets not present in the returned page. Every matching recommendation is counted in exactly one bucket (no overlap), evaluated in this order: future 'due_at' -> 'upcoming'; else 'execution_policy' = 'auto_execute' -> 'fyi'; else by stored category -> 'needs_attention' or 'opportunity'.",
+                              "properties": {
+                                "needs_attention": {
+                                  "type": "integer",
+                                  "description": "Recommendations with stored category 'needs_attention', a non-future 'due_at', and 'execution_policy' = 'requires_human_approval'."
+                                },
+                                "upcoming": {
+                                  "type": "integer",
+                                  "description": "Recommendations whose 'due_at' is in the future, regardless of stored category. Derived bucket - these are excluded from every other bucket."
+                                },
+                                "opportunity": {
+                                  "type": "integer",
+                                  "description": "Recommendations with stored category 'opportunity', a non-future 'due_at', and 'execution_policy' = 'requires_human_approval'."
+                                },
+                                "fyi": {
+                                  "type": "integer",
+                                  "description": "Non-future recommendations whose 'execution_policy' is 'auto_execute', regardless of stored category. Derived bucket."
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "AI Recommendations"
+        ],
+        "summary": "Create an AIRecommendation",
+        "description": "## Overview\nCreate a new AIRecommendation.\n\n**Available for Staff tokens**",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AIRecommendationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "AIRecommendation created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/AIRecommendation.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/ai/ai_recommendations/{uid}": {
+      "put": {
+        "tags": [
+          "AI Recommendations"
+        ],
+        "summary": "Update an AIRecommendation",
+        "description": "## Overview\nUpdate an existing AIRecommendation by UID.\n\n**Available for Staff tokens**",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AIRecommendationUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "AIRecommendation updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/AIRecommendation.json"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v3/ai/business_rules/bulk": {
       "post": {
         "operationId": "BusinessRulesController_createBulkImportJob",
@@ -964,171 +1231,6 @@
         "tags": [
           "BizAI Business Rules"
         ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/ai/ai_recommendations": {
-      "get": {
-        "tags": [
-          "AI Recommendations"
-        ],
-        "summary": "Get all AIRecommendations",
-        "description": "## Overview\nRetrieve a list of AIRecommendations with optional filtering by status, target, and context.\n\nAvailable for **Staff, Directory, and Client tokens**",
-        "parameters": [
-          {
-            "name": "status",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            },
-            "description": "Filter by recommendation status."
-          },
-          {
-            "name": "target",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            },
-            "description": "Filter by target actor UID."
-          },
-          {
-            "name": "context",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            },
-            "description": "Filter by context UID."
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "A list of AIRecommendations",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/AIRecommendationList"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      },
-      "post": {
-        "tags": [
-          "AI Recommendations"
-        ],
-        "summary": "Create an AIRecommendation",
-        "description": "## Overview\nCreate a new AIRecommendation.\n\n**Available for Staff tokens**",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AIRecommendationRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "AIRecommendation created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/AIRecommendation.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/ai/ai_recommendations/{uid}": {
-      "put": {
-        "tags": [
-          "AI Recommendations"
-        ],
-        "summary": "Update an AIRecommendation",
-        "description": "## Overview\nUpdate an existing AIRecommendation by UID.\n\n**Available for Staff tokens**",
-        "parameters": [
-          {
-            "name": "uid",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AIRecommendationUpdateRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "AIRecommendation updated",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/AIRecommendation.json"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
         "security": [
           {
             "Bearer": []
@@ -2604,6 +2706,262 @@
   },
   "components": {
     "schemas": {
+      "AIRecommendationRequest": {
+        "type": "object",
+        "properties": {
+          "producer": {
+            "type": "string",
+            "description": "Upstream agent or partner system that produced this recommendation (for example: 'client_agent', 'lead_capture_agent', 'partner_x')."
+          },
+          "actions": {
+            "type": "array",
+            "description": "A list of recommended actions related to this entity.",
+            "items": {
+              "$ref": "#/components/schemas/AIRecommendationActionRequest"
+            }
+          },
+          "display": {
+            "type": "object",
+            "description": "Contains display-related information for the recommendation.",
+            "properties": {
+              "title": {
+                "type": "string",
+                "description": "A human-readable title describing the recommendation."
+              }
+            }
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "needs_attention",
+              "opportunity"
+            ],
+            "default": "needs_attention",
+            "description": "Recommendation category set by the producer for interface use: 'needs_attention' (time-sensitive and requires the user's attention) or 'opportunity' (growth-focused value opportunity that does not require immediate action)."
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "high",
+              "standard"
+            ],
+            "default": "standard",
+            "description": "Relative ordering priority within the same category: 'high' (higher priority, surfaced first) or 'standard' (default priority)."
+          },
+          "execution_policy": {
+            "type": "string",
+            "enum": [
+              "auto_execute",
+              "requires_human_approval"
+            ],
+            "default": "requires_human_approval",
+            "description": "Indicates whether this recommendation is auto-executed by an agent or requires human review: 'auto_execute' (may be executed automatically by the system or an authorized agent) or 'requires_human_approval' (must be reviewed and approved by a human before execution)."
+          },
+          "tags": {
+            "type": "array",
+            "maxItems": 10,
+            "description": "Optional user-facing tags that label the item's urgency, value, or context (for example: 'Hot lead', 'New', 'High value', 'Urgent', 'At risk', 'Follow up').",
+            "items": {
+              "type": "string"
+            }
+          },
+          "due_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Optional due or target time used for urgency and upcoming behavior, in ISO 8601 format."
+          },
+          "expired_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Optional expiry time used for dismissing or clearing the recommendation, in ISO 8601 format."
+          },
+          "context": {
+            "type": "object",
+            "description": "The context in which the recommendation was generated.",
+            "properties": {
+              "context_uid": {
+                "type": "string",
+                "description": "A unique identifier for the context associated with this recommendation."
+              },
+              "context_type": {
+                "type": "string",
+                "description": "The type of context (e.g., 'user_message', 'booking_request').",
+                "enum": [
+                  "matter",
+                  "client",
+                  "business"
+                ]
+              },
+              "context_name": {
+                "type": "string",
+                "description": "The display name of the context object (referenced by 'context_uid') this recommendation is about, according to its 'context_type' - for example, the client's name when 'context_type' is 'client' (e.g., 'John Smith')."
+              }
+            }
+          },
+          "target": {
+            "type": "object",
+            "description": "The target entity for this recommendation, typically representing the user or business involved.",
+            "properties": {
+              "target_actor_uid": {
+                "type": "string",
+                "description": "A unique identifier for the target actor (e.g., a user or business)."
+              },
+              "target_actor_type": {
+                "type": "string",
+                "description": "The type of target actor (e.g., 'customer', 'business').",
+                "enum": [
+                  "staff",
+                  "directory"
+                ]
+              }
+            }
+          },
+          "status": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "active",
+                  "completed",
+                  "dismissed",
+                  "approved",
+                  "snoozed"
+                ],
+                "default": "active",
+                "description": "Lifecycle state of the recommendation: 'active' (available and not yet completed), 'completed' (executed successfully or otherwise resolved), 'dismissed' (explicitly dismissed without resolving the underlying need), 'approved' (approved by the user but not yet at a terminal outcome), or 'snoozed' (deferred to a later time or trigger condition)."
+              },
+              "state_source_type": {
+                "type": "string",
+                "enum": [
+                  "user",
+                  "system"
+                ],
+                "description": "Source of the current status: 'user' (change via Pulse UI) or 'system' (change by the originating service or agent)."
+              },
+              "dismissed": {
+                "type": "boolean",
+                "description": "Indicates whether the recommendation has been dismissed."
+              },
+              "dismissed_source_type": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "user",
+                  "system",
+                  null
+                ],
+                "description": "The source that dismissed the recommendation. Null when the recommendation has not been dismissed."
+              }
+            }
+          }
+        },
+        "required": [
+          "user_description",
+          "staff_uid",
+          "sources",
+          "actions"
+        ]
+      },
+      "AIRecommendationUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "object",
+            "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "active",
+                  "completed",
+                  "dismissed",
+                  "approved",
+                  "snoozed"
+                ],
+                "description": "Lifecycle state of the recommendation: 'active' (available and not yet completed), 'completed' (executed successfully or otherwise resolved), 'dismissed' (explicitly dismissed without resolving the underlying need), 'approved' (approved by the user but not yet at a terminal outcome), or 'snoozed' (deferred to a later time or trigger condition)."
+              },
+              "state_source_type": {
+                "type": "string",
+                "enum": [
+                  "user",
+                  "system"
+                ],
+                "description": "Source of the current status: 'user' (change via Pulse UI) or 'system' (change by the originating service or agent)."
+              },
+              "dismissed": {
+                "type": "boolean",
+                "description": "Indicates whether the recommendation has been dismissed."
+              },
+              "dismissed_source_type": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "user",
+                  "system",
+                  null
+                ],
+                "description": "The source that dismissed the recommendation. Null when the recommendation has not been dismissed."
+              }
+            }
+          }
+        }
+      },
+      "AIRecommendationList": {
+        "type": "object",
+        "properties": {
+          "airecommendations": {
+            "description": "List of AI Recommendations",
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/ai/AIRecommendation.json"
+            }
+          }
+        }
+      },
+      "AIRecommendationActionRequest": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "reply",
+              "estimate",
+              "schedule",
+              "acknowledge"
+            ],
+            "description": "The type of action recommended. Possible values:\n- 'reply': Suggests responding to a user message.\n- 'estimate': Suggests providing a price estimate.\n- 'schedule': Suggests scheduling an appointment or meeting.\n- 'acknowledge': No action or artifact is prepared; the user reviews the item and then completes or dismisses it."
+          },
+          "display": {
+            "type": "object",
+            "description": "Contains display-related information for the recommendation.",
+            "properties": {
+              "btn_text": {
+                "type": "string",
+                "description": "A human-readable title describing the recommendation."
+              }
+            }
+          },
+          "reason": {
+            "type": "string",
+            "description": "The reason why this action is recommended, providing context for decision-making."
+          },
+          "payload": {
+            "type": "object",
+            "description": "Additional data related to the recommended action. The structure depends on the action type."
+          },
+          "evidence": {
+            "type": "array",
+            "description": "A list of supporting statements or facts justifying the recommendation.",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "ErrorResponse": {
         "type": "object",
         "properties": {
@@ -2755,169 +3113,6 @@
           "job_uid",
           "status"
         ]
-      },
-      "AIRecommendationRequest": {
-        "type": "object",
-        "properties": {
-          "actions": {
-            "type": "array",
-            "description": "A list of recommended actions related to this entity.",
-            "items": {
-              "$ref": "#/components/schemas/AIRecommendationActionRequest"
-            }
-          },
-          "display": {
-            "type": "object",
-            "description": "Contains display-related information for the recommendation.",
-            "properties": {
-              "title": {
-                "type": "string",
-                "description": "A human-readable title describing the recommendation."
-              }
-            }
-          },
-          "context": {
-            "type": "object",
-            "description": "The context in which the recommendation was generated.",
-            "properties": {
-              "context_uid": {
-                "type": "string",
-                "description": "A unique identifier for the context associated with this recommendation."
-              },
-              "context_type": {
-                "type": "string",
-                "description": "The type of context (e.g., 'user_message', 'booking_request').",
-                "enum": [
-                  "matter",
-                  "client",
-                  "business"
-                ]
-              }
-            }
-          },
-          "target": {
-            "type": "object",
-            "description": "The target entity for this recommendation, typically representing the user or business involved.",
-            "properties": {
-              "target_actor_uid": {
-                "type": "string",
-                "description": "A unique identifier for the target actor (e.g., a user or business)."
-              },
-              "target_actor_type": {
-                "type": "string",
-                "description": "The type of target actor (e.g., 'customer', 'business').",
-                "enum": [
-                  "staff",
-                  "directory"
-                ]
-              }
-            }
-          },
-          "status": {
-            "type": "object",
-            "properties": {
-              "dismissed": {
-                "type": "boolean",
-                "description": "Indicates whether the recommendation has been dismissed."
-              },
-              "dismissed_source_type": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "enum": [
-                  "user",
-                  "system",
-                  null
-                ],
-                "description": "The source that dismissed the recommendation. Null when the recommendation has not been dismissed."
-              }
-            }
-          }
-        },
-        "required": [
-          "user_description",
-          "staff_uid",
-          "sources",
-          "actions"
-        ]
-      },
-      "AIRecommendationUpdateRequest": {
-        "type": "object",
-        "properties": {
-          "status": {
-            "type": "object",
-            "properties": {
-              "dismissed": {
-                "type": "boolean",
-                "description": "Indicates whether the recommendation has been dismissed."
-              },
-              "dismissed_source_type": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "enum": [
-                  "user",
-                  "system",
-                  null
-                ],
-                "description": "The source that dismissed the recommendation. Null when the recommendation has not been dismissed."
-              }
-            }
-          }
-        }
-      },
-      "AIRecommendationList": {
-        "type": "object",
-        "properties": {
-          "airecommendations": {
-            "description": "List of AI Recommendations",
-            "type": "array",
-            "items": {
-              "$ref": "https://vcita.github.io/developers-hub/entities/ai/AIRecommendation.json"
-            }
-          }
-        }
-      },
-      "AIRecommendationActionRequest": {
-        "type": "object",
-        "properties": {
-          "action": {
-            "type": "string",
-            "enum": [
-              "reply",
-              "estimate",
-              "schedule"
-            ],
-            "description": "The type of action recommended. Possible values:\n- 'reply': Suggests responding to a user message.\n- 'estimate': Suggests providing a price estimate.\n- 'schedule': Suggests scheduling an appointment or meeting."
-          },
-          "display": {
-            "type": "object",
-            "description": "Contains display-related information for the recommendation.",
-            "properties": {
-              "btn_text": {
-                "type": "string",
-                "description": "A human-readable title describing the recommendation."
-              }
-            }
-          },
-          "reason": {
-            "type": "string",
-            "description": "The reason why this action is recommended, providing context for decision-making."
-          },
-          "payload": {
-            "type": "object",
-            "description": "Additional data related to the recommended action. The structure depends on the action type."
-          },
-          "evidence": {
-            "type": "array",
-            "description": "A list of supporting statements or facts justifying the recommendation.",
-            "items": {
-              "type": "string"
-            }
-          }
-        }
       },
       "Response": {
         "type": "object",

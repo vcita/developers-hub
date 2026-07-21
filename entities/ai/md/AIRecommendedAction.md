@@ -7,15 +7,13 @@ Represents a recommended action based on AI analysis.
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
 | uid | A unique identifier for the recommended action. | string | Yes |
-| action | The type of action recommended. Possible values:
-- 'reply': Suggests responding to a user message.
-- 'estimate': Suggests providing a price estimate.
-- 'schedule': Suggests scheduling an appointment or meeting. | string (enum: `reply`, `estimate`, `schedule`) | Yes |
+| action | The type of action recommended. Possible values:<br />- 'reply': Suggests responding to a user message.<br />- 'estimate': Suggests providing a price estimate.<br />- 'schedule': Suggests scheduling an appointment or meeting.<br />- 'acknowledge': No action or artifact is prepared; the user reviews the item and then completes or dismisses it. | string (enum: `reply`, `estimate`, `schedule`, `acknowledge`) | Yes |
 | display | Contains display-related information for the recommendation. | object |  |
-| reason | The reason why this action is recommended, providing context for decision-making. | string | Yes |
+| reason | The reason why this action is recommended, providing context for decision-making. | string |  |
 | payload | Additional data related to the recommended action. The structure depends on the action type. | object |  |
-| evidence | A list of supporting statements or facts justifying the recommendation. | array of strings | Yes |
+| evidence | A list of supporting statements or facts justifying the recommendation. | array of strings |  |
 | context | The context in which the recommendation was generated. | object |  |
+| confidence | A confidence score (0-1) indicating how confident the AI is in this recommendation. | number |  |
 
 ### Display Properties
 
@@ -39,7 +37,7 @@ JSON
   "uid": "act-456",
   "action": "reply",
   "display": {
-    "btn_text": "Generage Reply"
+    "btn_text": "Generate Reply"
   },
   "reason": "User needs clarification on pricing",
   "evidence": [
