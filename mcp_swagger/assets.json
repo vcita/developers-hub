@@ -6,13 +6,24 @@
     "version": "3.0",
     "x-generated": {
       "sourceFiles": [
+        "files.json",
         "legacy_documents.json"
       ],
       "pathNormalizations": [],
       "pathConflicts": [],
-      "componentConflicts": [],
-      "totalPaths": 7,
-      "totalComponents": 3
+      "componentConflicts": [
+        {
+          "type": "schema",
+          "name": "ErrorResponse",
+          "resolution": "Renamed to ErrorResponse_legacy_documents",
+          "files": [
+            "merged",
+            "legacy_documents.json"
+          ]
+        }
+      ],
+      "totalPaths": 10,
+      "totalComponents": 10
     }
   },
   "servers": [
@@ -22,6 +33,1477 @@
     }
   ],
   "paths": {
+    "/v3/assets/files": {
+      "post": {
+        "operationId": "FilesController_upload",
+        "summary": "Create a new file",
+        "description": "Create a new file for the specified business. The API returns immediately with status='pending'. File processing (virus scan, S3 upload, thumbnail generation) happens asynchronously in the background.\n\nIf a duplicate file is detected via SHA-256 content hash, the existing file is returned immediately with status='uploaded'.\n\nRate limit: 10 uploads per user per 10 minutes. Maximum file size: 100MB.\n\nAvailable for **Staff and Client tokens**.",
+        "tags": [
+          "Files"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadFileRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Duplicate file detected - existing file returned immediately (no processing needed)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "description": "Represents a file uploaded to the platform. Files go through an asynchronous processing pipeline including virus scanning, S3 storage, and thumbnail generation. Content deduplication via SHA-256 fingerprinting ensures efficient storage within each business.",
+                          "properties": {
+                            "uid": {
+                              "type": "string",
+                              "readOnly": true,
+                              "description": "Unique identifier for the file record (e.g., \"file_123\")."
+                            },
+                            "business_uid": {
+                              "type": "string",
+                              "readOnly": true,
+                              "description": "Unique identifier of the business that owns this file (e.g., \"biz_456\")."
+                            },
+                            "name": {
+                              "type": "string",
+                              "maxLength": 255,
+                              "description": "Original filename including extension (e.g., \"document.pdf\", \"photo.jpg\"). Maximum length is 255 characters."
+                            },
+                            "content_type": {
+                              "type": "string",
+                              "enum": [
+                                "image/jpeg",
+                                "image/png",
+                                "image/gif",
+                                "image/webp",
+                                "image/svg+xml",
+                                "application/pdf",
+                                "application/msword",
+                                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                "application/vnd.ms-excel",
+                                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                "application/vnd.ms-powerpoint",
+                                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                                "text/plain",
+                                "text/csv",
+                                "video/mp4",
+                                "video/webm",
+                                "audio/mpeg",
+                                "audio/wav",
+                                "application/zip"
+                              ],
+                              "description": "MIME type of the uploaded file. One of the allowed types: image/jpeg, image/png, image/gif, image/webp, image/svg+xml, application/pdf, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document (.docx), application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet (.xlsx), application/vnd.ms-powerpoint, application/vnd.openxmlformats-officedocument.presentationml.presentation (.pptx), text/plain, text/csv, video/mp4, video/webm, audio/mpeg, audio/wav, application/zip (e.g., \"application/pdf\", \"image/jpeg\")."
+                            },
+                            "size_bytes": {
+                              "type": "integer",
+                              "format": "int64",
+                              "description": "File size in bytes. Maximum allowed size is 104857600 bytes (100MB)."
+                            },
+                            "content_hash": {
+                              "type": "string",
+                              "maxLength": 64,
+                              "nullable": true,
+                              "description": "SHA-256 fingerprint (64-character hexadecimal string) used for content deduplication within the same business. Files with identical content_hash skip redundant processing (e.g., \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\")."
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "pending",
+                                "scanning",
+                                "scanned",
+                                "uploaded",
+                                "infected",
+                                "failed",
+                                "linked",
+                                "deleted"
+                              ],
+                              "description": "Current processing status of the file. **pending**: Upload received, virus scan queued. **scanning**: Virus scan in progress. **scanned**: Virus scan passed, awaiting S3 upload. **uploaded**: S3 upload complete, thumbnails generated if applicable. **infected**: Malware detected, file marked for deletion. **failed**: Processing error occurred (scan or upload failure). **linked**: File has active entity relations. **deleted**: Soft deleted. The file's S3 objects (original and thumbnails) are removed immediately; the record is retained as soft-deleted and excluded from all reads."
+                            },
+                            "metadata": {
+                              "type": "object",
+                              "nullable": true,
+                              "description": "Optional JSON object containing arbitrary key-value pairs for additional file metadata (e.g., {\"source\": \"chat\", \"uploaded_by_name\": \"John Doe\"})."
+                            },
+                            "url": {
+                              "type": "string",
+                              "format": "uri",
+                              "nullable": true,
+                              "readOnly": true,
+                              "description": "Pre-signed S3 URL for downloading the original file. Available when status is 'uploaded' or 'linked'. Null for pending/failed files (e.g., \"https://s3.amazonaws.com/files-bucket/path/to/original?signature=...\")."
+                            },
+                            "thumbnail_url": {
+                              "type": "string",
+                              "format": "uri",
+                              "nullable": true,
+                              "readOnly": true,
+                              "description": "Pre-signed S3 URL for the 400x400 pixel thumbnail. Available for images and PDFs after successful upload. Null for non-image files or pending uploads (e.g., \"https://s3.amazonaws.com/files-bucket/path/to/thumb_400.jpg?signature=...\")."
+                            },
+                            "thumbnail_small_url": {
+                              "type": "string",
+                              "format": "uri",
+                              "nullable": true,
+                              "readOnly": true,
+                              "description": "Pre-signed S3 URL for the 150x150 pixel thumbnail. Available for images and PDFs after successful upload. Null for non-image files or pending uploads (e.g., \"https://s3.amazonaws.com/files-bucket/path/to/thumb_150.jpg?signature=...\")."
+                            },
+                            "created_by": {
+                              "type": "string",
+                              "enum": [
+                                "staff",
+                                "client"
+                              ],
+                              "readOnly": true,
+                              "description": "Type of actor who created this file. **staff**: Uploaded by a staff member. **client**: Uploaded by a client."
+                            },
+                            "created_by_uid": {
+                              "type": "string",
+                              "readOnly": true,
+                              "description": "Unique identifier of the staff member or client who uploaded this file (e.g., \"staff_789\", \"client_456\")."
+                            },
+                            "created_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "readOnly": true,
+                              "description": "Timestamp when the file record was created, in ISO 8601 format (e.g., \"2026-01-27T10:30:00Z\")."
+                            },
+                            "updated_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "readOnly": true,
+                              "description": "Timestamp when the file record was last updated, in ISO 8601 format (e.g., \"2026-01-27T11:00:00Z\")."
+                            },
+                            "deleted_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "nullable": true,
+                              "readOnly": true,
+                              "description": "Timestamp when the file was soft deleted, in ISO 8601 format (e.g., \"2026-01-27T12:00:00Z\"). Null if not deleted. On deletion the file's S3 objects (including thumbnails) are removed immediately; the record is retained as soft-deleted."
+                            }
+                          },
+                          "required": [
+                            "uid",
+                            "business_uid",
+                            "name",
+                            "content_type",
+                            "size_bytes",
+                            "status",
+                            "created_by",
+                            "created_by_uid",
+                            "created_at",
+                            "updated_at"
+                          ],
+                          "example": {
+                            "uid": "file_123abc456def",
+                            "business_uid": "biz_789xyz",
+                            "name": "invoice_2026_Q1.pdf",
+                            "content_type": "application/pdf",
+                            "size_bytes": 2048576,
+                            "content_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                            "status": "uploaded",
+                            "metadata": {
+                              "source": "chat",
+                              "conversation_id": "conv_123"
+                            },
+                            "url": "https://s3.amazonaws.com/files-bucket/biz_789xyz/2026/01/27/file_123abc456def/original?signature=abc123...",
+                            "thumbnail_url": "https://s3.amazonaws.com/files-bucket/biz_789xyz/2026/01/27/file_123abc456def/thumb_400.jpg?signature=def456...",
+                            "thumbnail_small_url": "https://s3.amazonaws.com/files-bucket/biz_789xyz/2026/01/27/file_123abc456def/thumb_150.jpg?signature=ghi789...",
+                            "created_by": "staff",
+                            "created_by_uid": "staff_456xyz",
+                            "created_at": "2026-01-27T10:30:00Z",
+                            "updated_at": "2026-01-27T10:30:45Z",
+                            "deleted_at": null
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "File upload initiated successfully (new file, async processing started)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "description": "Represents a file uploaded to the platform. Files go through an asynchronous processing pipeline including virus scanning, S3 storage, and thumbnail generation. Content deduplication via SHA-256 fingerprinting ensures efficient storage within each business.",
+                          "properties": {
+                            "uid": {
+                              "type": "string",
+                              "readOnly": true,
+                              "description": "Unique identifier for the file record (e.g., \"file_123\")."
+                            },
+                            "business_uid": {
+                              "type": "string",
+                              "readOnly": true,
+                              "description": "Unique identifier of the business that owns this file (e.g., \"biz_456\")."
+                            },
+                            "name": {
+                              "type": "string",
+                              "maxLength": 255,
+                              "description": "Original filename including extension (e.g., \"document.pdf\", \"photo.jpg\"). Maximum length is 255 characters."
+                            },
+                            "content_type": {
+                              "type": "string",
+                              "enum": [
+                                "image/jpeg",
+                                "image/png",
+                                "image/gif",
+                                "image/webp",
+                                "image/svg+xml",
+                                "application/pdf",
+                                "application/msword",
+                                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                "application/vnd.ms-excel",
+                                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                "application/vnd.ms-powerpoint",
+                                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                                "text/plain",
+                                "text/csv",
+                                "video/mp4",
+                                "video/webm",
+                                "audio/mpeg",
+                                "audio/wav",
+                                "application/zip"
+                              ],
+                              "description": "MIME type of the uploaded file. One of the allowed types: image/jpeg, image/png, image/gif, image/webp, image/svg+xml, application/pdf, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document (.docx), application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet (.xlsx), application/vnd.ms-powerpoint, application/vnd.openxmlformats-officedocument.presentationml.presentation (.pptx), text/plain, text/csv, video/mp4, video/webm, audio/mpeg, audio/wav, application/zip (e.g., \"application/pdf\", \"image/jpeg\")."
+                            },
+                            "size_bytes": {
+                              "type": "integer",
+                              "format": "int64",
+                              "description": "File size in bytes. Maximum allowed size is 104857600 bytes (100MB)."
+                            },
+                            "content_hash": {
+                              "type": "string",
+                              "maxLength": 64,
+                              "nullable": true,
+                              "description": "SHA-256 fingerprint (64-character hexadecimal string) used for content deduplication within the same business. Files with identical content_hash skip redundant processing (e.g., \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\")."
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "pending",
+                                "scanning",
+                                "scanned",
+                                "uploaded",
+                                "infected",
+                                "failed",
+                                "linked",
+                                "deleted"
+                              ],
+                              "description": "Current processing status of the file. **pending**: Upload received, virus scan queued. **scanning**: Virus scan in progress. **scanned**: Virus scan passed, awaiting S3 upload. **uploaded**: S3 upload complete, thumbnails generated if applicable. **infected**: Malware detected, file marked for deletion. **failed**: Processing error occurred (scan or upload failure). **linked**: File has active entity relations. **deleted**: Soft deleted. The file's S3 objects (original and thumbnails) are removed immediately; the record is retained as soft-deleted and excluded from all reads."
+                            },
+                            "metadata": {
+                              "type": "object",
+                              "nullable": true,
+                              "description": "Optional JSON object containing arbitrary key-value pairs for additional file metadata (e.g., {\"source\": \"chat\", \"uploaded_by_name\": \"John Doe\"})."
+                            },
+                            "url": {
+                              "type": "string",
+                              "format": "uri",
+                              "nullable": true,
+                              "readOnly": true,
+                              "description": "Pre-signed S3 URL for downloading the original file. Available when status is 'uploaded' or 'linked'. Null for pending/failed files (e.g., \"https://s3.amazonaws.com/files-bucket/path/to/original?signature=...\")."
+                            },
+                            "thumbnail_url": {
+                              "type": "string",
+                              "format": "uri",
+                              "nullable": true,
+                              "readOnly": true,
+                              "description": "Pre-signed S3 URL for the 400x400 pixel thumbnail. Available for images and PDFs after successful upload. Null for non-image files or pending uploads (e.g., \"https://s3.amazonaws.com/files-bucket/path/to/thumb_400.jpg?signature=...\")."
+                            },
+                            "thumbnail_small_url": {
+                              "type": "string",
+                              "format": "uri",
+                              "nullable": true,
+                              "readOnly": true,
+                              "description": "Pre-signed S3 URL for the 150x150 pixel thumbnail. Available for images and PDFs after successful upload. Null for non-image files or pending uploads (e.g., \"https://s3.amazonaws.com/files-bucket/path/to/thumb_150.jpg?signature=...\")."
+                            },
+                            "created_by": {
+                              "type": "string",
+                              "enum": [
+                                "staff",
+                                "client"
+                              ],
+                              "readOnly": true,
+                              "description": "Type of actor who created this file. **staff**: Uploaded by a staff member. **client**: Uploaded by a client."
+                            },
+                            "created_by_uid": {
+                              "type": "string",
+                              "readOnly": true,
+                              "description": "Unique identifier of the staff member or client who uploaded this file (e.g., \"staff_789\", \"client_456\")."
+                            },
+                            "created_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "readOnly": true,
+                              "description": "Timestamp when the file record was created, in ISO 8601 format (e.g., \"2026-01-27T10:30:00Z\")."
+                            },
+                            "updated_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "readOnly": true,
+                              "description": "Timestamp when the file record was last updated, in ISO 8601 format (e.g., \"2026-01-27T11:00:00Z\")."
+                            },
+                            "deleted_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "nullable": true,
+                              "readOnly": true,
+                              "description": "Timestamp when the file was soft deleted, in ISO 8601 format (e.g., \"2026-01-27T12:00:00Z\"). Null if not deleted. On deletion the file's S3 objects (including thumbnails) are removed immediately; the record is retained as soft-deleted."
+                            }
+                          },
+                          "required": [
+                            "uid",
+                            "business_uid",
+                            "name",
+                            "content_type",
+                            "size_bytes",
+                            "status",
+                            "created_by",
+                            "created_by_uid",
+                            "created_at",
+                            "updated_at"
+                          ],
+                          "example": {
+                            "uid": "file_123abc456def",
+                            "business_uid": "biz_789xyz",
+                            "name": "invoice_2026_Q1.pdf",
+                            "content_type": "application/pdf",
+                            "size_bytes": 2048576,
+                            "content_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                            "status": "uploaded",
+                            "metadata": {
+                              "source": "chat",
+                              "conversation_id": "conv_123"
+                            },
+                            "url": "https://s3.amazonaws.com/files-bucket/biz_789xyz/2026/01/27/file_123abc456def/original?signature=abc123...",
+                            "thumbnail_url": "https://s3.amazonaws.com/files-bucket/biz_789xyz/2026/01/27/file_123abc456def/thumb_400.jpg?signature=def456...",
+                            "thumbnail_small_url": "https://s3.amazonaws.com/files-bucket/biz_789xyz/2026/01/27/file_123abc456def/thumb_150.jpg?signature=ghi789...",
+                            "created_by": "staff",
+                            "created_by_uid": "staff_456xyz",
+                            "created_at": "2026-01-27T10:30:00Z",
+                            "updated_at": "2026-01-27T10:30:45Z",
+                            "deleted_at": null
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Invalid file type, name, or size",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Feature disabled for this business",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error in request data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests - Rate limit exceeded (10 uploads per 10 minutes)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Files": []
+          }
+        ]
+      },
+      "get": {
+        "operationId": "FilesController_findAll",
+        "summary": "Get all files",
+        "description": "Retrieves the files you uploaded, optionally filtered by status or a list of file UIDs. Each token only sees files it created itself; files uploaded by other users are not returned. Results include pre-signed URLs for file download and thumbnails when the file is ready. Soft-deleted files are never returned.\n\nAvailable for **Staff and Client tokens**.",
+        "tags": [
+          "Files"
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Filter by file processing status (e.g., \"uploaded\", \"pending\"). Soft-deleted files are never returned regardless of this filter.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "scanning",
+                "scanned",
+                "uploaded",
+                "infected",
+                "failed",
+                "linked",
+                "deleted"
+              ]
+            }
+          },
+          {
+            "name": "file_uids",
+            "in": "query",
+            "required": false,
+            "description": "One or more file UIDs to fetch. Repeat the parameter for multiple values (e.g., \"file_123abc\", \"file_456def\").",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Page number for pagination (default: 1).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "description": "Number of files per page (default: 20, max: 100).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Files retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/MultiFileResponse"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - Invalid query parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Files": []
+          }
+        ]
+      }
+    },
+    "/v3/assets/files/{uid}": {
+      "get": {
+        "operationId": "FilesController_findOne",
+        "summary": "Get a file",
+        "description": "Retrieves a specific file by its unique identifier. Only the file you uploaded is returned; requesting a file created by another user returns 404.\n\nUsed for status polling after upload to check if processing (scan, storage, thumbnails) is complete. Response includes pre-signed URLs when the file is ready.\n\nAvailable for **Staff and Client tokens**.",
+        "tags": [
+          "Files"
+        ],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the file to retrieve (e.g., \"file_123abc\").",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "description": "Represents a file uploaded to the platform. Files go through an asynchronous processing pipeline including virus scanning, S3 storage, and thumbnail generation. Content deduplication via SHA-256 fingerprinting ensures efficient storage within each business.",
+                          "properties": {
+                            "uid": {
+                              "type": "string",
+                              "readOnly": true,
+                              "description": "Unique identifier for the file record (e.g., \"file_123\")."
+                            },
+                            "business_uid": {
+                              "type": "string",
+                              "readOnly": true,
+                              "description": "Unique identifier of the business that owns this file (e.g., \"biz_456\")."
+                            },
+                            "name": {
+                              "type": "string",
+                              "maxLength": 255,
+                              "description": "Original filename including extension (e.g., \"document.pdf\", \"photo.jpg\"). Maximum length is 255 characters."
+                            },
+                            "content_type": {
+                              "type": "string",
+                              "enum": [
+                                "image/jpeg",
+                                "image/png",
+                                "image/gif",
+                                "image/webp",
+                                "image/svg+xml",
+                                "application/pdf",
+                                "application/msword",
+                                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                "application/vnd.ms-excel",
+                                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                "application/vnd.ms-powerpoint",
+                                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                                "text/plain",
+                                "text/csv",
+                                "video/mp4",
+                                "video/webm",
+                                "audio/mpeg",
+                                "audio/wav",
+                                "application/zip"
+                              ],
+                              "description": "MIME type of the uploaded file. One of the allowed types: image/jpeg, image/png, image/gif, image/webp, image/svg+xml, application/pdf, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document (.docx), application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet (.xlsx), application/vnd.ms-powerpoint, application/vnd.openxmlformats-officedocument.presentationml.presentation (.pptx), text/plain, text/csv, video/mp4, video/webm, audio/mpeg, audio/wav, application/zip (e.g., \"application/pdf\", \"image/jpeg\")."
+                            },
+                            "size_bytes": {
+                              "type": "integer",
+                              "format": "int64",
+                              "description": "File size in bytes. Maximum allowed size is 104857600 bytes (100MB)."
+                            },
+                            "content_hash": {
+                              "type": "string",
+                              "maxLength": 64,
+                              "nullable": true,
+                              "description": "SHA-256 fingerprint (64-character hexadecimal string) used for content deduplication within the same business. Files with identical content_hash skip redundant processing (e.g., \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\")."
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "pending",
+                                "scanning",
+                                "scanned",
+                                "uploaded",
+                                "infected",
+                                "failed",
+                                "linked",
+                                "deleted"
+                              ],
+                              "description": "Current processing status of the file. **pending**: Upload received, virus scan queued. **scanning**: Virus scan in progress. **scanned**: Virus scan passed, awaiting S3 upload. **uploaded**: S3 upload complete, thumbnails generated if applicable. **infected**: Malware detected, file marked for deletion. **failed**: Processing error occurred (scan or upload failure). **linked**: File has active entity relations. **deleted**: Soft deleted. The file's S3 objects (original and thumbnails) are removed immediately; the record is retained as soft-deleted and excluded from all reads."
+                            },
+                            "metadata": {
+                              "type": "object",
+                              "nullable": true,
+                              "description": "Optional JSON object containing arbitrary key-value pairs for additional file metadata (e.g., {\"source\": \"chat\", \"uploaded_by_name\": \"John Doe\"})."
+                            },
+                            "url": {
+                              "type": "string",
+                              "format": "uri",
+                              "nullable": true,
+                              "readOnly": true,
+                              "description": "Pre-signed S3 URL for downloading the original file. Available when status is 'uploaded' or 'linked'. Null for pending/failed files (e.g., \"https://s3.amazonaws.com/files-bucket/path/to/original?signature=...\")."
+                            },
+                            "thumbnail_url": {
+                              "type": "string",
+                              "format": "uri",
+                              "nullable": true,
+                              "readOnly": true,
+                              "description": "Pre-signed S3 URL for the 400x400 pixel thumbnail. Available for images and PDFs after successful upload. Null for non-image files or pending uploads (e.g., \"https://s3.amazonaws.com/files-bucket/path/to/thumb_400.jpg?signature=...\")."
+                            },
+                            "thumbnail_small_url": {
+                              "type": "string",
+                              "format": "uri",
+                              "nullable": true,
+                              "readOnly": true,
+                              "description": "Pre-signed S3 URL for the 150x150 pixel thumbnail. Available for images and PDFs after successful upload. Null for non-image files or pending uploads (e.g., \"https://s3.amazonaws.com/files-bucket/path/to/thumb_150.jpg?signature=...\")."
+                            },
+                            "created_by": {
+                              "type": "string",
+                              "enum": [
+                                "staff",
+                                "client"
+                              ],
+                              "readOnly": true,
+                              "description": "Type of actor who created this file. **staff**: Uploaded by a staff member. **client**: Uploaded by a client."
+                            },
+                            "created_by_uid": {
+                              "type": "string",
+                              "readOnly": true,
+                              "description": "Unique identifier of the staff member or client who uploaded this file (e.g., \"staff_789\", \"client_456\")."
+                            },
+                            "created_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "readOnly": true,
+                              "description": "Timestamp when the file record was created, in ISO 8601 format (e.g., \"2026-01-27T10:30:00Z\")."
+                            },
+                            "updated_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "readOnly": true,
+                              "description": "Timestamp when the file record was last updated, in ISO 8601 format (e.g., \"2026-01-27T11:00:00Z\")."
+                            },
+                            "deleted_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "nullable": true,
+                              "readOnly": true,
+                              "description": "Timestamp when the file was soft deleted, in ISO 8601 format (e.g., \"2026-01-27T12:00:00Z\"). Null if not deleted. On deletion the file's S3 objects (including thumbnails) are removed immediately; the record is retained as soft-deleted."
+                            }
+                          },
+                          "required": [
+                            "uid",
+                            "business_uid",
+                            "name",
+                            "content_type",
+                            "size_bytes",
+                            "status",
+                            "created_by",
+                            "created_by_uid",
+                            "created_at",
+                            "updated_at"
+                          ],
+                          "example": {
+                            "uid": "file_123abc456def",
+                            "business_uid": "biz_789xyz",
+                            "name": "invoice_2026_Q1.pdf",
+                            "content_type": "application/pdf",
+                            "size_bytes": 2048576,
+                            "content_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                            "status": "uploaded",
+                            "metadata": {
+                              "source": "chat",
+                              "conversation_id": "conv_123"
+                            },
+                            "url": "https://s3.amazonaws.com/files-bucket/biz_789xyz/2026/01/27/file_123abc456def/original?signature=abc123...",
+                            "thumbnail_url": "https://s3.amazonaws.com/files-bucket/biz_789xyz/2026/01/27/file_123abc456def/thumb_400.jpg?signature=def456...",
+                            "thumbnail_small_url": "https://s3.amazonaws.com/files-bucket/biz_789xyz/2026/01/27/file_123abc456def/thumb_150.jpg?signature=ghi789...",
+                            "created_by": "staff",
+                            "created_by_uid": "staff_456xyz",
+                            "created_at": "2026-01-27T10:30:00Z",
+                            "updated_at": "2026-01-27T10:30:45Z",
+                            "deleted_at": null
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - File does not exist, or was uploaded by another user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Files": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "FilesController_delete",
+        "summary": "Delete a file",
+        "description": "Soft deletes a specific file. The file's S3 objects (original and thumbnails) are removed immediately; the record is retained as soft-deleted and excluded from all reads.\n\nAvailable for **Staff tokens only**.",
+        "tags": [
+          "Files"
+        ],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the file to delete (e.g., \"file_123abc\").",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File deleted successfully (soft delete). The file's S3 objects (original and thumbnails) are removed immediately; the record is retained as soft-deleted. Returns the deleted file entity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "description": "Represents a file uploaded to the platform. Files go through an asynchronous processing pipeline including virus scanning, S3 storage, and thumbnail generation. Content deduplication via SHA-256 fingerprinting ensures efficient storage within each business.",
+                          "properties": {
+                            "uid": {
+                              "type": "string",
+                              "readOnly": true,
+                              "description": "Unique identifier for the file record (e.g., \"file_123\")."
+                            },
+                            "business_uid": {
+                              "type": "string",
+                              "readOnly": true,
+                              "description": "Unique identifier of the business that owns this file (e.g., \"biz_456\")."
+                            },
+                            "name": {
+                              "type": "string",
+                              "maxLength": 255,
+                              "description": "Original filename including extension (e.g., \"document.pdf\", \"photo.jpg\"). Maximum length is 255 characters."
+                            },
+                            "content_type": {
+                              "type": "string",
+                              "enum": [
+                                "image/jpeg",
+                                "image/png",
+                                "image/gif",
+                                "image/webp",
+                                "image/svg+xml",
+                                "application/pdf",
+                                "application/msword",
+                                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                "application/vnd.ms-excel",
+                                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                "application/vnd.ms-powerpoint",
+                                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                                "text/plain",
+                                "text/csv",
+                                "video/mp4",
+                                "video/webm",
+                                "audio/mpeg",
+                                "audio/wav",
+                                "application/zip"
+                              ],
+                              "description": "MIME type of the uploaded file. One of the allowed types: image/jpeg, image/png, image/gif, image/webp, image/svg+xml, application/pdf, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document (.docx), application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet (.xlsx), application/vnd.ms-powerpoint, application/vnd.openxmlformats-officedocument.presentationml.presentation (.pptx), text/plain, text/csv, video/mp4, video/webm, audio/mpeg, audio/wav, application/zip (e.g., \"application/pdf\", \"image/jpeg\")."
+                            },
+                            "size_bytes": {
+                              "type": "integer",
+                              "format": "int64",
+                              "description": "File size in bytes. Maximum allowed size is 104857600 bytes (100MB)."
+                            },
+                            "content_hash": {
+                              "type": "string",
+                              "maxLength": 64,
+                              "nullable": true,
+                              "description": "SHA-256 fingerprint (64-character hexadecimal string) used for content deduplication within the same business. Files with identical content_hash skip redundant processing (e.g., \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\")."
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "pending",
+                                "scanning",
+                                "scanned",
+                                "uploaded",
+                                "infected",
+                                "failed",
+                                "linked",
+                                "deleted"
+                              ],
+                              "description": "Current processing status of the file. **pending**: Upload received, virus scan queued. **scanning**: Virus scan in progress. **scanned**: Virus scan passed, awaiting S3 upload. **uploaded**: S3 upload complete, thumbnails generated if applicable. **infected**: Malware detected, file marked for deletion. **failed**: Processing error occurred (scan or upload failure). **linked**: File has active entity relations. **deleted**: Soft deleted. The file's S3 objects (original and thumbnails) are removed immediately; the record is retained as soft-deleted and excluded from all reads."
+                            },
+                            "metadata": {
+                              "type": "object",
+                              "nullable": true,
+                              "description": "Optional JSON object containing arbitrary key-value pairs for additional file metadata (e.g., {\"source\": \"chat\", \"uploaded_by_name\": \"John Doe\"})."
+                            },
+                            "url": {
+                              "type": "string",
+                              "format": "uri",
+                              "nullable": true,
+                              "readOnly": true,
+                              "description": "Pre-signed S3 URL for downloading the original file. Available when status is 'uploaded' or 'linked'. Null for pending/failed files (e.g., \"https://s3.amazonaws.com/files-bucket/path/to/original?signature=...\")."
+                            },
+                            "thumbnail_url": {
+                              "type": "string",
+                              "format": "uri",
+                              "nullable": true,
+                              "readOnly": true,
+                              "description": "Pre-signed S3 URL for the 400x400 pixel thumbnail. Available for images and PDFs after successful upload. Null for non-image files or pending uploads (e.g., \"https://s3.amazonaws.com/files-bucket/path/to/thumb_400.jpg?signature=...\")."
+                            },
+                            "thumbnail_small_url": {
+                              "type": "string",
+                              "format": "uri",
+                              "nullable": true,
+                              "readOnly": true,
+                              "description": "Pre-signed S3 URL for the 150x150 pixel thumbnail. Available for images and PDFs after successful upload. Null for non-image files or pending uploads (e.g., \"https://s3.amazonaws.com/files-bucket/path/to/thumb_150.jpg?signature=...\")."
+                            },
+                            "created_by": {
+                              "type": "string",
+                              "enum": [
+                                "staff",
+                                "client"
+                              ],
+                              "readOnly": true,
+                              "description": "Type of actor who created this file. **staff**: Uploaded by a staff member. **client**: Uploaded by a client."
+                            },
+                            "created_by_uid": {
+                              "type": "string",
+                              "readOnly": true,
+                              "description": "Unique identifier of the staff member or client who uploaded this file (e.g., \"staff_789\", \"client_456\")."
+                            },
+                            "created_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "readOnly": true,
+                              "description": "Timestamp when the file record was created, in ISO 8601 format (e.g., \"2026-01-27T10:30:00Z\")."
+                            },
+                            "updated_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "readOnly": true,
+                              "description": "Timestamp when the file record was last updated, in ISO 8601 format (e.g., \"2026-01-27T11:00:00Z\")."
+                            },
+                            "deleted_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "nullable": true,
+                              "readOnly": true,
+                              "description": "Timestamp when the file was soft deleted, in ISO 8601 format (e.g., \"2026-01-27T12:00:00Z\"). Null if not deleted. On deletion the file's S3 objects (including thumbnails) are removed immediately; the record is retained as soft-deleted."
+                            }
+                          },
+                          "required": [
+                            "uid",
+                            "business_uid",
+                            "name",
+                            "content_type",
+                            "size_bytes",
+                            "status",
+                            "created_by",
+                            "created_by_uid",
+                            "created_at",
+                            "updated_at"
+                          ],
+                          "example": {
+                            "uid": "file_123abc456def",
+                            "business_uid": "biz_789xyz",
+                            "name": "invoice_2026_Q1.pdf",
+                            "content_type": "application/pdf",
+                            "size_bytes": 2048576,
+                            "content_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                            "status": "uploaded",
+                            "metadata": {
+                              "source": "chat",
+                              "conversation_id": "conv_123"
+                            },
+                            "url": "https://s3.amazonaws.com/files-bucket/biz_789xyz/2026/01/27/file_123abc456def/original?signature=abc123...",
+                            "thumbnail_url": "https://s3.amazonaws.com/files-bucket/biz_789xyz/2026/01/27/file_123abc456def/thumb_400.jpg?signature=def456...",
+                            "thumbnail_small_url": "https://s3.amazonaws.com/files-bucket/biz_789xyz/2026/01/27/file_123abc456def/thumb_150.jpg?signature=ghi789...",
+                            "created_by": "staff",
+                            "created_by_uid": "staff_456xyz",
+                            "created_at": "2026-01-27T10:30:00Z",
+                            "updated_at": "2026-01-27T10:30:45Z",
+                            "deleted_at": null
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions to delete this file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - File does not exist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error in request data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Files": []
+          }
+        ]
+      }
+    },
+    "/v3/assets/file_relations": {
+      "post": {
+        "operationId": "FileRelationsController_create",
+        "summary": "Create a file relation",
+        "description": "Links an existing file to a business entity (e.g., an invoice, message, or appointment). The referenced file must already exist and be in a usable state ('scanned', 'uploaded', or 'linked'). Once a file has at least one active relation its status becomes 'linked', protecting it from cleanup.\n\nFor **Client tokens**, the client_uid is derived from the token and any value supplied in the body is ignored. For **Staff tokens**, client_uid may be provided to associate the relation with a specific client.\n\nAvailable for **Staff and Client tokens**.",
+        "tags": [
+          "File Relations"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFileRelationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Relation created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "description": "Represents a relationship between a file and a business entity (e.g., invoice, message, appointment). This allows files to be attached to various entities across the platform. When a file has at least one active relation, its status becomes 'linked' and it is protected from cleanup jobs.",
+                          "properties": {
+                            "uid": {
+                              "type": "string",
+                              "readOnly": true,
+                              "description": "Unique identifier for the file-entity relation record (e.g., \"rel_123abc\")."
+                            },
+                            "file_uid": {
+                              "type": "string",
+                              "description": "Unique identifier of the file being linked (e.g., \"file_456def\"). Must reference an existing file with status 'scanned', 'uploaded', or 'linked'."
+                            },
+                            "entity_type": {
+                              "type": "string",
+                              "enum": [
+                                "message",
+                                "invoice",
+                                "payment",
+                                "appointment",
+                                "estimate"
+                              ],
+                              "description": "Type of entity the file is attached to. **message**: Email message. **invoice**: Invoice document. **payment**: Payment record. **appointment**: Scheduled appointment. **estimate**: Estimate/quote document."
+                            },
+                            "entity_uid": {
+                              "type": "string",
+                              "description": "Unique identifier of the entity the file is attached to (e.g., \"inv_789xyz\" for an invoice, \"msg_123abc\" for a message)."
+                            },
+                            "business_uid": {
+                              "type": "string",
+                              "readOnly": true,
+                              "description": "Unique identifier of the business that owns both the file and the entity (e.g., \"biz_456xyz\"). Inherited from the file record."
+                            },
+                            "client_uid": {
+                              "type": "string",
+                              "nullable": true,
+                              "description": "Unique identifier of the client associated with this relation, if applicable (e.g., \"client_789abc\"). Used for client-specific files like uploaded documents or images. Null for business-level files."
+                            },
+                            "created_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "readOnly": true,
+                              "description": "Timestamp when the relation was created, in ISO 8601 format (e.g., \"2026-01-27T10:35:00Z\")."
+                            },
+                            "updated_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "readOnly": true,
+                              "description": "Timestamp when the relation was last updated, in ISO 8601 format (e.g., \"2026-01-27T10:35:30Z\")."
+                            },
+                            "deleted_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "nullable": true,
+                              "readOnly": true,
+                              "description": "Timestamp when the relation was soft deleted, in ISO 8601 format (e.g., \"2026-01-27T12:00:00Z\"). Null if the relation is still active. When all relations for a file are deleted, the file may become eligible for cleanup."
+                            },
+                            "file": {
+                              "type": "object",
+                              "readOnly": true,
+                              "nullable": true,
+                              "description": "Details of the linked file, included when relations are fetched by entity. Omitted on relation creation.",
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "description": "Original filename including extension (e.g., \"invoice_2026_Q1.pdf\")."
+                                },
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "pending",
+                                    "scanning",
+                                    "scanned",
+                                    "uploaded",
+                                    "infected",
+                                    "failed",
+                                    "linked",
+                                    "deleted"
+                                  ],
+                                  "description": "Current processing status of the linked file."
+                                },
+                                "content_type": {
+                                  "type": "string",
+                                  "description": "MIME type of the linked file (e.g., \"application/pdf\", \"image/jpeg\")."
+                                },
+                                "size": {
+                                  "type": "integer",
+                                  "format": "int64",
+                                  "description": "File size in bytes (e.g., 2048576)."
+                                },
+                                "url": {
+                                  "type": "string",
+                                  "format": "uri",
+                                  "nullable": true,
+                                  "description": "Pre-signed S3 URL for downloading the original file. Null for pending/infected files."
+                                },
+                                "thumbnail_url": {
+                                  "type": "string",
+                                  "format": "uri",
+                                  "nullable": true,
+                                  "description": "Pre-signed S3 URL for the 400x400 pixel thumbnail. Null for non-image files or pending uploads."
+                                },
+                                "thumbnail_small_url": {
+                                  "type": "string",
+                                  "format": "uri",
+                                  "nullable": true,
+                                  "description": "Pre-signed S3 URL for the 150x150 pixel thumbnail. Null for non-image files or pending uploads."
+                                },
+                                "metadata": {
+                                  "type": "object",
+                                  "nullable": true,
+                                  "description": "Optional JSON object containing arbitrary key-value pairs for additional file metadata."
+                                },
+                                "created_at": {
+                                  "type": "string",
+                                  "format": "date-time",
+                                  "description": "Timestamp when the file record was created, in ISO 8601 format."
+                                },
+                                "updated_at": {
+                                  "type": "string",
+                                  "format": "date-time",
+                                  "description": "Timestamp when the file record was last updated, in ISO 8601 format."
+                                }
+                              }
+                            }
+                          },
+                          "required": [
+                            "uid",
+                            "file_uid",
+                            "entity_type",
+                            "entity_uid",
+                            "business_uid",
+                            "created_at",
+                            "updated_at"
+                          ],
+                          "example": {
+                            "uid": "rel_abc123def456",
+                            "file_uid": "file_789xyz",
+                            "entity_type": "invoice",
+                            "entity_uid": "inv_456abc",
+                            "business_uid": "biz_123xyz",
+                            "client_uid": "client_789def",
+                            "created_at": "2026-01-27T10:35:00Z",
+                            "updated_at": "2026-01-27T10:35:00Z",
+                            "deleted_at": null,
+                            "file": {
+                              "name": "invoice_2026_Q1.pdf",
+                              "status": "linked",
+                              "content_type": "application/pdf",
+                              "size": 2048576,
+                              "url": "https://s3.amazonaws.com/files-bucket/biz_123xyz/2026/01/27/file_789xyz/original?signature=abc123...",
+                              "thumbnail_url": "https://s3.amazonaws.com/files-bucket/biz_123xyz/2026/01/27/file_789xyz/thumb_400.jpg?signature=def456...",
+                              "thumbnail_small_url": "https://s3.amazonaws.com/files-bucket/biz_123xyz/2026/01/27/file_789xyz/thumb_150.jpg?signature=ghi789...",
+                              "metadata": {
+                                "source": "chat"
+                              },
+                              "created_at": "2026-01-27T10:30:00Z",
+                              "updated_at": "2026-01-27T10:30:45Z"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - File is not ready or is in an unusable state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - File does not exist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict - A relation between this file and entity already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error in request data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Files": []
+          }
+        ]
+      },
+      "get": {
+        "operationId": "FileRelationsController_findByEntity",
+        "summary": "Get file relations by entity",
+        "description": "Retrieves the file relations for a given entity, each including the linked file's details. Results are paginated.\n\nStaff access is scoped to the linked entity: a staff sees relations for any entity they can access, regardless of who uploaded the file. Client access is scoped to the client's own relations.\n\nAvailable for **Staff and Client tokens**.",
+        "tags": [
+          "File Relations"
+        ],
+        "parameters": [
+          {
+            "name": "entity_type",
+            "in": "query",
+            "required": true,
+            "description": "Type of entity to fetch relations for (e.g., \"invoice\", \"message\", \"appointment\").",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "message",
+                "invoice",
+                "payment",
+                "appointment",
+                "estimate"
+              ]
+            }
+          },
+          {
+            "name": "entity_uid",
+            "in": "query",
+            "required": true,
+            "description": "Unique identifier of the entity to fetch relations for (e.g., \"inv_123abc\").",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Page number for pagination (default: 1).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "description": "Number of relations per page (default: 20).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Relations retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/FileRelationsResponse"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions to access relations for this entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Files": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "FileRelationsController_deleteByEntity",
+        "summary": "Delete all entity files",
+        "description": "Soft deletes every file relation for the given entity and returns the number of relations deleted. Files left with no remaining active relations may become eligible for cleanup.\n\nAvailable for **Staff and Client tokens**.",
+        "tags": [
+          "File Relations"
+        ],
+        "parameters": [
+          {
+            "name": "entity_type",
+            "in": "query",
+            "required": true,
+            "description": "Type of entity whose relations should be deleted (e.g., \"invoice\", \"message\", \"appointment\").",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "message",
+                "invoice",
+                "payment",
+                "appointment",
+                "estimate"
+              ]
+            }
+          },
+          {
+            "name": "entity_uid",
+            "in": "query",
+            "required": true,
+            "description": "Unique identifier of the entity whose relations should be deleted (e.g., \"inv_123abc\").",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Relations deleted successfully (soft delete). Returns the number of relations removed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/DeleteFileRelationsResponse"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions to delete relations for this entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Files": []
+          }
+        ]
+      }
+    },
     "/client_api/v1/portals/{business_uid}/contact/get_form": {
       "get": {
         "tags": [
@@ -786,6 +2268,480 @@
   },
   "components": {
     "schemas": {
+      "Response": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "UploadFileRequest": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "description": "The file binary content to upload. Maximum size: 100MB."
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "description": "Optional filename override. If not provided, the original filename from the uploaded file is used. Maximum length: 255 characters (e.g., \"document.pdf\", \"photo.jpg\")."
+          },
+          "metadata": {
+            "type": "object",
+            "description": "Optional JSON object containing arbitrary key-value pairs for additional file metadata (e.g., {\"source\": \"chat\", \"conversation_id\": \"conv_123\"})."
+          }
+        },
+        "required": [
+          "file"
+        ]
+      },
+      "MultiFileResponse": {
+        "type": "object",
+        "properties": {
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "Represents a file uploaded to the platform. Files go through an asynchronous processing pipeline including virus scanning, S3 storage, and thumbnail generation. Content deduplication via SHA-256 fingerprinting ensures efficient storage within each business.",
+              "properties": {
+                "uid": {
+                  "type": "string",
+                  "readOnly": true,
+                  "description": "Unique identifier for the file record (e.g., \"file_123\")."
+                },
+                "business_uid": {
+                  "type": "string",
+                  "readOnly": true,
+                  "description": "Unique identifier of the business that owns this file (e.g., \"biz_456\")."
+                },
+                "name": {
+                  "type": "string",
+                  "maxLength": 255,
+                  "description": "Original filename including extension (e.g., \"document.pdf\", \"photo.jpg\"). Maximum length is 255 characters."
+                },
+                "content_type": {
+                  "type": "string",
+                  "enum": [
+                    "image/jpeg",
+                    "image/png",
+                    "image/gif",
+                    "image/webp",
+                    "image/svg+xml",
+                    "application/pdf",
+                    "application/msword",
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "application/vnd.ms-excel",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    "application/vnd.ms-powerpoint",
+                    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                    "text/plain",
+                    "text/csv",
+                    "video/mp4",
+                    "video/webm",
+                    "audio/mpeg",
+                    "audio/wav",
+                    "application/zip"
+                  ],
+                  "description": "MIME type of the uploaded file. One of the allowed types: image/jpeg, image/png, image/gif, image/webp, image/svg+xml, application/pdf, application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document (.docx), application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet (.xlsx), application/vnd.ms-powerpoint, application/vnd.openxmlformats-officedocument.presentationml.presentation (.pptx), text/plain, text/csv, video/mp4, video/webm, audio/mpeg, audio/wav, application/zip (e.g., \"application/pdf\", \"image/jpeg\")."
+                },
+                "size_bytes": {
+                  "type": "integer",
+                  "format": "int64",
+                  "description": "File size in bytes. Maximum allowed size is 104857600 bytes (100MB)."
+                },
+                "content_hash": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "nullable": true,
+                  "description": "SHA-256 fingerprint (64-character hexadecimal string) used for content deduplication within the same business. Files with identical content_hash skip redundant processing (e.g., \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\")."
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "pending",
+                    "scanning",
+                    "scanned",
+                    "uploaded",
+                    "infected",
+                    "failed",
+                    "linked",
+                    "deleted"
+                  ],
+                  "description": "Current processing status of the file. **pending**: Upload received, virus scan queued. **scanning**: Virus scan in progress. **scanned**: Virus scan passed, awaiting S3 upload. **uploaded**: S3 upload complete, thumbnails generated if applicable. **infected**: Malware detected, file marked for deletion. **failed**: Processing error occurred (scan or upload failure). **linked**: File has active entity relations. **deleted**: Soft deleted. The file's S3 objects (original and thumbnails) are removed immediately; the record is retained as soft-deleted and excluded from all reads."
+                },
+                "metadata": {
+                  "type": "object",
+                  "nullable": true,
+                  "description": "Optional JSON object containing arbitrary key-value pairs for additional file metadata (e.g., {\"source\": \"chat\", \"uploaded_by_name\": \"John Doe\"})."
+                },
+                "url": {
+                  "type": "string",
+                  "format": "uri",
+                  "nullable": true,
+                  "readOnly": true,
+                  "description": "Pre-signed S3 URL for downloading the original file. Available when status is 'uploaded' or 'linked'. Null for pending/failed files (e.g., \"https://s3.amazonaws.com/files-bucket/path/to/original?signature=...\")."
+                },
+                "thumbnail_url": {
+                  "type": "string",
+                  "format": "uri",
+                  "nullable": true,
+                  "readOnly": true,
+                  "description": "Pre-signed S3 URL for the 400x400 pixel thumbnail. Available for images and PDFs after successful upload. Null for non-image files or pending uploads (e.g., \"https://s3.amazonaws.com/files-bucket/path/to/thumb_400.jpg?signature=...\")."
+                },
+                "thumbnail_small_url": {
+                  "type": "string",
+                  "format": "uri",
+                  "nullable": true,
+                  "readOnly": true,
+                  "description": "Pre-signed S3 URL for the 150x150 pixel thumbnail. Available for images and PDFs after successful upload. Null for non-image files or pending uploads (e.g., \"https://s3.amazonaws.com/files-bucket/path/to/thumb_150.jpg?signature=...\")."
+                },
+                "created_by": {
+                  "type": "string",
+                  "enum": [
+                    "staff",
+                    "client"
+                  ],
+                  "readOnly": true,
+                  "description": "Type of actor who created this file. **staff**: Uploaded by a staff member. **client**: Uploaded by a client."
+                },
+                "created_by_uid": {
+                  "type": "string",
+                  "readOnly": true,
+                  "description": "Unique identifier of the staff member or client who uploaded this file (e.g., \"staff_789\", \"client_456\")."
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "readOnly": true,
+                  "description": "Timestamp when the file record was created, in ISO 8601 format (e.g., \"2026-01-27T10:30:00Z\")."
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "readOnly": true,
+                  "description": "Timestamp when the file record was last updated, in ISO 8601 format (e.g., \"2026-01-27T11:00:00Z\")."
+                },
+                "deleted_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "nullable": true,
+                  "readOnly": true,
+                  "description": "Timestamp when the file was soft deleted, in ISO 8601 format (e.g., \"2026-01-27T12:00:00Z\"). Null if not deleted. On deletion the file's S3 objects (including thumbnails) are removed immediately; the record is retained as soft-deleted."
+                }
+              },
+              "required": [
+                "uid",
+                "business_uid",
+                "name",
+                "content_type",
+                "size_bytes",
+                "status",
+                "created_by",
+                "created_by_uid",
+                "created_at",
+                "updated_at"
+              ],
+              "example": {
+                "uid": "file_123abc456def",
+                "business_uid": "biz_789xyz",
+                "name": "invoice_2026_Q1.pdf",
+                "content_type": "application/pdf",
+                "size_bytes": 2048576,
+                "content_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "status": "uploaded",
+                "metadata": {
+                  "source": "chat",
+                  "conversation_id": "conv_123"
+                },
+                "url": "https://s3.amazonaws.com/files-bucket/biz_789xyz/2026/01/27/file_123abc456def/original?signature=abc123...",
+                "thumbnail_url": "https://s3.amazonaws.com/files-bucket/biz_789xyz/2026/01/27/file_123abc456def/thumb_400.jpg?signature=def456...",
+                "thumbnail_small_url": "https://s3.amazonaws.com/files-bucket/biz_789xyz/2026/01/27/file_123abc456def/thumb_150.jpg?signature=ghi789...",
+                "created_by": "staff",
+                "created_by_uid": "staff_456xyz",
+                "created_at": "2026-01-27T10:30:00Z",
+                "updated_at": "2026-01-27T10:30:45Z",
+                "deleted_at": null
+              }
+            }
+          },
+          "pagination": {
+            "type": "object",
+            "properties": {
+              "page": {
+                "type": "integer"
+              },
+              "per_page": {
+                "type": "integer"
+              },
+              "total": {
+                "type": "integer"
+              },
+              "total_pages": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "required": [
+          "files"
+        ]
+      },
+      "CreateFileRelationRequest": {
+        "type": "object",
+        "properties": {
+          "file_uid": {
+            "type": "string",
+            "description": "Unique identifier of the file to link (e.g., \"file_123abc\"). Must reference an existing file in a usable state ('scanned', 'uploaded', or 'linked')."
+          },
+          "entity_type": {
+            "type": "string",
+            "enum": [
+              "message",
+              "invoice",
+              "payment",
+              "appointment",
+              "estimate"
+            ],
+            "description": "Type of entity the file is linked to (e.g., \"message\", \"invoice\")."
+          },
+          "entity_uid": {
+            "type": "string",
+            "description": "Unique identifier of the entity the file is linked to (e.g., \"inv_123abc\")."
+          },
+          "client_uid": {
+            "type": "string",
+            "description": "Optional client UID to associate with the relation (e.g., \"client_789abc\"). Ignored for Client tokens, where it is derived from the token."
+          }
+        },
+        "required": [
+          "file_uid",
+          "entity_type",
+          "entity_uid"
+        ]
+      },
+      "FileRelationsResponse": {
+        "type": "object",
+        "properties": {
+          "file_relations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "Represents a relationship between a file and a business entity (e.g., invoice, message, appointment). This allows files to be attached to various entities across the platform. When a file has at least one active relation, its status becomes 'linked' and it is protected from cleanup jobs.",
+              "properties": {
+                "uid": {
+                  "type": "string",
+                  "readOnly": true,
+                  "description": "Unique identifier for the file-entity relation record (e.g., \"rel_123abc\")."
+                },
+                "file_uid": {
+                  "type": "string",
+                  "description": "Unique identifier of the file being linked (e.g., \"file_456def\"). Must reference an existing file with status 'scanned', 'uploaded', or 'linked'."
+                },
+                "entity_type": {
+                  "type": "string",
+                  "enum": [
+                    "message",
+                    "invoice",
+                    "payment",
+                    "appointment",
+                    "estimate"
+                  ],
+                  "description": "Type of entity the file is attached to. **message**: Email message. **invoice**: Invoice document. **payment**: Payment record. **appointment**: Scheduled appointment. **estimate**: Estimate/quote document."
+                },
+                "entity_uid": {
+                  "type": "string",
+                  "description": "Unique identifier of the entity the file is attached to (e.g., \"inv_789xyz\" for an invoice, \"msg_123abc\" for a message)."
+                },
+                "business_uid": {
+                  "type": "string",
+                  "readOnly": true,
+                  "description": "Unique identifier of the business that owns both the file and the entity (e.g., \"biz_456xyz\"). Inherited from the file record."
+                },
+                "client_uid": {
+                  "type": "string",
+                  "nullable": true,
+                  "description": "Unique identifier of the client associated with this relation, if applicable (e.g., \"client_789abc\"). Used for client-specific files like uploaded documents or images. Null for business-level files."
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "readOnly": true,
+                  "description": "Timestamp when the relation was created, in ISO 8601 format (e.g., \"2026-01-27T10:35:00Z\")."
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "readOnly": true,
+                  "description": "Timestamp when the relation was last updated, in ISO 8601 format (e.g., \"2026-01-27T10:35:30Z\")."
+                },
+                "deleted_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "nullable": true,
+                  "readOnly": true,
+                  "description": "Timestamp when the relation was soft deleted, in ISO 8601 format (e.g., \"2026-01-27T12:00:00Z\"). Null if the relation is still active. When all relations for a file are deleted, the file may become eligible for cleanup."
+                },
+                "file": {
+                  "type": "object",
+                  "readOnly": true,
+                  "nullable": true,
+                  "description": "Details of the linked file, included when relations are fetched by entity. Omitted on relation creation.",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Original filename including extension (e.g., \"invoice_2026_Q1.pdf\")."
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "scanning",
+                        "scanned",
+                        "uploaded",
+                        "infected",
+                        "failed",
+                        "linked",
+                        "deleted"
+                      ],
+                      "description": "Current processing status of the linked file."
+                    },
+                    "content_type": {
+                      "type": "string",
+                      "description": "MIME type of the linked file (e.g., \"application/pdf\", \"image/jpeg\")."
+                    },
+                    "size": {
+                      "type": "integer",
+                      "format": "int64",
+                      "description": "File size in bytes (e.g., 2048576)."
+                    },
+                    "url": {
+                      "type": "string",
+                      "format": "uri",
+                      "nullable": true,
+                      "description": "Pre-signed S3 URL for downloading the original file. Null for pending/infected files."
+                    },
+                    "thumbnail_url": {
+                      "type": "string",
+                      "format": "uri",
+                      "nullable": true,
+                      "description": "Pre-signed S3 URL for the 400x400 pixel thumbnail. Null for non-image files or pending uploads."
+                    },
+                    "thumbnail_small_url": {
+                      "type": "string",
+                      "format": "uri",
+                      "nullable": true,
+                      "description": "Pre-signed S3 URL for the 150x150 pixel thumbnail. Null for non-image files or pending uploads."
+                    },
+                    "metadata": {
+                      "type": "object",
+                      "nullable": true,
+                      "description": "Optional JSON object containing arbitrary key-value pairs for additional file metadata."
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "Timestamp when the file record was created, in ISO 8601 format."
+                    },
+                    "updated_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "Timestamp when the file record was last updated, in ISO 8601 format."
+                    }
+                  }
+                }
+              },
+              "required": [
+                "uid",
+                "file_uid",
+                "entity_type",
+                "entity_uid",
+                "business_uid",
+                "created_at",
+                "updated_at"
+              ],
+              "example": {
+                "uid": "rel_abc123def456",
+                "file_uid": "file_789xyz",
+                "entity_type": "invoice",
+                "entity_uid": "inv_456abc",
+                "business_uid": "biz_123xyz",
+                "client_uid": "client_789def",
+                "created_at": "2026-01-27T10:35:00Z",
+                "updated_at": "2026-01-27T10:35:00Z",
+                "deleted_at": null,
+                "file": {
+                  "name": "invoice_2026_Q1.pdf",
+                  "status": "linked",
+                  "content_type": "application/pdf",
+                  "size": 2048576,
+                  "url": "https://s3.amazonaws.com/files-bucket/biz_123xyz/2026/01/27/file_789xyz/original?signature=abc123...",
+                  "thumbnail_url": "https://s3.amazonaws.com/files-bucket/biz_123xyz/2026/01/27/file_789xyz/thumb_400.jpg?signature=def456...",
+                  "thumbnail_small_url": "https://s3.amazonaws.com/files-bucket/biz_123xyz/2026/01/27/file_789xyz/thumb_150.jpg?signature=ghi789...",
+                  "metadata": {
+                    "source": "chat"
+                  },
+                  "created_at": "2026-01-27T10:30:00Z",
+                  "updated_at": "2026-01-27T10:30:45Z"
+                }
+              }
+            },
+            "description": "Array of file relations, each including the linked file's details"
+          }
+        },
+        "required": [
+          "file_relations"
+        ]
+      },
+      "DeleteFileRelationsResponse": {
+        "type": "object",
+        "properties": {
+          "deleted_count": {
+            "type": "integer",
+            "description": "Number of file relations that were soft deleted (e.g., 3)."
+          }
+        },
+        "required": [
+          "deleted_count"
+        ]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "The name of the field that had an error (for validation errors) (e.g., \"name\", \"file\")."
+                },
+                "code": {
+                  "type": "string",
+                  "description": "The error code (for validation errors) (e.g., \"FILE_REQUIRED\", \"VALIDATION_ERROR\")."
+                },
+                "description": {
+                  "type": "string",
+                  "description": "A description of the error (for validation errors) (e.g., \"File is required\")."
+                }
+              }
+            }
+          }
+        }
+      },
       "DocuformsSearchResponse": {
         "type": "object",
         "description": "Response for docuforms (documents/forms) search.",
@@ -855,7 +2811,7 @@
           }
         }
       },
-      "ErrorResponse": {
+      "ErrorResponse_legacy_documents": {
         "type": "object",
         "properties": {
           "success": {
@@ -874,6 +2830,10 @@
         "scheme": "bearer",
         "bearerFormat": "JWT",
         "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+      },
+      "Files": {
+        "type": "http",
+        "scheme": "bearer"
       }
     }
   },

@@ -150,6 +150,11 @@ Options:
   --output-dir <dir>    Output directory (default: ./mcp_swagger)
   --verbose             Enable detailed logging
   --dry-run            Preview processing without writing files
+  --flatten-refs        Inline external $ref URLs that live in this repo
+                        (alias: --inline-refs)
+  --refs-base-url <url> External ref URL prefix to flatten
+                        (default: https://vcita.github.io/developers-hub/)
+  --refs-base-dir <dir> Local dir the ref URL prefix maps to (default: .)
   --help               Show help message
 ```
 
@@ -164,7 +169,30 @@ node scripts/unify-openapi.js --dry-run --verbose
 
 # Custom output directory with verbose logging
 node scripts/unify-openapi.js --output-dir ./dist/apis --verbose
+
+# Flatten external entity references into inline JSON
+node scripts/unify-openapi.js --flatten-refs
 ```
+
+### 🔗 Flattening External References
+
+By default the unified specs keep external `$ref` URLs such as
+`https://vcita.github.io/developers-hub/entities/response.json`. Those entities
+actually live in this repo (the URL prefix maps to the repo root, so the ref
+above resolves to `entities/response.json` on disk), but ReadMe and some other
+tooling cannot dereference the external URLs.
+
+Passing `--flatten-refs` (alias `--inline-refs`) walks each unified spec and
+replaces every external `$ref` with the inline JSON it points to, producing a
+self-contained specification:
+
+- Only refs beginning with `--refs-base-url` are touched; internal refs
+  (`#/components/schemas/...`, `#/definitions/...`) are left untouched.
+- Both whole-file refs and refs with a JSON Pointer fragment
+  (`.../invoice.json#/properties/status`) are supported.
+- Nested external refs inside inlined entities are resolved recursively, with a
+  cycle guard that leaves circular refs in place and logs a warning.
+- Ref targets missing on disk are left in place and reported in the summary.
 
 ## 📈 Script Output
 
@@ -282,6 +310,9 @@ npm run unify:verbose
 
 # Dry run with verbose output
 npm run unify:dry-run
+
+# Flatten external entity references into inline JSON
+npm run unify:flatten
 ```
 
 ## 🔄 Re-running the Script
