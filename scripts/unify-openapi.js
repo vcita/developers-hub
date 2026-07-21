@@ -46,7 +46,13 @@ const config = {
   inputDir: './swagger',
   outputDir: './mcp_swagger',
   verbose: false,
-  dryRun: false
+  dryRun: false,
+  // Reference flattening: replace external $ref URLs (that actually live in this
+  // repo, e.g. under entities/) with the inline JSON they point to. ReadMe struggles
+  // to resolve these external URLs, so inlining produces self-contained specs.
+  flattenRefs: false,
+  refsBaseUrl: 'https://vcita.github.io/developers-hub/',
+  refsBaseDir: '.'
 };
 
 // Parse command line arguments
@@ -65,6 +71,16 @@ for (let i = 0; i < args.length; i++) {
     case '--dry-run':
       config.dryRun = true;
       break;
+    case '--flatten-refs':
+    case '--inline-refs':
+      config.flattenRefs = true;
+      break;
+    case '--refs-base-url':
+      config.refsBaseUrl = args[++i];
+      break;
+    case '--refs-base-dir':
+      config.refsBaseDir = args[++i];
+      break;
     case '--help':
       console.log(`
 Usage: node scripts/unify-openapi.js [options]
@@ -74,6 +90,11 @@ Options:
   --output-dir <dir>    Output directory (default: ./mcp_swagger)
   --verbose             Enable verbose logging
   --dry-run            Show what would be processed without writing files
+  --flatten-refs        Inline external \$ref URLs that live in this repo
+                        (alias: --inline-refs). Internal #/... refs are left as-is.
+  --refs-base-url <url> External ref URL prefix to flatten
+                        (default: https://vcita.github.io/developers-hub/)
+  --refs-base-dir <dir> Local dir the ref URL prefix maps to (default: .)
   --help               Show this help message
 
 Conflict Resolution:
@@ -473,8 +494,125 @@ function convertDefinitionsToComponents(fileContent, fileName) {
   return components;
 }
 
+// Flatten external $ref URLs into inline JSON
+// ============================================
+// ReadMe (and some other tooling) cannot resolve external $ref URLs such as
+// "https://vcita.github.io/developers-hub/entities/response.json". Those files
+// actually live in this repo (the URL prefix maps to the repo root, so the ref
+// above is entities/response.json on disk). This function walks a spec and
+// replaces every such external $ref with the inline JSON it points to, producing
+// a self-contained specification.
+//
+// SCOPE:
+// - Only refs whose value starts with `baseUrl` are touched.
+// - Internal refs (#/components/schemas/..., #/definitions/...) are left untouched.
+//
+// SUPPORTED REF FORMS:
+// 1. Whole-file:   ".../entities/response.json"
+// 2. With pointer: ".../entities/payments/invoice.json#/properties/status"
+//                  → the JSON Pointer fragment is resolved within the file.
+//
+// NESTED REFS:
+// Inlined content may itself contain external refs; those are resolved
+// recursively. A resolution stack guards against circular references — if a
+// cycle is detected the offending $ref is left in place and a warning is logged.
+//
+// Returns { spec, count, missing } where `count` is how many external refs were
+// inlined and `missing` lists ref targets that could not be found on disk.
+function flattenExternalRefs(spec, baseUrl, baseDir) {
+  const fileCache = new Map();
+  const stats = { count: 0, missing: new Set() };
+
+  function loadFile(relPath) {
+    if (fileCache.has(relPath)) return fileCache.get(relPath);
+    const filePath = path.join(baseDir, relPath);
+    let content = null;
+    try {
+      content = fs.readJsonSync(filePath);
+    } catch (error) {
+      content = null; // Cached as null so we only warn once per missing file
+    }
+    fileCache.set(relPath, content);
+    return content;
+  }
+
+  // Resolve a JSON Pointer fragment (RFC 6901) within a document.
+  function resolvePointer(doc, pointer) {
+    if (!pointer || pointer === '#' || pointer === '#/') return doc;
+    const parts = pointer.replace(/^#\//, '').split('/');
+    let current = doc;
+    for (const rawPart of parts) {
+      const key = rawPart.replace(/~1/g, '/').replace(/~0/g, '~');
+      if (current && typeof current === 'object' && key in current) {
+        current = current[key];
+      } else {
+        return undefined;
+      }
+    }
+    return current;
+  }
+
+  // `stack` holds the external ref URLs currently being resolved (cycle guard).
+  function walk(node, stack) {
+    if (Array.isArray(node)) {
+      return node.map(item => walk(item, stack));
+    }
+    if (node && typeof node === 'object') {
+      const refValue = node.$ref;
+      if (typeof refValue === 'string' && refValue.startsWith(baseUrl)) {
+        if (stack.includes(refValue)) {
+          log.warn(`Circular external ref, leaving in place: ${refValue}`);
+          return node;
+        }
+
+        const withoutPrefix = refValue.slice(baseUrl.length);
+        const hashIndex = withoutPrefix.indexOf('#');
+        const relPath = hashIndex === -1 ? withoutPrefix : withoutPrefix.slice(0, hashIndex);
+        const pointer = hashIndex === -1 ? '' : withoutPrefix.slice(hashIndex);
+
+        const fileContent = loadFile(relPath);
+        if (fileContent === null) {
+          stats.missing.add(relPath);
+          log.warn(`External ref target not found on disk, leaving in place: ${refValue}`);
+          return node;
+        }
+
+        const target = resolvePointer(fileContent, pointer);
+        if (target === undefined) {
+          stats.missing.add(refValue.slice(baseUrl.length));
+          log.warn(`External ref pointer did not resolve, leaving in place: ${refValue}`);
+          return node;
+        }
+
+        // Recursively inline any external refs inside the resolved content.
+        const resolved = walk(JSON.parse(JSON.stringify(target)), [...stack, refValue]);
+        stats.count++;
+        log.verbose(`Flattened external ref: ${refValue}`);
+
+        // Preserve sibling annotations that sat next to $ref (e.g. description);
+        // siblings win over the inlined content, matching OpenAPI 3.1 semantics.
+        const { $ref, ...siblings } = node;
+        if (Object.keys(siblings).length > 0 && resolved && typeof resolved === 'object' && !Array.isArray(resolved)) {
+          return { ...resolved, ...walk(siblings, stack) };
+        }
+        return resolved;
+      }
+
+      const result = {};
+      for (const [key, value] of Object.entries(node)) {
+        result[key] = walk(value, stack);
+      }
+      return result;
+    }
+    return node;
+  }
+
+  const flattened = walk(spec, []);
+  return { spec: flattened, count: stats.count, missing: Array.from(stats.missing) };
+}
+
 // Merge components from multiple files
-// 
+//
 // CONFLICT RESOLUTION STRATEGY:
 // =============================
 // When merging OpenAPI components (schemas, security schemes, etc.) from multiple files,
@@ -1020,7 +1158,8 @@ async function main() {
       successfulDomains: 0,
       totalFiles: 0,
       totalPaths: 0,
-      totalConflicts: 0
+      totalConflicts: 0,
+      totalRefsFlattened: 0
     };
     
     // Process each domain
@@ -1037,7 +1176,19 @@ async function main() {
           summary.totalFiles += result.stats.filesProcessed;
           summary.totalPaths += result.stats.pathsGenerated;
           summary.totalConflicts += result.stats.pathConflicts + result.stats.componentConflicts;
-          
+
+          // Flatten external $ref URLs into inline JSON (if requested)
+          if (config.flattenRefs) {
+            const { spec: flatSpec, count, missing } = flattenExternalRefs(
+              result.spec, config.refsBaseUrl, config.refsBaseDir);
+            result.spec = flatSpec;
+            summary.totalRefsFlattened += count;
+            log.info(`Domain ${domain}: Flattened ${count} external reference(s) into inline JSON`);
+            if (missing.length > 0) {
+              log.warn(`Domain ${domain}: ${missing.length} external ref target(s) not found: ${missing.join(', ')}`);
+            }
+          }
+
           // Write unified file
           if (!config.dryRun) {
             const outputFile = path.join(config.outputDir, `${domain}.json`);
@@ -1059,6 +1210,9 @@ async function main() {
     console.log(`Total files processed: ${summary.totalFiles}`);
     console.log(`Total paths generated: ${summary.totalPaths}`);
     console.log(`Total conflicts resolved: ${summary.totalConflicts}`);
+    if (config.flattenRefs) {
+      console.log(`Total external refs flattened: ${summary.totalRefsFlattened}`);
+    }
     
     if (summary.totalConflicts > 0) {
       console.log('\n🔧 CONFLICT RESOLUTION APPLIED:');
@@ -1107,5 +1261,6 @@ module.exports = {
   normalizeEndpoints, 
   extractBasePath, 
   convertSwaggerToOpenAPI,
-  convertDefinitionsToComponents 
+  convertDefinitionsToComponents,
+  flattenExternalRefs
 };
