@@ -65,6 +65,11 @@
               "basePath": "/v3"
             },
             {
+              "original": "/license/subscriptions/bulk",
+              "normalized": "/v3/license/subscriptions/bulk",
+              "basePath": "/v3"
+            },
+            {
               "original": "/license/subscriptions/{uid}",
               "normalized": "/v3/license/subscriptions/{uid}",
               "basePath": "/v3"
@@ -326,8 +331,8 @@
           ]
         }
       ],
-      "totalPaths": 71,
-      "totalComponents": 32
+      "totalPaths": 72,
+      "totalComponents": 33
     }
   },
   "servers": [
@@ -3068,6 +3073,113 @@
         },
         "summary": "Create a Subscription",
         "description": "## Overview\nCreate a new Subscription for a business. Supports discounted and free plans using coupons.\n\nAvailable for **Staff tokens**.\n\n### Token Permissions\n\n| Token Type | Allowed | Restrictions |\n|------------|---------|-------------|\n| **Staff** | Yes | Cannot set custom pricing. For `external` payment type offerings, must use a Staff token created by a Directory token. |\n| **Directory** | No | Must create a Staff token first via `POST /platform/v1/tokens` |\n| **Internal** | No | Must create a Staff token first |\n| **Billing App** | Yes | Cannot set custom pricing |\n| **Regular App** | No | Not allowed |\n\n### Important: External Payment Type Offerings\n\nOfferings with `payment_type = external` require a **Staff token created by a Directory token**:\n\n1. Use `POST /platform/v1/tokens` with a Directory token to create a Staff token for the target business.\n2. Use that Staff token to call this endpoint.\n\nThe `buyer_uid` in the subscription is automatically derived from the authenticated Staff token's identity.",
+        "tags": [
+          "Subscription"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/license/subscriptions/bulk": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkCreateSubscriptionsDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "The list of created Subscriptions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/SubscriptionList"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Offering is not an add-on or quantity is out of range",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "invalid_request",
+                    "message": "Bulk create is only supported for add-on offerings"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Bulk Create Subscriptions",
+        "description": "## Overview\nCreate multiple identical Subscriptions for a business in a single request. Supported for **add-on** offerings only (`type = addon`); each created subscription is a separate line (e.g., an offering of 5 staff seats with `quantity = 3` results in 3 subscription lines, 15 staff seats in total).\n\nSubscriptions are created sequentially; if one creation fails, previously created lines are kept and the error is returned.\n\nAvailable for **Staff tokens**.\n\nToken permissions and external payment type behavior are identical to `POST /license/subscriptions`.",
         "tags": [
           "Subscription"
         ],
@@ -19301,6 +19413,34 @@
               "description": "The SKU represents a service or a features set that can be offered by inTandem/partners to their users."
             }
           }
+        }
+      },
+      "BulkCreateSubscriptionsDTO": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/CreateSubscriptionDTO"
+          },
+          {
+            "type": "object",
+            "description": "Request body for creating multiple identical subscriptions of an add-on offering in a single request.",
+            "properties": {
+              "quantity": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10,
+                "description": "Number of identical subscription lines to create for the offering (e.g., 3)",
+                "example": 3
+              }
+            },
+            "required": [
+              "quantity"
+            ]
+          }
+        ],
+        "example": {
+          "offering_uid": "bc33f12d-98ee-428f-9f65-18bba589cb95",
+          "purchase_currency": "USD",
+          "quantity": 3
         }
       },
       "Paging": {
