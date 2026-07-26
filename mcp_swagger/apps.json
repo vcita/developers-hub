@@ -6,10 +6,10 @@
     "version": "3.0",
     "x-generated": {
       "sourceFiles": [
+        "navigation_items.json",
         "apps.json",
         "app_business_mappings.json",
         "legacy_v1_apps.json",
-        "navigation_items.json",
         "legacy_token.json",
         "widgets_and_boards.json",
         "legacy_app_translation.json",
@@ -80,10 +80,10 @@
         {
           "type": "schema",
           "name": "ErrorResponse",
-          "resolution": "Renamed to ErrorResponse_navigation_items",
+          "resolution": "Renamed to ErrorResponse_app_business_mappings",
           "files": [
             "merged",
-            "navigation_items.json"
+            "app_business_mappings.json"
           ]
         },
         {
@@ -107,6 +107,1574 @@
     }
   ],
   "paths": {
+    "/v3/apps/navigation_items": {
+      "get": {
+        "tags": [
+          "Navigation Items"
+        ],
+        "summary": "List Navigation Items",
+        "description": "Retrieve a paginated list of navigation items for the authenticated directory. Supports filtering by parent and mobile availability. Available for **Staff & Directory tokens**.",
+        "operationId": "listNavigationItems",
+        "parameters": [
+          {
+            "name": "parent_uid",
+            "in": "query",
+            "required": false,
+            "description": "Filter by parent navigation item unique identifier. Use 'null' for root-level items (e.g., \"nav-item-parent123\").",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "available_in_mobile",
+            "in": "query",
+            "required": false,
+            "description": "Filter by whether the navigation item should appear in mobile app navigation (e.g., true, false).",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "Page number of results (e.g., 1, 2, 3).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000,
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "description": "How many items to return per page. Max: 100 (e.g., 25, 50, 100).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Navigation items retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "navigation_items": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "description": "Represents a navigation menu item that defines how partners configure their platform navigation structure. Navigation items support hierarchical menus, localized titles, permission-based visibility, and mobile-specific settings.",
+                                "properties": {
+                                  "uid": {
+                                    "type": "string",
+                                    "readOnly": true,
+                                    "description": "Unique identifier for the navigation item (e.g., \"nav-item-abc123\")."
+                                  },
+                                  "parent_uid": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "description": "The UID of the parent navigation item. Set to null only for the root item, which represents the logo. Only one root item should exist per directory (e.g., \"nav-item-parent123\" or null)."
+                                  },
+                                  "directory_uid": {
+                                    "type": "string",
+                                    "readOnly": true,
+                                    "description": "Unique identifier of the directory (partner) that owns this navigation item. Automatically set from the authenticated token context (e.g., \"dir-abc123\")."
+                                  },
+                                  "order": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "default": 0,
+                                    "description": "Display order within the parent level. Lower numbers appear first. Items with the same order are sorted by creation time (e.g., 0, 1, 2)."
+                                  },
+                                  "title": {
+                                    "type": "object",
+                                    "description": "Localized titles for the navigation item. Must include at least the 'en' (English) locale.",
+                                    "propertyNames": {
+                                      "type": "string",
+                                      "enum": [
+                                        "de",
+                                        "en",
+                                        "es",
+                                        "fr",
+                                        "he",
+                                        "it",
+                                        "pl",
+                                        "pt",
+                                        "ru",
+                                        "sl",
+                                        "tr"
+                                      ]
+                                    },
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "description": "English title (required)."
+                                      },
+                                      "he": {
+                                        "type": "string",
+                                        "description": "Hebrew title (optional)."
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ],
+                                    "additionalProperties": {
+                                      "type": "string",
+                                      "description": "Additional locale titles (e.g., \"es\", \"fr\", \"de\")."
+                                    }
+                                  },
+                                  "icon": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "maxLength": 255,
+                                    "description": "Icon identifier from the platform icon library. For a list of supported icon identifiers, refer to the inTandem UI icon library used by the platform (e.g., \"icon-Dashboard_POV\", \"icon-Settings\")."
+                                  },
+                                  "key": {
+                                    "type": "string",
+                                    "maxLength": 255,
+                                    "description": "Human-readable unique identifier within the directory. Used by API consumers for programmatic access. Must be stable across title/translation changes (e.g., \"dashboard\", \"settings\", \"custom_module\")."
+                                  },
+                                  "modules": {
+                                    "type": "array",
+                                    "nullable": true,
+                                    "uniqueItems": true,
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "description": "Array of module identifiers required for this item to be visible. Item is shown only if the business has at least one of these modules enabled. The list of enabled modules can be retrieved from the features endpoint (e.g., \"https://developers.intandem.tech/reference/get_platform-v1-businesses-business-id-features\"). (e.g., [\"scheduling\", \"payments\"])."
+                                  },
+                                  "permissions": {
+                                    "type": "array",
+                                    "nullable": true,
+                                    "uniqueItems": true,
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "description": "Array of permission identifiers required to view this item. Item is shown only if the staff member has at least one of these permissions. To retrieve valid permission codes, use the endpoint (GET \"/v3/access_control/permissions\"). (e.g., [\"payments.invoices.export\", \"clients.manage\"])."
+                                  },
+                                  "badge_code": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "enum": [
+                                      "inbox_unread"
+                                    ],
+                                    "description": "Badge code that displays a notification indicator on this navigation item. Supported values are finite and managed by the platform (e.g., \"inbox_unread\" or null)."
+                                  },
+                                  "action": {
+                                    "type": "object",
+                                    "description": "Action configuration that defines the behavior when the navigation item is clicked. Actions are handled by the inTandem JS SDK. Every navigation item must have an action. Supported action types: \"navigate\" (navigates to a page) and \"openModal\" (opens a modal dialog).",
+                                    "properties": {
+                                      "name": {
+                                        "type": "string",
+                                        "enum": [
+                                          "navigate",
+                                          "openModal"
+                                        ],
+                                        "description": "Action type identifier. Supported values: \"navigate\" (navigates to a page using the inTandem JS SDK navigate function, see the [navigate documentation](https://developers.intandem.tech/docs/navigate)), \"openModal\" (opens a modal dialog using the inTandem JS SDK, see the [openModal documentation](https://developers.intandem.tech/docs/openmodal))."
+                                      },
+                                      "payload": {
+                                        "type": "object",
+                                        "description": "Action-specific payload. For \"navigate\": must include 'type' and 'path' (required), and optionally 'new_tab'. For \"openModal\": must include the modal configuration (e.g., {\"modalName\": \"AppMarket\"}). See the inTandem JS SDK documentation for complete parameter specifications."
+                                      }
+                                    },
+                                    "required": [
+                                      "name",
+                                      "payload"
+                                    ]
+                                  },
+                                  "available_in_mobile": {
+                                    "type": "boolean",
+                                    "default": true,
+                                    "description": "Whether this navigation item should appear in mobile app navigation. Set to false for desktop-only features (e.g., true, false)."
+                                  },
+                                  "favorite_in_mobile": {
+                                    "type": "boolean",
+                                    "default": false,
+                                    "description": "Whether this item appears in the mobile favorites/quick-access section. Only applicable when available_in_mobile is true (e.g., true, false)."
+                                  },
+                                  "upsell_handling": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "enum": [
+                                      "hide",
+                                      "show_upsell"
+                                    ],
+                                    "description": "Behavior when user lacks required modules/permissions. 'hide' removes the item completely, 'show_upsell' displays it with an upgrade prompt. Null means default behavior (hide)."
+                                  },
+                                  "role": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "enum": [
+                                      "settings"
+                                    ],
+                                    "description": "Semantic role of the navigation item that can trigger special behavior, e.g. \"settings\" causes a settings cog icon to be displayed in the full menu screen. Null means no special role (e.g., \"settings\" or null)."
+                                  },
+                                  "app_code_name": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "maxLength": 255,
+                                    "description": "App code name to gate this item by app availability. When set, the item is only visible to staff who have the corresponding app assigned. Must match an existing app's app_code_name. Null means the item is not gated by app availability (e.g., \"myapp\" or null)."
+                                  },
+                                  "is_bmp": {
+                                    "type": "boolean",
+                                    "default": false,
+                                    "description": "Indicates if this is a Business Management Platform (BMP) sub-menu item. When set to true, BMP children are built by inTandem internal logic. Available for **Directory tokens** via create and update operations (e.g., true, false)."
+                                  },
+                                  "expand_by_default": {
+                                    "type": "boolean",
+                                    "default": false,
+                                    "description": "Whether this navigation item's sub-menu renders expanded by default on module landing, so its child items are immediately visible without an extra click. The frontend only expands items that have children. Deep-link behavior is unaffected. Only applies to partner navigation items — BMP items are unaffected. Applies to both desktop and mobile (full-screen menu) (e.g., true, false)."
+                                  },
+                                  "show_quick_actions": {
+                                    "type": "boolean",
+                                    "default": false,
+                                    "description": "Whether this navigation item renders with the Quick Actions button at the top of the navigation (same design as the platform default). Only applies to partner navigation items — BMP items are unaffected. Desktop only (e.g., true, false)."
+                                  },
+                                  "created_by": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "readOnly": true,
+                                    "enum": [
+                                      "vcita",
+                                      "app",
+                                      "directory",
+                                      null
+                                    ],
+                                    "description": "Indicates who created this navigation item. Supported values are: \"vcita\" (created by vcita system), \"app\" (created by an application or integration), \"directory\" (created by the directory owner). Null means unknown or legacy value."
+                                  },
+                                  "updated_by": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "readOnly": true,
+                                    "enum": [
+                                      "vcita",
+                                      "app",
+                                      "directory",
+                                      null
+                                    ],
+                                    "description": "Indicates who last updated this navigation item. Supported values are: \"vcita\" (updated by vcita system), \"app\" (updated by an application or integration), \"directory\" (updated by the directory owner). Null means unknown or legacy value."
+                                  },
+                                  "created_at": {
+                                    "type": "string",
+                                    "format": "date-time",
+                                    "readOnly": true,
+                                    "description": "The date and time when the navigation item was created, in ISO 8601 format (e.g., \"2026-01-15T10:30:00Z\")."
+                                  },
+                                  "updated_at": {
+                                    "type": "string",
+                                    "format": "date-time",
+                                    "readOnly": true,
+                                    "description": "The date and time when the navigation item was last updated, in ISO 8601 format (e.g., \"2026-01-15T14:45:00Z\")."
+                                  }
+                                },
+                                "required": [
+                                  "order",
+                                  "title",
+                                  "key",
+                                  "action"
+                                ],
+                                "example": {
+                                  "uid": "nav-item-abc123",
+                                  "parent_uid": null,
+                                  "directory_uid": "dir-xyz789",
+                                  "order": 1,
+                                  "title": {
+                                    "en": "Dashboard",
+                                    "he": "לוח בקרה"
+                                  },
+                                  "icon": "icon-Dashboard_POV",
+                                  "key": "dashboard",
+                                  "modules": null,
+                                  "permissions": null,
+                                  "badge_code": null,
+                                  "action": {
+                                    "name": "navigate",
+                                    "payload": {
+                                      "type": "relative",
+                                      "path": "/app/dashboard",
+                                      "new_tab": false
+                                    }
+                                  },
+                                  "available_in_mobile": true,
+                                  "favorite_in_mobile": true,
+                                  "upsell_handling": null,
+                                  "role": "settings",
+                                  "app_code_name": null,
+                                  "is_bmp": false,
+                                  "expand_by_default": false,
+                                  "show_quick_actions": false,
+                                  "created_by": "directory",
+                                  "updated_by": "directory",
+                                  "created_at": "2026-01-15T10:30:00Z",
+                                  "updated_at": "2026-01-15T10:30:00Z"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "navigation_items": [
+                      {
+                        "uid": "nav-item-abc123",
+                        "parent_uid": null,
+                        "directory_uid": "dir-xyz789",
+                        "order": 0,
+                        "title": {
+                          "en": "Dashboard",
+                          "he": "לוח בקרה"
+                        },
+                        "icon": "icon-Dashboard_POV",
+                        "key": "dashboard",
+                        "modules": null,
+                        "permissions": null,
+                        "badge_code": null,
+                        "action": {
+                          "name": "navigate",
+                          "payload": {
+                            "type": "relative",
+                            "path": "/app/dashboard",
+                            "new_tab": false
+                          }
+                        },
+                        "available_in_mobile": true,
+                        "favorite_in_mobile": true,
+                        "upsell_handling": null,
+                        "role": "settings",
+                        "app_code_name": null,
+                        "is_bmp": false,
+                        "created_by": "directory",
+                        "updated_by": "directory",
+                        "created_at": "2026-01-15T10:30:00Z",
+                        "updated_at": "2026-01-15T10:30:00Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Insufficient permissions to read navigation items"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "NavigationItems": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Navigation Items"
+        ],
+        "summary": "Create a Navigation Item",
+        "description": "Create a new navigation item for the authenticated directory. The directory_uid is automatically set from the authenticated token context. Available for **Directory tokens**.",
+        "operationId": "createNavigationItem",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateNavigationItemRequest"
+              },
+              "example": {
+                "parent_uid": null,
+                "order": 1,
+                "title": {
+                  "en": "Custom Module",
+                  "he": "מודול מותאם"
+                },
+                "icon": "icon-Custom",
+                "key": "custom_module",
+                "modules": [
+                  "scheduling"
+                ],
+                "permissions": [
+                  "payments.invoices.export"
+                ],
+                "action": {
+                  "name": "navigate",
+                  "payload": {
+                    "type": "relative",
+                    "path": "/app/custom-module"
+                  }
+                },
+                "available_in_mobile": true,
+                "favorite_in_mobile": false,
+                "upsell_handling": "show_upsell"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Navigation item created successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "description": "Represents a navigation menu item that defines how partners configure their platform navigation structure. Navigation items support hierarchical menus, localized titles, permission-based visibility, and mobile-specific settings.",
+                          "properties": {
+                            "uid": {
+                              "type": "string",
+                              "readOnly": true,
+                              "description": "Unique identifier for the navigation item (e.g., \"nav-item-abc123\")."
+                            },
+                            "parent_uid": {
+                              "type": "string",
+                              "nullable": true,
+                              "description": "The UID of the parent navigation item. Set to null only for the root item, which represents the logo. Only one root item should exist per directory (e.g., \"nav-item-parent123\" or null)."
+                            },
+                            "directory_uid": {
+                              "type": "string",
+                              "readOnly": true,
+                              "description": "Unique identifier of the directory (partner) that owns this navigation item. Automatically set from the authenticated token context (e.g., \"dir-abc123\")."
+                            },
+                            "order": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "default": 0,
+                              "description": "Display order within the parent level. Lower numbers appear first. Items with the same order are sorted by creation time (e.g., 0, 1, 2)."
+                            },
+                            "title": {
+                              "type": "object",
+                              "description": "Localized titles for the navigation item. Must include at least the 'en' (English) locale.",
+                              "propertyNames": {
+                                "type": "string",
+                                "enum": [
+                                  "de",
+                                  "en",
+                                  "es",
+                                  "fr",
+                                  "he",
+                                  "it",
+                                  "pl",
+                                  "pt",
+                                  "ru",
+                                  "sl",
+                                  "tr"
+                                ]
+                              },
+                              "properties": {
+                                "en": {
+                                  "type": "string",
+                                  "description": "English title (required)."
+                                },
+                                "he": {
+                                  "type": "string",
+                                  "description": "Hebrew title (optional)."
+                                }
+                              },
+                              "required": [
+                                "en"
+                              ],
+                              "additionalProperties": {
+                                "type": "string",
+                                "description": "Additional locale titles (e.g., \"es\", \"fr\", \"de\")."
+                              }
+                            },
+                            "icon": {
+                              "type": "string",
+                              "nullable": true,
+                              "maxLength": 255,
+                              "description": "Icon identifier from the platform icon library. For a list of supported icon identifiers, refer to the inTandem UI icon library used by the platform (e.g., \"icon-Dashboard_POV\", \"icon-Settings\")."
+                            },
+                            "key": {
+                              "type": "string",
+                              "maxLength": 255,
+                              "description": "Human-readable unique identifier within the directory. Used by API consumers for programmatic access. Must be stable across title/translation changes (e.g., \"dashboard\", \"settings\", \"custom_module\")."
+                            },
+                            "modules": {
+                              "type": "array",
+                              "nullable": true,
+                              "uniqueItems": true,
+                              "items": {
+                                "type": "string"
+                              },
+                              "description": "Array of module identifiers required for this item to be visible. Item is shown only if the business has at least one of these modules enabled. The list of enabled modules can be retrieved from the features endpoint (e.g., \"https://developers.intandem.tech/reference/get_platform-v1-businesses-business-id-features\"). (e.g., [\"scheduling\", \"payments\"])."
+                            },
+                            "permissions": {
+                              "type": "array",
+                              "nullable": true,
+                              "uniqueItems": true,
+                              "items": {
+                                "type": "string"
+                              },
+                              "description": "Array of permission identifiers required to view this item. Item is shown only if the staff member has at least one of these permissions. To retrieve valid permission codes, use the endpoint (GET \"/v3/access_control/permissions\"). (e.g., [\"payments.invoices.export\", \"clients.manage\"])."
+                            },
+                            "badge_code": {
+                              "type": "string",
+                              "nullable": true,
+                              "enum": [
+                                "inbox_unread"
+                              ],
+                              "description": "Badge code that displays a notification indicator on this navigation item. Supported values are finite and managed by the platform (e.g., \"inbox_unread\" or null)."
+                            },
+                            "action": {
+                              "type": "object",
+                              "description": "Action configuration that defines the behavior when the navigation item is clicked. Actions are handled by the inTandem JS SDK. Every navigation item must have an action. Supported action types: \"navigate\" (navigates to a page) and \"openModal\" (opens a modal dialog).",
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "enum": [
+                                    "navigate",
+                                    "openModal"
+                                  ],
+                                  "description": "Action type identifier. Supported values: \"navigate\" (navigates to a page using the inTandem JS SDK navigate function, see the [navigate documentation](https://developers.intandem.tech/docs/navigate)), \"openModal\" (opens a modal dialog using the inTandem JS SDK, see the [openModal documentation](https://developers.intandem.tech/docs/openmodal))."
+                                },
+                                "payload": {
+                                  "type": "object",
+                                  "description": "Action-specific payload. For \"navigate\": must include 'type' and 'path' (required), and optionally 'new_tab'. For \"openModal\": must include the modal configuration (e.g., {\"modalName\": \"AppMarket\"}). See the inTandem JS SDK documentation for complete parameter specifications."
+                                }
+                              },
+                              "required": [
+                                "name",
+                                "payload"
+                              ]
+                            },
+                            "available_in_mobile": {
+                              "type": "boolean",
+                              "default": true,
+                              "description": "Whether this navigation item should appear in mobile app navigation. Set to false for desktop-only features (e.g., true, false)."
+                            },
+                            "favorite_in_mobile": {
+                              "type": "boolean",
+                              "default": false,
+                              "description": "Whether this item appears in the mobile favorites/quick-access section. Only applicable when available_in_mobile is true (e.g., true, false)."
+                            },
+                            "upsell_handling": {
+                              "type": "string",
+                              "nullable": true,
+                              "enum": [
+                                "hide",
+                                "show_upsell"
+                              ],
+                              "description": "Behavior when user lacks required modules/permissions. 'hide' removes the item completely, 'show_upsell' displays it with an upgrade prompt. Null means default behavior (hide)."
+                            },
+                            "role": {
+                              "type": "string",
+                              "nullable": true,
+                              "enum": [
+                                "settings"
+                              ],
+                              "description": "Semantic role of the navigation item that can trigger special behavior, e.g. \"settings\" causes a settings cog icon to be displayed in the full menu screen. Null means no special role (e.g., \"settings\" or null)."
+                            },
+                            "app_code_name": {
+                              "type": "string",
+                              "nullable": true,
+                              "maxLength": 255,
+                              "description": "App code name to gate this item by app availability. When set, the item is only visible to staff who have the corresponding app assigned. Must match an existing app's app_code_name. Null means the item is not gated by app availability (e.g., \"myapp\" or null)."
+                            },
+                            "is_bmp": {
+                              "type": "boolean",
+                              "default": false,
+                              "description": "Indicates if this is a Business Management Platform (BMP) sub-menu item. When set to true, BMP children are built by inTandem internal logic. Available for **Directory tokens** via create and update operations (e.g., true, false)."
+                            },
+                            "expand_by_default": {
+                              "type": "boolean",
+                              "default": false,
+                              "description": "Whether this navigation item's sub-menu renders expanded by default on module landing, so its child items are immediately visible without an extra click. The frontend only expands items that have children. Deep-link behavior is unaffected. Only applies to partner navigation items — BMP items are unaffected. Applies to both desktop and mobile (full-screen menu) (e.g., true, false)."
+                            },
+                            "show_quick_actions": {
+                              "type": "boolean",
+                              "default": false,
+                              "description": "Whether this navigation item renders with the Quick Actions button at the top of the navigation (same design as the platform default). Only applies to partner navigation items — BMP items are unaffected. Desktop only (e.g., true, false)."
+                            },
+                            "created_by": {
+                              "type": "string",
+                              "nullable": true,
+                              "readOnly": true,
+                              "enum": [
+                                "vcita",
+                                "app",
+                                "directory",
+                                null
+                              ],
+                              "description": "Indicates who created this navigation item. Supported values are: \"vcita\" (created by vcita system), \"app\" (created by an application or integration), \"directory\" (created by the directory owner). Null means unknown or legacy value."
+                            },
+                            "updated_by": {
+                              "type": "string",
+                              "nullable": true,
+                              "readOnly": true,
+                              "enum": [
+                                "vcita",
+                                "app",
+                                "directory",
+                                null
+                              ],
+                              "description": "Indicates who last updated this navigation item. Supported values are: \"vcita\" (updated by vcita system), \"app\" (updated by an application or integration), \"directory\" (updated by the directory owner). Null means unknown or legacy value."
+                            },
+                            "created_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "readOnly": true,
+                              "description": "The date and time when the navigation item was created, in ISO 8601 format (e.g., \"2026-01-15T10:30:00Z\")."
+                            },
+                            "updated_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "readOnly": true,
+                              "description": "The date and time when the navigation item was last updated, in ISO 8601 format (e.g., \"2026-01-15T14:45:00Z\")."
+                            }
+                          },
+                          "required": [
+                            "order",
+                            "title",
+                            "key",
+                            "action"
+                          ],
+                          "example": {
+                            "uid": "nav-item-abc123",
+                            "parent_uid": null,
+                            "directory_uid": "dir-xyz789",
+                            "order": 1,
+                            "title": {
+                              "en": "Dashboard",
+                              "he": "לוח בקרה"
+                            },
+                            "icon": "icon-Dashboard_POV",
+                            "key": "dashboard",
+                            "modules": null,
+                            "permissions": null,
+                            "badge_code": null,
+                            "action": {
+                              "name": "navigate",
+                              "payload": {
+                                "type": "relative",
+                                "path": "/app/dashboard",
+                                "new_tab": false
+                              }
+                            },
+                            "available_in_mobile": true,
+                            "favorite_in_mobile": true,
+                            "upsell_handling": null,
+                            "role": "settings",
+                            "app_code_name": null,
+                            "is_bmp": false,
+                            "expand_by_default": false,
+                            "show_quick_actions": false,
+                            "created_by": "directory",
+                            "updated_by": "directory",
+                            "created_at": "2026-01-15T10:30:00Z",
+                            "updated_at": "2026-01-15T10:30:00Z"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "uid": "nav-item-new123",
+                    "parent_uid": null,
+                    "directory_uid": "dir-xyz789",
+                    "order": 1,
+                    "title": {
+                      "en": "Custom Module",
+                      "he": "מודול מותאם"
+                    },
+                    "icon": "icon-Custom",
+                    "key": "custom_module",
+                    "modules": [
+                      "scheduling"
+                    ],
+                    "permissions": [
+                      "payments.invoices.export"
+                    ],
+                    "badge_code": null,
+                    "action": {
+                      "name": "navigate",
+                      "payload": {
+                        "type": "relative",
+                        "path": "/app/custom-module"
+                      }
+                    },
+                    "available_in_mobile": true,
+                    "favorite_in_mobile": false,
+                    "upsell_handling": "show_upsell",
+                    "role": "settings",
+                    "app_code_name": null,
+                    "is_bmp": false,
+                    "created_by": "directory",
+                    "updated_by": "directory",
+                    "created_at": "2026-01-15T14:00:00Z",
+                    "updated_at": "2026-01-15T14:00:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Malformed request or invalid syntax.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "title.en",
+                      "code": "required",
+                      "message": "English title is required"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Insufficient permissions to write navigation items"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict - Duplicate key within directory.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "key",
+                      "code": "duplicate",
+                      "message": "A navigation item with key 'custom_module' already exists in this directory"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "parent_uid",
+                      "code": "invalid_reference",
+                      "message": "Parent navigation item not found"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "NavigationItems": []
+          }
+        ]
+      }
+    },
+    "/v3/apps/navigation_items/{uid}": {
+      "put": {
+        "tags": [
+          "Navigation Items"
+        ],
+        "summary": "Update a Navigation Item",
+        "description": "Update an existing navigation item. Only provided fields will be updated. Available for **Directory tokens**.",
+        "operationId": "updateNavigationItem",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the navigation item to update (e.g., \"nav-item-abc123\").",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateNavigationItemRequest"
+              },
+              "example": {
+                "title": {
+                  "en": "Updated Module Name",
+                  "he": "שם מודול מעודכן"
+                },
+                "order": 2
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Navigation item updated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "description": "Represents a navigation menu item that defines how partners configure their platform navigation structure. Navigation items support hierarchical menus, localized titles, permission-based visibility, and mobile-specific settings.",
+                          "properties": {
+                            "uid": {
+                              "type": "string",
+                              "readOnly": true,
+                              "description": "Unique identifier for the navigation item (e.g., \"nav-item-abc123\")."
+                            },
+                            "parent_uid": {
+                              "type": "string",
+                              "nullable": true,
+                              "description": "The UID of the parent navigation item. Set to null only for the root item, which represents the logo. Only one root item should exist per directory (e.g., \"nav-item-parent123\" or null)."
+                            },
+                            "directory_uid": {
+                              "type": "string",
+                              "readOnly": true,
+                              "description": "Unique identifier of the directory (partner) that owns this navigation item. Automatically set from the authenticated token context (e.g., \"dir-abc123\")."
+                            },
+                            "order": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "default": 0,
+                              "description": "Display order within the parent level. Lower numbers appear first. Items with the same order are sorted by creation time (e.g., 0, 1, 2)."
+                            },
+                            "title": {
+                              "type": "object",
+                              "description": "Localized titles for the navigation item. Must include at least the 'en' (English) locale.",
+                              "propertyNames": {
+                                "type": "string",
+                                "enum": [
+                                  "de",
+                                  "en",
+                                  "es",
+                                  "fr",
+                                  "he",
+                                  "it",
+                                  "pl",
+                                  "pt",
+                                  "ru",
+                                  "sl",
+                                  "tr"
+                                ]
+                              },
+                              "properties": {
+                                "en": {
+                                  "type": "string",
+                                  "description": "English title (required)."
+                                },
+                                "he": {
+                                  "type": "string",
+                                  "description": "Hebrew title (optional)."
+                                }
+                              },
+                              "required": [
+                                "en"
+                              ],
+                              "additionalProperties": {
+                                "type": "string",
+                                "description": "Additional locale titles (e.g., \"es\", \"fr\", \"de\")."
+                              }
+                            },
+                            "icon": {
+                              "type": "string",
+                              "nullable": true,
+                              "maxLength": 255,
+                              "description": "Icon identifier from the platform icon library. For a list of supported icon identifiers, refer to the inTandem UI icon library used by the platform (e.g., \"icon-Dashboard_POV\", \"icon-Settings\")."
+                            },
+                            "key": {
+                              "type": "string",
+                              "maxLength": 255,
+                              "description": "Human-readable unique identifier within the directory. Used by API consumers for programmatic access. Must be stable across title/translation changes (e.g., \"dashboard\", \"settings\", \"custom_module\")."
+                            },
+                            "modules": {
+                              "type": "array",
+                              "nullable": true,
+                              "uniqueItems": true,
+                              "items": {
+                                "type": "string"
+                              },
+                              "description": "Array of module identifiers required for this item to be visible. Item is shown only if the business has at least one of these modules enabled. The list of enabled modules can be retrieved from the features endpoint (e.g., \"https://developers.intandem.tech/reference/get_platform-v1-businesses-business-id-features\"). (e.g., [\"scheduling\", \"payments\"])."
+                            },
+                            "permissions": {
+                              "type": "array",
+                              "nullable": true,
+                              "uniqueItems": true,
+                              "items": {
+                                "type": "string"
+                              },
+                              "description": "Array of permission identifiers required to view this item. Item is shown only if the staff member has at least one of these permissions. To retrieve valid permission codes, use the endpoint (GET \"/v3/access_control/permissions\"). (e.g., [\"payments.invoices.export\", \"clients.manage\"])."
+                            },
+                            "badge_code": {
+                              "type": "string",
+                              "nullable": true,
+                              "enum": [
+                                "inbox_unread"
+                              ],
+                              "description": "Badge code that displays a notification indicator on this navigation item. Supported values are finite and managed by the platform (e.g., \"inbox_unread\" or null)."
+                            },
+                            "action": {
+                              "type": "object",
+                              "description": "Action configuration that defines the behavior when the navigation item is clicked. Actions are handled by the inTandem JS SDK. Every navigation item must have an action. Supported action types: \"navigate\" (navigates to a page) and \"openModal\" (opens a modal dialog).",
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "enum": [
+                                    "navigate",
+                                    "openModal"
+                                  ],
+                                  "description": "Action type identifier. Supported values: \"navigate\" (navigates to a page using the inTandem JS SDK navigate function, see the [navigate documentation](https://developers.intandem.tech/docs/navigate)), \"openModal\" (opens a modal dialog using the inTandem JS SDK, see the [openModal documentation](https://developers.intandem.tech/docs/openmodal))."
+                                },
+                                "payload": {
+                                  "type": "object",
+                                  "description": "Action-specific payload. For \"navigate\": must include 'type' and 'path' (required), and optionally 'new_tab'. For \"openModal\": must include the modal configuration (e.g., {\"modalName\": \"AppMarket\"}). See the inTandem JS SDK documentation for complete parameter specifications."
+                                }
+                              },
+                              "required": [
+                                "name",
+                                "payload"
+                              ]
+                            },
+                            "available_in_mobile": {
+                              "type": "boolean",
+                              "default": true,
+                              "description": "Whether this navigation item should appear in mobile app navigation. Set to false for desktop-only features (e.g., true, false)."
+                            },
+                            "favorite_in_mobile": {
+                              "type": "boolean",
+                              "default": false,
+                              "description": "Whether this item appears in the mobile favorites/quick-access section. Only applicable when available_in_mobile is true (e.g., true, false)."
+                            },
+                            "upsell_handling": {
+                              "type": "string",
+                              "nullable": true,
+                              "enum": [
+                                "hide",
+                                "show_upsell"
+                              ],
+                              "description": "Behavior when user lacks required modules/permissions. 'hide' removes the item completely, 'show_upsell' displays it with an upgrade prompt. Null means default behavior (hide)."
+                            },
+                            "role": {
+                              "type": "string",
+                              "nullable": true,
+                              "enum": [
+                                "settings"
+                              ],
+                              "description": "Semantic role of the navigation item that can trigger special behavior, e.g. \"settings\" causes a settings cog icon to be displayed in the full menu screen. Null means no special role (e.g., \"settings\" or null)."
+                            },
+                            "app_code_name": {
+                              "type": "string",
+                              "nullable": true,
+                              "maxLength": 255,
+                              "description": "App code name to gate this item by app availability. When set, the item is only visible to staff who have the corresponding app assigned. Must match an existing app's app_code_name. Null means the item is not gated by app availability (e.g., \"myapp\" or null)."
+                            },
+                            "is_bmp": {
+                              "type": "boolean",
+                              "default": false,
+                              "description": "Indicates if this is a Business Management Platform (BMP) sub-menu item. When set to true, BMP children are built by inTandem internal logic. Available for **Directory tokens** via create and update operations (e.g., true, false)."
+                            },
+                            "expand_by_default": {
+                              "type": "boolean",
+                              "default": false,
+                              "description": "Whether this navigation item's sub-menu renders expanded by default on module landing, so its child items are immediately visible without an extra click. The frontend only expands items that have children. Deep-link behavior is unaffected. Only applies to partner navigation items — BMP items are unaffected. Applies to both desktop and mobile (full-screen menu) (e.g., true, false)."
+                            },
+                            "show_quick_actions": {
+                              "type": "boolean",
+                              "default": false,
+                              "description": "Whether this navigation item renders with the Quick Actions button at the top of the navigation (same design as the platform default). Only applies to partner navigation items — BMP items are unaffected. Desktop only (e.g., true, false)."
+                            },
+                            "created_by": {
+                              "type": "string",
+                              "nullable": true,
+                              "readOnly": true,
+                              "enum": [
+                                "vcita",
+                                "app",
+                                "directory",
+                                null
+                              ],
+                              "description": "Indicates who created this navigation item. Supported values are: \"vcita\" (created by vcita system), \"app\" (created by an application or integration), \"directory\" (created by the directory owner). Null means unknown or legacy value."
+                            },
+                            "updated_by": {
+                              "type": "string",
+                              "nullable": true,
+                              "readOnly": true,
+                              "enum": [
+                                "vcita",
+                                "app",
+                                "directory",
+                                null
+                              ],
+                              "description": "Indicates who last updated this navigation item. Supported values are: \"vcita\" (updated by vcita system), \"app\" (updated by an application or integration), \"directory\" (updated by the directory owner). Null means unknown or legacy value."
+                            },
+                            "created_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "readOnly": true,
+                              "description": "The date and time when the navigation item was created, in ISO 8601 format (e.g., \"2026-01-15T10:30:00Z\")."
+                            },
+                            "updated_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "readOnly": true,
+                              "description": "The date and time when the navigation item was last updated, in ISO 8601 format (e.g., \"2026-01-15T14:45:00Z\")."
+                            }
+                          },
+                          "required": [
+                            "order",
+                            "title",
+                            "key",
+                            "action"
+                          ],
+                          "example": {
+                            "uid": "nav-item-abc123",
+                            "parent_uid": null,
+                            "directory_uid": "dir-xyz789",
+                            "order": 1,
+                            "title": {
+                              "en": "Dashboard",
+                              "he": "לוח בקרה"
+                            },
+                            "icon": "icon-Dashboard_POV",
+                            "key": "dashboard",
+                            "modules": null,
+                            "permissions": null,
+                            "badge_code": null,
+                            "action": {
+                              "name": "navigate",
+                              "payload": {
+                                "type": "relative",
+                                "path": "/app/dashboard",
+                                "new_tab": false
+                              }
+                            },
+                            "available_in_mobile": true,
+                            "favorite_in_mobile": true,
+                            "upsell_handling": null,
+                            "role": "settings",
+                            "app_code_name": null,
+                            "is_bmp": false,
+                            "expand_by_default": false,
+                            "show_quick_actions": false,
+                            "created_by": "directory",
+                            "updated_by": "directory",
+                            "created_at": "2026-01-15T10:30:00Z",
+                            "updated_at": "2026-01-15T10:30:00Z"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "uid": "nav-item-abc123",
+                    "parent_uid": null,
+                    "directory_uid": "dir-xyz789",
+                    "order": 2,
+                    "title": {
+                      "en": "Updated Module Name",
+                      "he": "שם מודול מעודכן"
+                    },
+                    "icon": "icon-Dashboard_POV",
+                    "key": "dashboard",
+                    "modules": null,
+                    "permissions": null,
+                    "badge_code": null,
+                    "action": {
+                      "name": "navigate",
+                      "payload": {
+                        "type": "relative",
+                        "path": "/app/dashboard",
+                        "new_tab": false
+                      }
+                    },
+                    "available_in_mobile": true,
+                    "favorite_in_mobile": true,
+                    "upsell_handling": null,
+                    "role": "settings",
+                    "app_code_name": null,
+                    "is_bmp": false,
+                    "created_by": "directory",
+                    "updated_by": "directory",
+                    "created_at": "2026-01-15T10:30:00Z",
+                    "updated_at": "2026-01-15T16:00:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Malformed request or invalid syntax.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "order",
+                      "code": "invalid_type",
+                      "message": "Order must be a non-negative integer"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Navigation item belongs to a different directory.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Navigation item belongs to a different directory"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - Navigation item does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Navigation item not found"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict - Duplicate key within directory.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "key",
+                      "code": "duplicate",
+                      "message": "A navigation item with this key already exists in the directory"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "parent_uid",
+                      "code": "invalid_reference",
+                      "message": "Parent navigation item not found"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "NavigationItems": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "Navigation Items"
+        ],
+        "summary": "Delete a Navigation Item",
+        "description": "Delete a navigation item. Items with children cannot be deleted until all children are removed first. Available for **Directory tokens**.",
+        "operationId": "deleteNavigationItem",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "Unique identifier of the navigation item to delete (e.g., \"nav-item-abc123\").",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Navigation item deleted successfully."
+          },
+          "400": {
+            "description": "Bad Request - Cannot delete item with children.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "has_children",
+                      "message": "Cannot delete navigation item that has child items. Delete children first."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid or expired bearer token"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Navigation item belongs to a different directory.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Navigation item belongs to a different directory"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - Navigation item does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Navigation item not found"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "NavigationItems": []
+          }
+        ]
+      }
+    },
     "/v3/apps/apps": {
       "get": {
         "operationId": "Apps_list",
@@ -4738,1538 +6306,6 @@
         ]
       }
     },
-    "/v3/apps/navigation_items": {
-      "get": {
-        "tags": [
-          "Navigation Items"
-        ],
-        "summary": "List Navigation Items",
-        "description": "Retrieve a paginated list of navigation items for the authenticated directory. Supports filtering by parent and mobile availability. Available for **Staff & Directory tokens**.",
-        "operationId": "listNavigationItems",
-        "parameters": [
-          {
-            "name": "parent_uid",
-            "in": "query",
-            "required": false,
-            "description": "Filter by parent navigation item unique identifier. Use 'null' for root-level items (e.g., \"nav-item-parent123\").",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "available_in_mobile",
-            "in": "query",
-            "required": false,
-            "description": "Filter by whether the navigation item should appear in mobile app navigation (e.g., true, false).",
-            "schema": {
-              "type": "boolean"
-            }
-          },
-          {
-            "name": "page",
-            "in": "query",
-            "required": false,
-            "description": "Page number of results (e.g., 1, 2, 3).",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 10000,
-              "default": 1
-            }
-          },
-          {
-            "name": "per_page",
-            "in": "query",
-            "required": false,
-            "description": "How many items to return per page. Max: 100 (e.g., 25, 50, 100).",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100,
-              "default": 25
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Navigation items retrieved successfully.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "success": {
-                          "type": "boolean",
-                          "description": "Indicates whether the API request was successful (true) or failed (false)."
-                        },
-                        "data": {
-                          "type": "object",
-                          "description": "The response payload. Present on successful responses (success: true)."
-                        },
-                        "error": {
-                          "type": "string",
-                          "description": "Error message for simple error responses. Used in some legacy endpoints."
-                        },
-                        "errors": {
-                          "type": "array",
-                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "code": {
-                                "type": "string",
-                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
-                              },
-                              "message": {
-                                "type": "string",
-                                "description": "Human-readable error message."
-                              },
-                              "field": {
-                                "type": "string",
-                                "description": "The field that caused the error (for validation errors)."
-                              }
-                            },
-                            "required": [
-                              "code",
-                              "message"
-                            ]
-                          }
-                        }
-                      },
-                      "required": [
-                        "success"
-                      ],
-                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "data": {
-                          "type": "object",
-                          "properties": {
-                            "navigation_items": {
-                              "type": "array",
-                              "items": {
-                                "type": "object",
-                                "description": "Represents a navigation menu item that defines how partners configure their platform navigation structure. Navigation items support hierarchical menus, localized titles, permission-based visibility, and mobile-specific settings.",
-                                "properties": {
-                                  "uid": {
-                                    "type": "string",
-                                    "readOnly": true,
-                                    "description": "Unique identifier for the navigation item (e.g., \"nav-item-abc123\")."
-                                  },
-                                  "parent_uid": {
-                                    "type": "string",
-                                    "nullable": true,
-                                    "description": "The UID of the parent navigation item. Set to null only for the root item, which represents the logo. Only one root item should exist per directory (e.g., \"nav-item-parent123\" or null)."
-                                  },
-                                  "directory_uid": {
-                                    "type": "string",
-                                    "readOnly": true,
-                                    "description": "Unique identifier of the directory (partner) that owns this navigation item. Automatically set from the authenticated token context (e.g., \"dir-abc123\")."
-                                  },
-                                  "order": {
-                                    "type": "integer",
-                                    "minimum": 0,
-                                    "default": 0,
-                                    "description": "Display order within the parent level. Lower numbers appear first. Items with the same order are sorted by creation time (e.g., 0, 1, 2)."
-                                  },
-                                  "title": {
-                                    "type": "object",
-                                    "description": "Localized titles for the navigation item. Must include at least the 'en' (English) locale.",
-                                    "propertyNames": {
-                                      "type": "string",
-                                      "enum": [
-                                        "de",
-                                        "en",
-                                        "es",
-                                        "fr",
-                                        "he",
-                                        "it",
-                                        "pl",
-                                        "pt",
-                                        "ru",
-                                        "sl",
-                                        "tr"
-                                      ]
-                                    },
-                                    "properties": {
-                                      "en": {
-                                        "type": "string",
-                                        "description": "English title (required)."
-                                      },
-                                      "he": {
-                                        "type": "string",
-                                        "description": "Hebrew title (optional)."
-                                      }
-                                    },
-                                    "required": [
-                                      "en"
-                                    ],
-                                    "additionalProperties": {
-                                      "type": "string",
-                                      "description": "Additional locale titles (e.g., \"es\", \"fr\", \"de\")."
-                                    }
-                                  },
-                                  "icon": {
-                                    "type": "string",
-                                    "nullable": true,
-                                    "maxLength": 255,
-                                    "description": "Icon identifier from the platform icon library. For a list of supported icon identifiers, refer to the inTandem UI icon library used by the platform (e.g., \"icon-Dashboard_POV\", \"icon-Settings\")."
-                                  },
-                                  "key": {
-                                    "type": "string",
-                                    "maxLength": 255,
-                                    "description": "Human-readable unique identifier within the directory. Used by API consumers for programmatic access. Must be stable across title/translation changes (e.g., \"dashboard\", \"settings\", \"custom_module\")."
-                                  },
-                                  "modules": {
-                                    "type": "array",
-                                    "nullable": true,
-                                    "uniqueItems": true,
-                                    "items": {
-                                      "type": "string"
-                                    },
-                                    "description": "Array of module identifiers required for this item to be visible. Item is shown only if the business has at least one of these modules enabled. The list of enabled modules can be retrieved from the features endpoint (e.g., \"https://developers.intandem.tech/reference/get_platform-v1-businesses-business-id-features\"). (e.g., [\"scheduling\", \"payments\"])."
-                                  },
-                                  "permissions": {
-                                    "type": "array",
-                                    "nullable": true,
-                                    "uniqueItems": true,
-                                    "items": {
-                                      "type": "string"
-                                    },
-                                    "description": "Array of permission identifiers required to view this item. Item is shown only if the staff member has at least one of these permissions. To retrieve valid permission codes, use the endpoint (GET \"/v3/access_control/permissions\"). (e.g., [\"payments.invoices.export\", \"clients.manage\"])."
-                                  },
-                                  "badge_code": {
-                                    "type": "string",
-                                    "nullable": true,
-                                    "enum": [
-                                      "inbox_unread"
-                                    ],
-                                    "description": "Badge code that displays a notification indicator on this navigation item. Supported values are finite and managed by the platform (e.g., \"inbox_unread\" or null)."
-                                  },
-                                  "action": {
-                                    "type": "object",
-                                    "description": "Action configuration that defines the behavior when the navigation item is clicked. Actions are handled by the inTandem JS SDK. Every navigation item must have an action. Supported action types: \"navigate\" (navigates to a page) and \"openModal\" (opens a modal dialog).",
-                                    "properties": {
-                                      "name": {
-                                        "type": "string",
-                                        "enum": [
-                                          "navigate",
-                                          "openModal"
-                                        ],
-                                        "description": "Action type identifier. Supported values: \"navigate\" (navigates to a page using the inTandem JS SDK navigate function, see the [navigate documentation](https://developers.intandem.tech/docs/navigate)), \"openModal\" (opens a modal dialog using the inTandem JS SDK, see the [openModal documentation](https://developers.intandem.tech/docs/openmodal))."
-                                      },
-                                      "payload": {
-                                        "type": "object",
-                                        "description": "Action-specific payload. For \"navigate\": must include 'type' and 'path' (required), and optionally 'new_tab'. For \"openModal\": must include the modal configuration (e.g., {\"modalName\": \"AppMarket\"}). See the inTandem JS SDK documentation for complete parameter specifications."
-                                      }
-                                    },
-                                    "required": [
-                                      "name",
-                                      "payload"
-                                    ]
-                                  },
-                                  "available_in_mobile": {
-                                    "type": "boolean",
-                                    "default": true,
-                                    "description": "Whether this navigation item should appear in mobile app navigation. Set to false for desktop-only features (e.g., true, false)."
-                                  },
-                                  "favorite_in_mobile": {
-                                    "type": "boolean",
-                                    "default": false,
-                                    "description": "Whether this item appears in the mobile favorites/quick-access section. Only applicable when available_in_mobile is true (e.g., true, false)."
-                                  },
-                                  "upsell_handling": {
-                                    "type": "string",
-                                    "nullable": true,
-                                    "enum": [
-                                      "hide",
-                                      "show_upsell"
-                                    ],
-                                    "description": "Behavior when user lacks required modules/permissions. 'hide' removes the item completely, 'show_upsell' displays it with an upgrade prompt. Null means default behavior (hide)."
-                                  },
-                                  "role": {
-                                    "type": "string",
-                                    "nullable": true,
-                                    "enum": [
-                                      "settings"
-                                    ],
-                                    "description": "Semantic role of the navigation item that can trigger special behavior, e.g. \"settings\" causes a settings cog icon to be displayed in the full menu screen. Null means no special role (e.g., \"settings\" or null)."
-                                  },
-                                  "app_code_name": {
-                                    "type": "string",
-                                    "nullable": true,
-                                    "maxLength": 255,
-                                    "description": "App code name to gate this item by app availability. When set, the item is only visible to staff who have the corresponding app assigned. Must match an existing app's app_code_name. Null means the item is not gated by app availability (e.g., \"myapp\" or null)."
-                                  },
-                                  "is_bmp": {
-                                    "type": "boolean",
-                                    "default": false,
-                                    "description": "Indicates if this is a Business Management Platform (BMP) sub-menu item. When set to true, BMP children are built by inTandem internal logic. Available for **Directory tokens** via create and update operations (e.g., true, false)."
-                                  },
-                                  "created_by": {
-                                    "type": "string",
-                                    "nullable": true,
-                                    "readOnly": true,
-                                    "enum": [
-                                      "vcita",
-                                      "app",
-                                      "directory",
-                                      null
-                                    ],
-                                    "description": "Indicates who created this navigation item. Supported values are: \"vcita\" (created by vcita system), \"app\" (created by an application or integration), \"directory\" (created by the directory owner). Null means unknown or legacy value."
-                                  },
-                                  "updated_by": {
-                                    "type": "string",
-                                    "nullable": true,
-                                    "readOnly": true,
-                                    "enum": [
-                                      "vcita",
-                                      "app",
-                                      "directory",
-                                      null
-                                    ],
-                                    "description": "Indicates who last updated this navigation item. Supported values are: \"vcita\" (updated by vcita system), \"app\" (updated by an application or integration), \"directory\" (updated by the directory owner). Null means unknown or legacy value."
-                                  },
-                                  "created_at": {
-                                    "type": "string",
-                                    "format": "date-time",
-                                    "readOnly": true,
-                                    "description": "The date and time when the navigation item was created, in ISO 8601 format (e.g., \"2026-01-15T10:30:00Z\")."
-                                  },
-                                  "updated_at": {
-                                    "type": "string",
-                                    "format": "date-time",
-                                    "readOnly": true,
-                                    "description": "The date and time when the navigation item was last updated, in ISO 8601 format (e.g., \"2026-01-15T14:45:00Z\")."
-                                  }
-                                },
-                                "required": [
-                                  "order",
-                                  "title",
-                                  "key",
-                                  "action"
-                                ],
-                                "example": {
-                                  "uid": "nav-item-abc123",
-                                  "parent_uid": null,
-                                  "directory_uid": "dir-xyz789",
-                                  "order": 1,
-                                  "title": {
-                                    "en": "Dashboard",
-                                    "he": "לוח בקרה"
-                                  },
-                                  "icon": "icon-Dashboard_POV",
-                                  "key": "dashboard",
-                                  "modules": null,
-                                  "permissions": null,
-                                  "badge_code": null,
-                                  "action": {
-                                    "name": "navigate",
-                                    "payload": {
-                                      "type": "relative",
-                                      "path": "/app/dashboard",
-                                      "new_tab": false
-                                    }
-                                  },
-                                  "available_in_mobile": true,
-                                  "favorite_in_mobile": true,
-                                  "upsell_handling": null,
-                                  "role": "settings",
-                                  "app_code_name": null,
-                                  "is_bmp": false,
-                                  "created_by": "directory",
-                                  "updated_by": "directory",
-                                  "created_at": "2026-01-15T10:30:00Z",
-                                  "updated_at": "2026-01-15T10:30:00Z"
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  ]
-                },
-                "example": {
-                  "success": true,
-                  "data": {
-                    "navigation_items": [
-                      {
-                        "uid": "nav-item-abc123",
-                        "parent_uid": null,
-                        "directory_uid": "dir-xyz789",
-                        "order": 0,
-                        "title": {
-                          "en": "Dashboard",
-                          "he": "לוח בקרה"
-                        },
-                        "icon": "icon-Dashboard_POV",
-                        "key": "dashboard",
-                        "modules": null,
-                        "permissions": null,
-                        "badge_code": null,
-                        "action": {
-                          "name": "navigate",
-                          "payload": {
-                            "type": "relative",
-                            "path": "/app/dashboard",
-                            "new_tab": false
-                          }
-                        },
-                        "available_in_mobile": true,
-                        "favorite_in_mobile": true,
-                        "upsell_handling": null,
-                        "role": "settings",
-                        "app_code_name": null,
-                        "is_bmp": false,
-                        "created_by": "directory",
-                        "updated_by": "directory",
-                        "created_at": "2026-01-15T10:30:00Z",
-                        "updated_at": "2026-01-15T10:30:00Z"
-                      }
-                    ]
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing bearer token.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "unauthorized",
-                      "message": "Invalid or expired bearer token"
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden - Insufficient permissions.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "forbidden",
-                      "message": "Insufficient permissions to read navigation items"
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "NavigationItems": []
-          }
-        ]
-      },
-      "post": {
-        "tags": [
-          "Navigation Items"
-        ],
-        "summary": "Create a Navigation Item",
-        "description": "Create a new navigation item for the authenticated directory. The directory_uid is automatically set from the authenticated token context. Available for **Directory tokens**.",
-        "operationId": "createNavigationItem",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateNavigationItemRequest"
-              },
-              "example": {
-                "parent_uid": null,
-                "order": 1,
-                "title": {
-                  "en": "Custom Module",
-                  "he": "מודול מותאם"
-                },
-                "icon": "icon-Custom",
-                "key": "custom_module",
-                "modules": [
-                  "scheduling"
-                ],
-                "permissions": [
-                  "payments.invoices.export"
-                ],
-                "action": {
-                  "name": "navigate",
-                  "payload": {
-                    "type": "relative",
-                    "path": "/app/custom-module"
-                  }
-                },
-                "available_in_mobile": true,
-                "favorite_in_mobile": false,
-                "upsell_handling": "show_upsell"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Navigation item created successfully.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "success": {
-                          "type": "boolean",
-                          "description": "Indicates whether the API request was successful (true) or failed (false)."
-                        },
-                        "data": {
-                          "type": "object",
-                          "description": "The response payload. Present on successful responses (success: true)."
-                        },
-                        "error": {
-                          "type": "string",
-                          "description": "Error message for simple error responses. Used in some legacy endpoints."
-                        },
-                        "errors": {
-                          "type": "array",
-                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "code": {
-                                "type": "string",
-                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
-                              },
-                              "message": {
-                                "type": "string",
-                                "description": "Human-readable error message."
-                              },
-                              "field": {
-                                "type": "string",
-                                "description": "The field that caused the error (for validation errors)."
-                              }
-                            },
-                            "required": [
-                              "code",
-                              "message"
-                            ]
-                          }
-                        }
-                      },
-                      "required": [
-                        "success"
-                      ],
-                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "data": {
-                          "type": "object",
-                          "description": "Represents a navigation menu item that defines how partners configure their platform navigation structure. Navigation items support hierarchical menus, localized titles, permission-based visibility, and mobile-specific settings.",
-                          "properties": {
-                            "uid": {
-                              "type": "string",
-                              "readOnly": true,
-                              "description": "Unique identifier for the navigation item (e.g., \"nav-item-abc123\")."
-                            },
-                            "parent_uid": {
-                              "type": "string",
-                              "nullable": true,
-                              "description": "The UID of the parent navigation item. Set to null only for the root item, which represents the logo. Only one root item should exist per directory (e.g., \"nav-item-parent123\" or null)."
-                            },
-                            "directory_uid": {
-                              "type": "string",
-                              "readOnly": true,
-                              "description": "Unique identifier of the directory (partner) that owns this navigation item. Automatically set from the authenticated token context (e.g., \"dir-abc123\")."
-                            },
-                            "order": {
-                              "type": "integer",
-                              "minimum": 0,
-                              "default": 0,
-                              "description": "Display order within the parent level. Lower numbers appear first. Items with the same order are sorted by creation time (e.g., 0, 1, 2)."
-                            },
-                            "title": {
-                              "type": "object",
-                              "description": "Localized titles for the navigation item. Must include at least the 'en' (English) locale.",
-                              "propertyNames": {
-                                "type": "string",
-                                "enum": [
-                                  "de",
-                                  "en",
-                                  "es",
-                                  "fr",
-                                  "he",
-                                  "it",
-                                  "pl",
-                                  "pt",
-                                  "ru",
-                                  "sl",
-                                  "tr"
-                                ]
-                              },
-                              "properties": {
-                                "en": {
-                                  "type": "string",
-                                  "description": "English title (required)."
-                                },
-                                "he": {
-                                  "type": "string",
-                                  "description": "Hebrew title (optional)."
-                                }
-                              },
-                              "required": [
-                                "en"
-                              ],
-                              "additionalProperties": {
-                                "type": "string",
-                                "description": "Additional locale titles (e.g., \"es\", \"fr\", \"de\")."
-                              }
-                            },
-                            "icon": {
-                              "type": "string",
-                              "nullable": true,
-                              "maxLength": 255,
-                              "description": "Icon identifier from the platform icon library. For a list of supported icon identifiers, refer to the inTandem UI icon library used by the platform (e.g., \"icon-Dashboard_POV\", \"icon-Settings\")."
-                            },
-                            "key": {
-                              "type": "string",
-                              "maxLength": 255,
-                              "description": "Human-readable unique identifier within the directory. Used by API consumers for programmatic access. Must be stable across title/translation changes (e.g., \"dashboard\", \"settings\", \"custom_module\")."
-                            },
-                            "modules": {
-                              "type": "array",
-                              "nullable": true,
-                              "uniqueItems": true,
-                              "items": {
-                                "type": "string"
-                              },
-                              "description": "Array of module identifiers required for this item to be visible. Item is shown only if the business has at least one of these modules enabled. The list of enabled modules can be retrieved from the features endpoint (e.g., \"https://developers.intandem.tech/reference/get_platform-v1-businesses-business-id-features\"). (e.g., [\"scheduling\", \"payments\"])."
-                            },
-                            "permissions": {
-                              "type": "array",
-                              "nullable": true,
-                              "uniqueItems": true,
-                              "items": {
-                                "type": "string"
-                              },
-                              "description": "Array of permission identifiers required to view this item. Item is shown only if the staff member has at least one of these permissions. To retrieve valid permission codes, use the endpoint (GET \"/v3/access_control/permissions\"). (e.g., [\"payments.invoices.export\", \"clients.manage\"])."
-                            },
-                            "badge_code": {
-                              "type": "string",
-                              "nullable": true,
-                              "enum": [
-                                "inbox_unread"
-                              ],
-                              "description": "Badge code that displays a notification indicator on this navigation item. Supported values are finite and managed by the platform (e.g., \"inbox_unread\" or null)."
-                            },
-                            "action": {
-                              "type": "object",
-                              "description": "Action configuration that defines the behavior when the navigation item is clicked. Actions are handled by the inTandem JS SDK. Every navigation item must have an action. Supported action types: \"navigate\" (navigates to a page) and \"openModal\" (opens a modal dialog).",
-                              "properties": {
-                                "name": {
-                                  "type": "string",
-                                  "enum": [
-                                    "navigate",
-                                    "openModal"
-                                  ],
-                                  "description": "Action type identifier. Supported values: \"navigate\" (navigates to a page using the inTandem JS SDK navigate function, see the [navigate documentation](https://developers.intandem.tech/docs/navigate)), \"openModal\" (opens a modal dialog using the inTandem JS SDK, see the [openModal documentation](https://developers.intandem.tech/docs/openmodal))."
-                                },
-                                "payload": {
-                                  "type": "object",
-                                  "description": "Action-specific payload. For \"navigate\": must include 'type' and 'path' (required), and optionally 'new_tab'. For \"openModal\": must include the modal configuration (e.g., {\"modalName\": \"AppMarket\"}). See the inTandem JS SDK documentation for complete parameter specifications."
-                                }
-                              },
-                              "required": [
-                                "name",
-                                "payload"
-                              ]
-                            },
-                            "available_in_mobile": {
-                              "type": "boolean",
-                              "default": true,
-                              "description": "Whether this navigation item should appear in mobile app navigation. Set to false for desktop-only features (e.g., true, false)."
-                            },
-                            "favorite_in_mobile": {
-                              "type": "boolean",
-                              "default": false,
-                              "description": "Whether this item appears in the mobile favorites/quick-access section. Only applicable when available_in_mobile is true (e.g., true, false)."
-                            },
-                            "upsell_handling": {
-                              "type": "string",
-                              "nullable": true,
-                              "enum": [
-                                "hide",
-                                "show_upsell"
-                              ],
-                              "description": "Behavior when user lacks required modules/permissions. 'hide' removes the item completely, 'show_upsell' displays it with an upgrade prompt. Null means default behavior (hide)."
-                            },
-                            "role": {
-                              "type": "string",
-                              "nullable": true,
-                              "enum": [
-                                "settings"
-                              ],
-                              "description": "Semantic role of the navigation item that can trigger special behavior, e.g. \"settings\" causes a settings cog icon to be displayed in the full menu screen. Null means no special role (e.g., \"settings\" or null)."
-                            },
-                            "app_code_name": {
-                              "type": "string",
-                              "nullable": true,
-                              "maxLength": 255,
-                              "description": "App code name to gate this item by app availability. When set, the item is only visible to staff who have the corresponding app assigned. Must match an existing app's app_code_name. Null means the item is not gated by app availability (e.g., \"myapp\" or null)."
-                            },
-                            "is_bmp": {
-                              "type": "boolean",
-                              "default": false,
-                              "description": "Indicates if this is a Business Management Platform (BMP) sub-menu item. When set to true, BMP children are built by inTandem internal logic. Available for **Directory tokens** via create and update operations (e.g., true, false)."
-                            },
-                            "created_by": {
-                              "type": "string",
-                              "nullable": true,
-                              "readOnly": true,
-                              "enum": [
-                                "vcita",
-                                "app",
-                                "directory",
-                                null
-                              ],
-                              "description": "Indicates who created this navigation item. Supported values are: \"vcita\" (created by vcita system), \"app\" (created by an application or integration), \"directory\" (created by the directory owner). Null means unknown or legacy value."
-                            },
-                            "updated_by": {
-                              "type": "string",
-                              "nullable": true,
-                              "readOnly": true,
-                              "enum": [
-                                "vcita",
-                                "app",
-                                "directory",
-                                null
-                              ],
-                              "description": "Indicates who last updated this navigation item. Supported values are: \"vcita\" (updated by vcita system), \"app\" (updated by an application or integration), \"directory\" (updated by the directory owner). Null means unknown or legacy value."
-                            },
-                            "created_at": {
-                              "type": "string",
-                              "format": "date-time",
-                              "readOnly": true,
-                              "description": "The date and time when the navigation item was created, in ISO 8601 format (e.g., \"2026-01-15T10:30:00Z\")."
-                            },
-                            "updated_at": {
-                              "type": "string",
-                              "format": "date-time",
-                              "readOnly": true,
-                              "description": "The date and time when the navigation item was last updated, in ISO 8601 format (e.g., \"2026-01-15T14:45:00Z\")."
-                            }
-                          },
-                          "required": [
-                            "order",
-                            "title",
-                            "key",
-                            "action"
-                          ],
-                          "example": {
-                            "uid": "nav-item-abc123",
-                            "parent_uid": null,
-                            "directory_uid": "dir-xyz789",
-                            "order": 1,
-                            "title": {
-                              "en": "Dashboard",
-                              "he": "לוח בקרה"
-                            },
-                            "icon": "icon-Dashboard_POV",
-                            "key": "dashboard",
-                            "modules": null,
-                            "permissions": null,
-                            "badge_code": null,
-                            "action": {
-                              "name": "navigate",
-                              "payload": {
-                                "type": "relative",
-                                "path": "/app/dashboard",
-                                "new_tab": false
-                              }
-                            },
-                            "available_in_mobile": true,
-                            "favorite_in_mobile": true,
-                            "upsell_handling": null,
-                            "role": "settings",
-                            "app_code_name": null,
-                            "is_bmp": false,
-                            "created_by": "directory",
-                            "updated_by": "directory",
-                            "created_at": "2026-01-15T10:30:00Z",
-                            "updated_at": "2026-01-15T10:30:00Z"
-                          }
-                        }
-                      }
-                    }
-                  ]
-                },
-                "example": {
-                  "success": true,
-                  "data": {
-                    "uid": "nav-item-new123",
-                    "parent_uid": null,
-                    "directory_uid": "dir-xyz789",
-                    "order": 1,
-                    "title": {
-                      "en": "Custom Module",
-                      "he": "מודול מותאם"
-                    },
-                    "icon": "icon-Custom",
-                    "key": "custom_module",
-                    "modules": [
-                      "scheduling"
-                    ],
-                    "permissions": [
-                      "payments.invoices.export"
-                    ],
-                    "badge_code": null,
-                    "action": {
-                      "name": "navigate",
-                      "payload": {
-                        "type": "relative",
-                        "path": "/app/custom-module"
-                      }
-                    },
-                    "available_in_mobile": true,
-                    "favorite_in_mobile": false,
-                    "upsell_handling": "show_upsell",
-                    "role": "settings",
-                    "app_code_name": null,
-                    "is_bmp": false,
-                    "created_by": "directory",
-                    "updated_by": "directory",
-                    "created_at": "2026-01-15T14:00:00Z",
-                    "updated_at": "2026-01-15T14:00:00Z"
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Malformed request or invalid syntax.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "field": "title.en",
-                      "code": "required",
-                      "message": "English title is required"
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing bearer token.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "unauthorized",
-                      "message": "Invalid or expired bearer token"
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden - Insufficient permissions.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "forbidden",
-                      "message": "Insufficient permissions to write navigation items"
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict - Duplicate key within directory.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "field": "key",
-                      "code": "duplicate",
-                      "message": "A navigation item with key 'custom_module' already exists in this directory"
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Unprocessable Entity - Validation error.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "field": "parent_uid",
-                      "code": "invalid_reference",
-                      "message": "Parent navigation item not found"
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "NavigationItems": []
-          }
-        ]
-      }
-    },
-    "/v3/apps/navigation_items/{uid}": {
-      "put": {
-        "tags": [
-          "Navigation Items"
-        ],
-        "summary": "Update a Navigation Item",
-        "description": "Update an existing navigation item. Only provided fields will be updated. Available for **Directory tokens**.",
-        "operationId": "updateNavigationItem",
-        "parameters": [
-          {
-            "name": "uid",
-            "in": "path",
-            "required": true,
-            "description": "Unique identifier of the navigation item to update (e.g., \"nav-item-abc123\").",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateNavigationItemRequest"
-              },
-              "example": {
-                "title": {
-                  "en": "Updated Module Name",
-                  "he": "שם מודול מעודכן"
-                },
-                "order": 2
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Navigation item updated successfully.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "success": {
-                          "type": "boolean",
-                          "description": "Indicates whether the API request was successful (true) or failed (false)."
-                        },
-                        "data": {
-                          "type": "object",
-                          "description": "The response payload. Present on successful responses (success: true)."
-                        },
-                        "error": {
-                          "type": "string",
-                          "description": "Error message for simple error responses. Used in some legacy endpoints."
-                        },
-                        "errors": {
-                          "type": "array",
-                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "code": {
-                                "type": "string",
-                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
-                              },
-                              "message": {
-                                "type": "string",
-                                "description": "Human-readable error message."
-                              },
-                              "field": {
-                                "type": "string",
-                                "description": "The field that caused the error (for validation errors)."
-                              }
-                            },
-                            "required": [
-                              "code",
-                              "message"
-                            ]
-                          }
-                        }
-                      },
-                      "required": [
-                        "success"
-                      ],
-                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "data": {
-                          "type": "object",
-                          "description": "Represents a navigation menu item that defines how partners configure their platform navigation structure. Navigation items support hierarchical menus, localized titles, permission-based visibility, and mobile-specific settings.",
-                          "properties": {
-                            "uid": {
-                              "type": "string",
-                              "readOnly": true,
-                              "description": "Unique identifier for the navigation item (e.g., \"nav-item-abc123\")."
-                            },
-                            "parent_uid": {
-                              "type": "string",
-                              "nullable": true,
-                              "description": "The UID of the parent navigation item. Set to null only for the root item, which represents the logo. Only one root item should exist per directory (e.g., \"nav-item-parent123\" or null)."
-                            },
-                            "directory_uid": {
-                              "type": "string",
-                              "readOnly": true,
-                              "description": "Unique identifier of the directory (partner) that owns this navigation item. Automatically set from the authenticated token context (e.g., \"dir-abc123\")."
-                            },
-                            "order": {
-                              "type": "integer",
-                              "minimum": 0,
-                              "default": 0,
-                              "description": "Display order within the parent level. Lower numbers appear first. Items with the same order are sorted by creation time (e.g., 0, 1, 2)."
-                            },
-                            "title": {
-                              "type": "object",
-                              "description": "Localized titles for the navigation item. Must include at least the 'en' (English) locale.",
-                              "propertyNames": {
-                                "type": "string",
-                                "enum": [
-                                  "de",
-                                  "en",
-                                  "es",
-                                  "fr",
-                                  "he",
-                                  "it",
-                                  "pl",
-                                  "pt",
-                                  "ru",
-                                  "sl",
-                                  "tr"
-                                ]
-                              },
-                              "properties": {
-                                "en": {
-                                  "type": "string",
-                                  "description": "English title (required)."
-                                },
-                                "he": {
-                                  "type": "string",
-                                  "description": "Hebrew title (optional)."
-                                }
-                              },
-                              "required": [
-                                "en"
-                              ],
-                              "additionalProperties": {
-                                "type": "string",
-                                "description": "Additional locale titles (e.g., \"es\", \"fr\", \"de\")."
-                              }
-                            },
-                            "icon": {
-                              "type": "string",
-                              "nullable": true,
-                              "maxLength": 255,
-                              "description": "Icon identifier from the platform icon library. For a list of supported icon identifiers, refer to the inTandem UI icon library used by the platform (e.g., \"icon-Dashboard_POV\", \"icon-Settings\")."
-                            },
-                            "key": {
-                              "type": "string",
-                              "maxLength": 255,
-                              "description": "Human-readable unique identifier within the directory. Used by API consumers for programmatic access. Must be stable across title/translation changes (e.g., \"dashboard\", \"settings\", \"custom_module\")."
-                            },
-                            "modules": {
-                              "type": "array",
-                              "nullable": true,
-                              "uniqueItems": true,
-                              "items": {
-                                "type": "string"
-                              },
-                              "description": "Array of module identifiers required for this item to be visible. Item is shown only if the business has at least one of these modules enabled. The list of enabled modules can be retrieved from the features endpoint (e.g., \"https://developers.intandem.tech/reference/get_platform-v1-businesses-business-id-features\"). (e.g., [\"scheduling\", \"payments\"])."
-                            },
-                            "permissions": {
-                              "type": "array",
-                              "nullable": true,
-                              "uniqueItems": true,
-                              "items": {
-                                "type": "string"
-                              },
-                              "description": "Array of permission identifiers required to view this item. Item is shown only if the staff member has at least one of these permissions. To retrieve valid permission codes, use the endpoint (GET \"/v3/access_control/permissions\"). (e.g., [\"payments.invoices.export\", \"clients.manage\"])."
-                            },
-                            "badge_code": {
-                              "type": "string",
-                              "nullable": true,
-                              "enum": [
-                                "inbox_unread"
-                              ],
-                              "description": "Badge code that displays a notification indicator on this navigation item. Supported values are finite and managed by the platform (e.g., \"inbox_unread\" or null)."
-                            },
-                            "action": {
-                              "type": "object",
-                              "description": "Action configuration that defines the behavior when the navigation item is clicked. Actions are handled by the inTandem JS SDK. Every navigation item must have an action. Supported action types: \"navigate\" (navigates to a page) and \"openModal\" (opens a modal dialog).",
-                              "properties": {
-                                "name": {
-                                  "type": "string",
-                                  "enum": [
-                                    "navigate",
-                                    "openModal"
-                                  ],
-                                  "description": "Action type identifier. Supported values: \"navigate\" (navigates to a page using the inTandem JS SDK navigate function, see the [navigate documentation](https://developers.intandem.tech/docs/navigate)), \"openModal\" (opens a modal dialog using the inTandem JS SDK, see the [openModal documentation](https://developers.intandem.tech/docs/openmodal))."
-                                },
-                                "payload": {
-                                  "type": "object",
-                                  "description": "Action-specific payload. For \"navigate\": must include 'type' and 'path' (required), and optionally 'new_tab'. For \"openModal\": must include the modal configuration (e.g., {\"modalName\": \"AppMarket\"}). See the inTandem JS SDK documentation for complete parameter specifications."
-                                }
-                              },
-                              "required": [
-                                "name",
-                                "payload"
-                              ]
-                            },
-                            "available_in_mobile": {
-                              "type": "boolean",
-                              "default": true,
-                              "description": "Whether this navigation item should appear in mobile app navigation. Set to false for desktop-only features (e.g., true, false)."
-                            },
-                            "favorite_in_mobile": {
-                              "type": "boolean",
-                              "default": false,
-                              "description": "Whether this item appears in the mobile favorites/quick-access section. Only applicable when available_in_mobile is true (e.g., true, false)."
-                            },
-                            "upsell_handling": {
-                              "type": "string",
-                              "nullable": true,
-                              "enum": [
-                                "hide",
-                                "show_upsell"
-                              ],
-                              "description": "Behavior when user lacks required modules/permissions. 'hide' removes the item completely, 'show_upsell' displays it with an upgrade prompt. Null means default behavior (hide)."
-                            },
-                            "role": {
-                              "type": "string",
-                              "nullable": true,
-                              "enum": [
-                                "settings"
-                              ],
-                              "description": "Semantic role of the navigation item that can trigger special behavior, e.g. \"settings\" causes a settings cog icon to be displayed in the full menu screen. Null means no special role (e.g., \"settings\" or null)."
-                            },
-                            "app_code_name": {
-                              "type": "string",
-                              "nullable": true,
-                              "maxLength": 255,
-                              "description": "App code name to gate this item by app availability. When set, the item is only visible to staff who have the corresponding app assigned. Must match an existing app's app_code_name. Null means the item is not gated by app availability (e.g., \"myapp\" or null)."
-                            },
-                            "is_bmp": {
-                              "type": "boolean",
-                              "default": false,
-                              "description": "Indicates if this is a Business Management Platform (BMP) sub-menu item. When set to true, BMP children are built by inTandem internal logic. Available for **Directory tokens** via create and update operations (e.g., true, false)."
-                            },
-                            "created_by": {
-                              "type": "string",
-                              "nullable": true,
-                              "readOnly": true,
-                              "enum": [
-                                "vcita",
-                                "app",
-                                "directory",
-                                null
-                              ],
-                              "description": "Indicates who created this navigation item. Supported values are: \"vcita\" (created by vcita system), \"app\" (created by an application or integration), \"directory\" (created by the directory owner). Null means unknown or legacy value."
-                            },
-                            "updated_by": {
-                              "type": "string",
-                              "nullable": true,
-                              "readOnly": true,
-                              "enum": [
-                                "vcita",
-                                "app",
-                                "directory",
-                                null
-                              ],
-                              "description": "Indicates who last updated this navigation item. Supported values are: \"vcita\" (updated by vcita system), \"app\" (updated by an application or integration), \"directory\" (updated by the directory owner). Null means unknown or legacy value."
-                            },
-                            "created_at": {
-                              "type": "string",
-                              "format": "date-time",
-                              "readOnly": true,
-                              "description": "The date and time when the navigation item was created, in ISO 8601 format (e.g., \"2026-01-15T10:30:00Z\")."
-                            },
-                            "updated_at": {
-                              "type": "string",
-                              "format": "date-time",
-                              "readOnly": true,
-                              "description": "The date and time when the navigation item was last updated, in ISO 8601 format (e.g., \"2026-01-15T14:45:00Z\")."
-                            }
-                          },
-                          "required": [
-                            "order",
-                            "title",
-                            "key",
-                            "action"
-                          ],
-                          "example": {
-                            "uid": "nav-item-abc123",
-                            "parent_uid": null,
-                            "directory_uid": "dir-xyz789",
-                            "order": 1,
-                            "title": {
-                              "en": "Dashboard",
-                              "he": "לוח בקרה"
-                            },
-                            "icon": "icon-Dashboard_POV",
-                            "key": "dashboard",
-                            "modules": null,
-                            "permissions": null,
-                            "badge_code": null,
-                            "action": {
-                              "name": "navigate",
-                              "payload": {
-                                "type": "relative",
-                                "path": "/app/dashboard",
-                                "new_tab": false
-                              }
-                            },
-                            "available_in_mobile": true,
-                            "favorite_in_mobile": true,
-                            "upsell_handling": null,
-                            "role": "settings",
-                            "app_code_name": null,
-                            "is_bmp": false,
-                            "created_by": "directory",
-                            "updated_by": "directory",
-                            "created_at": "2026-01-15T10:30:00Z",
-                            "updated_at": "2026-01-15T10:30:00Z"
-                          }
-                        }
-                      }
-                    }
-                  ]
-                },
-                "example": {
-                  "success": true,
-                  "data": {
-                    "uid": "nav-item-abc123",
-                    "parent_uid": null,
-                    "directory_uid": "dir-xyz789",
-                    "order": 2,
-                    "title": {
-                      "en": "Updated Module Name",
-                      "he": "שם מודול מעודכן"
-                    },
-                    "icon": "icon-Dashboard_POV",
-                    "key": "dashboard",
-                    "modules": null,
-                    "permissions": null,
-                    "badge_code": null,
-                    "action": {
-                      "name": "navigate",
-                      "payload": {
-                        "type": "relative",
-                        "path": "/app/dashboard",
-                        "new_tab": false
-                      }
-                    },
-                    "available_in_mobile": true,
-                    "favorite_in_mobile": true,
-                    "upsell_handling": null,
-                    "role": "settings",
-                    "app_code_name": null,
-                    "is_bmp": false,
-                    "created_by": "directory",
-                    "updated_by": "directory",
-                    "created_at": "2026-01-15T10:30:00Z",
-                    "updated_at": "2026-01-15T16:00:00Z"
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request - Malformed request or invalid syntax.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "field": "order",
-                      "code": "invalid_type",
-                      "message": "Order must be a non-negative integer"
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing bearer token.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "unauthorized",
-                      "message": "Invalid or expired bearer token"
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden - Navigation item belongs to a different directory.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "forbidden",
-                      "message": "Navigation item belongs to a different directory"
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found - Navigation item does not exist.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "not_found",
-                      "message": "Navigation item not found"
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict - Duplicate key within directory.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "field": "key",
-                      "code": "duplicate",
-                      "message": "A navigation item with this key already exists in the directory"
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Unprocessable Entity - Validation error.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "field": "parent_uid",
-                      "code": "invalid_reference",
-                      "message": "Parent navigation item not found"
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "NavigationItems": []
-          }
-        ]
-      },
-      "delete": {
-        "tags": [
-          "Navigation Items"
-        ],
-        "summary": "Delete a Navigation Item",
-        "description": "Delete a navigation item. Items with children cannot be deleted until all children are removed first. Available for **Directory tokens**.",
-        "operationId": "deleteNavigationItem",
-        "parameters": [
-          {
-            "name": "uid",
-            "in": "path",
-            "required": true,
-            "description": "Unique identifier of the navigation item to delete (e.g., \"nav-item-abc123\").",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Navigation item deleted successfully."
-          },
-          "400": {
-            "description": "Bad Request - Cannot delete item with children.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "has_children",
-                      "message": "Cannot delete navigation item that has child items. Delete children first."
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing bearer token.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "unauthorized",
-                      "message": "Invalid or expired bearer token"
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden - Navigation item belongs to a different directory.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "forbidden",
-                      "message": "Navigation item belongs to a different directory"
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found - Navigation item does not exist.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "not_found",
-                      "message": "Navigation item not found"
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "NavigationItems": []
-          }
-        ]
-      }
-    },
     "/oauth/service/token": {
       "post": {
         "parameters": [],
@@ -8248,184 +8284,6 @@
   },
   "components": {
     "schemas": {
-      "Response": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "data": {
-            "type": "object"
-          }
-        },
-        "required": [
-          "success",
-          "data"
-        ]
-      },
-      "CreateAppAssignmentRequestDto": {
-        "type": "object",
-        "properties": {
-          "assignee_type": {
-            "type": "string",
-            "description": "The type of entity this app is assigned to",
-            "enum": [
-              "business",
-              "package",
-              "directory"
-            ]
-          },
-          "assignee_uid": {
-            "type": "string",
-            "description": "The uid of the entity this app is assigned to"
-          },
-          "app_code_name": {
-            "type": "string",
-            "description": "The unique identifier of the app. Must use alphanumeric characters only (no spaces or special characters). The app must exist and belong to the authenticated directory.",
-            "pattern": "^[a-zA-Z0-9]+$"
-          },
-          "directory_uid": {
-            "type": "string",
-            "description": "The uid of the directory this app is assigned to. **Optional when using Directory Token** - will be auto-determined from the token if omitted. If provided, must match the directory associated with your authentication token. For **package** assignments with an **Internal Token**, it may be omitted to create a global (direct) assignment that applies across all directories."
-          },
-          "settings": {
-            "type": "object",
-            "description": "Optional settings for the app assignment",
-            "properties": {
-              "assignment_mode": {
-                "type": "string",
-                "description": "App setting: 'internal' - App does not show in the app market but still available to use in all relevant integration points; 'pre_installed' - Define the app as pre-installed for all new accounts, app shows in app market as installed on first appearance. The user will be able to uninstall it later if they wish to. This is relevant only to account with platform app market",
-                "enum": [
-                  "internal",
-                  "pre_installed"
-                ]
-              }
-            },
-            "required": [
-              "assignment_mode"
-            ]
-          }
-        },
-        "required": [
-          "assignee_type",
-          "assignee_uid",
-          "app_code_name",
-          "settings"
-        ]
-      },
-      "CreateBusinessAppInstallRequestDto": {
-        "type": "object",
-        "properties": {
-          "business_uid": {
-            "type": "string",
-            "description": "Unique identifier of the business"
-          },
-          "app_code_name": {
-            "type": "string",
-            "description": "The unique identifier of the app"
-          }
-        },
-        "required": [
-          "business_uid",
-          "app_code_name"
-        ]
-      },
-      "CreateAppBusinessMappingRequest": {
-        "type": "object",
-        "description": "Request body for creating an app business mapping. Omits backend-managed fields (uid, created_at, updated_at). directory_uid is resolved from the Directory token when omitted.",
-        "properties": {
-          "business_uid": {
-            "type": "string",
-            "description": "Unique identifier of the vcita business being mapped (e.g., \"d290f1ee6c544b01\")."
-          },
-          "directory_uid": {
-            "type": "string",
-            "description": "The uid of the directory (partner) that owns this mapping. **Optional when using Directory Token** — auto-determined from the token if omitted. If provided, must match the directory associated with your authentication token. May be supplied for future Internal token support (e.g., \"dir_partner_xyz\")."
-          },
-          "app_code_name": {
-            "type": "string",
-            "description": "Code name of the third-party integrated app this mapping applies to (e.g., \"yext\")."
-          },
-          "mapped_business_uid": {
-            "type": "string",
-            "description": "Third-party business identifier for the mapped business in the external app (e.g., \"yext-business-id-42\")."
-          },
-          "mapped_user_uid": {
-            "type": "string",
-            "nullable": true,
-            "description": "Optional third-party user identifier for the mapped business in the external app (e.g., \"yext-user-code-42\" or null)."
-          }
-        },
-        "required": [
-          "business_uid",
-          "app_code_name",
-          "mapped_business_uid"
-        ]
-      },
-      "UpdateAppBusinessMappingRequest": {
-        "type": "object",
-        "description": "Request body for updating an app business mapping. Only provided fields are updated. business_uid cannot be changed.",
-        "properties": {
-          "directory_uid": {
-            "type": "string",
-            "description": "The uid of the directory (partner) that owns this mapping. Can only be modified when using an **Internal token**. Must not be included when using a **Directory token** — the request will be rejected if supplied (e.g., \"dir_partner_xyz\")."
-          },
-          "app_code_name": {
-            "type": "string",
-            "description": "Code name of the third-party integrated app this mapping applies to (e.g., \"yext\")."
-          },
-          "mapped_business_uid": {
-            "type": "string",
-            "description": "Third-party business identifier for the mapped business in the external app (e.g., \"yext-business-id-42\")."
-          },
-          "mapped_user_uid": {
-            "type": "string",
-            "nullable": true,
-            "description": "Optional third-party user identifier for the mapped business in the external app (e.g., \"yext-user-code-42\" or null)."
-          }
-        }
-      },
-      "ErrorResponse": {
-        "type": "object",
-        "description": "Standard error response format.",
-        "properties": {
-          "success": {
-            "type": "boolean",
-            "enum": [
-              false
-            ],
-            "description": "Always false for error responses (e.g., false)."
-          },
-          "errors": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "field": {
-                  "type": "string",
-                  "description": "Field that caused the error, for validation errors (e.g., \"business_uid\")."
-                },
-                "code": {
-                  "type": "string",
-                  "description": "Error code identifier (e.g., \"invalid\")."
-                },
-                "message": {
-                  "type": "string",
-                  "description": "Human-readable error message (e.g., \"business_uid is required\")."
-                }
-              },
-              "required": [
-                "code",
-                "message"
-              ]
-            }
-          }
-        },
-        "required": [
-          "success",
-          "errors"
-        ]
-      },
       "CreateNavigationItemRequest": {
         "type": "object",
         "description": "Request body for creating a new navigation item.",
@@ -8523,6 +8381,16 @@
             "type": "boolean",
             "default": false,
             "description": "Indicates if this is a Business Management Platform (BMP) sub-menu item. When set to true, BMP children are built by inTandem internal logic. Available for **Directory tokens** (e.g., true, false)."
+          },
+          "expand_by_default": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether this navigation item's sub-menu renders expanded by default on module landing, so its child items are immediately visible without an extra click. The frontend only expands items that have children. Deep-link behavior is unaffected. Only applies to partner navigation items — BMP items are unaffected. Applies to both desktop and mobile (full-screen menu) (e.g., true, false)."
+          },
+          "show_quick_actions": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether this navigation item renders with the Quick Actions button at the top of the navigation (same design as the platform default). Only applies to partner navigation items — BMP items are unaffected. Desktop only (e.g., true, false)."
           }
         },
         "required": [
@@ -8624,6 +8492,14 @@
           "is_bmp": {
             "type": "boolean",
             "description": "Indicates if this is a Business Management Platform (BMP) sub-menu item. When set to true, BMP children are built by inTandem internal logic. Available for **Directory tokens** (e.g., true, false)."
+          },
+          "expand_by_default": {
+            "type": "boolean",
+            "description": "Whether this navigation item's sub-menu renders expanded by default on module landing, so its child items are immediately visible without an extra click. The frontend only expands items that have children. Deep-link behavior is unaffected. Only applies to partner navigation items — BMP items are unaffected. Applies to both desktop and mobile (full-screen menu) (e.g., true, false)."
+          },
+          "show_quick_actions": {
+            "type": "boolean",
+            "description": "Whether this navigation item renders with the Quick Actions button at the top of the navigation (same design as the platform default). Only applies to partner navigation items — BMP items are unaffected. Desktop only (e.g., true, false)."
           }
         }
       },
@@ -8765,7 +8641,7 @@
           }
         }
       },
-      "ErrorResponse_navigation_items": {
+      "ErrorResponse": {
         "type": "object",
         "description": "Standard error response format.",
         "properties": {
@@ -8792,6 +8668,184 @@
                 "message": {
                   "type": "string",
                   "description": "Human-readable error message."
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ]
+            }
+          }
+        },
+        "required": [
+          "success",
+          "errors"
+        ]
+      },
+      "Response": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "success",
+          "data"
+        ]
+      },
+      "CreateAppAssignmentRequestDto": {
+        "type": "object",
+        "properties": {
+          "assignee_type": {
+            "type": "string",
+            "description": "The type of entity this app is assigned to",
+            "enum": [
+              "business",
+              "package",
+              "directory"
+            ]
+          },
+          "assignee_uid": {
+            "type": "string",
+            "description": "The uid of the entity this app is assigned to"
+          },
+          "app_code_name": {
+            "type": "string",
+            "description": "The unique identifier of the app. Must use alphanumeric characters only (no spaces or special characters). The app must exist and belong to the authenticated directory.",
+            "pattern": "^[a-zA-Z0-9]+$"
+          },
+          "directory_uid": {
+            "type": "string",
+            "description": "The uid of the directory this app is assigned to. **Optional when using Directory Token** - will be auto-determined from the token if omitted. If provided, must match the directory associated with your authentication token. For **package** assignments with an **Internal Token**, it may be omitted to create a global (direct) assignment that applies across all directories."
+          },
+          "settings": {
+            "type": "object",
+            "description": "Optional settings for the app assignment",
+            "properties": {
+              "assignment_mode": {
+                "type": "string",
+                "description": "App setting: 'internal' - App does not show in the app market but still available to use in all relevant integration points; 'pre_installed' - Define the app as pre-installed for all new accounts, app shows in app market as installed on first appearance. The user will be able to uninstall it later if they wish to. This is relevant only to account with platform app market",
+                "enum": [
+                  "internal",
+                  "pre_installed"
+                ]
+              }
+            },
+            "required": [
+              "assignment_mode"
+            ]
+          }
+        },
+        "required": [
+          "assignee_type",
+          "assignee_uid",
+          "app_code_name",
+          "settings"
+        ]
+      },
+      "CreateBusinessAppInstallRequestDto": {
+        "type": "object",
+        "properties": {
+          "business_uid": {
+            "type": "string",
+            "description": "Unique identifier of the business"
+          },
+          "app_code_name": {
+            "type": "string",
+            "description": "The unique identifier of the app"
+          }
+        },
+        "required": [
+          "business_uid",
+          "app_code_name"
+        ]
+      },
+      "CreateAppBusinessMappingRequest": {
+        "type": "object",
+        "description": "Request body for creating an app business mapping. Omits backend-managed fields (uid, created_at, updated_at). directory_uid is resolved from the Directory token when omitted.",
+        "properties": {
+          "business_uid": {
+            "type": "string",
+            "description": "Unique identifier of the vcita business being mapped (e.g., \"d290f1ee6c544b01\")."
+          },
+          "directory_uid": {
+            "type": "string",
+            "description": "The uid of the directory (partner) that owns this mapping. **Optional when using Directory Token** — auto-determined from the token if omitted. If provided, must match the directory associated with your authentication token. May be supplied for future Internal token support (e.g., \"dir_partner_xyz\")."
+          },
+          "app_code_name": {
+            "type": "string",
+            "description": "Code name of the third-party integrated app this mapping applies to (e.g., \"yext\")."
+          },
+          "mapped_business_uid": {
+            "type": "string",
+            "description": "Third-party business identifier for the mapped business in the external app (e.g., \"yext-business-id-42\")."
+          },
+          "mapped_user_uid": {
+            "type": "string",
+            "nullable": true,
+            "description": "Optional third-party user identifier for the mapped business in the external app (e.g., \"yext-user-code-42\" or null)."
+          }
+        },
+        "required": [
+          "business_uid",
+          "app_code_name",
+          "mapped_business_uid"
+        ]
+      },
+      "UpdateAppBusinessMappingRequest": {
+        "type": "object",
+        "description": "Request body for updating an app business mapping. Only provided fields are updated. business_uid cannot be changed.",
+        "properties": {
+          "directory_uid": {
+            "type": "string",
+            "description": "The uid of the directory (partner) that owns this mapping. Can only be modified when using an **Internal token**. Must not be included when using a **Directory token** — the request will be rejected if supplied (e.g., \"dir_partner_xyz\")."
+          },
+          "app_code_name": {
+            "type": "string",
+            "description": "Code name of the third-party integrated app this mapping applies to (e.g., \"yext\")."
+          },
+          "mapped_business_uid": {
+            "type": "string",
+            "description": "Third-party business identifier for the mapped business in the external app (e.g., \"yext-business-id-42\")."
+          },
+          "mapped_user_uid": {
+            "type": "string",
+            "nullable": true,
+            "description": "Optional third-party user identifier for the mapped business in the external app (e.g., \"yext-user-code-42\" or null)."
+          }
+        }
+      },
+      "ErrorResponse_app_business_mappings": {
+        "type": "object",
+        "description": "Standard error response format.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ],
+            "description": "Always false for error responses (e.g., false)."
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "Field that caused the error, for validation errors (e.g., \"business_uid\")."
+                },
+                "code": {
+                  "type": "string",
+                  "description": "Error code identifier (e.g., \"invalid\")."
+                },
+                "message": {
+                  "type": "string",
+                  "description": "Human-readable error message (e.g., \"business_uid is required\")."
                 }
               },
               "required": [
@@ -9496,12 +9550,12 @@
   },
   "tags": [
     {
-      "name": "App Business Mappings",
-      "description": "CRUD operations for third-party app business mappings"
-    },
-    {
       "name": "Navigation Items",
       "description": "CRUD operations for navigation menu items"
+    },
+    {
+      "name": "App Business Mappings",
+      "description": "CRUD operations for third-party app business mappings"
     }
   ]
 }
