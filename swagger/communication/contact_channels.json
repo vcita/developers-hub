@@ -1,0 +1,185 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Contact Channels",
+    "description": "API endpoint for retrieving the true, contact-level availability of every communication channel a business has (email, SMS, and installed third-party apps) for a single contact, in one call. For each channel it combines the business-level capability with a contact-level eligibility check.",
+    "version": "3.0",
+    "contact": {}
+  },
+  "tags": [
+    {
+      "name": "Contact Channels",
+      "description": "Operations for retrieving contact-level channel availability"
+    }
+  ],
+  "servers": [
+    {
+      "url": "https://api.vcita.biz/",
+      "description": "API Gateway server"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "The field that caused the error (for validation errors)"
+                },
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ]
+            }
+          }
+        },
+        "required": [
+          "success",
+          "errors"
+        ],
+        "example": {
+          "success": false,
+          "errors": [
+            {
+              "field": "contact_uid",
+              "code": "invalid",
+              "message": "contact_uid is required."
+            }
+          ]
+        }
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+      }
+    }
+  },
+  "paths": {
+    "/v3/communication/contact_channels": {
+      "get": {
+        "operationId": "ContactChannelsController_index",
+        "summary": "Get All ContactChannels",
+        "description": "## Overview\nReturns the contact-level availability of every communication channel the business has (email, SMS, and installed third-party apps) for a single contact. Each entry reports whether the contact can be reached on that channel and, when not, a machine-readable reason.\n\nThe business is resolved from the caller's staff context; the contact must belong to that business.\n\nAvailable for **Staff Tokens**",
+        "parameters": [
+          {
+            "name": "contact_uid",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unique identifier of the contact (client) to evaluate channel availability for (e.g., \"peu8ljecwqr5ok58\")."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Contact channel availability retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "contact_channels": {
+                              "description": "Availability of each communication channel the business has for the requested contact.",
+                              "type": "array",
+                              "items": {
+                                "$ref": "https://vcita.github.io/developers-hub/entities/communication/contactChannel.json"
+                              }
+                            }
+                          },
+                          "required": [
+                            "contact_channels"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions"
+          },
+          "404": {
+            "description": "Not Found - The contact does not exist or does not belong to the authenticated business",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "missing",
+                      "message": "Contact not found: [peu8ljecwqr5ok58]."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "contact_uid",
+                      "code": "invalid",
+                      "message": "contact_uid is required."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Contact Channels"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    }
+  }
+}
