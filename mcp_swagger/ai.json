@@ -129,7 +129,7 @@
                 "upcoming"
               ]
             },
-            "description": "Filter by category bucket. Each record belongs to one bucket only, checked in this order:\nupcoming – due_at is in the future (based on time, even if the stored category is different).\nfyi – due_at is not in the future and execution_policy is auto_execute (again, based on fields, not stored category).\nneeds_attention / opportunity – stored category is one of these, due_at is not in the future, and execution_policy is requires_human_approval."
+            "description": "Filter by category bucket. Only active recommendations are bucketed. Each record belongs to one bucket only, checked in this order:\nupcoming – due_at is in the future (regardless of stored category).\nneeds_attention / opportunity / fyi – due_at is not in the future (past or unset) and the stored category matches the requested bucket."
           },
           {
             "name": "producer",
@@ -231,23 +231,23 @@
                           "properties": {
                             "counts": {
                               "type": "object",
-                              "description": "Returned only when 'include=counts' is requested. Number of recommendations per bucket across the full set matching every query filter except 'category' (that is: 'target', 'context', 'status', and 'producer' are all applied; 'category' is intentionally ignored). This lets the caller show how many items exist in each bucket regardless of the category currently being requested. The counts are computed scope-wide - they are also independent of pagination, so they reflect totals even for buckets not present in the returned page. Every matching recommendation is counted in exactly one bucket (no overlap), evaluated in this order: future 'due_at' -> 'upcoming'; else 'execution_policy' = 'auto_execute' -> 'fyi'; else by stored category -> 'needs_attention' or 'opportunity'.",
+                              "description": "Returned only when 'include=counts' is requested. Number of recommendations per bucket across the full set matching every query filter except 'category' and 'status' (that is: 'target', 'context', and 'producer' are all applied; 'category' is intentionally ignored and counts always reflect active recommendations regardless of the 'status' filter). This lets the caller show how many items exist in each bucket regardless of the category currently being requested. The counts are computed scope-wide - they are also independent of pagination, so they reflect totals even for buckets not present in the returned page. Only active recommendations are counted. Every matching recommendation is counted in exactly one bucket (no overlap), evaluated in this order: future 'due_at' -> 'upcoming'; else by stored category -> 'needs_attention', 'opportunity', or 'fyi'.",
                               "properties": {
                                 "needs_attention": {
                                   "type": "integer",
-                                  "description": "Recommendations with stored category 'needs_attention', a non-future 'due_at', and 'execution_policy' = 'requires_human_approval'."
+                                  "description": "Active recommendations with stored category 'needs_attention' and a non-future 'due_at' (past or unset)."
                                 },
                                 "upcoming": {
                                   "type": "integer",
-                                  "description": "Recommendations whose 'due_at' is in the future, regardless of stored category. Derived bucket - these are excluded from every other bucket."
+                                  "description": "Active recommendations whose 'due_at' is in the future, regardless of stored category. Derived bucket - these are excluded from every other bucket."
                                 },
                                 "opportunity": {
                                   "type": "integer",
-                                  "description": "Recommendations with stored category 'opportunity', a non-future 'due_at', and 'execution_policy' = 'requires_human_approval'."
+                                  "description": "Active recommendations with stored category 'opportunity' and a non-future 'due_at' (past or unset)."
                                 },
                                 "fyi": {
                                   "type": "integer",
-                                  "description": "Non-future recommendations whose 'execution_policy' is 'auto_execute', regardless of stored category. Derived bucket."
+                                  "description": "Active recommendations with stored category 'fyi' and a non-future 'due_at' (past or unset)."
                                 }
                               }
                             }
@@ -367,10 +367,11 @@
                               "type": "string",
                               "enum": [
                                 "needs_attention",
-                                "opportunity"
+                                "opportunity",
+                                "fyi"
                               ],
                               "default": "needs_attention",
-                              "description": "Recommendation category set by the producer for interface use: 'needs_attention' (time-sensitive and requires the user's attention) or 'opportunity' (growth-focused value opportunity that does not require immediate action)."
+                              "description": "Recommendation category set by the producer for interface use: 'needs_attention' (time-sensitive and requires the user's attention), 'opportunity' (growth-focused value opportunity that does not require immediate action), or 'fyi' (informational only, no action required)."
                             },
                             "priority": {
                               "type": "string",
@@ -455,25 +456,6 @@
                                       "type": "string"
                                     }
                                   },
-                                  "context": {
-                                    "type": "object",
-                                    "description": "The context in which the recommendation was generated.",
-                                    "properties": {
-                                      "context_uid": {
-                                        "type": "string",
-                                        "description": "A unique identifier for the context associated with this recommendation."
-                                      },
-                                      "context_type": {
-                                        "type": "string",
-                                        "description": "The type of context (e.g., 'matter','client', 'business').",
-                                        "enum": [
-                                          "matter",
-                                          "client",
-                                          "business"
-                                        ]
-                                      }
-                                    }
-                                  },
                                   "confidence": {
                                     "type": "number",
                                     "description": "A confidence score (0-1) indicating how confident the AI is in this recommendation."
@@ -496,10 +478,7 @@
                                   "payload": {
                                     "message": "Hi please send some more details"
                                   },
-                                  "context": {
-                                    "context_uid": "ctx-456",
-                                    "context_type": "client"
-                                  }
+                                  "confidence": 0.85
                                 }
                               }
                             },
@@ -779,10 +758,11 @@
                               "type": "string",
                               "enum": [
                                 "needs_attention",
-                                "opportunity"
+                                "opportunity",
+                                "fyi"
                               ],
                               "default": "needs_attention",
-                              "description": "Recommendation category set by the producer for interface use: 'needs_attention' (time-sensitive and requires the user's attention) or 'opportunity' (growth-focused value opportunity that does not require immediate action)."
+                              "description": "Recommendation category set by the producer for interface use: 'needs_attention' (time-sensitive and requires the user's attention), 'opportunity' (growth-focused value opportunity that does not require immediate action), or 'fyi' (informational only, no action required)."
                             },
                             "priority": {
                               "type": "string",
@@ -867,25 +847,6 @@
                                       "type": "string"
                                     }
                                   },
-                                  "context": {
-                                    "type": "object",
-                                    "description": "The context in which the recommendation was generated.",
-                                    "properties": {
-                                      "context_uid": {
-                                        "type": "string",
-                                        "description": "A unique identifier for the context associated with this recommendation."
-                                      },
-                                      "context_type": {
-                                        "type": "string",
-                                        "description": "The type of context (e.g., 'matter','client', 'business').",
-                                        "enum": [
-                                          "matter",
-                                          "client",
-                                          "business"
-                                        ]
-                                      }
-                                    }
-                                  },
                                   "confidence": {
                                     "type": "number",
                                     "description": "A confidence score (0-1) indicating how confident the AI is in this recommendation."
@@ -908,10 +869,7 @@
                                   "payload": {
                                     "message": "Hi please send some more details"
                                   },
-                                  "context": {
-                                    "context_uid": "ctx-456",
-                                    "context_type": "client"
-                                  }
+                                  "confidence": 0.85
                                 }
                               }
                             },
@@ -7610,10 +7568,11 @@
             "type": "string",
             "enum": [
               "needs_attention",
-              "opportunity"
+              "opportunity",
+              "fyi"
             ],
             "default": "needs_attention",
-            "description": "Recommendation category set by the producer for interface use: 'needs_attention' (time-sensitive and requires the user's attention) or 'opportunity' (growth-focused value opportunity that does not require immediate action)."
+            "description": "Recommendation category set by the producer for interface use: 'needs_attention' (time-sensitive and requires the user's attention), 'opportunity' (growth-focused value opportunity that does not require immediate action), or 'fyi' (informational only, no action required)."
           },
           "priority": {
             "type": "string",
@@ -7735,10 +7694,9 @@
           }
         },
         "required": [
-          "user_description",
-          "staff_uid",
-          "sources",
-          "actions"
+          "actions",
+          "context",
+          "target"
         ]
       },
       "AIRecommendationUpdateRequest": {
@@ -7821,10 +7779,11 @@
                   "type": "string",
                   "enum": [
                     "needs_attention",
-                    "opportunity"
+                    "opportunity",
+                    "fyi"
                   ],
                   "default": "needs_attention",
-                  "description": "Recommendation category set by the producer for interface use: 'needs_attention' (time-sensitive and requires the user's attention) or 'opportunity' (growth-focused value opportunity that does not require immediate action)."
+                  "description": "Recommendation category set by the producer for interface use: 'needs_attention' (time-sensitive and requires the user's attention), 'opportunity' (growth-focused value opportunity that does not require immediate action), or 'fyi' (informational only, no action required)."
                 },
                 "priority": {
                   "type": "string",
@@ -7909,25 +7868,6 @@
                           "type": "string"
                         }
                       },
-                      "context": {
-                        "type": "object",
-                        "description": "The context in which the recommendation was generated.",
-                        "properties": {
-                          "context_uid": {
-                            "type": "string",
-                            "description": "A unique identifier for the context associated with this recommendation."
-                          },
-                          "context_type": {
-                            "type": "string",
-                            "description": "The type of context (e.g., 'matter','client', 'business').",
-                            "enum": [
-                              "matter",
-                              "client",
-                              "business"
-                            ]
-                          }
-                        }
-                      },
                       "confidence": {
                         "type": "number",
                         "description": "A confidence score (0-1) indicating how confident the AI is in this recommendation."
@@ -7950,10 +7890,7 @@
                       "payload": {
                         "message": "Hi please send some more details"
                       },
-                      "context": {
-                        "context_uid": "ctx-456",
-                        "context_type": "client"
-                      }
+                      "confidence": 0.85
                     }
                   }
                 },
@@ -8148,8 +8085,17 @@
             "items": {
               "type": "string"
             }
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "A confidence score (0-1) indicating how confident the AI is in this recommendation (e.g., 0.85)."
           }
-        }
+        },
+        "required": [
+          "action"
+        ]
       },
       "ErrorResponse": {
         "type": "object",
