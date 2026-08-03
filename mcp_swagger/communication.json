@@ -6,6 +6,7 @@
     "version": "3.0",
     "x-generated": {
       "sourceFiles": [
+        "contact_channels.json",
         "legacy_v1_communication.json",
         "communication.json",
         "activity_message.json",
@@ -144,6 +145,15 @@
         {
           "type": "schema",
           "name": "ErrorResponse",
+          "resolution": "Renamed to ErrorResponse_communication",
+          "files": [
+            "merged",
+            "communication.json"
+          ]
+        },
+        {
+          "type": "schema",
+          "name": "ErrorResponse",
           "resolution": "Renamed to ErrorResponse_activity_message",
           "files": [
             "merged",
@@ -187,8 +197,8 @@
           ]
         }
       ],
-      "totalPaths": 34,
-      "totalComponents": 43
+      "totalPaths": 35,
+      "totalComponents": 44
     }
   },
   "servers": [
@@ -198,6 +208,200 @@
     }
   ],
   "paths": {
+    "/v3/communication/contact_channels": {
+      "get": {
+        "operationId": "ContactChannelsController_index",
+        "summary": "Get All ContactChannels",
+        "description": "## Overview\nReturns the contact-level availability of every communication channel the business has (email, SMS, and installed third-party apps) for a single contact. Each entry reports whether the contact can be reached on that channel and, when not, a machine-readable reason.\n\nThe business is resolved from the caller's staff context; the contact must belong to that business.\n\nAvailable for **Staff Tokens**",
+        "parameters": [
+          {
+            "name": "contact_uid",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unique identifier of the contact (client) to evaluate channel availability for (e.g., \"peu8ljecwqr5ok58\")."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Contact channel availability retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "contact_channels": {
+                              "description": "Availability of each communication channel the business has for the requested contact.",
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "description": "Represents the availability of a single communication channel for a specific contact. It combines the business-level capability of the channel with a contact-level eligibility check, so callers can decide how to reach a contact in one lookup. This is a computed, read-only resource (evaluated on request) and therefore has no uid, business_uid, or timestamps.",
+                                "properties": {
+                                  "channel_uid": {
+                                    "type": "string",
+                                    "description": "Unique identifier of the channel. For the core channels this is the fixed email/sms channel UID; for third-party apps it is the business channel UID, so multiple channels of the same app can be told apart and targeted individually. Treat this as an opaque value returned by the API rather than one to hardcode."
+                                  },
+                                  "channel": {
+                                    "type": "string",
+                                    "description": "Identifier of the communication channel. Core channels are \"email\" and \"sms\"; installed third-party apps use their app code name (e.g., \"facebook\", \"whatsapp\", \"instagram\"). The set of possible values grows as new apps are installed, so treat this as an open string rather than a fixed enum. Note: a business can have multiple channels of the same app, so this value is not unique within the response — use channel_uid to distinguish them."
+                                  },
+                                  "display_name": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "description": "Human-readable name of the channel as set by the business (e.g., a specific Facebook page or WhatsApp number name). Null for the core email and sms channels."
+                                  },
+                                  "available": {
+                                    "type": "boolean",
+                                    "description": "Whether the contact can currently be reached on this channel. True only when both the business supports the channel and the contact is individually eligible."
+                                  },
+                                  "reason": {
+                                    "type": "string",
+                                    "nullable": true,
+                                    "description": "Machine-readable reason the channel is unavailable. Null when the channel is available. Possible values: \"no_email\" (contact has no email address), \"email_blocked\" (email is bounced/blocked and cannot receive), \"no_phone\" (contact has no mobile phone number), \"opted_out\" (contact opted out of transactional SMS), \"no_active_session\" (third-party channel has no active session for the contact), \"app_not_installed\" (business does not have the channel enabled/installed).",
+                                    "enum": [
+                                      "no_email",
+                                      "email_blocked",
+                                      "no_phone",
+                                      "opted_out",
+                                      "no_active_session",
+                                      "app_not_installed"
+                                    ]
+                                  }
+                                },
+                                "required": [
+                                  "channel_uid",
+                                  "channel",
+                                  "available"
+                                ],
+                                "example": {
+                                  "channel_uid": "kx7m2p9qw4rt8vzn",
+                                  "channel": "facebook",
+                                  "display_name": "Acme Support Page",
+                                  "available": false,
+                                  "reason": "no_active_session"
+                                }
+                              }
+                            }
+                          },
+                          "required": [
+                            "contact_channels"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing authentication token"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions"
+          },
+          "404": {
+            "description": "Not Found - The contact does not exist or does not belong to the authenticated business",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "missing",
+                      "message": "Contact not found: [peu8ljecwqr5ok58]."
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "contact_uid",
+                      "code": "invalid",
+                      "message": "contact_uid is required."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Contact Channels"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/platform/v1/conversations": {
       "get": {
         "description": "## Overview\nGets a list of conversations.\n\nAvailable for **Staff and Directory tokens**. Directory tokens require the `X-On-Behalf-Of` header with the target business UID.",
@@ -9915,21 +10119,51 @@
     }
   },
   "components": {
-    "securitySchemes": {
-      "Bearer": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT",
-        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
-      },
-      "Conversations": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT",
-        "description": "Provide a valid staff bearer token in the Authorization header. Example: 'Authorization: Bearer {staff_token}'."
-      }
-    },
     "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "The field that caused the error (for validation errors)"
+                },
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ]
+            }
+          }
+        },
+        "required": [
+          "success",
+          "errors"
+        ],
+        "example": {
+          "success": false,
+          "errors": [
+            {
+              "field": "contact_uid",
+              "code": "invalid",
+              "message": "contact_uid is required."
+            }
+          ]
+        }
+      },
       "BaseDto": {
         "properties": {},
         "type": "object"
@@ -10090,7 +10324,7 @@
         ],
         "type": "object"
       },
-      "ErrorResponse": {
+      "ErrorResponse_communication": {
         "properties": {
           "errors": {
             "items": {
@@ -12091,9 +12325,27 @@
           }
         }
       }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+      },
+      "Conversations": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid staff bearer token in the Authorization header. Example: 'Authorization: Bearer {staff_token}'."
+      }
     }
   },
   "tags": [
+    {
+      "name": "Contact Channels",
+      "description": "Operations for retrieving contact-level channel availability"
+    },
     {
       "description": "Nexmo-based communication gateway endpoints for SMS/messaging channels. These endpoints follow an async webhook-based lifecycle: channels and sessions start as 'pending' and are activated asynchronously via webhook callbacks from the communication-gw to the calling application. A webhook listener is required to receive activation events.",
       "name": "Communication Messages (SMS)"
