@@ -531,6 +531,118 @@
             "description": "Human-readable error message."
           }
         }
+      },
+      "MatterSearchHit": {
+        "type": "object",
+        "description": "A matter-based client row, returned in `matters` when `new_decoration=true`. A matter is a contact plus a relationship facet, and is the record the client card represents.",
+        "properties": {
+          "matter_uid": {
+            "type": "string",
+            "description": "Unique identifier of the matter (e.g., \"n0mumippp00vlwtu\")."
+          },
+          "matter_name": {
+            "type": "string",
+            "description": "Name of the matter (e.g., \"Maya Collins\")."
+          },
+          "contact_uid": {
+            "type": "string",
+            "description": "Unique identifier of the contact behind the matter (e.g., \"xgng9vk6yxltv0gh\")."
+          },
+          "contact_full_name": {
+            "type": "string",
+            "description": "Contact's full name. Respects staff permissions for last-name visibility (e.g., \"Maya Collins\")."
+          },
+          "contact_email": {
+            "type": "string",
+            "nullable": true,
+            "description": "Contact's email address. Null when the requesting staff cannot view emails (e.g., \"maya@example.com\")."
+          },
+          "phone_to_display": {
+            "type": "string",
+            "nullable": true,
+            "description": "Contact's display phone number. Null when the requesting staff cannot view phones (e.g., \"+15551234567\")."
+          },
+          "contact_status": {
+            "type": "string",
+            "description": "Current status of the contact (e.g., \"lead\", \"customer\", \"loyal\", \"inactive\")."
+          },
+          "tags": {
+            "type": "string",
+            "description": "Space-separated tags applied to the matter (e.g., \"vip New\")."
+          },
+          "contact_address": {
+            "type": "string",
+            "nullable": true,
+            "description": "Contact's address (e.g., \"New York, NY\")."
+          },
+          "review_score": {
+            "type": "number",
+            "nullable": true,
+            "description": "Latest review score left by the client (e.g., 5)."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the matter was created, in ISO 8601 format (e.g., \"2026-06-19T17:17:35.000Z\")."
+          },
+          "last_activity_time": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Timestamp of the **client's own** most recent activity — any activity except messages the business sent. This is the value the client card shows as \"Last active on\", and the field `search_filter[last_client_activity_filter]` ranges over. Null when the client has never been active (e.g., \"2026-08-12T00:00:00.000Z\")."
+          },
+          "last_activity_action": {
+            "type": "string",
+            "nullable": true,
+            "description": "Human-readable label for the most recent activity, when the business has the last-activity capability enabled (e.g., \"Booked an appointment\")."
+          },
+          "last_interaction": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Timestamp of the most recent message in **either** direction, including messages sent by the business — so a staff reply advances it while `last_activity_time` stays put. The field `search_filter[last_interaction_filter]` ranges over this one (e.g., \"2026-08-12T13:08:52.000Z\")."
+          },
+          "custom_fields": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Custom field values keyed by field UID."
+          },
+          "calculated_fields": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Aggregated counters for the matter, such as open payments, pending estimates, and scheduled bookings."
+          }
+        },
+        "example": {
+          "matter_uid": "n0mumippp00vlwtu",
+          "matter_name": "Maya Collins",
+          "contact_uid": "xgng9vk6yxltv0gh",
+          "contact_full_name": "Maya Collins",
+          "contact_email": "maya@example.com",
+          "phone_to_display": "+15551234567",
+          "contact_status": "customer",
+          "tags": "vip",
+          "created_at": "2026-06-19T17:17:35.000Z",
+          "last_activity_time": "2026-08-12T00:00:00.000Z",
+          "last_interaction": "2026-08-12T13:08:52.000Z"
+        }
+      },
+      "MatterSearchResult": {
+        "type": "object",
+        "description": "Client search response when `new_decoration=true`.",
+        "properties": {
+          "counts": {
+            "type": "integer",
+            "description": "Total number of matching clients across all pages — use this for totals rather than the length of `matters` (e.g., 16)."
+          },
+          "matters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MatterSearchHit"
+            },
+            "description": "The current page of matching matter rows (length <= `per_page`)."
+          }
+        }
       }
     },
     "securitySchemes": {
@@ -713,7 +825,7 @@
           {
             "name": "sort_by",
             "in": "query",
-            "description": "Field to sort results by for **general search only** (when `entity` is not set). The value is mapped through a column identifier mapping for client card fields, or used directly if no mapping exists. **Not applicable to appointment or event searches** — use `search_filter[sort_type]` and `search_filter[sort_order]` instead.",
+            "description": "Field to sort results by for **general search only** (when `entity` is not set). The value is mapped through a column identifier mapping for client card fields, or used directly if no mapping exists. For client searches the activity sort keys mirror the two activity filters: `last_client_activity` orders by the client's own activity (most recently active first with `sort_order=desc`), while `last_interaction` — the default — orders by the last message in either direction. Use the key that matches the filter you applied so the ordering and the dates shown agree. Other common values: `created_at`. **Not applicable to appointment or event searches** — use `search_filter[sort_type]` and `search_filter[sort_order]` instead.",
             "required": false,
             "schema": {
               "type": "string"
@@ -766,7 +878,7 @@
           {
             "name": "new_decoration",
             "in": "query",
-            "description": "When set to `true`, uses the newer matter-based client decoration format. The response will contain `counts` and `matters` instead of the default `top_hits` format for client results.",
+            "description": "When set to `true`, uses the newer matter-based client decoration format. The response will contain `counts` and `matters` (an array of `MatterSearchHit`) instead of the default `top_hits` format for client results.",
             "required": false,
             "schema": {
               "type": "string",
@@ -839,17 +951,60 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "search_filter[last_client_activity_filter][range][gte]",
+            "in": "query",
+            "required": false,
+            "description": "Earliest client-activity date to include, as `YYYY-MM-DD` (e.g., \"2026-07-30\"). Matches the client's own activity — any activity except messages the business sent — which is the value returned as `last_activity_time`. Use this for \"active in the last N days\", \"no activity since\", and \"when were they last active\" questions. **Two different activity dates exist — pick by intent.** `last_client_activity_filter` matches activity by the *client* (any activity except messages the business sent) and is the field reported as `last_activity_time`, the same value the client card shows as \"Last active on\". `last_interaction_filter` matches the last message in *either* direction, so a reply sent by staff advances it. Filtering on `last_interaction_filter` while displaying `last_activity_time` yields records whose shown date falls outside the requested range.",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "search_filter[last_client_activity_filter][range][lte]",
+            "in": "query",
+            "required": false,
+            "description": "Latest client-activity date to include, as `YYYY-MM-DD` (e.g., \"2026-08-13\"). Pair with `[gte]` to bound a range; send alone for \"no activity since\" queries.",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "search_filter[last_interaction_filter][range][gte]",
+            "in": "query",
+            "required": false,
+            "description": "Earliest last-message date to include, as `YYYY-MM-DD` (e.g., \"2026-07-30\"). Matches the most recent message in either direction, including messages sent by the business, and is the value returned as `last_interaction`. Use it only for correspondence questions (\"last time we messaged them\"), not as a stand-in for client activity. **Two different activity dates exist — pick by intent.** `last_client_activity_filter` matches activity by the *client* (any activity except messages the business sent) and is the field reported as `last_activity_time`, the same value the client card shows as \"Last active on\". `last_interaction_filter` matches the last message in *either* direction, so a reply sent by staff advances it. Filtering on `last_interaction_filter` while displaying `last_activity_time` yields records whose shown date falls outside the requested range.",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "search_filter[last_interaction_filter][range][lte]",
+            "in": "query",
+            "required": false,
+            "description": "Latest last-message date to include, as `YYYY-MM-DD` (e.g., \"2026-08-13\"). Pair with `[gte]` to bound a range.",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Search completed successfully. The response format depends on the `entity` parameter:\n- **General search** (no entity): Returns `SearchResult` with `top_hits` and `counts`.\n- **entity=appointment**: Returns `AppointmentSearchResponse` with decorated appointments.\n- **entity=event_instance**: Returns `EventSearchResponse` with decorated events.",
+            "description": "Search completed successfully. The response format depends on the `entity` parameter:\n- **General search** (no entity): Returns `SearchResult` with `top_hits` and `counts`.\n- **entity=appointment**: Returns `AppointmentSearchResponse` with decorated appointments.\n- **entity=event_instance**: Returns `EventSearchResponse` with decorated events.\n- **new_decoration=true** (client search): Returns `MatterSearchResult` with `counts` and `matters`.",
             "content": {
               "application/json": {
                 "schema": {
                   "oneOf": [
                     {
                       "$ref": "#/components/schemas/SearchResult"
+                    },
+                    {
+                      "$ref": "#/components/schemas/MatterSearchResult"
                     },
                     {
                       "$ref": "#/components/schemas/AppointmentSearchResponse"
