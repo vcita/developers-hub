@@ -1,0 +1,827 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Payment Plans",
+    "description": "A set of endpoints to manage payment plans in the sales domain. A payment plan collects a fixed amount from a client's saved card on a recurring schedule. A plan is either **standalone**, where every installment is an independent charge, or **linked** to an existing payment request through `payment_request_uid`, where every installment is collected against an open invoice and reduces its balance until it is fully paid.\n\nThese endpoints supersede the legacy `/business/payments/v1/scheduled_payments_rules` API. The legacy endpoints remain available and unchanged, but they do not support linking a plan to a payment request.\n\n## Differences from the legacy v1 API\nThe response shape is otherwise identical to `/business/payments/v1/scheduled_payments_rules` — the v3 endpoints delegate to the same components, so no field that v1 returns today stops being returned. Two fields are added:\n\n* **`payment_request_uid`** - links the plan to a payment request. Null for a standalone plan.\n* **`cancel_reason`** - identifies a plan that the system closed because its linked payment request is no longer collectable.\n\n**`amount` and `amount_paid` are JSON numbers.** The legacy v1 endpoints return them as quoted strings (`\"10.0\"`); v3 returns `10.0`, matching every other v3 money field (`invoice.grand_total`, `creditNote.total_amount`, `estimate.amount`).\n\nOne field is dropped: **`rrule` is not returned.** v1 exposes the plan's schedule as a serialized IceCube YAML document — an internal representation whose format is a library detail, not a contract. `start_date`, `frequency_type`, `cycles`, `end_date` and `next_payment_time` describe the schedule completely.",
+    "version": "1.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [
+    {
+      "url": "https://api.vcita.biz",
+      "description": "API Gateway server"
+    }
+  ],
+  "components": {
+    "schemas": {
+      "PaymentPlansList": {
+        "type": "object",
+        "properties": {
+          "payment_plans": {
+            "description": "List of PaymentPlans",
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/sales/paymentPlan.json"
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "The name of the field that caused the error (e.g., \"payment_request_uid\", \"amount\")."
+                },
+                "code": {
+                  "type": "string",
+                  "description": "A machine-readable error code (e.g., \"invalid\", \"missing\", \"missing_field\")."
+                },
+                "message": {
+                  "type": "string",
+                  "description": "A human-readable error message describing the issue."
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "success",
+          "errors"
+        ]
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {token}'"
+      }
+    }
+  },
+  "paths": {
+    "/v3/sales/payment_plans": {
+      "get": {
+        "operationId": "listPaymentPlans",
+        "summary": "Get all PaymentPlans",
+        "description": "## Overview\nGet a list of PaymentPlans for the business, newest updated first. Use `payment_request_uid` to find the plan collecting against a specific invoice, and `status` to list only running plans.\n\nAvailable for **Staff Tokens**.",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number of results.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 10000,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "per_page",
+            "required": false,
+            "in": "query",
+            "description": "How many items to return per page. Max: 100",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "number"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "description": "Sort by fields. Example: sort=next_payment_time:asc,created_at:desc",
+            "schema": {
+              "default": "updated_at:desc",
+              "type": "string"
+            }
+          },
+          {
+            "name": "payment_request_uid",
+            "required": false,
+            "in": "query",
+            "description": "Return only plans linked to this payment request. Combine with `status=active` to check whether an invoice already has a running plan.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "a1b2c3d4e5f6g7h8"
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Return only plans in this state. Note that a plan stopped by a declined charge is reported as `cancelled`, not as a distinct failed state.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "completed",
+                "cancelled"
+              ]
+            },
+            "example": "active"
+          },
+          {
+            "name": "matter_uid",
+            "required": false,
+            "in": "query",
+            "description": "Return only plans belonging to this matter.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "m1m2m3m4m5m6m7m8"
+          },
+          {
+            "name": "client_uid",
+            "required": false,
+            "in": "query",
+            "description": "Return only plans belonging to matters of this client.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "cl1cl2cl3cl4cl5c"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of PaymentPlans",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/PaymentPlansList"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "payment_plans": [
+                      {
+                        "uid": "7gilictbt12jir3v",
+                        "name": "Kitchen remodel plan",
+                        "description": "3 monthly installments for invoice #1042",
+                        "payment_request_uid": "a1b2c3d4e5f6g7h8",
+                        "amount": 333.34,
+                        "amount_paid": 666.68,
+                        "currency": "USD",
+                        "cycles": 3,
+                        "cycles_count": 2,
+                        "frequency_type": "monthly",
+                        "start_date": "2026-09-01T09:00:00Z",
+                        "end_date": "2026-11-01T09:00:00Z",
+                        "next_payment_time": "2026-11-01T09:00:00Z",
+                        "status": "active",
+                        "matter_uid": "m1m2m3m4m5m6m7m8",
+                        "staff_uid": "1c3ab579d2d31fbb",
+                        "payment_method": {
+                          "type": "card",
+                          "uid": "c1c2c3c4c5c6c7c8"
+                        },
+                        "canceled_by": "",
+                        "canceled_date": null,
+                        "cancel_reason": null,
+                        "created_at": "2026-08-20T10:15:00Z",
+                        "updated_at": "2026-10-01T09:00:12Z"
+                      },
+                      {
+                        "uid": "9kk2m4p6r8t0v2x4",
+                        "name": "Monthly retainer",
+                        "description": "Ongoing retainer, not tied to an invoice",
+                        "payment_request_uid": null,
+                        "amount": 150.0,
+                        "amount_paid": 450.0,
+                        "currency": "USD",
+                        "cycles": 12,
+                        "cycles_count": 3,
+                        "frequency_type": "monthly",
+                        "start_date": "2026-06-01T09:00:00Z",
+                        "end_date": "2027-05-01T09:00:00Z",
+                        "next_payment_time": "2026-09-01T09:00:00Z",
+                        "status": "active",
+                        "matter_uid": "m9m8m7m6m5m4m3m2",
+                        "staff_uid": "1c3ab579d2d31fbb",
+                        "payment_method": {
+                          "type": "card",
+                          "uid": "d1d2d3d4d5d6d7d8"
+                        },
+                        "canceled_by": "",
+                        "canceled_date": null,
+                        "cancel_reason": null,
+                        "created_at": "2026-05-28T14:02:00Z",
+                        "updated_at": "2026-08-01T09:00:07Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "Authentication is required to access this resource"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but not permitted to perform this action on this business.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "You are not allowed to perform this action"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed. Errors use the standard envelope, with `field` naming the offending parameter and `code` a machine-readable reason (e.g., `missing_field`, `invalid`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "amount",
+                      "code": "invalid",
+                      "message": "amount must be greater than 0"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Payment Plan"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createPaymentPlan",
+        "summary": "Create a PaymentPlan",
+        "description": "## Overview\nCreate a PaymentPlan that charges the client's saved card on a recurring schedule.\n\nOmit `payment_request_uid` to create a **standalone** plan, where every installment is an independent charge. Supply it to create a **linked** plan, where every installment is collected against that payment request's open invoice and reduces its balance.\n\n## Calculating `amount` for a linked plan\nThe server validates `amount` rather than deriving it, so the caller sends the per-installment amount it wants. Divide the invoice's open balance by `cycles` and **round up** to two decimals — `ceil(balance / cycles, 2)`. Rounding up is deliberate: the plan's nominal total then slightly exceeds the balance, and the final installment is automatically clamped down to whatever is actually left, so the invoice lands on exactly zero. Rounding down would leave a residue that no installment ever collects.\n\nFor a 1,000.00 invoice over 3 cycles, send `amount: 333.34`. The plan collects 333.34, 333.34 and then 333.32.\n\n## Conditionally required fields\n`cycles` is required for every `frequency_type` except `one_time`. For a `one_time` plan it is ignored and stored as 1.\n\n## Prerequisites\n1. The business has the `scheduled_payments` feature enabled.\n2. The business has a payment gateway configured that supports recurring payments. PayPal is not supported.\n3. The card in `payment_method.uid` is active, belongs to the matter's client, and uses the same payment provider as the business's payment gateway.\n4. For a linked plan, the business has the `rollout.payments.payment_plans` feature flag enabled.\n\n## Eligibility of a linked payment request\nThe payment request must belong to the caller's business, sit on the same matter as the plan, be an **open invoice** (not draft, cancelled or archived, with no payment already pending), carry the same currency, have a positive balance, and have no other active plan linked to it. The plan must also not overshoot the balance before its final payment — `amount x (cycles - 1)` must be **less than** the open balance. Each failure returns a validation error on `payment_request_uid`.\n\nFind eligible payment requests with `GET /business/payments/v1/payment_requests?filter[matter_uid][eq]={matter_uid}&filter[entity_type][in]=Invoice&filter[state][in]=DUE,OVERDUE`.\n\nAvailable for **Staff Tokens**.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "$ref": "https://vcita.github.io/developers-hub/entities/sales/paymentPlan.json#/properties/name"
+                  },
+                  "description": {
+                    "$ref": "https://vcita.github.io/developers-hub/entities/sales/paymentPlan.json#/properties/description"
+                  },
+                  "payment_request_uid": {
+                    "$ref": "https://vcita.github.io/developers-hub/entities/sales/paymentPlan.json#/properties/payment_request_uid"
+                  },
+                  "amount": {
+                    "$ref": "https://vcita.github.io/developers-hub/entities/sales/paymentPlan.json#/properties/amount"
+                  },
+                  "currency": {
+                    "$ref": "https://vcita.github.io/developers-hub/entities/sales/paymentPlan.json#/properties/currency"
+                  },
+                  "cycles": {
+                    "$ref": "https://vcita.github.io/developers-hub/entities/sales/paymentPlan.json#/properties/cycles"
+                  },
+                  "frequency_type": {
+                    "$ref": "https://vcita.github.io/developers-hub/entities/sales/paymentPlan.json#/properties/frequency_type"
+                  },
+                  "start_date": {
+                    "$ref": "https://vcita.github.io/developers-hub/entities/sales/paymentPlan.json#/properties/start_date"
+                  },
+                  "matter_uid": {
+                    "$ref": "https://vcita.github.io/developers-hub/entities/sales/paymentPlan.json#/properties/matter_uid"
+                  },
+                  "send_receipt": {
+                    "$ref": "https://vcita.github.io/developers-hub/entities/sales/paymentPlan.json#/properties/send_receipt"
+                  },
+                  "payment_method": {
+                    "$ref": "https://vcita.github.io/developers-hub/entities/sales/paymentPlan.json#/properties/payment_method"
+                  }
+                },
+                "required": [
+                  "name",
+                  "amount",
+                  "currency",
+                  "frequency_type",
+                  "start_date",
+                  "matter_uid",
+                  "send_receipt",
+                  "payment_method"
+                ]
+              },
+              "example": {
+                "name": "Kitchen remodel plan",
+                "description": "3 monthly installments for invoice #1042",
+                "payment_request_uid": "a1b2c3d4e5f6g7h8",
+                "amount": 333.34,
+                "currency": "USD",
+                "cycles": 3,
+                "frequency_type": "monthly",
+                "start_date": "2026-09-01T09:00:00Z",
+                "matter_uid": "m1m2m3m4m5m6m7m8",
+                "send_receipt": true,
+                "payment_method": {
+                  "type": "card",
+                  "uid": "c1c2c3c4c5c6c7c8"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The PaymentPlan was created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "https://vcita.github.io/developers-hub/entities/sales/paymentPlan.json"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "uid": "7gilictbt12jir3v",
+                    "name": "Kitchen remodel plan",
+                    "description": "3 monthly installments for invoice #1042",
+                    "payment_request_uid": "a1b2c3d4e5f6g7h8",
+                    "amount": 333.34,
+                    "amount_paid": 0.0,
+                    "currency": "USD",
+                    "cycles": 3,
+                    "cycles_count": 0,
+                    "frequency_type": "monthly",
+                    "start_date": "2026-09-01T09:00:00Z",
+                    "end_date": "2026-11-01T09:00:00Z",
+                    "next_payment_time": "2026-09-01T09:00:00Z",
+                    "status": "active",
+                    "matter_uid": "m1m2m3m4m5m6m7m8",
+                    "staff_uid": "1c3ab579d2d31fbb",
+                    "payment_method": {
+                      "type": "card",
+                      "uid": "c1c2c3c4c5c6c7c8"
+                    },
+                    "canceled_by": "",
+                    "canceled_date": null,
+                    "cancel_reason": null,
+                    "created_at": "2026-08-20T10:15:00Z",
+                    "updated_at": "2026-08-20T10:15:00Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "Authentication is required to access this resource"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but not permitted to perform this action on this business.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "You are not allowed to perform this action"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed. Errors use the standard envelope, with `field` naming the offending parameter and `code` a machine-readable reason (e.g., `missing_field`, `invalid`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "amount",
+                      "code": "invalid",
+                      "message": "amount must be greater than 0"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Payment Plan"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/sales/payment_plans/{uid}": {
+      "get": {
+        "operationId": "retrievePaymentPlan",
+        "summary": "Retrieve a PaymentPlan",
+        "description": "## Overview\nRetrieve a specific PaymentPlan based on its unique identifier (UID), including `payment_request_uid` and the plan's collection progress.\n\nAvailable for **Staff Tokens**.",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the PaymentPlan",
+            "schema": {
+              "type": "string"
+            },
+            "example": "7gilictbt12jir3v"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested PaymentPlan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "https://vcita.github.io/developers-hub/entities/sales/paymentPlan.json"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "uid": "7gilictbt12jir3v",
+                    "name": "Kitchen remodel plan",
+                    "description": "3 monthly installments for invoice #1042",
+                    "payment_request_uid": "a1b2c3d4e5f6g7h8",
+                    "amount": 333.34,
+                    "amount_paid": 666.68,
+                    "currency": "USD",
+                    "cycles": 3,
+                    "cycles_count": 2,
+                    "frequency_type": "monthly",
+                    "start_date": "2026-09-01T09:00:00Z",
+                    "end_date": "2026-11-01T09:00:00Z",
+                    "next_payment_time": "2026-11-01T09:00:00Z",
+                    "status": "active",
+                    "matter_uid": "m1m2m3m4m5m6m7m8",
+                    "staff_uid": "1c3ab579d2d31fbb",
+                    "payment_method": {
+                      "type": "card",
+                      "uid": "c1c2c3c4c5c6c7c8"
+                    },
+                    "canceled_by": "",
+                    "canceled_date": null,
+                    "cancel_reason": null,
+                    "created_at": "2026-08-20T10:15:00Z",
+                    "updated_at": "2026-10-01T09:00:12Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "Authentication is required to access this resource"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but not permitted to perform this action on this business.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "You are not allowed to perform this action"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No PaymentPlan with this uid exists for the business.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "scheduled_payments_rule_uid",
+                      "code": "missing",
+                      "message": "Not found"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Payment Plan"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "updatePaymentPlan",
+        "summary": "Update a PaymentPlan",
+        "description": "## Overview\nUpdate a PaymentPlan. Only two changes are possible, and they are the only fields this endpoint accepts:\n\n* **Change the card** — send `payment_method`. The new card must be active, belong to the matter's client, and use the same payment provider as the business's payment gateway. It is charged from the next installment onwards.\n* **Cancel the plan** — send `status: \"cancelled\"`. No further installment is collected and the schedule is deactivated. Installments already collected are **not** refunded; for a linked plan, whatever was already paid stays applied to the invoice, and the invoice becomes editable again immediately.\n\n## Why cancelling is an update\nv3 forbids action suffixes on a resource path, so the legacy `PUT /business/payments/v1/scheduled_payments_rules/{uid}/cancel` becomes a state change on the resource itself. `cancelled` is the only status a client may set. `completed` is owned by the system, and cancelling a plan that is no longer `active` is rejected.\n\n## What cannot be changed\n`payment_request_uid` is immutable — a plan cannot be relinked to a different payable, and a standalone plan cannot become linked. `amount`, `currency`, `cycles`, `frequency_type` and `start_date` are fixed at creation; cancel the plan and create a new one instead.\n\nAvailable for **Staff Tokens**.",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the PaymentPlan",
+            "schema": {
+              "type": "string"
+            },
+            "example": "7gilictbt12jir3v"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "At least one of `payment_method` or `status` must be supplied.",
+                "properties": {
+                  "payment_method": {
+                    "$ref": "https://vcita.github.io/developers-hub/entities/sales/paymentPlan.json#/properties/payment_method"
+                  },
+                  "status": {
+                    "type": "string",
+                    "description": "Set to `cancelled` to stop the plan. This is the only value a client may set (e.g., \"cancelled\")",
+                    "enum": [
+                      "cancelled"
+                    ]
+                  }
+                },
+                "minProperties": 1
+              },
+              "example": {
+                "status": "cancelled"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated PaymentPlan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "https://vcita.github.io/developers-hub/entities/sales/paymentPlan.json"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "uid": "7gilictbt12jir3v",
+                    "name": "Kitchen remodel plan",
+                    "description": "3 monthly installments for invoice #1042",
+                    "payment_request_uid": "a1b2c3d4e5f6g7h8",
+                    "amount": 333.34,
+                    "amount_paid": 666.68,
+                    "currency": "USD",
+                    "cycles": 3,
+                    "cycles_count": 2,
+                    "frequency_type": "monthly",
+                    "start_date": "2026-09-01T09:00:00Z",
+                    "end_date": "2026-11-01T09:00:00Z",
+                    "next_payment_time": null,
+                    "status": "cancelled",
+                    "matter_uid": "m1m2m3m4m5m6m7m8",
+                    "staff_uid": "1c3ab579d2d31fbb",
+                    "payment_method": {
+                      "type": "card",
+                      "uid": "c1c2c3c4c5c6c7c8"
+                    },
+                    "canceled_by": "Dana Levi",
+                    "canceled_date": "2026-10-15T12:04:11Z",
+                    "cancel_reason": null,
+                    "created_at": "2026-08-20T10:15:00Z",
+                    "updated_at": "2026-10-15T12:04:11Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "Authentication is required to access this resource"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but not permitted to perform this action on this business.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "You are not allowed to perform this action"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No PaymentPlan with this uid exists for the business.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "scheduled_payments_rule_uid",
+                      "code": "missing",
+                      "message": "Not found"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed. Errors use the standard envelope, with `field` naming the offending parameter and `code` a machine-readable reason (e.g., `missing_field`, `invalid`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "amount",
+                      "code": "invalid",
+                      "message": "amount must be greater than 0"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Payment Plan"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    }
+  }
+}

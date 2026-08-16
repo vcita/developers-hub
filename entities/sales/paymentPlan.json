@@ -1,0 +1,195 @@
+{
+  "type": "object",
+  "description": "A PaymentPlan collects a fixed amount from a client's saved payment method on a recurring schedule. A plan is either **standalone**, where every installment is an independent charge unrelated to any payable, or **linked**, where every installment is collected against an existing payment request (an open invoice) and reduces its balance until it is fully paid. The two are distinguished by `payment_request_uid`.",
+  "properties": {
+    "uid": {
+      "type": "string",
+      "description": "The unique identifier of the PaymentPlan (e.g., \"7gilictbt12jir3v\")",
+      "readOnly": true
+    },
+    "name": {
+      "type": "string",
+      "description": "A short name for the plan, shown to the staff member and to the client (e.g., \"Kitchen remodel plan\")"
+    },
+    "description": {
+      "type": "string",
+      "description": "A free-text description of the plan (e.g., \"3 monthly installments for invoice #1042\")"
+    },
+    "payment_request_uid": {
+      "type": "string",
+      "nullable": true,
+      "description": "The unique identifier of the payment request this plan collects against.\n\n* **When set** — the plan is **linked**. Every installment is charged against that payable's open balance instead of creating a standalone charge, so each payment reduces the balance and the invoice moves to `partially_paid` and then to `paid`. The final installment is automatically clamped to whatever balance actually remains, so an indivisible balance still lands on exactly zero. If the payable is settled, waived or cancelled through any other route, the plan is cancelled by the system with a reason and no further charge is made.\n* **When null** — the plan is **standalone**. Every installment is an independent charge that is not connected to any invoice, which is the behaviour of every plan created before linking existed.\n\nOnly payment requests of an **open invoice** may be linked. The value is **immutable** after creation and cannot be changed or cleared by an update. Treat it as an opaque identifier: most payment requests use a 16-character uid, but some payable types use a longer composite form, so do not assume a fixed length. Obtain it from `GET /business/payments/v1/payment_requests` (e.g., \"a1b2c3d4e5f6g7h8\")"
+    },
+    "amount": {
+      "type": "number",
+      "description": "The amount charged per installment, in the plan's currency. Must be greater than 0. For a linked plan this is the per-installment amount the client calculated by dividing the invoice balance across `cycles` and **rounding up** to two decimals; the last installment is then clamped down to the remaining balance, so the amount actually collected on the final cycle may be lower than this value.\n\nReturned as a JSON number. The legacy v1 endpoints return this field as a quoted string (e.g., 333.34)"
+    },
+    "amount_paid": {
+      "type": "number",
+      "description": "The total amount collected by this plan so far, across all completed installments (e.g., 666.68)",
+      "readOnly": true
+    },
+    "currency": {
+      "type": "string",
+      "description": "Three-letter ISO 4217 currency code. For a linked plan this must equal the currency of the linked payment request (e.g., \"USD\", \"EUR\", \"GBP\")"
+    },
+    "cycles": {
+      "type": "integer",
+      "description": "The total number of installments the plan will collect. Must be between 1 and 100. Required unless `frequency_type` is `one_time`, in which case it is ignored and stored as 1 (e.g., 3)",
+      "minimum": 1,
+      "maximum": 100
+    },
+    "cycles_count": {
+      "type": "integer",
+      "description": "The number of installments already collected. When it reaches `cycles`, the plan's `status` becomes `completed` (e.g., 2)",
+      "readOnly": true
+    },
+    "frequency_type": {
+      "type": "string",
+      "description": "How often the plan collects an installment.\n\n* `one_time` - A single payment on `start_date`.\n* `weekly` - Every week.\n* `bi_weekly` - Every two weeks.\n* `monthly` - Every month.",
+      "enum": [
+        "one_time",
+        "weekly",
+        "bi_weekly",
+        "monthly"
+      ]
+    },
+    "start_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the first installment is collected, in ISO 8601 format (e.g., \"2026-09-01T09:00:00Z\")"
+    },
+    "end_date": {
+      "type": "string",
+      "format": "date-time",
+      "nullable": true,
+      "description": "When the last installment is scheduled to be collected, derived from `start_date`, `frequency_type` and `cycles` (e.g., \"2026-11-01T09:00:00Z\")",
+      "readOnly": true
+    },
+    "next_payment_time": {
+      "type": "string",
+      "format": "date-time",
+      "nullable": true,
+      "description": "When the next installment is due to be collected. Null once the plan is `completed` or `cancelled` (e.g., \"2026-10-01T09:00:00Z\")",
+      "readOnly": true
+    },
+    "status": {
+      "type": "string",
+      "description": "The current state of the plan.\n\n* `active` - The plan is running and will collect its next installment at `next_payment_time`.\n* `completed` - Every cycle was collected (`cycles_count` reached `cycles`). Set by the system only.\n* `cancelled` - The plan stopped before completing. This covers three different situations, distinguished by `canceled_by` and `cancel_reason`: a staff member cancelled it, a charge was declined and the plan was stopped automatically, or the linked payment request is no longer collectable.\n\nThe only transition a client may request is `active` → `cancelled`.",
+      "enum": [
+        "active",
+        "completed",
+        "cancelled"
+      ]
+    },
+    "matter_uid": {
+      "type": "string",
+      "description": "The unique identifier of the matter the plan belongs to. For a linked plan this must be the same matter the payment request sits on (e.g., \"m1m2m3m4m5m6m7m8\")",
+      "x-reference-to": "clients.matter"
+    },
+    "staff_uid": {
+      "type": "string",
+      "description": "The unique identifier of the staff member who created the plan (e.g., \"1c3ab579d2d31fbb\")",
+      "readOnly": true
+    },
+    "send_receipt": {
+      "type": "boolean",
+      "description": "Whether a receipt is emailed to the client after each collected installment. For a linked plan the receipt's subject is the invoice.\n\nRequired when creating a plan, but **not returned in responses** (e.g., true)",
+      "writeOnly": true
+    },
+    "payment_method": {
+      "type": "object",
+      "description": "The saved payment method charged on every installment. It must belong to the matter's client and use the same payment provider as the business's payment gateway",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "The kind of payment method. Only a saved card is supported (e.g., \"card\")",
+          "enum": [
+            "card"
+          ]
+        },
+        "uid": {
+          "type": "string",
+          "description": "The unique identifier of the saved card. Obtain it from `GET /platform/v1/clients/{client_id}/payment/cards` (e.g., \"c1c2c3c4c5c6c7c8\")"
+        }
+      },
+      "required": [
+        "type",
+        "uid"
+      ]
+    },
+    "canceled_by": {
+      "type": "string",
+      "description": "Who cancelled the plan. Free text, not an enumeration:\n\n* The **display name of the staff member** who cancelled it manually (e.g., \"Dana Levi\").\n* `system` - the plan was closed automatically because its linked payment request is no longer collectable. See `cancel_reason`.\n* An **empty string** - either the plan was never cancelled, or it was stopped automatically after a charge was declined, which records no canceller.\n\nBecause an empty value is ambiguous, do not use this field alone to decide whether a plan was cancelled; read `status` (e.g., \"system\")",
+      "readOnly": true
+    },
+    "canceled_date": {
+      "type": "string",
+      "format": "date-time",
+      "nullable": true,
+      "description": "When the plan was cancelled. Null while the plan was never cancelled (e.g., \"2026-10-15T12:04:11Z\")",
+      "readOnly": true
+    },
+    "cancel_reason": {
+      "type": "string",
+      "nullable": true,
+      "description": "Why the system cancelled the plan. Present only when `canceled_by` is `system`.\n\n* `payment_request_settled` - The linked payment request reached a zero balance through another route, so there is nothing left to collect.\n* `payment_request_cancelled` - The linked payment request was cancelled, waived or deleted.",
+      "enum": [
+        "payment_request_settled",
+        "payment_request_cancelled"
+      ],
+      "readOnly": true
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the plan was created (e.g., \"2026-08-20T10:15:00Z\")",
+      "readOnly": true
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the plan was last updated (e.g., \"2026-10-01T09:00:12Z\")",
+      "readOnly": true
+    }
+  },
+  "required": [
+    "uid",
+    "name",
+    "amount",
+    "currency",
+    "cycles",
+    "frequency_type",
+    "start_date",
+    "status",
+    "matter_uid",
+    "payment_method"
+  ],
+  "example": {
+    "uid": "7gilictbt12jir3v",
+    "name": "Kitchen remodel plan",
+    "description": "3 monthly installments for invoice #1042",
+    "payment_request_uid": "a1b2c3d4e5f6g7h8",
+    "amount": 333.34,
+    "amount_paid": 666.68,
+    "currency": "USD",
+    "cycles": 3,
+    "cycles_count": 2,
+    "frequency_type": "monthly",
+    "start_date": "2026-09-01T09:00:00Z",
+    "end_date": "2026-11-01T09:00:00Z",
+    "next_payment_time": "2026-11-01T09:00:00Z",
+    "status": "active",
+    "matter_uid": "m1m2m3m4m5m6m7m8",
+    "staff_uid": "1c3ab579d2d31fbb",
+    "payment_method": {
+      "type": "card",
+      "uid": "c1c2c3c4c5c6c7c8"
+    },
+    "canceled_by": "",
+    "canceled_date": null,
+    "cancel_reason": null,
+    "created_at": "2026-08-20T10:15:00Z",
+    "updated_at": "2026-10-01T09:00:12Z"
+  }
+}
