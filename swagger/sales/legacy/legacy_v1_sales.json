@@ -345,7 +345,14 @@
                 "payment_method": {
                   "description": "Payment method. IMPORTANT: When state is 'pending', the only allowed value is 'Bank Transfer'. For completed (paid) payments (when state is omitted), any value is accepted.",
                   "type": "string",
-                  "enum": ["PayPal", "Other", "Cash", "Credit Card", "Bank Transfer", "Cheque"]
+                  "enum": [
+                    "PayPal",
+                    "Other",
+                    "Cash",
+                    "Credit Card",
+                    "Bank Transfer",
+                    "Cheque"
+                  ]
                 },
                 "payment_subject_id": {
                   "description": "The ID of the entity for which the payment has been made",
@@ -371,7 +378,9 @@
                 "state": {
                   "description": "Optional. When provided, the ONLY accepted value is 'pending' (creates a pending/unpaid payment that requires Bank Transfer as payment_method). If this field is omitted entirely, the payment is created as completed/paid by default. Do NOT pass 'paid' — it will be rejected.",
                   "type": "string",
-                  "enum": ["pending"]
+                  "enum": [
+                    "pending"
+                  ]
                 },
                 "tips": {
                   "description": "Array of tips (Max 1 tip)",
@@ -1601,7 +1610,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nCreate a Client Package — assigns a payment package to a specific client, creating a subscription-like record with optional validity dates and custom pricing.\n\n## Authentication\n**Available for Staff, App, and Directory tokens.**\n\n## Required Parameters\n- `client_id` — the UID of the client who will receive the package.\n- `package_id` — the UID of the package catalog entry to assign.\n\n## Optional Parameters\n- `valid_from` — start date in YYYY-MM-DD format (defaults to today).\n- `valid_until` — end date in YYYY-MM-DD format (defaults based on the package's configured expiration).\n- `price` — custom price override; when omitted the package's catalog price is used.\n- `conversation_id` — matter/conversation UID to associate with this client package.\n- `tax_uids` — array of tax UIDs to apply.\n\n## Notes\n- The `package_id` must reference a valid, active package in the business's catalog (created via `POST /platform/v1/payment/packages`).\n- Returns 422 when the request is invalid or the referenced package does not exist.",
+        "description": "## Overview\nCreate a Client Package — assigns a payment package to a specific client, creating a subscription-like record with optional validity dates and custom pricing.\n\n## Feature Requirement\nRequires the **`booking_packages`** feature on the business. It belongs to the Payments module but is **not part of every subscription, and is disabled by default on newly provisioned businesses** — treat it as unavailable unless you have confirmed it is on for the specific business.\n\nWhen the feature is off, the request is rejected with **403 Forbidden** and this body:\n\n```json\n{\"message\": \"403 Forbidden\", \"status\": \"module_permission_missing\"}\n```\n\nThis is an entitlement check, not an authentication or permission failure. It is evaluated before the request body is validated and it fails identically for Staff, Directory and App tokens, so retrying, refreshing the token, or setting `X-On-Behalf-Of` will not change the outcome. The feature must be enabled for the business first. Related endpoints under `/platform/v1/payment/packages` and `/platform/v1/payment/client_packages` share the same gate.\n\n## Authentication\n**Available for Staff, App, and Directory tokens.**\n\n## Required Parameters\n- `client_id` — the UID of the client who will receive the package.\n- `package_id` — the UID of the package catalog entry to assign.\n\n## Optional Parameters\n- `valid_from` — start date in YYYY-MM-DD format (defaults to today).\n- `valid_until` — end date in YYYY-MM-DD format (defaults based on the package's configured expiration).\n- `price` — custom price override; when omitted the package's catalog price is used.\n- `conversation_id` — matter/conversation UID to associate with this client package.\n- `tax_uids` — array of tax UIDs to apply.\n\n## Notes\n- The `package_id` must reference a valid, active package in the business's catalog (created via `POST /platform/v1/payment/packages`).\n- Returns 422 when the request is invalid or the referenced package does not exist.",
         "parameters": [
           {
             "in": "body",
@@ -1704,6 +1713,22 @@
                 "status": "Error"
               }
             }
+          },
+          "403": {
+            "description": "Forbidden - the business does not have the `booking_packages` feature enabled. Returns `{\"message\": \"403 Forbidden\", \"status\": \"module_permission_missing\"}`. Not an auth failure: no token type or retry will succeed until the feature is enabled.",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string",
+                  "example": "403 Forbidden"
+                },
+                "status": {
+                  "type": "string",
+                  "example": "module_permission_missing"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1782,6 +1807,22 @@
                 "status": "Error"
               }
             }
+          },
+          "403": {
+            "description": "Forbidden - the business does not have the `booking_packages` feature enabled. Returns `{\"message\": \"403 Forbidden\", \"status\": \"module_permission_missing\"}`. Not an auth failure: no token type or retry will succeed until the feature is enabled.",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string",
+                  "example": "403 Forbidden"
+                },
+                "status": {
+                  "type": "string",
+                  "example": "module_permission_missing"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1809,7 +1850,7 @@
           "uri": "https:///platform/v1/clients/payment/client_packages/cancel_redemption"
         },
         "x-auth-type": "Application & Application User",
-        "description": "## Overview\nReverse a previous package credit redemption, restoring the consumed credit back to the client's package. This is the undo operation for `POST /platform/v1/payment/client_packages/update_usage`.\n\n## Authentication\nAvailable for **Staff tokens**. **Directory and App tokens** are supported with the `X-On-Behalf-Of` header set to the target business UID. Also available for **Internal tokens**.\n\n## How It Works\n1. The system finds the `PaymentStatus` by the provided ID and locates the associated `BookingCreditRedemption`.\n2. The `bookings_usage` counter on the relevant `BookingCredit` is decremented by one, making the credit available again.\n3. The `BookingCreditRedemption` record is marked as inactive.\n4. The `PaymentStatus` is reset to pending with the original price restored (no longer marked as paid-by-package).\n\n## Required Parameters\n- `payment_status_id` (string) — The ID of the payment status whose package credit redemption should be reversed. Must reference a payment status that was previously paid via package credit.\n\n## Notes\n- Returns 422 if the payment status was not paid via a package credit.\n- This endpoint is in Alpha and may change.\n- Use this when an appointment is cancelled or rescheduled and the client's package credit should be returned."
+        "description": "## Overview\nReverse a previous package credit redemption, restoring the consumed credit back to the client's package. This is the undo operation for `POST /platform/v1/payment/client_packages/update_usage`.\n\n## Feature Requirement\nRequires the **`booking_packages`** feature on the business. It belongs to the Payments module but is **not part of every subscription, and is disabled by default on newly provisioned businesses** — treat it as unavailable unless you have confirmed it is on for the specific business.\n\nWhen the feature is off, the request is rejected with **403 Forbidden** and this body:\n\n```json\n{\"message\": \"403 Forbidden\", \"status\": \"module_permission_missing\"}\n```\n\nThis is an entitlement check, not an authentication or permission failure. It is evaluated before the request body is validated and it fails identically for Staff, Directory and App tokens, so retrying, refreshing the token, or setting `X-On-Behalf-Of` will not change the outcome. The feature must be enabled for the business first. Related endpoints under `/platform/v1/payment/packages` and `/platform/v1/payment/client_packages` share the same gate.\n\n## Authentication\nAvailable for **Staff tokens**. **Directory and App tokens** are supported with the `X-On-Behalf-Of` header set to the target business UID. Also available for **Internal tokens**.\n\n## How It Works\n1. The system finds the `PaymentStatus` by the provided ID and locates the associated `BookingCreditRedemption`.\n2. The `bookings_usage` counter on the relevant `BookingCredit` is decremented by one, making the credit available again.\n3. The `BookingCreditRedemption` record is marked as inactive.\n4. The `PaymentStatus` is reset to pending with the original price restored (no longer marked as paid-by-package).\n\n## Required Parameters\n- `payment_status_id` (string) — The ID of the payment status whose package credit redemption should be reversed. Must reference a payment status that was previously paid via package credit.\n\n## Notes\n- Returns 422 if the payment status was not paid via a package credit.\n- This endpoint is in Alpha and may change.\n- Use this when an appointment is cancelled or rescheduled and the client's package credit should be returned."
       }
     },
     "/payment/client_packages/update_usage": {
@@ -1864,6 +1905,22 @@
                 "status": "Error"
               }
             }
+          },
+          "403": {
+            "description": "Forbidden - the business does not have the `booking_packages` feature enabled. Returns `{\"message\": \"403 Forbidden\", \"status\": \"module_permission_missing\"}`. Not an auth failure: no token type or retry will succeed until the feature is enabled.",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string",
+                  "example": "403 Forbidden"
+                },
+                "status": {
+                  "type": "string",
+                  "example": "module_permission_missing"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1891,7 +1948,7 @@
           "uri": "https:///platform/v1/clients/payment/client_packages/update_usage"
         },
         "x-auth-type": "Application & Application User",
-        "description": "## Overview\nRedeem a credit from a client's active package to pay for an appointment or service session. This marks the associated payment status as paid (price set to $0) and decrements one credit from the client's package.\n\n## Authentication\nAvailable for **Staff tokens**. **Directory and App tokens** are supported with the `X-On-Behalf-Of` header set to the target business UID.\n\n## How It Works\n1. The system finds the `PaymentStatus` referenced by `payment_status_uid`, which links to a specific appointment/event and its service.\n2. It searches for active client packages belonging to that client that have available credits for the service in question. A package is eligible when: `valid_from <= now <= valid_until`, `active = true`, and `total_bookings > bookings_usage` for a credit matching the service.\n3. If multiple packages qualify, the **soonest-expiring package** is used first (ordered by `valid_until ASC`).\n4. One credit is consumed: `bookings_usage` is incremented, a `BookingCreditRedemption` record is created, and the `PaymentStatus` is set to paid with a zero price.\n\n## Required Parameters\n- `payment_status_uid` (string) — The UID of the payment status record to pay using a package credit. Must reference a pending/unpaid payment status linked to an appointment. Already-paid statuses return a 422 error.\n\n## Optional Parameters\n- `matter_uid` (string) — The matter/conversation UID that scopes which client packages to search. If omitted, the system attempts to find the default matter for the client associated with the payment status.\n\n## Notes\n- Returns 422 \"There is no package to use\" if no active client packages with available credits exist for the relevant service.\n- Returns 422 if the payment status is already paid.\n- This endpoint is in Alpha and may change.\n- To reverse a credit redemption, use `PUT /platform/v1/payment/client_packages/cancel_redemption`."
+        "description": "## Overview\nRedeem a credit from a client's active package to pay for an appointment or service session. This marks the associated payment status as paid (price set to $0) and decrements one credit from the client's package.\n\n## Feature Requirement\nRequires the **`booking_packages`** feature on the business. It belongs to the Payments module but is **not part of every subscription, and is disabled by default on newly provisioned businesses** — treat it as unavailable unless you have confirmed it is on for the specific business.\n\nWhen the feature is off, the request is rejected with **403 Forbidden** and this body:\n\n```json\n{\"message\": \"403 Forbidden\", \"status\": \"module_permission_missing\"}\n```\n\nThis is an entitlement check, not an authentication or permission failure. It is evaluated before the request body is validated and it fails identically for Staff, Directory and App tokens, so retrying, refreshing the token, or setting `X-On-Behalf-Of` will not change the outcome. The feature must be enabled for the business first. Related endpoints under `/platform/v1/payment/packages` and `/platform/v1/payment/client_packages` share the same gate.\n\n## Authentication\nAvailable for **Staff tokens**. **Directory and App tokens** are supported with the `X-On-Behalf-Of` header set to the target business UID.\n\n## How It Works\n1. The system finds the `PaymentStatus` referenced by `payment_status_uid`, which links to a specific appointment/event and its service.\n2. It searches for active client packages belonging to that client that have available credits for the service in question. A package is eligible when: `valid_from <= now <= valid_until`, `active = true`, and `total_bookings > bookings_usage` for a credit matching the service.\n3. If multiple packages qualify, the **soonest-expiring package** is used first (ordered by `valid_until ASC`).\n4. One credit is consumed: `bookings_usage` is incremented, a `BookingCreditRedemption` record is created, and the `PaymentStatus` is set to paid with a zero price.\n\n## Required Parameters\n- `payment_status_uid` (string) — The UID of the payment status record to pay using a package credit. Must reference a pending/unpaid payment status linked to an appointment. Already-paid statuses return a 422 error.\n\n## Optional Parameters\n- `matter_uid` (string) — The matter/conversation UID that scopes which client packages to search. If omitted, the system attempts to find the default matter for the client associated with the payment status.\n\n## Notes\n- Returns 422 \"There is no package to use\" if no active client packages with available credits exist for the relevant service.\n- Returns 422 if the payment status is already paid.\n- This endpoint is in Alpha and may change.\n- To reverse a credit redemption, use `PUT /platform/v1/payment/client_packages/cancel_redemption`."
       }
     },
     "/payment/packages": {
@@ -1973,6 +2030,22 @@
                 "status": "Error"
               }
             }
+          },
+          "403": {
+            "description": "Forbidden - the business does not have the `booking_packages` feature enabled. Returns `{\"message\": \"403 Forbidden\", \"status\": \"module_permission_missing\"}`. Not an auth failure: no token type or retry will succeed until the feature is enabled.",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string",
+                  "example": "403 Forbidden"
+                },
+                "status": {
+                  "type": "string",
+                  "example": "module_permission_missing"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2001,13 +2074,13 @@
           "uri": "https:///platform/v1/payment/packages"
         },
         "x-auth-type": "Application & Application User",
-        "description": "## Overview\nRetrieve a list of package catalog templates for the business. A package is a reusable template that defines a bundle of services and/or products a client can purchase, including pricing, included credits, and a default validity period.\n\n## Authentication\nAvailable for **Staff tokens**. **Directory and App tokens** are supported with the `X-On-Behalf-Of` header set to the target business UID.\n\n## Query Parameters\n- `include_items` (optional, string) — Pass `\"true\"` to include the package items (service/product groups and their credit allocations) in the response. When omitted, items are not returned.\n- `active_only` (optional, string) — Pass `\"true\"` to return only active packages (not soft-deleted or deactivated). When omitted, all packages are returned regardless of active state.\n\n## Notes\n- Packages returned here are catalog templates, not client-assigned subscriptions. To see packages assigned to a specific client, use `GET /business/payments/v1/client_packages/{uid}` or `GET /client/payments/v1/client_packages`.\n- Each package may contain one or more item groups, each defining a set of services and a `total_bookings` credit count."
+        "description": "## Overview\nRetrieve a list of package catalog templates for the business. A package is a reusable template that defines a bundle of services and/or products a client can purchase, including pricing, included credits, and a default validity period.\n\n## Feature Requirement\nRequires the **`booking_packages`** feature on the business. It belongs to the Payments module but is **not part of every subscription, and is disabled by default on newly provisioned businesses** — treat it as unavailable unless you have confirmed it is on for the specific business.\n\nWhen the feature is off, the request is rejected with **403 Forbidden** and this body:\n\n```json\n{\"message\": \"403 Forbidden\", \"status\": \"module_permission_missing\"}\n```\n\nThis is an entitlement check, not an authentication or permission failure. It is evaluated before the request body is validated and it fails identically for Staff, Directory and App tokens, so retrying, refreshing the token, or setting `X-On-Behalf-Of` will not change the outcome. The feature must be enabled for the business first. Related endpoints under `/platform/v1/payment/packages` and `/platform/v1/payment/client_packages` share the same gate.\n\n## Authentication\nAvailable for **Staff tokens**. **Directory and App tokens** are supported with the `X-On-Behalf-Of` header set to the target business UID.\n\n## Query Parameters\n- `include_items` (optional, string) — Pass `\"true\"` to include the package items (service/product groups and their credit allocations) in the response. When omitted, items are not returned.\n- `active_only` (optional, string) — Pass `\"true\"` to return only active packages (not soft-deleted or deactivated). When omitted, all packages are returned regardless of active state.\n\n## Notes\n- Packages returned here are catalog templates, not client-assigned subscriptions. To see packages assigned to a specific client, use `GET /business/payments/v1/client_packages/{uid}` or `GET /client/payments/v1/client_packages`.\n- Each package may contain one or more item groups, each defining a set of services and a `total_bookings` credit count."
       },
       "post": {
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nCreate a new package catalog template for the business. A package defines a bundle of services and/or products that can be sold to clients, including pricing, credit allocations per service group, and a default validity period that determines how long client subscriptions last.\n\n## Authentication\nAvailable for **Staff tokens**. **Directory and App tokens** are supported with the `X-On-Behalf-Of` header set to the target business UID.\n\n## Required Parameters\n- `name` — Display name of the package (e.g., \"10 Music Lessons\").\n- `price` — Base price of the package (e.g., 100 for $100).\n- `currency` — Three-letter ISO 4217 currency code (e.g., \"USD\", \"ILS\").\n- `expiration` — Integer that, combined with `expiration_unit`, defines the default validity period for client subscriptions (e.g., 3).\n- `expiration_unit` — Unit for the expiration period: \"D\" (days), \"W\" (weeks), \"M\" (months), or \"Y\" (years). Combined with `expiration`, determines how long a client package remains active (e.g., expiration=3, expiration_unit=\"M\" means 3 months).\n- `items` — Array of service/product groups included in the package. Each item must contain `services` (array of service UIDs) and `total_bookings` (number of credits for this group).\n\n## Optional Parameters\n- `description` — Free-text description of the package shown to clients.\n- `discount_amount` — Numeric discount value applied to the package price.\n- `discount_unit` — Discount type: \"F\" (fixed amount off) or \"P\" (percentage off).\n- `image_path` — URL path to the package's display image.\n- `online_payment_enabled` — Whether clients can self-purchase this package from the client portal (boolean).\n- `products` — Array of product objects included in the package (redeemed immediately at purchase, unlike service credits which are consumed per-appointment).\n\n## Notes\n- The business must have the packages feature enabled.\n- After creating a catalog package, assign it to a client using `POST /platform/v1/payment/client_packages` with the returned package `id` as `package_id`.\n- Items define the credit structure: when a client package is created from this template, each item becomes a credit pool with its own `total_bookings` count.",
+        "description": "## Overview\nCreate a new package catalog template for the business. A package defines a bundle of services and/or products that can be sold to clients, including pricing, credit allocations per service group, and a default validity period that determines how long client subscriptions last.\n\n## Feature Requirement\nRequires the **`booking_packages`** feature on the business. It belongs to the Payments module but is **not part of every subscription, and is disabled by default on newly provisioned businesses** — treat it as unavailable unless you have confirmed it is on for the specific business.\n\nWhen the feature is off, the request is rejected with **403 Forbidden** and this body:\n\n```json\n{\"message\": \"403 Forbidden\", \"status\": \"module_permission_missing\"}\n```\n\nThis is an entitlement check, not an authentication or permission failure. It is evaluated before the request body is validated and it fails identically for Staff, Directory and App tokens, so retrying, refreshing the token, or setting `X-On-Behalf-Of` will not change the outcome. The feature must be enabled for the business first. Related endpoints under `/platform/v1/payment/packages` and `/platform/v1/payment/client_packages` share the same gate.\n\n## Authentication\nAvailable for **Staff tokens**. **Directory and App tokens** are supported with the `X-On-Behalf-Of` header set to the target business UID.\n\n## Required Parameters\n- `name` — Display name of the package (e.g., \"10 Music Lessons\").\n- `price` — Base price of the package (e.g., 100 for $100).\n- `currency` — Three-letter ISO 4217 currency code (e.g., \"USD\", \"ILS\").\n- `expiration` — Integer that, combined with `expiration_unit`, defines the default validity period for client subscriptions (e.g., 3).\n- `expiration_unit` — Unit for the expiration period: \"D\" (days), \"W\" (weeks), \"M\" (months), or \"Y\" (years). Combined with `expiration`, determines how long a client package remains active (e.g., expiration=3, expiration_unit=\"M\" means 3 months).\n- `items` — Array of service/product groups included in the package. Each item must contain `services` (array of service UIDs) and `total_bookings` (number of credits for this group).\n\n## Optional Parameters\n- `description` — Free-text description of the package shown to clients.\n- `discount_amount` — Numeric discount value applied to the package price.\n- `discount_unit` — Discount type: \"F\" (fixed amount off) or \"P\" (percentage off).\n- `image_path` — URL path to the package's display image.\n- `online_payment_enabled` — Whether clients can self-purchase this package from the client portal (boolean).\n- `products` — Array of product objects included in the package (redeemed immediately at purchase, unlike service credits which are consumed per-appointment).\n\n## Notes\n- After creating a catalog package, assign it to a client using `POST /platform/v1/payment/client_packages` with the returned package `id` as `package_id`.\n- Items define the credit structure: when a client package is created from this template, each item becomes a credit pool with its own `total_bookings` count.",
         "parameters": [
           {
             "in": "body",
@@ -2037,7 +2110,12 @@
                 "expiration_unit": {
                   "description": "The expiration unit (M-Month, D-Day, W-Week, Y-Year)",
                   "type": "string",
-                  "enum": ["D", "W", "M", "Y"]
+                  "enum": [
+                    "D",
+                    "W",
+                    "M",
+                    "Y"
+                  ]
                 },
                 "image_path": {
                   "description": "The package's image path",
@@ -2365,6 +2443,22 @@
               "application/json": {
                 "error": "Error Message",
                 "status": "Error"
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - the business does not have the `booking_packages` feature enabled. Returns `{\"message\": \"403 Forbidden\", \"status\": \"module_permission_missing\"}`. Not an auth failure: no token type or retry will succeed until the feature is enabled.",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string",
+                  "example": "403 Forbidden"
+                },
+                "status": {
+                  "type": "string",
+                  "example": "module_permission_missing"
+                }
               }
             }
           }
@@ -2721,6 +2815,22 @@
                 "status": "Error"
               }
             }
+          },
+          "403": {
+            "description": "Forbidden - the business does not have the `booking_packages` feature enabled. Returns `{\"message\": \"403 Forbidden\", \"status\": \"module_permission_missing\"}`. Not an auth failure: no token type or retry will succeed until the feature is enabled.",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string",
+                  "example": "403 Forbidden"
+                },
+                "status": {
+                  "type": "string",
+                  "example": "module_permission_missing"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2751,7 +2861,7 @@
           "uri": "https:///platform/v1/payment/packages/{package_id}"
         },
         "x-auth-type": "Application & Application User",
-        "description": "## Overview\nUpdate an existing package catalog template. You can modify pricing, name, description, expiration settings, items, and active status. Changes to the catalog template do NOT retroactively affect already-created client packages — those retain the values they were assigned at creation.\n\n## Authentication\nAvailable for **Staff tokens**. **Directory and App tokens** are supported with the `X-On-Behalf-Of` header set to the target business UID.\n\n## Path Parameters\n- `package_id` (required, string) — The unique identifier (UID) of the catalog package to update (e.g., \"v2fvy50p8gjuvnvb\").\n\n## Request Body\nThe request body must wrap all fields inside a `package` object. All fields are optional — only include fields you want to change.\n\n## Updatable Fields\n- `name`, `price`, `currency`, `description` — Basic package information.\n- `expiration`, `expiration_unit` — Default validity period for future client subscriptions.\n- `discount_amount`, `discount_unit` — Pricing discount.\n- `items` — Service/product groups. Each item includes `services` (array of service UIDs) and `total_bookings` (credit count). When updating items, pass the complete desired items array.\n- `online_payment_enabled` — Client self-purchase toggle.\n- `active` — Set to `false` to deactivate the package (hides from catalog listings).\n\n## Notes\n- This endpoint is in Alpha and may change.\n- Deactivating a package (`active: false`) prevents it from being assigned to new clients but does not affect existing client packages."
+        "description": "## Overview\nUpdate an existing package catalog template. You can modify pricing, name, description, expiration settings, items, and active status. Changes to the catalog template do NOT retroactively affect already-created client packages — those retain the values they were assigned at creation.\n\n## Feature Requirement\nRequires the **`booking_packages`** feature on the business. It belongs to the Payments module but is **not part of every subscription, and is disabled by default on newly provisioned businesses** — treat it as unavailable unless you have confirmed it is on for the specific business.\n\nWhen the feature is off, the request is rejected with **403 Forbidden** and this body:\n\n```json\n{\"message\": \"403 Forbidden\", \"status\": \"module_permission_missing\"}\n```\n\nThis is an entitlement check, not an authentication or permission failure. It is evaluated before the request body is validated and it fails identically for Staff, Directory and App tokens, so retrying, refreshing the token, or setting `X-On-Behalf-Of` will not change the outcome. The feature must be enabled for the business first. Related endpoints under `/platform/v1/payment/packages` and `/platform/v1/payment/client_packages` share the same gate.\n\n## Authentication\nAvailable for **Staff tokens**. **Directory and App tokens** are supported with the `X-On-Behalf-Of` header set to the target business UID.\n\n## Path Parameters\n- `package_id` (required, string) — The unique identifier (UID) of the catalog package to update (e.g., \"v2fvy50p8gjuvnvb\").\n\n## Request Body\nThe request body must wrap all fields inside a `package` object. All fields are optional — only include fields you want to change.\n\n## Updatable Fields\n- `name`, `price`, `currency`, `description` — Basic package information.\n- `expiration`, `expiration_unit` — Default validity period for future client subscriptions.\n- `discount_amount`, `discount_unit` — Pricing discount.\n- `items` — Service/product groups. Each item includes `services` (array of service UIDs) and `total_bookings` (credit count). When updating items, pass the complete desired items array.\n- `online_payment_enabled` — Client self-purchase toggle.\n- `active` — Set to `false` to deactivate the package (hides from catalog listings).\n\n## Notes\n- This endpoint is in Alpha and may change.\n- Deactivating a package (`active: false`) prevents it from being assigned to new clients but does not affect existing client packages."
       }
     },
     "/payment/settings": {

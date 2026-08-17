@@ -6,6 +6,7 @@
     "version": "3.0",
     "x-generated": {
       "sourceFiles": [
+        "business_ai_settings.json",
         "recommendations.json",
         "business_rules.json",
         "bizai.json",
@@ -17,6 +18,15 @@
       "pathNormalizations": [],
       "pathConflicts": [],
       "componentConflicts": [
+        {
+          "type": "schema",
+          "name": "ErrorResponse",
+          "resolution": "Renamed to ErrorResponse_business_rules",
+          "files": [
+            "merged",
+            "business_rules.json"
+          ]
+        },
         {
           "type": "schema",
           "name": "Response",
@@ -36,8 +46,8 @@
           ]
         }
       ],
-      "totalPaths": 19,
-      "totalComponents": 30
+      "totalPaths": 20,
+      "totalComponents": 32
     }
   },
   "servers": [
@@ -47,6 +57,479 @@
     }
   ],
   "paths": {
+    "/v3/ai/business_ai_settings/{business_uid}": {
+      "get": {
+        "tags": [
+          "Business AI Settings"
+        ],
+        "operationId": "getBusinessAiSettings",
+        "summary": "Retrieve a BusinessAiSettings",
+        "description": "## Overview\nRetrieve the AI settings of a business. Every known key is returned, with its default filled in for keys the business has never changed, so the response is the same whether or not the business has stored settings.\n\nThe business is resolved from the token - a staff member can only read the settings of their own business.\n\n**Available for Staff tokens**",
+        "parameters": [
+          {
+            "name": "business_uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The unique identifier of the business (e.g., \"biz_abc123\")",
+            "example": "biz_abc123"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Business AI settings retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "business_ai_settings": {
+                              "title": "BusinessAiSettings",
+                              "description": "Business-level AI settings, controlling which AI features a business allows. Evaluated independently of the packaging flags that make a feature available in the first place",
+                              "type": "object",
+                              "properties": {
+                                "uid": {
+                                  "type": "string",
+                                  "description": "The unique identifier of the settings record. Null while the business is still on the defaults and no record has been written for it yet (e.g., \"bas_9f31c2\", null)",
+                                  "nullable": true,
+                                  "readOnly": true
+                                },
+                                "business_uid": {
+                                  "type": "string",
+                                  "description": "The unique identifier of the business these settings belong to (e.g., \"biz_abc123\")",
+                                  "readOnly": true
+                                },
+                                "settings": {
+                                  "type": "object",
+                                  "description": "Every known AI setting key, with its default filled in for keys the business has never changed. Defaults differ per key",
+                                  "properties": {
+                                    "note_summary": {
+                                      "type": "object",
+                                      "description": "AI note summaries. While not allowed, no new note gets a summary and existing summaries are withheld from note responses. Speech-to-text on notes is unaffected",
+                                      "properties": {
+                                        "allow": {
+                                          "type": "boolean",
+                                          "description": "Whether AI note summaries are allowed for this business. Defaults to true (e.g., true, false)",
+                                          "default": true
+                                        }
+                                      },
+                                      "required": [
+                                        "allow"
+                                      ]
+                                    },
+                                    "opted_in": {
+                                      "type": "object",
+                                      "description": "Whether the business has opted in to AI. A business with no stored record is treated as not opted in until it explicitly opts in",
+                                      "properties": {
+                                        "allow": {
+                                          "type": "boolean",
+                                          "description": "Whether the business has opted in to AI. Defaults to false (e.g., false, true)",
+                                          "default": false
+                                        }
+                                      },
+                                      "required": [
+                                        "allow"
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "note_summary",
+                                    "opted_in"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "uid",
+                                "business_uid",
+                                "settings"
+                              ],
+                              "example": {
+                                "uid": "bas_9f31c2",
+                                "business_uid": "biz_abc123",
+                                "settings": {
+                                  "note_summary": {
+                                    "allow": true
+                                  },
+                                  "opted_in": {
+                                    "allow": false
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "business_ai_settings": {
+                      "uid": "bas_9f31c2",
+                      "business_uid": "biz_abc123",
+                      "settings": {
+                        "note_summary": {
+                          "allow": true
+                        },
+                        "opted_in": {
+                          "allow": false
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Unauthorized"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - the settings belong to another business",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "You do not have access to these business AI settings"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Business AI Settings"
+        ],
+        "operationId": "updateBusinessAiSettings",
+        "summary": "Update a BusinessAiSettings",
+        "description": "## Overview\nCreate or update the AI settings of a business. Keys left out of the request keep their stored value, and unknown keys are rejected.\n\nThe business is resolved from the token - a staff member can only update the settings of their own business.\n\n**Available for Staff tokens holding the `account.settings.manage` permission**",
+        "parameters": [
+          {
+            "name": "business_uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The unique identifier of the business (e.g., \"biz_abc123\")",
+            "example": "biz_abc123"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BusinessAiSettingsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Business AI settings updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "business_ai_settings": {
+                              "title": "BusinessAiSettings",
+                              "description": "Business-level AI settings, controlling which AI features a business allows. Evaluated independently of the packaging flags that make a feature available in the first place",
+                              "type": "object",
+                              "properties": {
+                                "uid": {
+                                  "type": "string",
+                                  "description": "The unique identifier of the settings record. Null while the business is still on the defaults and no record has been written for it yet (e.g., \"bas_9f31c2\", null)",
+                                  "nullable": true,
+                                  "readOnly": true
+                                },
+                                "business_uid": {
+                                  "type": "string",
+                                  "description": "The unique identifier of the business these settings belong to (e.g., \"biz_abc123\")",
+                                  "readOnly": true
+                                },
+                                "settings": {
+                                  "type": "object",
+                                  "description": "Every known AI setting key, with its default filled in for keys the business has never changed. Defaults differ per key",
+                                  "properties": {
+                                    "note_summary": {
+                                      "type": "object",
+                                      "description": "AI note summaries. While not allowed, no new note gets a summary and existing summaries are withheld from note responses. Speech-to-text on notes is unaffected",
+                                      "properties": {
+                                        "allow": {
+                                          "type": "boolean",
+                                          "description": "Whether AI note summaries are allowed for this business. Defaults to true (e.g., true, false)",
+                                          "default": true
+                                        }
+                                      },
+                                      "required": [
+                                        "allow"
+                                      ]
+                                    },
+                                    "opted_in": {
+                                      "type": "object",
+                                      "description": "Whether the business has opted in to AI. A business with no stored record is treated as not opted in until it explicitly opts in",
+                                      "properties": {
+                                        "allow": {
+                                          "type": "boolean",
+                                          "description": "Whether the business has opted in to AI. Defaults to false (e.g., false, true)",
+                                          "default": false
+                                        }
+                                      },
+                                      "required": [
+                                        "allow"
+                                      ]
+                                    }
+                                  },
+                                  "required": [
+                                    "note_summary",
+                                    "opted_in"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "uid",
+                                "business_uid",
+                                "settings"
+                              ],
+                              "example": {
+                                "uid": "bas_9f31c2",
+                                "business_uid": "biz_abc123",
+                                "settings": {
+                                  "note_summary": {
+                                    "allow": true
+                                  },
+                                  "opted_in": {
+                                    "allow": false
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "business_ai_settings": {
+                      "uid": "bas_9f31c2",
+                      "business_uid": "biz_abc123",
+                      "settings": {
+                        "note_summary": {
+                          "allow": false
+                        },
+                        "opted_in": {
+                          "allow": false
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - malformed request or unknown setting key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "bad_request",
+                      "message": "Unknown AI setting key(s): ai_global. Allowed keys: note_summary, opted_in"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - missing or invalid token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Unauthorized"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - the settings belong to another business, or the staff member lacks the account.settings.manage permission",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Insufficient permissions to manage business settings"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v3/ai/ai_recommendations": {
       "get": {
         "tags": [
@@ -7540,6 +8023,79 @@
   },
   "components": {
     "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "success",
+          "errors"
+        ]
+      },
+      "BusinessAiSettingsRequest": {
+        "type": "object",
+        "properties": {
+          "settings": {
+            "type": "object",
+            "description": "Settings to change. Keys that are omitted keep their stored value",
+            "properties": {
+              "note_summary": {
+                "type": "object",
+                "description": "AI note summaries. While not allowed, no new note gets a summary and existing summaries are withheld from note responses. Speech-to-text on notes is unaffected",
+                "properties": {
+                  "allow": {
+                    "type": "boolean",
+                    "description": "Whether AI note summaries are allowed for this business (e.g., true, false)"
+                  }
+                },
+                "required": [
+                  "allow"
+                ]
+              },
+              "opted_in": {
+                "type": "object",
+                "description": "Whether the business has opted in to AI. A business with no stored record is treated as not opted in until it explicitly opts in",
+                "properties": {
+                  "allow": {
+                    "type": "boolean",
+                    "description": "Whether the business has opted in to AI (e.g., false, true)"
+                  }
+                },
+                "required": [
+                  "allow"
+                ]
+              }
+            }
+          }
+        },
+        "required": [
+          "settings"
+        ],
+        "example": {
+          "settings": {
+            "note_summary": {
+              "allow": false
+            }
+          }
+        }
+      },
       "AIRecommendationRequest": {
         "type": "object",
         "properties": {
@@ -8097,7 +8653,7 @@
           "action"
         ]
       },
-      "ErrorResponse": {
+      "ErrorResponse_business_rules": {
         "type": "object",
         "properties": {
           "success": {
