@@ -552,13 +552,51 @@ function flattenExternalRefs(spec, baseUrl, baseDir) {
     return current;
   }
 
-  // `stack` holds the external ref URLs currently being resolved (cycle guard).
-  function walk(node, stack) {
+  // `stack` holds the refs currently being resolved (cycle guard).
+  //
+  // `ctx` is set only while walking content that was inlined FROM an external file, and
+  // carries that file so its own document-local `#/...` refs can be resolved against it.
+  // Without it those pointers were copied verbatim into the unified spec, where they
+  // resolve against the unified root instead: `entities/payments/invoice.json` defines
+  // `lineItem` under its own `definitions` and refers to `#/definitions/lineItem`, which
+  // after inlining pointed at a `definitions` section the unified document does not have.
+  // The result was a ref that is dangling AND invalid for OpenAPI 3.1, where `definitions`
+  // is not a section at all (OAS3 uses `components/schemas`). 114 of them had accumulated
+  // across sales.json and communication.json.
+  //
+  // At the top level `ctx` is undefined, so genuinely unified-document-local refs such as
+  // `#/components/schemas/Foo` are left exactly as they are.
+  function walk(node, stack, ctx) {
     if (Array.isArray(node)) {
-      return node.map(item => walk(item, stack));
+      return node.map(item => walk(item, stack, ctx));
     }
     if (node && typeof node === 'object') {
       const refValue = node.$ref;
+
+      // A document-local ref inside inlined external content: resolve it against the
+      // file it came from and inline it too, so nothing dangles once it is moved.
+      if (typeof refValue === 'string' && refValue.startsWith('#') && ctx) {
+        const marker = `${ctx.id}${refValue}`;
+        if (stack.includes(marker)) {
+          log.warn(`Circular local ref in ${ctx.id}, leaving in place: ${refValue}`);
+          return node;
+        }
+        const localTarget = resolvePointer(ctx.doc, refValue);
+        if (localTarget === undefined) {
+          stats.missing.add(`${ctx.id}${refValue}`);
+          log.warn(`Local ref inside ${ctx.id} did not resolve, leaving in place: ${refValue}`);
+          return node;
+        }
+        const resolvedLocal = walk(JSON.parse(JSON.stringify(localTarget)), [...stack, marker], ctx);
+        stats.count++;
+        log.verbose(`Flattened local ref from ${ctx.id}: ${refValue}`);
+        const { $ref: _localRef, ...localSiblings } = node;
+        if (Object.keys(localSiblings).length > 0 && resolvedLocal && typeof resolvedLocal === 'object' && !Array.isArray(resolvedLocal)) {
+          return { ...resolvedLocal, ...walk(localSiblings, stack, ctx) };
+        }
+        return resolvedLocal;
+      }
+
       if (typeof refValue === 'string' && refValue.startsWith(baseUrl)) {
         if (stack.includes(refValue)) {
           log.warn(`Circular external ref, leaving in place: ${refValue}`);
@@ -584,8 +622,9 @@ function flattenExternalRefs(spec, baseUrl, baseDir) {
           return node;
         }
 
-        // Recursively inline any external refs inside the resolved content.
-        const resolved = walk(JSON.parse(JSON.stringify(target)), [...stack, refValue]);
+        // Recursively inline refs inside the resolved content — external ones, and the
+        // file's own local ones, which now resolve against `fileContent`.
+        const resolved = walk(JSON.parse(JSON.stringify(target)), [...stack, refValue], { doc: fileContent, id: relPath });
         stats.count++;
         log.verbose(`Flattened external ref: ${refValue}`);
 
@@ -593,14 +632,14 @@ function flattenExternalRefs(spec, baseUrl, baseDir) {
         // siblings win over the inlined content, matching OpenAPI 3.1 semantics.
         const { $ref, ...siblings } = node;
         if (Object.keys(siblings).length > 0 && resolved && typeof resolved === 'object' && !Array.isArray(resolved)) {
-          return { ...resolved, ...walk(siblings, stack) };
+          return { ...resolved, ...walk(siblings, stack, ctx) };
         }
         return resolved;
       }
 
       const result = {};
       for (const [key, value] of Object.entries(node)) {
-        result[key] = walk(value, stack);
+        result[key] = walk(value, stack, ctx);
       }
       return result;
     }
