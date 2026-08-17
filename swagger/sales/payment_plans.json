@@ -107,7 +107,7 @@
             "name": "sort",
             "required": false,
             "in": "query",
-            "description": "Sort by fields. Example: sort=next_payment_time:asc,created_at:desc",
+            "description": "Sort by fields. Example: sort=next_payment_date:asc,created_at:desc",
             "schema": {
               "default": "updated_at:desc",
               "type": "string"
@@ -195,7 +195,7 @@
                         "frequency_type": "monthly",
                         "start_date": "2026-09-01T09:00:00Z",
                         "end_date": "2026-11-01T09:00:00Z",
-                        "next_payment_time": "2026-11-01T09:00:00Z",
+                        "next_payment_date": "2026-11-01T09:00:00Z",
                         "status": "active",
                         "matter_uid": "m1m2m3m4m5m6m7m8",
                         "staff_uid": "1c3ab579d2d31fbb",
@@ -222,7 +222,7 @@
                         "frequency_type": "monthly",
                         "start_date": "2026-06-01T09:00:00Z",
                         "end_date": "2027-05-01T09:00:00Z",
-                        "next_payment_time": "2026-09-01T09:00:00Z",
+                        "next_payment_date": "2026-09-01T09:00:00Z",
                         "status": "active",
                         "matter_uid": "m9m8m7m6m5m4m3m2",
                         "staff_uid": "1c3ab579d2d31fbb",
@@ -321,37 +321,76 @@
                 "type": "object",
                 "properties": {
                   "name": {
-                    "$ref": "https://vcita.github.io/developers-hub/entities/sales/paymentPlan.json#/properties/name"
+                    "type": "string",
+                    "description": "A short name for the plan, shown to the staff member and to the client (e.g., \"Kitchen remodel plan\")"
                   },
                   "description": {
-                    "$ref": "https://vcita.github.io/developers-hub/entities/sales/paymentPlan.json#/properties/description"
+                    "type": "string",
+                    "description": "A free-text description of the plan (e.g., \"3 monthly installments for invoice #1042\")"
                   },
                   "payment_request_uid": {
-                    "$ref": "https://vcita.github.io/developers-hub/entities/sales/paymentPlan.json#/properties/payment_request_uid"
+                    "type": "string",
+                    "nullable": true,
+                    "description": "The payment request this plan collects against.\n\n* **When set** — the plan is **linked**: each installment is charged against that payable's open balance instead of creating a standalone charge, reducing the invoice balance until it is paid.\n* **When null** — the plan is **standalone**: each installment is an independent charge, unconnected to any invoice.\n\nOnly an open invoice's payment request may be linked, and the value is immutable after creation. Treat it as an opaque identifier — the length varies by payable type. Obtain it from `GET /business/payments/v1/payment_requests` (e.g., \"a1b2c3d4e5f6g7h8\")"
                   },
                   "amount": {
-                    "$ref": "https://vcita.github.io/developers-hub/entities/sales/paymentPlan.json#/properties/amount"
+                    "type": "number",
+                    "description": "The amount charged per installment, in the plan's currency. Must be greater than 0. For a linked plan this is the per-installment amount the client calculated by dividing the invoice balance across `cycles` and **rounding up** to two decimals; the last installment is then clamped down to the remaining balance, so the amount actually collected on the final cycle may be lower than this value. (e.g., 333.34)"
                   },
                   "currency": {
-                    "$ref": "https://vcita.github.io/developers-hub/entities/sales/paymentPlan.json#/properties/currency"
+                    "type": "string",
+                    "description": "Three-letter ISO 4217 currency code. For a linked plan this must equal the currency of the linked payment request (e.g., \"USD\", \"EUR\", \"GBP\")"
                   },
                   "cycles": {
-                    "$ref": "https://vcita.github.io/developers-hub/entities/sales/paymentPlan.json#/properties/cycles"
+                    "type": "integer",
+                    "description": "The total number of installments the plan will collect. Must be between 1 and 100. Required unless `frequency_type` is `one_time`, in which case it is ignored and stored as 1 (e.g., 3)",
+                    "minimum": 1,
+                    "maximum": 100
                   },
                   "frequency_type": {
-                    "$ref": "https://vcita.github.io/developers-hub/entities/sales/paymentPlan.json#/properties/frequency_type"
+                    "type": "string",
+                    "description": "How often the plan collects an installment.\n\n* `one_time` - A single payment on `start_date`.\n* `weekly` - Every week.\n* `bi_weekly` - Every two weeks.\n* `monthly` - Every month.",
+                    "enum": [
+                      "one_time",
+                      "weekly",
+                      "bi_weekly",
+                      "monthly"
+                    ]
                   },
                   "start_date": {
-                    "$ref": "https://vcita.github.io/developers-hub/entities/sales/paymentPlan.json#/properties/start_date"
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "When the first installment is collected, in ISO 8601 format (e.g., \"2026-09-01T09:00:00Z\")"
                   },
                   "matter_uid": {
-                    "$ref": "https://vcita.github.io/developers-hub/entities/sales/paymentPlan.json#/properties/matter_uid"
+                    "type": "string",
+                    "description": "The unique identifier of the client's matter this plan belongs to. For a linked plan this must be the same matter the payment request sits on (e.g., \"m1m2m3m4m5m6m7m8\")",
+                    "x-reference-to": "clients.matter"
                   },
                   "send_receipt": {
-                    "$ref": "https://vcita.github.io/developers-hub/entities/sales/paymentPlan.json#/properties/send_receipt"
+                    "type": "boolean",
+                    "description": "Whether a receipt is emailed to the client after each collected installment. For a linked plan the receipt's subject is the invoice.\n\nRequired when creating a plan, but **not returned in responses** (e.g., true)"
                   },
                   "payment_method": {
-                    "$ref": "https://vcita.github.io/developers-hub/entities/sales/paymentPlan.json#/properties/payment_method"
+                    "type": "object",
+                    "description": "The saved payment method charged on every installment. It must belong to the matter's client and use the same payment provider as the business's payment gateway",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "description": "The kind of saved payment method being charged. Only a saved card is supported today (e.g., \"card\")",
+                        "enum": [
+                          "card"
+                        ]
+                      },
+                      "uid": {
+                        "type": "string",
+                        "description": "The unique identifier of the saved payment method identified by `type`. For `card`, obtain it from `GET /platform/v1/clients/{client_id}/payment/cards` (e.g., \"c1c2c3c4c5c6c7c8\")"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "uid"
+                    ]
                   }
                 },
                 "required": [
@@ -403,36 +442,6 @@
                       }
                     }
                   ]
-                },
-                "example": {
-                  "success": true,
-                  "data": {
-                    "uid": "7gilictbt12jir3v",
-                    "name": "Kitchen remodel plan",
-                    "description": "3 monthly installments for invoice #1042",
-                    "payment_request_uid": "a1b2c3d4e5f6g7h8",
-                    "amount": 333.34,
-                    "amount_paid": 0.0,
-                    "currency": "USD",
-                    "cycles": 3,
-                    "cycles_count": 0,
-                    "frequency_type": "monthly",
-                    "start_date": "2026-09-01T09:00:00Z",
-                    "end_date": "2026-11-01T09:00:00Z",
-                    "next_payment_time": "2026-09-01T09:00:00Z",
-                    "status": "active",
-                    "matter_uid": "m1m2m3m4m5m6m7m8",
-                    "staff_uid": "1c3ab579d2d31fbb",
-                    "payment_method": {
-                      "type": "card",
-                      "uid": "c1c2c3c4c5c6c7c8"
-                    },
-                    "canceled_by": "",
-                    "canceled_date": null,
-                    "cancel_reason": null,
-                    "created_at": "2026-08-20T10:15:00Z",
-                    "updated_at": "2026-08-20T10:15:00Z"
-                  }
                 }
               }
             }
@@ -540,36 +549,6 @@
                       }
                     }
                   ]
-                },
-                "example": {
-                  "success": true,
-                  "data": {
-                    "uid": "7gilictbt12jir3v",
-                    "name": "Kitchen remodel plan",
-                    "description": "3 monthly installments for invoice #1042",
-                    "payment_request_uid": "a1b2c3d4e5f6g7h8",
-                    "amount": 333.34,
-                    "amount_paid": 666.68,
-                    "currency": "USD",
-                    "cycles": 3,
-                    "cycles_count": 2,
-                    "frequency_type": "monthly",
-                    "start_date": "2026-09-01T09:00:00Z",
-                    "end_date": "2026-11-01T09:00:00Z",
-                    "next_payment_time": "2026-11-01T09:00:00Z",
-                    "status": "active",
-                    "matter_uid": "m1m2m3m4m5m6m7m8",
-                    "staff_uid": "1c3ab579d2d31fbb",
-                    "payment_method": {
-                      "type": "card",
-                      "uid": "c1c2c3c4c5c6c7c8"
-                    },
-                    "canceled_by": "",
-                    "canceled_date": null,
-                    "cancel_reason": null,
-                    "created_at": "2026-08-20T10:15:00Z",
-                    "updated_at": "2026-10-01T09:00:12Z"
-                  }
                 }
               }
             }
@@ -665,7 +644,25 @@
                 "description": "At least one of `payment_method` or `status` must be supplied.",
                 "properties": {
                   "payment_method": {
-                    "$ref": "https://vcita.github.io/developers-hub/entities/sales/paymentPlan.json#/properties/payment_method"
+                    "type": "object",
+                    "description": "The saved payment method charged on every installment. It must belong to the matter's client and use the same payment provider as the business's payment gateway",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "description": "The kind of saved payment method being charged. Only a saved card is supported today (e.g., \"card\")",
+                        "enum": [
+                          "card"
+                        ]
+                      },
+                      "uid": {
+                        "type": "string",
+                        "description": "The unique identifier of the saved payment method identified by `type`. For `card`, obtain it from `GET /platform/v1/clients/{client_id}/payment/cards` (e.g., \"c1c2c3c4c5c6c7c8\")"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "uid"
+                    ]
                   },
                   "status": {
                     "type": "string",
@@ -702,36 +699,6 @@
                       }
                     }
                   ]
-                },
-                "example": {
-                  "success": true,
-                  "data": {
-                    "uid": "7gilictbt12jir3v",
-                    "name": "Kitchen remodel plan",
-                    "description": "3 monthly installments for invoice #1042",
-                    "payment_request_uid": "a1b2c3d4e5f6g7h8",
-                    "amount": 333.34,
-                    "amount_paid": 666.68,
-                    "currency": "USD",
-                    "cycles": 3,
-                    "cycles_count": 2,
-                    "frequency_type": "monthly",
-                    "start_date": "2026-09-01T09:00:00Z",
-                    "end_date": "2026-11-01T09:00:00Z",
-                    "next_payment_time": null,
-                    "status": "cancelled",
-                    "matter_uid": "m1m2m3m4m5m6m7m8",
-                    "staff_uid": "1c3ab579d2d31fbb",
-                    "payment_method": {
-                      "type": "card",
-                      "uid": "c1c2c3c4c5c6c7c8"
-                    },
-                    "canceled_by": "Dana Levi",
-                    "canceled_date": "2026-10-15T12:04:11Z",
-                    "cancel_reason": null,
-                    "created_at": "2026-08-20T10:15:00Z",
-                    "updated_at": "2026-10-15T12:04:11Z"
-                  }
                 }
               }
             }

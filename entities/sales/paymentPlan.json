@@ -66,16 +66,16 @@
       "description": "When the last installment is scheduled to be collected, derived from `start_date`, `frequency_type` and `cycles` (e.g., \"2026-11-01T09:00:00Z\")",
       "readOnly": true
     },
-    "next_payment_time": {
+    "next_payment_date": {
       "type": "string",
       "format": "date-time",
       "nullable": true,
-      "description": "When the next installment is due to be collected. Null once the plan is `completed` or `cancelled` (e.g., \"2026-10-01T09:00:00Z\")",
+      "description": "When the next installment is due to be collected. Carries a full timestamp, not just a calendar date. Null once the plan is `completed` or `cancelled` (e.g., \"2026-10-01T09:00:00Z\")",
       "readOnly": true
     },
     "status": {
       "type": "string",
-      "description": "The current state of the plan.\n\n* `active` - The plan is running and will collect its next installment at `next_payment_time`.\n* `completed` - Every cycle was collected (`cycles_count` reached `cycles`). Set by the system only.\n* `cancelled` - The plan stopped before completing. This covers three different situations, distinguished by `canceled_by` and `cancel_reason`: a staff member cancelled it, a charge was declined and the plan was stopped automatically, or the linked payment request is no longer collectable.\n\nThe only transition a client may request is `active` → `cancelled`.",
+      "description": "The current state of the plan.\n\n* `active` - The plan is running and will collect its next installment at `next_payment_date`.\n* `completed` - Every cycle was collected (`cycles_count` reached `cycles`). Set by the system only.\n* `cancelled` - The plan stopped before completing and will collect nothing further. Read `cancel_reason` for why and `canceled_by` for who.\n\nThe only transition a client may request is `active` → `cancelled`.",
       "enum": [
         "active",
         "completed",
@@ -84,7 +84,7 @@
     },
     "matter_uid": {
       "type": "string",
-      "description": "The unique identifier of the matter the plan belongs to. For a linked plan this must be the same matter the payment request sits on (e.g., \"m1m2m3m4m5m6m7m8\")",
+      "description": "The unique identifier of the client's matter this plan belongs to. For a linked plan this must be the same matter the payment request sits on (e.g., \"m1m2m3m4m5m6m7m8\")",
       "x-reference-to": "clients.matter"
     },
     "staff_uid": {
@@ -103,14 +103,14 @@
       "properties": {
         "type": {
           "type": "string",
-          "description": "The kind of payment method. Only a saved card is supported (e.g., \"card\")",
+          "description": "The kind of saved payment method being charged. Only a saved card is supported today (e.g., \"card\")",
           "enum": [
             "card"
           ]
         },
         "uid": {
           "type": "string",
-          "description": "The unique identifier of the saved card. Obtain it from `GET /platform/v1/clients/{client_id}/payment/cards` (e.g., \"c1c2c3c4c5c6c7c8\")"
+          "description": "The unique identifier of the saved payment method identified by `type`. For `card`, obtain it from `GET /platform/v1/clients/{client_id}/payment/cards` (e.g., \"c1c2c3c4c5c6c7c8\")"
         }
       },
       "required": [
@@ -120,7 +120,7 @@
     },
     "canceled_by": {
       "type": "string",
-      "description": "Who cancelled the plan. Free text, not an enumeration:\n\n* The **display name of the staff member** who cancelled it manually (e.g., \"Dana Levi\").\n* `system` - the plan was closed automatically because its linked payment request is no longer collectable. See `cancel_reason`.\n* An **empty string** - either the plan was never cancelled, or it was stopped automatically after a charge was declined, which records no canceller.\n\nBecause an empty value is ambiguous, do not use this field alone to decide whether a plan was cancelled; read `status` (e.g., \"system\")",
+      "description": "The display name of the staff member who cancelled the plan (e.g., \"Dana Levi\"). Empty when the plan was not cancelled by a person — either it is still running, or the system stopped it. Use `cancel_reason` to tell those apart.",
       "readOnly": true
     },
     "canceled_date": {
@@ -133,8 +133,10 @@
     "cancel_reason": {
       "type": "string",
       "nullable": true,
-      "description": "Why the system cancelled the plan. Present only when `canceled_by` is `system`.\n\n* `payment_request_settled` - The linked payment request reached a zero balance through another route, so there is nothing left to collect.\n* `payment_request_cancelled` - The linked payment request was cancelled, waived or deleted.",
+      "description": "Why the plan stopped. Present whenever `status` is `cancelled`, null otherwise.\n\n* `canceled_by_staff` - A staff member cancelled the plan. `canceled_by` holds their name.\n* `charge_failed` - A charge was declined or the gateway failed. The specific reason is on the failed `Payment` record, which carries this plan's uid in `scheduled_payments_rule_uid`.\n* `payment_request_settled` - The linked payment request reached a zero balance through another route, so there is nothing left to collect.\n* `payment_request_cancelled` - The linked payment request was cancelled, waived or deleted.",
       "enum": [
+        "canceled_by_staff",
+        "charge_failed",
         "payment_request_settled",
         "payment_request_cancelled"
       ],
@@ -178,7 +180,7 @@
     "frequency_type": "monthly",
     "start_date": "2026-09-01T09:00:00Z",
     "end_date": "2026-11-01T09:00:00Z",
-    "next_payment_time": "2026-11-01T09:00:00Z",
+    "next_payment_date": "2026-11-01T09:00:00Z",
     "status": "active",
     "matter_uid": "m1m2m3m4m5m6m7m8",
     "staff_uid": "1c3ab579d2d31fbb",
