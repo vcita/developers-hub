@@ -6,6 +6,7 @@
     "version": "3.0",
     "x-generated": {
       "sourceFiles": [
+        "payment_plans.json",
         "legacy_v1_sales.json",
         "payment_gateway.json",
         "legacy_v2_settings_services.json",
@@ -346,9 +347,19 @@
         }
       ],
       "pathConflicts": [],
-      "componentConflicts": [],
-      "totalPaths": 84,
-      "totalComponents": 9
+      "componentConflicts": [
+        {
+          "type": "schema",
+          "name": "ErrorResponse",
+          "resolution": "Renamed to ErrorResponse_client_cards",
+          "files": [
+            "merged",
+            "client_cards.json"
+          ]
+        }
+      ],
+      "totalPaths": 86,
+      "totalComponents": 11
     }
   },
   "servers": [
@@ -358,6 +369,1364 @@
     }
   ],
   "paths": {
+    "/v3/sales/payment_plans": {
+      "get": {
+        "operationId": "listPaymentPlans",
+        "summary": "Get all PaymentPlans",
+        "description": "## Overview\nGet a list of PaymentPlans for the business, newest updated first. Use `payment_request_uid` to find the plan collecting against a specific invoice, and `status` to list only running plans.\n\nAvailable for **Staff Tokens**.",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number of results.",
+            "schema": {
+              "minimum": 1,
+              "maximum": 10000,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "per_page",
+            "required": false,
+            "in": "query",
+            "description": "How many items to return per page. Max: 100",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25,
+              "type": "number"
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "description": "Sort by fields. Example: sort=next_payment_date:asc,created_at:desc",
+            "schema": {
+              "default": "updated_at:desc",
+              "type": "string"
+            }
+          },
+          {
+            "name": "payment_request_uid",
+            "required": false,
+            "in": "query",
+            "description": "Return only plans linked to this payment request. Combine with `status=active` to check whether an invoice already has a running plan.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "a1b2c3d4e5f6g7h8"
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Return only plans in this state. Every plan that stopped early is `cancelled`; read `cancel_reason` for why.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "completed",
+                "cancelled"
+              ]
+            },
+            "example": "active"
+          },
+          {
+            "name": "matter_uid",
+            "required": false,
+            "in": "query",
+            "description": "Return only plans belonging to this matter.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "m1m2m3m4m5m6m7m8"
+          },
+          {
+            "name": "client_uid",
+            "required": false,
+            "in": "query",
+            "description": "Return only plans belonging to matters of this client.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "cl1cl2cl3cl4cl5c"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of PaymentPlans",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/PaymentPlansList"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "Authentication is required to access this resource"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but not permitted to perform this action on this business.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "You are not allowed to perform this action"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed. Errors use the standard envelope, with `field` naming the offending parameter and `code` a machine-readable reason (e.g., `missing_field`, `invalid`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "amount",
+                      "code": "invalid",
+                      "message": "amount must be greater than 0"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Payment Plan"
+        ],
+        "security": [
+          {
+            "PaymentPlans": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createPaymentPlan",
+        "summary": "Create a PaymentPlan",
+        "description": "Create a PaymentPlan that charges the client's saved card on a recurring schedule. Omit `payment_request_uid` for a standalone plan; supply it to collect against an open invoice.\n\n`amount` is validated, not derived. For a linked plan, divide the invoice's open balance by `cycles` and **round up** to two decimals — the final installment is then clamped down to the balance that actually remains, so the invoice lands on exactly zero. A 1,000.00 invoice over 3 cycles takes `amount: 333.34`, collecting 333.34, 333.34 and 333.32.\n\n`cycles` is required for every `frequency_type` except `one_time`, where it is ignored and stored as 1.\n\nAvailable for **Staff Tokens**.",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "A short name for the plan, shown to the staff member and to the client (e.g., \"Kitchen remodel plan\")"
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "A free-text description of the plan (e.g., \"3 monthly installments for invoice #1042\")"
+                  },
+                  "payment_request_uid": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "The payment request this plan collects against.\n\n* **When set** — the plan is **linked**: each installment is charged against that payable's open balance instead of creating a standalone charge, reducing the invoice balance until it is paid.\n* **When null** — the plan is **standalone**: each installment is an independent charge, unconnected to any invoice.\n\nOnly an open invoice's payment request may be linked, and the value is immutable after creation. Treat it as an opaque identifier — the length varies by payable type. Obtain it from `GET /business/payments/v1/payment_requests` (e.g., \"a1b2c3d4e5f6g7h8\")"
+                  },
+                  "amount": {
+                    "type": "number",
+                    "description": "The amount charged per installment, in the plan's currency. Must be greater than 0. For a linked plan this is the per-installment amount the client calculated by dividing the invoice balance across `cycles` and **rounding up** to two decimals; the last installment is then clamped down to the remaining balance, so the amount actually collected on the final cycle may be lower than this value. (e.g., 333.34)"
+                  },
+                  "currency": {
+                    "type": "string",
+                    "description": "Three-letter ISO 4217 currency code. For a linked plan this must equal the currency of the linked payment request (e.g., \"USD\", \"EUR\", \"GBP\")"
+                  },
+                  "cycles": {
+                    "type": "integer",
+                    "description": "The total number of installments the plan will collect. Must be between 1 and 100. Required unless `frequency_type` is `one_time`, in which case it is ignored and stored as 1 (e.g., 3)",
+                    "minimum": 1,
+                    "maximum": 100
+                  },
+                  "frequency_type": {
+                    "type": "string",
+                    "description": "How often the plan collects an installment.\n\n* `one_time` - A single payment on `start_date`.\n* `weekly` - Every week.\n* `bi_weekly` - Every two weeks.\n* `monthly` - Every month.",
+                    "enum": [
+                      "one_time",
+                      "weekly",
+                      "bi_weekly",
+                      "monthly"
+                    ]
+                  },
+                  "start_date": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "When the first installment is collected, in ISO 8601 format (e.g., \"2026-09-01T09:00:00Z\")"
+                  },
+                  "matter_uid": {
+                    "type": "string",
+                    "description": "The unique identifier of the client's matter this plan belongs to. For a linked plan this must be the same matter the payment request sits on (e.g., \"m1m2m3m4m5m6m7m8\")",
+                    "x-reference-to": "clients.matter"
+                  },
+                  "send_receipt": {
+                    "type": "boolean",
+                    "description": "Whether a receipt is emailed to the client after each collected installment. For a linked plan the receipt's subject is the invoice.\n\nRequired when creating a plan, but **not returned in responses** (e.g., true)"
+                  },
+                  "payment_method_type": {
+                    "type": "string",
+                    "description": "The kind of saved payment method charged on every installment. Only a saved card is supported today (e.g., \"card\")",
+                    "enum": [
+                      "card"
+                    ]
+                  },
+                  "payment_method_uid": {
+                    "type": "string",
+                    "description": "The unique identifier of the saved payment method to charge. It must belong to the matter's client and use the same payment provider as the business's payment gateway. For `card`, obtain it from `GET /platform/v1/clients/{client_id}/payment/cards` (e.g., \"c1c2c3c4c5c6c7c8\")",
+                    "maxLength": 16
+                  }
+                },
+                "required": [
+                  "name",
+                  "amount",
+                  "currency",
+                  "frequency_type",
+                  "start_date",
+                  "matter_uid",
+                  "send_receipt",
+                  "payment_method_type",
+                  "payment_method_uid"
+                ]
+              },
+              "example": {
+                "name": "Kitchen remodel plan",
+                "description": "3 monthly installments for invoice #1042",
+                "payment_request_uid": "a1b2c3d4e5f6g7h8",
+                "amount": 333.34,
+                "currency": "USD",
+                "cycles": 3,
+                "frequency_type": "monthly",
+                "start_date": "2026-09-01T09:00:00Z",
+                "matter_uid": "m1m2m3m4m5m6m7m8",
+                "send_receipt": true,
+                "payment_method_type": "card",
+                "payment_method_uid": "c1c2c3c4c5c6c7c8"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The PaymentPlan was created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "description": "A PaymentPlan collects a fixed amount from a client's saved payment method on a recurring schedule. A plan is either **standalone**, where every installment is an independent charge unrelated to any payable, or **linked**, where every installment is collected against an existing payment request (an open invoice) and reduces its balance until it is fully paid. The two are distinguished by `payment_request_uid`.",
+                          "properties": {
+                            "uid": {
+                              "type": "string",
+                              "description": "The unique identifier of the PaymentPlan (e.g., \"7gilictbt12jir3v\")",
+                              "readOnly": true
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "A short name for the plan, shown to the staff member and to the client (e.g., \"Kitchen remodel plan\")"
+                            },
+                            "description": {
+                              "type": "string",
+                              "description": "A free-text description of the plan (e.g., \"3 monthly installments for invoice #1042\")"
+                            },
+                            "payment_request_uid": {
+                              "type": "string",
+                              "nullable": true,
+                              "description": "The payment request this plan collects against.\n\n* **When set** — the plan is **linked**: each installment is charged against that payable's open balance instead of creating a standalone charge, reducing the invoice balance until it is paid.\n* **When null** — the plan is **standalone**: each installment is an independent charge, unconnected to any invoice.\n\nOnly an open invoice's payment request may be linked, and the value is immutable after creation. Treat it as an opaque identifier — the length varies by payable type. Obtain it from `GET /business/payments/v1/payment_requests` (e.g., \"a1b2c3d4e5f6g7h8\")"
+                            },
+                            "amount": {
+                              "type": "number",
+                              "description": "The amount charged per installment, in the plan's currency. Must be greater than 0. For a linked plan this is the per-installment amount the client calculated by dividing the invoice balance across `cycles` and **rounding up** to two decimals; the last installment is then clamped down to the remaining balance, so the amount actually collected on the final cycle may be lower than this value. (e.g., 333.34)"
+                            },
+                            "amount_paid": {
+                              "type": "number",
+                              "description": "The total amount collected by this plan so far, across all completed installments (e.g., 666.68)",
+                              "readOnly": true
+                            },
+                            "currency": {
+                              "type": "string",
+                              "description": "Three-letter ISO 4217 currency code. For a linked plan this must equal the currency of the linked payment request (e.g., \"USD\", \"EUR\", \"GBP\")"
+                            },
+                            "cycles": {
+                              "type": "integer",
+                              "description": "The total number of installments the plan will collect. Must be between 1 and 100. Required unless `frequency_type` is `one_time`, in which case it is ignored and stored as 1 (e.g., 3)",
+                              "minimum": 1,
+                              "maximum": 100
+                            },
+                            "cycles_count": {
+                              "type": "integer",
+                              "description": "The number of installments already collected. When it reaches `cycles`, the plan's `status` becomes `completed` (e.g., 2)",
+                              "readOnly": true
+                            },
+                            "frequency_type": {
+                              "type": "string",
+                              "description": "How often the plan collects an installment.\n\n* `one_time` - A single payment on `start_date`.\n* `weekly` - Every week.\n* `bi_weekly` - Every two weeks.\n* `monthly` - Every month.",
+                              "enum": [
+                                "one_time",
+                                "weekly",
+                                "bi_weekly",
+                                "monthly"
+                              ]
+                            },
+                            "start_date": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "When the first installment is collected, in ISO 8601 format (e.g., \"2026-09-01T09:00:00Z\")"
+                            },
+                            "end_date": {
+                              "type": "string",
+                              "format": "date-time",
+                              "nullable": true,
+                              "description": "When the last installment is scheduled to be collected, derived from `start_date`, `frequency_type` and `cycles` (e.g., \"2026-11-01T09:00:00Z\")",
+                              "readOnly": true
+                            },
+                            "next_payment_date": {
+                              "type": "string",
+                              "format": "date-time",
+                              "nullable": true,
+                              "description": "When the next installment is due to be collected. Carries a full timestamp, not just a calendar date. Null once the plan is `completed` or `cancelled` (e.g., \"2026-10-01T09:00:00Z\")",
+                              "readOnly": true
+                            },
+                            "status": {
+                              "type": "string",
+                              "description": "The current state of the plan.\n\n* `active` - The plan is running and will collect its next installment at `next_payment_date`.\n* `completed` - Every cycle was collected (`cycles_count` reached `cycles`). Set by the system only.\n* `cancelled` - The plan stopped before completing and will collect nothing further. Read `cancel_reason` for why and `canceled_by` for who.\n\nThe only transition a client may request is `active` → `cancelled`.",
+                              "enum": [
+                                "active",
+                                "completed",
+                                "cancelled"
+                              ]
+                            },
+                            "matter_uid": {
+                              "type": "string",
+                              "description": "The unique identifier of the client's matter this plan belongs to. For a linked plan this must be the same matter the payment request sits on (e.g., \"m1m2m3m4m5m6m7m8\")",
+                              "x-reference-to": "clients.matter"
+                            },
+                            "staff_uid": {
+                              "type": "string",
+                              "description": "The unique identifier of the staff member who created the plan (e.g., \"1c3ab579d2d31fbb\")",
+                              "readOnly": true
+                            },
+                            "send_receipt": {
+                              "type": "boolean",
+                              "description": "Whether a receipt is emailed to the client after each collected installment. For a linked plan the receipt's subject is the invoice.\n\nRequired when creating a plan, but **not returned in responses** (e.g., true)",
+                              "writeOnly": true
+                            },
+                            "payment_method_type": {
+                              "type": "string",
+                              "description": "The kind of saved payment method charged on every installment. Only a saved card is supported today (e.g., \"card\")",
+                              "enum": [
+                                "card"
+                              ]
+                            },
+                            "payment_method_uid": {
+                              "type": "string",
+                              "description": "The unique identifier of the saved payment method to charge. It must belong to the matter's client and use the same payment provider as the business's payment gateway. For `card`, obtain it from `GET /platform/v1/clients/{client_id}/payment/cards` (e.g., \"c1c2c3c4c5c6c7c8\")",
+                              "maxLength": 16
+                            },
+                            "canceled_by": {
+                              "type": "string",
+                              "description": "The display name of the staff member who cancelled the plan (e.g., \"Dana Levi\"). Empty when the plan was not cancelled by a person — either it is still running, or the system stopped it. Use `cancel_reason` to tell those apart.",
+                              "readOnly": true
+                            },
+                            "canceled_date": {
+                              "type": "string",
+                              "format": "date-time",
+                              "nullable": true,
+                              "description": "When the plan was cancelled. Null while the plan was never cancelled (e.g., \"2026-10-15T12:04:11Z\")",
+                              "readOnly": true
+                            },
+                            "cancel_reason": {
+                              "type": "string",
+                              "nullable": true,
+                              "description": "Why the plan stopped. Present whenever `status` is `cancelled`, null otherwise.\n\n* `canceled_by_staff` - A staff member cancelled the plan. `canceled_by` holds their name.\n* `charge_failed` - A charge was declined or the gateway failed. The specific reason is on the failed `Payment` record, which carries this plan's uid in `scheduled_payments_rule_uid`.\n* `payment_request_settled` - The linked payment request reached a zero balance through another route, so there is nothing left to collect.\n* `payment_request_cancelled` - The linked payment request was cancelled, waived or deleted.",
+                              "enum": [
+                                "canceled_by_staff",
+                                "charge_failed",
+                                "payment_request_settled",
+                                "payment_request_cancelled"
+                              ],
+                              "readOnly": true
+                            },
+                            "created_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "When the plan was created (e.g., \"2026-08-20T10:15:00Z\")",
+                              "readOnly": true
+                            },
+                            "updated_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "When the plan was last updated (e.g., \"2026-10-01T09:00:12Z\")",
+                              "readOnly": true
+                            }
+                          },
+                          "required": [
+                            "uid",
+                            "name",
+                            "amount",
+                            "currency",
+                            "cycles",
+                            "frequency_type",
+                            "start_date",
+                            "status",
+                            "matter_uid",
+                            "payment_method_type",
+                            "payment_method_uid"
+                          ],
+                          "example": {
+                            "uid": "7gilictbt12jir3v",
+                            "name": "Kitchen remodel plan",
+                            "description": "3 monthly installments for invoice #1042",
+                            "payment_request_uid": "a1b2c3d4e5f6g7h8",
+                            "amount": 333.34,
+                            "amount_paid": 666.68,
+                            "currency": "USD",
+                            "cycles": 3,
+                            "cycles_count": 2,
+                            "frequency_type": "monthly",
+                            "start_date": "2026-09-01T09:00:00Z",
+                            "end_date": "2026-11-01T09:00:00Z",
+                            "next_payment_date": "2026-11-01T09:00:00Z",
+                            "status": "active",
+                            "matter_uid": "m1m2m3m4m5m6m7m8",
+                            "staff_uid": "1c3ab579d2d31fbb",
+                            "payment_method_type": "card",
+                            "payment_method_uid": "c1c2c3c4c5c6c7c8",
+                            "canceled_by": "",
+                            "canceled_date": null,
+                            "cancel_reason": null,
+                            "created_at": "2026-08-20T10:15:00Z",
+                            "updated_at": "2026-10-01T09:00:12Z"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "Authentication is required to access this resource"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but not permitted to perform this action on this business.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "You are not allowed to perform this action"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed. Errors use the standard envelope, with `field` naming the offending parameter and `code` a machine-readable reason (e.g., `missing_field`, `invalid`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "amount",
+                      "code": "invalid",
+                      "message": "amount must be greater than 0"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Payment Plan"
+        ],
+        "security": [
+          {
+            "PaymentPlans": []
+          }
+        ]
+      }
+    },
+    "/v3/sales/payment_plans/{uid}": {
+      "get": {
+        "operationId": "retrievePaymentPlan",
+        "summary": "Retrieve a PaymentPlan",
+        "description": "## Overview\nRetrieve a specific PaymentPlan based on its unique identifier (UID), including `payment_request_uid` and the plan's collection progress.\n\nAvailable for **Staff Tokens**.",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the PaymentPlan",
+            "schema": {
+              "type": "string"
+            },
+            "example": "7gilictbt12jir3v"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested PaymentPlan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "description": "A PaymentPlan collects a fixed amount from a client's saved payment method on a recurring schedule. A plan is either **standalone**, where every installment is an independent charge unrelated to any payable, or **linked**, where every installment is collected against an existing payment request (an open invoice) and reduces its balance until it is fully paid. The two are distinguished by `payment_request_uid`.",
+                          "properties": {
+                            "uid": {
+                              "type": "string",
+                              "description": "The unique identifier of the PaymentPlan (e.g., \"7gilictbt12jir3v\")",
+                              "readOnly": true
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "A short name for the plan, shown to the staff member and to the client (e.g., \"Kitchen remodel plan\")"
+                            },
+                            "description": {
+                              "type": "string",
+                              "description": "A free-text description of the plan (e.g., \"3 monthly installments for invoice #1042\")"
+                            },
+                            "payment_request_uid": {
+                              "type": "string",
+                              "nullable": true,
+                              "description": "The payment request this plan collects against.\n\n* **When set** — the plan is **linked**: each installment is charged against that payable's open balance instead of creating a standalone charge, reducing the invoice balance until it is paid.\n* **When null** — the plan is **standalone**: each installment is an independent charge, unconnected to any invoice.\n\nOnly an open invoice's payment request may be linked, and the value is immutable after creation. Treat it as an opaque identifier — the length varies by payable type. Obtain it from `GET /business/payments/v1/payment_requests` (e.g., \"a1b2c3d4e5f6g7h8\")"
+                            },
+                            "amount": {
+                              "type": "number",
+                              "description": "The amount charged per installment, in the plan's currency. Must be greater than 0. For a linked plan this is the per-installment amount the client calculated by dividing the invoice balance across `cycles` and **rounding up** to two decimals; the last installment is then clamped down to the remaining balance, so the amount actually collected on the final cycle may be lower than this value. (e.g., 333.34)"
+                            },
+                            "amount_paid": {
+                              "type": "number",
+                              "description": "The total amount collected by this plan so far, across all completed installments (e.g., 666.68)",
+                              "readOnly": true
+                            },
+                            "currency": {
+                              "type": "string",
+                              "description": "Three-letter ISO 4217 currency code. For a linked plan this must equal the currency of the linked payment request (e.g., \"USD\", \"EUR\", \"GBP\")"
+                            },
+                            "cycles": {
+                              "type": "integer",
+                              "description": "The total number of installments the plan will collect. Must be between 1 and 100. Required unless `frequency_type` is `one_time`, in which case it is ignored and stored as 1 (e.g., 3)",
+                              "minimum": 1,
+                              "maximum": 100
+                            },
+                            "cycles_count": {
+                              "type": "integer",
+                              "description": "The number of installments already collected. When it reaches `cycles`, the plan's `status` becomes `completed` (e.g., 2)",
+                              "readOnly": true
+                            },
+                            "frequency_type": {
+                              "type": "string",
+                              "description": "How often the plan collects an installment.\n\n* `one_time` - A single payment on `start_date`.\n* `weekly` - Every week.\n* `bi_weekly` - Every two weeks.\n* `monthly` - Every month.",
+                              "enum": [
+                                "one_time",
+                                "weekly",
+                                "bi_weekly",
+                                "monthly"
+                              ]
+                            },
+                            "start_date": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "When the first installment is collected, in ISO 8601 format (e.g., \"2026-09-01T09:00:00Z\")"
+                            },
+                            "end_date": {
+                              "type": "string",
+                              "format": "date-time",
+                              "nullable": true,
+                              "description": "When the last installment is scheduled to be collected, derived from `start_date`, `frequency_type` and `cycles` (e.g., \"2026-11-01T09:00:00Z\")",
+                              "readOnly": true
+                            },
+                            "next_payment_date": {
+                              "type": "string",
+                              "format": "date-time",
+                              "nullable": true,
+                              "description": "When the next installment is due to be collected. Carries a full timestamp, not just a calendar date. Null once the plan is `completed` or `cancelled` (e.g., \"2026-10-01T09:00:00Z\")",
+                              "readOnly": true
+                            },
+                            "status": {
+                              "type": "string",
+                              "description": "The current state of the plan.\n\n* `active` - The plan is running and will collect its next installment at `next_payment_date`.\n* `completed` - Every cycle was collected (`cycles_count` reached `cycles`). Set by the system only.\n* `cancelled` - The plan stopped before completing and will collect nothing further. Read `cancel_reason` for why and `canceled_by` for who.\n\nThe only transition a client may request is `active` → `cancelled`.",
+                              "enum": [
+                                "active",
+                                "completed",
+                                "cancelled"
+                              ]
+                            },
+                            "matter_uid": {
+                              "type": "string",
+                              "description": "The unique identifier of the client's matter this plan belongs to. For a linked plan this must be the same matter the payment request sits on (e.g., \"m1m2m3m4m5m6m7m8\")",
+                              "x-reference-to": "clients.matter"
+                            },
+                            "staff_uid": {
+                              "type": "string",
+                              "description": "The unique identifier of the staff member who created the plan (e.g., \"1c3ab579d2d31fbb\")",
+                              "readOnly": true
+                            },
+                            "send_receipt": {
+                              "type": "boolean",
+                              "description": "Whether a receipt is emailed to the client after each collected installment. For a linked plan the receipt's subject is the invoice.\n\nRequired when creating a plan, but **not returned in responses** (e.g., true)",
+                              "writeOnly": true
+                            },
+                            "payment_method_type": {
+                              "type": "string",
+                              "description": "The kind of saved payment method charged on every installment. Only a saved card is supported today (e.g., \"card\")",
+                              "enum": [
+                                "card"
+                              ]
+                            },
+                            "payment_method_uid": {
+                              "type": "string",
+                              "description": "The unique identifier of the saved payment method to charge. It must belong to the matter's client and use the same payment provider as the business's payment gateway. For `card`, obtain it from `GET /platform/v1/clients/{client_id}/payment/cards` (e.g., \"c1c2c3c4c5c6c7c8\")",
+                              "maxLength": 16
+                            },
+                            "canceled_by": {
+                              "type": "string",
+                              "description": "The display name of the staff member who cancelled the plan (e.g., \"Dana Levi\"). Empty when the plan was not cancelled by a person — either it is still running, or the system stopped it. Use `cancel_reason` to tell those apart.",
+                              "readOnly": true
+                            },
+                            "canceled_date": {
+                              "type": "string",
+                              "format": "date-time",
+                              "nullable": true,
+                              "description": "When the plan was cancelled. Null while the plan was never cancelled (e.g., \"2026-10-15T12:04:11Z\")",
+                              "readOnly": true
+                            },
+                            "cancel_reason": {
+                              "type": "string",
+                              "nullable": true,
+                              "description": "Why the plan stopped. Present whenever `status` is `cancelled`, null otherwise.\n\n* `canceled_by_staff` - A staff member cancelled the plan. `canceled_by` holds their name.\n* `charge_failed` - A charge was declined or the gateway failed. The specific reason is on the failed `Payment` record, which carries this plan's uid in `scheduled_payments_rule_uid`.\n* `payment_request_settled` - The linked payment request reached a zero balance through another route, so there is nothing left to collect.\n* `payment_request_cancelled` - The linked payment request was cancelled, waived or deleted.",
+                              "enum": [
+                                "canceled_by_staff",
+                                "charge_failed",
+                                "payment_request_settled",
+                                "payment_request_cancelled"
+                              ],
+                              "readOnly": true
+                            },
+                            "created_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "When the plan was created (e.g., \"2026-08-20T10:15:00Z\")",
+                              "readOnly": true
+                            },
+                            "updated_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "When the plan was last updated (e.g., \"2026-10-01T09:00:12Z\")",
+                              "readOnly": true
+                            }
+                          },
+                          "required": [
+                            "uid",
+                            "name",
+                            "amount",
+                            "currency",
+                            "cycles",
+                            "frequency_type",
+                            "start_date",
+                            "status",
+                            "matter_uid",
+                            "payment_method_type",
+                            "payment_method_uid"
+                          ],
+                          "example": {
+                            "uid": "7gilictbt12jir3v",
+                            "name": "Kitchen remodel plan",
+                            "description": "3 monthly installments for invoice #1042",
+                            "payment_request_uid": "a1b2c3d4e5f6g7h8",
+                            "amount": 333.34,
+                            "amount_paid": 666.68,
+                            "currency": "USD",
+                            "cycles": 3,
+                            "cycles_count": 2,
+                            "frequency_type": "monthly",
+                            "start_date": "2026-09-01T09:00:00Z",
+                            "end_date": "2026-11-01T09:00:00Z",
+                            "next_payment_date": "2026-11-01T09:00:00Z",
+                            "status": "active",
+                            "matter_uid": "m1m2m3m4m5m6m7m8",
+                            "staff_uid": "1c3ab579d2d31fbb",
+                            "payment_method_type": "card",
+                            "payment_method_uid": "c1c2c3c4c5c6c7c8",
+                            "canceled_by": "",
+                            "canceled_date": null,
+                            "cancel_reason": null,
+                            "created_at": "2026-08-20T10:15:00Z",
+                            "updated_at": "2026-10-01T09:00:12Z"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "Authentication is required to access this resource"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but not permitted to perform this action on this business.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "You are not allowed to perform this action"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No PaymentPlan with this uid exists for the business.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "scheduled_payments_rule_uid",
+                      "code": "missing",
+                      "message": "Not found"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Payment Plan"
+        ],
+        "security": [
+          {
+            "PaymentPlans": []
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "updatePaymentPlan",
+        "summary": "Update a PaymentPlan",
+        "description": "Update a PaymentPlan. Only two fields are accepted:\n\n* `payment_method_uid` (with `payment_method_type`) — charge a different saved payment method from the next installment onwards.\n* `status` — set to `cancelled` to stop the plan. No further installment is collected. Installments already collected are not refunded, and for a linked plan they stay applied to the invoice. `cancelled` is the only status a client may set, and only while the plan is `active`.\n\nAvailable for **Staff Tokens**.",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "Unique identifier of the PaymentPlan",
+            "schema": {
+              "type": "string"
+            },
+            "example": "7gilictbt12jir3v"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "At least one of `payment_method_uid` or `status` must be supplied.",
+                "properties": {
+                  "payment_method_type": {
+                    "type": "string",
+                    "description": "The kind of saved payment method charged on every installment. Only a saved card is supported today (e.g., \"card\")",
+                    "enum": [
+                      "card"
+                    ]
+                  },
+                  "payment_method_uid": {
+                    "type": "string",
+                    "description": "The unique identifier of the saved payment method to charge. It must belong to the matter's client and use the same payment provider as the business's payment gateway. For `card`, obtain it from `GET /platform/v1/clients/{client_id}/payment/cards` (e.g., \"c1c2c3c4c5c6c7c8\")",
+                    "maxLength": 16
+                  },
+                  "status": {
+                    "type": "string",
+                    "description": "Set to `cancelled` to stop the plan. This is the only value a client may set (e.g., \"cancelled\")",
+                    "enum": [
+                      "cancelled"
+                    ]
+                  }
+                },
+                "minProperties": 1
+              },
+              "example": {
+                "status": "cancelled"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated PaymentPlan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "description": "A PaymentPlan collects a fixed amount from a client's saved payment method on a recurring schedule. A plan is either **standalone**, where every installment is an independent charge unrelated to any payable, or **linked**, where every installment is collected against an existing payment request (an open invoice) and reduces its balance until it is fully paid. The two are distinguished by `payment_request_uid`.",
+                          "properties": {
+                            "uid": {
+                              "type": "string",
+                              "description": "The unique identifier of the PaymentPlan (e.g., \"7gilictbt12jir3v\")",
+                              "readOnly": true
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "A short name for the plan, shown to the staff member and to the client (e.g., \"Kitchen remodel plan\")"
+                            },
+                            "description": {
+                              "type": "string",
+                              "description": "A free-text description of the plan (e.g., \"3 monthly installments for invoice #1042\")"
+                            },
+                            "payment_request_uid": {
+                              "type": "string",
+                              "nullable": true,
+                              "description": "The payment request this plan collects against.\n\n* **When set** — the plan is **linked**: each installment is charged against that payable's open balance instead of creating a standalone charge, reducing the invoice balance until it is paid.\n* **When null** — the plan is **standalone**: each installment is an independent charge, unconnected to any invoice.\n\nOnly an open invoice's payment request may be linked, and the value is immutable after creation. Treat it as an opaque identifier — the length varies by payable type. Obtain it from `GET /business/payments/v1/payment_requests` (e.g., \"a1b2c3d4e5f6g7h8\")"
+                            },
+                            "amount": {
+                              "type": "number",
+                              "description": "The amount charged per installment, in the plan's currency. Must be greater than 0. For a linked plan this is the per-installment amount the client calculated by dividing the invoice balance across `cycles` and **rounding up** to two decimals; the last installment is then clamped down to the remaining balance, so the amount actually collected on the final cycle may be lower than this value. (e.g., 333.34)"
+                            },
+                            "amount_paid": {
+                              "type": "number",
+                              "description": "The total amount collected by this plan so far, across all completed installments (e.g., 666.68)",
+                              "readOnly": true
+                            },
+                            "currency": {
+                              "type": "string",
+                              "description": "Three-letter ISO 4217 currency code. For a linked plan this must equal the currency of the linked payment request (e.g., \"USD\", \"EUR\", \"GBP\")"
+                            },
+                            "cycles": {
+                              "type": "integer",
+                              "description": "The total number of installments the plan will collect. Must be between 1 and 100. Required unless `frequency_type` is `one_time`, in which case it is ignored and stored as 1 (e.g., 3)",
+                              "minimum": 1,
+                              "maximum": 100
+                            },
+                            "cycles_count": {
+                              "type": "integer",
+                              "description": "The number of installments already collected. When it reaches `cycles`, the plan's `status` becomes `completed` (e.g., 2)",
+                              "readOnly": true
+                            },
+                            "frequency_type": {
+                              "type": "string",
+                              "description": "How often the plan collects an installment.\n\n* `one_time` - A single payment on `start_date`.\n* `weekly` - Every week.\n* `bi_weekly` - Every two weeks.\n* `monthly` - Every month.",
+                              "enum": [
+                                "one_time",
+                                "weekly",
+                                "bi_weekly",
+                                "monthly"
+                              ]
+                            },
+                            "start_date": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "When the first installment is collected, in ISO 8601 format (e.g., \"2026-09-01T09:00:00Z\")"
+                            },
+                            "end_date": {
+                              "type": "string",
+                              "format": "date-time",
+                              "nullable": true,
+                              "description": "When the last installment is scheduled to be collected, derived from `start_date`, `frequency_type` and `cycles` (e.g., \"2026-11-01T09:00:00Z\")",
+                              "readOnly": true
+                            },
+                            "next_payment_date": {
+                              "type": "string",
+                              "format": "date-time",
+                              "nullable": true,
+                              "description": "When the next installment is due to be collected. Carries a full timestamp, not just a calendar date. Null once the plan is `completed` or `cancelled` (e.g., \"2026-10-01T09:00:00Z\")",
+                              "readOnly": true
+                            },
+                            "status": {
+                              "type": "string",
+                              "description": "The current state of the plan.\n\n* `active` - The plan is running and will collect its next installment at `next_payment_date`.\n* `completed` - Every cycle was collected (`cycles_count` reached `cycles`). Set by the system only.\n* `cancelled` - The plan stopped before completing and will collect nothing further. Read `cancel_reason` for why and `canceled_by` for who.\n\nThe only transition a client may request is `active` → `cancelled`.",
+                              "enum": [
+                                "active",
+                                "completed",
+                                "cancelled"
+                              ]
+                            },
+                            "matter_uid": {
+                              "type": "string",
+                              "description": "The unique identifier of the client's matter this plan belongs to. For a linked plan this must be the same matter the payment request sits on (e.g., \"m1m2m3m4m5m6m7m8\")",
+                              "x-reference-to": "clients.matter"
+                            },
+                            "staff_uid": {
+                              "type": "string",
+                              "description": "The unique identifier of the staff member who created the plan (e.g., \"1c3ab579d2d31fbb\")",
+                              "readOnly": true
+                            },
+                            "send_receipt": {
+                              "type": "boolean",
+                              "description": "Whether a receipt is emailed to the client after each collected installment. For a linked plan the receipt's subject is the invoice.\n\nRequired when creating a plan, but **not returned in responses** (e.g., true)",
+                              "writeOnly": true
+                            },
+                            "payment_method_type": {
+                              "type": "string",
+                              "description": "The kind of saved payment method charged on every installment. Only a saved card is supported today (e.g., \"card\")",
+                              "enum": [
+                                "card"
+                              ]
+                            },
+                            "payment_method_uid": {
+                              "type": "string",
+                              "description": "The unique identifier of the saved payment method to charge. It must belong to the matter's client and use the same payment provider as the business's payment gateway. For `card`, obtain it from `GET /platform/v1/clients/{client_id}/payment/cards` (e.g., \"c1c2c3c4c5c6c7c8\")",
+                              "maxLength": 16
+                            },
+                            "canceled_by": {
+                              "type": "string",
+                              "description": "The display name of the staff member who cancelled the plan (e.g., \"Dana Levi\"). Empty when the plan was not cancelled by a person — either it is still running, or the system stopped it. Use `cancel_reason` to tell those apart.",
+                              "readOnly": true
+                            },
+                            "canceled_date": {
+                              "type": "string",
+                              "format": "date-time",
+                              "nullable": true,
+                              "description": "When the plan was cancelled. Null while the plan was never cancelled (e.g., \"2026-10-15T12:04:11Z\")",
+                              "readOnly": true
+                            },
+                            "cancel_reason": {
+                              "type": "string",
+                              "nullable": true,
+                              "description": "Why the plan stopped. Present whenever `status` is `cancelled`, null otherwise.\n\n* `canceled_by_staff` - A staff member cancelled the plan. `canceled_by` holds their name.\n* `charge_failed` - A charge was declined or the gateway failed. The specific reason is on the failed `Payment` record, which carries this plan's uid in `scheduled_payments_rule_uid`.\n* `payment_request_settled` - The linked payment request reached a zero balance through another route, so there is nothing left to collect.\n* `payment_request_cancelled` - The linked payment request was cancelled, waived or deleted.",
+                              "enum": [
+                                "canceled_by_staff",
+                                "charge_failed",
+                                "payment_request_settled",
+                                "payment_request_cancelled"
+                              ],
+                              "readOnly": true
+                            },
+                            "created_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "When the plan was created (e.g., \"2026-08-20T10:15:00Z\")",
+                              "readOnly": true
+                            },
+                            "updated_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "When the plan was last updated (e.g., \"2026-10-01T09:00:12Z\")",
+                              "readOnly": true
+                            }
+                          },
+                          "required": [
+                            "uid",
+                            "name",
+                            "amount",
+                            "currency",
+                            "cycles",
+                            "frequency_type",
+                            "start_date",
+                            "status",
+                            "matter_uid",
+                            "payment_method_type",
+                            "payment_method_uid"
+                          ],
+                          "example": {
+                            "uid": "7gilictbt12jir3v",
+                            "name": "Kitchen remodel plan",
+                            "description": "3 monthly installments for invoice #1042",
+                            "payment_request_uid": "a1b2c3d4e5f6g7h8",
+                            "amount": 333.34,
+                            "amount_paid": 666.68,
+                            "currency": "USD",
+                            "cycles": 3,
+                            "cycles_count": 2,
+                            "frequency_type": "monthly",
+                            "start_date": "2026-09-01T09:00:00Z",
+                            "end_date": "2026-11-01T09:00:00Z",
+                            "next_payment_date": "2026-11-01T09:00:00Z",
+                            "status": "active",
+                            "matter_uid": "m1m2m3m4m5m6m7m8",
+                            "staff_uid": "1c3ab579d2d31fbb",
+                            "payment_method_type": "card",
+                            "payment_method_uid": "c1c2c3c4c5c6c7c8",
+                            "canceled_by": "",
+                            "canceled_date": null,
+                            "cancel_reason": null,
+                            "created_at": "2026-08-20T10:15:00Z",
+                            "updated_at": "2026-10-01T09:00:12Z"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "Authentication is required to access this resource"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but not permitted to perform this action on this business.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "You are not allowed to perform this action"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No PaymentPlan with this uid exists for the business.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "scheduled_payments_rule_uid",
+                      "code": "missing",
+                      "message": "Not found"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation failed. Errors use the standard envelope, with `field` naming the offending parameter and `code` a machine-readable reason (e.g., `missing_field`, `invalid`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "amount",
+                      "code": "invalid",
+                      "message": "amount must be greater than 0"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Payment Plan"
+        ],
+        "security": [
+          {
+            "PaymentPlans": []
+          }
+        ]
+      }
+    },
     "/platform/v1/leadgen": {
       "post": {
         "parameters": [
@@ -19819,20 +21188,238 @@
     }
   },
   "components": {
-    "securitySchemes": {
-      "Bearer": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT",
-        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
-      },
-      "ClientPaymentCards": {
-        "type": "http",
-        "scheme": "bearer",
-        "description": "Provide a valid bearer token in the Authorization header."
-      }
-    },
     "schemas": {
+      "PaymentPlansList": {
+        "type": "object",
+        "properties": {
+          "payment_plans": {
+            "description": "List of PaymentPlans",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "A PaymentPlan collects a fixed amount from a client's saved payment method on a recurring schedule. A plan is either **standalone**, where every installment is an independent charge unrelated to any payable, or **linked**, where every installment is collected against an existing payment request (an open invoice) and reduces its balance until it is fully paid. The two are distinguished by `payment_request_uid`.",
+              "properties": {
+                "uid": {
+                  "type": "string",
+                  "description": "The unique identifier of the PaymentPlan (e.g., \"7gilictbt12jir3v\")",
+                  "readOnly": true
+                },
+                "name": {
+                  "type": "string",
+                  "description": "A short name for the plan, shown to the staff member and to the client (e.g., \"Kitchen remodel plan\")"
+                },
+                "description": {
+                  "type": "string",
+                  "description": "A free-text description of the plan (e.g., \"3 monthly installments for invoice #1042\")"
+                },
+                "payment_request_uid": {
+                  "type": "string",
+                  "nullable": true,
+                  "description": "The payment request this plan collects against.\n\n* **When set** — the plan is **linked**: each installment is charged against that payable's open balance instead of creating a standalone charge, reducing the invoice balance until it is paid.\n* **When null** — the plan is **standalone**: each installment is an independent charge, unconnected to any invoice.\n\nOnly an open invoice's payment request may be linked, and the value is immutable after creation. Treat it as an opaque identifier — the length varies by payable type. Obtain it from `GET /business/payments/v1/payment_requests` (e.g., \"a1b2c3d4e5f6g7h8\")"
+                },
+                "amount": {
+                  "type": "number",
+                  "description": "The amount charged per installment, in the plan's currency. Must be greater than 0. For a linked plan this is the per-installment amount the client calculated by dividing the invoice balance across `cycles` and **rounding up** to two decimals; the last installment is then clamped down to the remaining balance, so the amount actually collected on the final cycle may be lower than this value. (e.g., 333.34)"
+                },
+                "amount_paid": {
+                  "type": "number",
+                  "description": "The total amount collected by this plan so far, across all completed installments (e.g., 666.68)",
+                  "readOnly": true
+                },
+                "currency": {
+                  "type": "string",
+                  "description": "Three-letter ISO 4217 currency code. For a linked plan this must equal the currency of the linked payment request (e.g., \"USD\", \"EUR\", \"GBP\")"
+                },
+                "cycles": {
+                  "type": "integer",
+                  "description": "The total number of installments the plan will collect. Must be between 1 and 100. Required unless `frequency_type` is `one_time`, in which case it is ignored and stored as 1 (e.g., 3)",
+                  "minimum": 1,
+                  "maximum": 100
+                },
+                "cycles_count": {
+                  "type": "integer",
+                  "description": "The number of installments already collected. When it reaches `cycles`, the plan's `status` becomes `completed` (e.g., 2)",
+                  "readOnly": true
+                },
+                "frequency_type": {
+                  "type": "string",
+                  "description": "How often the plan collects an installment.\n\n* `one_time` - A single payment on `start_date`.\n* `weekly` - Every week.\n* `bi_weekly` - Every two weeks.\n* `monthly` - Every month.",
+                  "enum": [
+                    "one_time",
+                    "weekly",
+                    "bi_weekly",
+                    "monthly"
+                  ]
+                },
+                "start_date": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "When the first installment is collected, in ISO 8601 format (e.g., \"2026-09-01T09:00:00Z\")"
+                },
+                "end_date": {
+                  "type": "string",
+                  "format": "date-time",
+                  "nullable": true,
+                  "description": "When the last installment is scheduled to be collected, derived from `start_date`, `frequency_type` and `cycles` (e.g., \"2026-11-01T09:00:00Z\")",
+                  "readOnly": true
+                },
+                "next_payment_date": {
+                  "type": "string",
+                  "format": "date-time",
+                  "nullable": true,
+                  "description": "When the next installment is due to be collected. Carries a full timestamp, not just a calendar date. Null once the plan is `completed` or `cancelled` (e.g., \"2026-10-01T09:00:00Z\")",
+                  "readOnly": true
+                },
+                "status": {
+                  "type": "string",
+                  "description": "The current state of the plan.\n\n* `active` - The plan is running and will collect its next installment at `next_payment_date`.\n* `completed` - Every cycle was collected (`cycles_count` reached `cycles`). Set by the system only.\n* `cancelled` - The plan stopped before completing and will collect nothing further. Read `cancel_reason` for why and `canceled_by` for who.\n\nThe only transition a client may request is `active` → `cancelled`.",
+                  "enum": [
+                    "active",
+                    "completed",
+                    "cancelled"
+                  ]
+                },
+                "matter_uid": {
+                  "type": "string",
+                  "description": "The unique identifier of the client's matter this plan belongs to. For a linked plan this must be the same matter the payment request sits on (e.g., \"m1m2m3m4m5m6m7m8\")",
+                  "x-reference-to": "clients.matter"
+                },
+                "staff_uid": {
+                  "type": "string",
+                  "description": "The unique identifier of the staff member who created the plan (e.g., \"1c3ab579d2d31fbb\")",
+                  "readOnly": true
+                },
+                "send_receipt": {
+                  "type": "boolean",
+                  "description": "Whether a receipt is emailed to the client after each collected installment. For a linked plan the receipt's subject is the invoice.\n\nRequired when creating a plan, but **not returned in responses** (e.g., true)",
+                  "writeOnly": true
+                },
+                "payment_method_type": {
+                  "type": "string",
+                  "description": "The kind of saved payment method charged on every installment. Only a saved card is supported today (e.g., \"card\")",
+                  "enum": [
+                    "card"
+                  ]
+                },
+                "payment_method_uid": {
+                  "type": "string",
+                  "description": "The unique identifier of the saved payment method to charge. It must belong to the matter's client and use the same payment provider as the business's payment gateway. For `card`, obtain it from `GET /platform/v1/clients/{client_id}/payment/cards` (e.g., \"c1c2c3c4c5c6c7c8\")",
+                  "maxLength": 16
+                },
+                "canceled_by": {
+                  "type": "string",
+                  "description": "The display name of the staff member who cancelled the plan (e.g., \"Dana Levi\"). Empty when the plan was not cancelled by a person — either it is still running, or the system stopped it. Use `cancel_reason` to tell those apart.",
+                  "readOnly": true
+                },
+                "canceled_date": {
+                  "type": "string",
+                  "format": "date-time",
+                  "nullable": true,
+                  "description": "When the plan was cancelled. Null while the plan was never cancelled (e.g., \"2026-10-15T12:04:11Z\")",
+                  "readOnly": true
+                },
+                "cancel_reason": {
+                  "type": "string",
+                  "nullable": true,
+                  "description": "Why the plan stopped. Present whenever `status` is `cancelled`, null otherwise.\n\n* `canceled_by_staff` - A staff member cancelled the plan. `canceled_by` holds their name.\n* `charge_failed` - A charge was declined or the gateway failed. The specific reason is on the failed `Payment` record, which carries this plan's uid in `scheduled_payments_rule_uid`.\n* `payment_request_settled` - The linked payment request reached a zero balance through another route, so there is nothing left to collect.\n* `payment_request_cancelled` - The linked payment request was cancelled, waived or deleted.",
+                  "enum": [
+                    "canceled_by_staff",
+                    "charge_failed",
+                    "payment_request_settled",
+                    "payment_request_cancelled"
+                  ],
+                  "readOnly": true
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "When the plan was created (e.g., \"2026-08-20T10:15:00Z\")",
+                  "readOnly": true
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "When the plan was last updated (e.g., \"2026-10-01T09:00:12Z\")",
+                  "readOnly": true
+                }
+              },
+              "required": [
+                "uid",
+                "name",
+                "amount",
+                "currency",
+                "cycles",
+                "frequency_type",
+                "start_date",
+                "status",
+                "matter_uid",
+                "payment_method_type",
+                "payment_method_uid"
+              ],
+              "example": {
+                "uid": "7gilictbt12jir3v",
+                "name": "Kitchen remodel plan",
+                "description": "3 monthly installments for invoice #1042",
+                "payment_request_uid": "a1b2c3d4e5f6g7h8",
+                "amount": 333.34,
+                "amount_paid": 666.68,
+                "currency": "USD",
+                "cycles": 3,
+                "cycles_count": 2,
+                "frequency_type": "monthly",
+                "start_date": "2026-09-01T09:00:00Z",
+                "end_date": "2026-11-01T09:00:00Z",
+                "next_payment_date": "2026-11-01T09:00:00Z",
+                "status": "active",
+                "matter_uid": "m1m2m3m4m5m6m7m8",
+                "staff_uid": "1c3ab579d2d31fbb",
+                "payment_method_type": "card",
+                "payment_method_uid": "c1c2c3c4c5c6c7c8",
+                "canceled_by": "",
+                "canceled_date": null,
+                "cancel_reason": null,
+                "created_at": "2026-08-20T10:15:00Z",
+                "updated_at": "2026-10-01T09:00:12Z"
+              }
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "The name of the field that caused the error (e.g., \"payment_request_uid\", \"amount\")."
+                },
+                "code": {
+                  "type": "string",
+                  "description": "A machine-readable error code (e.g., \"invalid\", \"missing\", \"missing_field\")."
+                },
+                "message": {
+                  "type": "string",
+                  "description": "A human-readable error message describing the issue."
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "success",
+          "errors"
+        ]
+      },
       "PaymentGatewayList": {
         "type": "object",
         "properties": {
@@ -20341,7 +21928,7 @@
           "usage_permission"
         ]
       },
-      "ErrorResponse": {
+      "ErrorResponse_client_cards": {
         "type": "object",
         "description": "Standard error response format",
         "properties": {
@@ -20642,6 +22229,25 @@
             }
           }
         }
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+      },
+      "ClientPaymentCards": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Provide a valid bearer token in the Authorization header."
+      },
+      "PaymentPlans": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {token}'"
       }
     }
   },
