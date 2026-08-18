@@ -11,7 +11,7 @@ The AIRecommendation entity.
 | business_uid | The unique identifier (UID) of the business that owns this recommendation. Automatically set based on the authenticated token. | string |  |
 | created_at | The timestamp when the recommendation was created, in ISO 8601 format. | string |  |
 | updated_at | The timestamp when the recommendation was last updated, in ISO 8601 format. | string |  |
-| category | Recommendation category set by the producer for interface use: 'needs_attention' (time-sensitive and requires the user's attention) or 'opportunity' (growth-focused value opportunity that does not require immediate action). | string (enum: `needs_attention`, `opportunity`) |  |
+| category | Recommendation category set by the producer for interface use: 'needs_attention' (time-sensitive and requires the user's attention), 'opportunity' (growth-focused value opportunity that does not require immediate action), or 'fyi' (informational only, no action required). | string (enum: `needs_attention`, `opportunity`, `fyi`) |  |
 | priority | Relative ordering priority within the same category: 'high' (higher priority, surfaced first) or 'standard' (default priority). | string (enum: `high`, `standard`) |  |
 | execution_policy | Indicates whether this recommendation is auto-executed by an agent or requires human review: 'auto_execute' (may be executed automatically by the system or an authorized agent) or 'requires_human_approval' (must be reviewed and approved by a human before execution). | string (enum: `auto_execute`, `requires_human_approval`) |  |
 | tags | Optional user-facing tags that label the item's urgency, value, or context (for example: 'Hot lead', 'New', 'High value', 'Urgent', 'At risk', 'Follow up'). | array of strings |  |
@@ -34,7 +34,7 @@ The AIRecommendation entity.
 | Name | Description | Type | Required |
 | --- | --- | --- | --- |
 | context_uid | A unique identifier for the context associated with this recommendation. | string |  |
-| context_type | The type of context (e.g., 'matter','client', 'business'). | string (enum: `matter`, `client`, `business`) |  |
+| context_type | The type of context (e.g., 'matter','client', 'business', 'ai_rec_conversation'). | string (enum: `matter`, `client`, `business`, `ai_rec_conversation`) |  |
 | context_name | The display name of the context object (referenced by 'context_uid') this recommendation is about, according to its 'context_type' - for example, the client's name when 'context_type' is 'client' (e.g., 'John Smith'). | string |  |
 
 ### Target Properties
