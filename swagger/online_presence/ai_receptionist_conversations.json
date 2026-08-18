@@ -79,6 +79,16 @@
             "type": "string",
             "format": "date-time",
             "description": "Optional ISO 8601 UTC timestamp when the server recorded the turn. May be omitted on older Redis session blobs; clients may use it for ordering or display outside the embeddable widget."
+          },
+          "learning_certainty": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5,
+            "description": "Assistant turns only. The AI's internal self-assessment of how well it answered using the business guidance, 1 (guessing / not covered) to 5 (fully answered). Parsed from the internal [LEARNING] block and never shown to the visitor (e.g., 2)."
+          },
+          "learning_question": {
+            "type": "string",
+            "description": "Assistant turns only, and only when learning_certainty is low (1-2). The AI's own question to the business owner about how it should have answered — the seed for a learning opportunity. Never shown to the visitor (e.g., \"How should I answer questions about weekend availability?\")."
           }
         },
         "required": [
@@ -88,7 +98,8 @@
         "example": {
           "role": "assistant",
           "content": "Hi! How can I help you today?",
-          "at": "2026-04-19T12:34:56.789Z"
+          "at": "2026-04-19T12:34:56.789Z",
+          "learning_certainty": 5
         }
       },
       "VoiceConversationMetadata": {
@@ -287,9 +298,32 @@
         "properties": {
           "conversations": {
             "type": "array",
-            "description": "Conversations for the authenticated business on the current page.",
+            "description": "Conversations for the authenticated business on the current page. List rows omit the heavy `transcript` and `voice_metadata` documents to keep the payload small \u2014 fetch a single conversation by uid to get them.",
             "items": {
-              "$ref": "https://vcita.github.io/developers-hub/entities/online_presence/AiReceptionistConversation.json"
+              "allOf": [
+                {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/online_presence/AiReceptionistConversation.json"
+                },
+                {
+                  "type": "object",
+                  "description": "List-only additions and omissions.",
+                  "properties": {
+                    "has_open_learning_opportunities": {
+                      "type": "boolean",
+                      "description": "True when this conversation has at least one AI learning opportunity still awaiting the owner's answer (`source=ai_opportunity`, `status=open`). Computed per list row \u2014 not a stored field, and not returned when fetching a single conversation by uid (e.g., true)."
+                    },
+                    "transcript": {
+                      "description": "Not returned on list responses; fetch a single conversation by uid."
+                    },
+                    "voice_metadata": {
+                      "description": "Not returned on list responses; fetch a single conversation by uid."
+                    }
+                  },
+                  "required": [
+                    "has_open_learning_opportunities"
+                  ]
+                }
+              ]
             }
           },
           "total": {
@@ -520,6 +554,43 @@
                       }
                     }
                   ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "conversations": [
+                      {
+                        "uid": "8d31f5fe-9c6d-4a6a-b0a2-9d10a9f1c01a",
+                        "business_uid": "biz_2f8f7ab1",
+                        "session_id": "4f609f56-cb57-43c5-956c-252f20d67cb0",
+                        "summary": "Visitor asked for plumbing quote and shared contact details.",
+                        "contact_full_name": "John Doe",
+                        "contact_email": null,
+                        "contact_phone": "+15551234567",
+                        "page_url": "https://example.com/services/plumbing",
+                        "started_at": "2026-04-04T12:43:21.000Z",
+                        "ended_at": "2026-04-04T12:49:58.000Z",
+                        "matter_uid": "mtr_991ac2",
+                        "client_uid": "cli_1872baf9",
+                        "message_count": 18,
+                        "lead_intent": "General inquiry",
+                        "lead_information": {
+                          "Name": "John Doe",
+                          "Phone": "+15551234567",
+                          "Reason for inquiry": "Quote for plumbing work"
+                        },
+                        "source_app_uid": "voicecalls",
+                        "channel_uid": "voicecalls:setting_123",
+                        "delivery_kind": "voicecalls",
+                        "voice_call_uid": "vc_7f31d9a4",
+                        "external_uuid": "CON-123",
+                        "created_at": "2026-04-04T12:50:00.000Z",
+                        "updated_at": "2026-04-04T12:50:00.000Z",
+                        "has_open_learning_opportunities": true
+                      }
+                    ],
+                    "total": 1
+                  }
                 }
               }
             }
