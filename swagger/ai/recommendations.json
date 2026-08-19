@@ -238,6 +238,145 @@
       }
     },
     "/v3/ai/ai_recommendations/{uid}": {
+      "get": {
+        "tags": [
+          "AI Recommendations"
+        ],
+        "summary": "Get an AIRecommendation by uid",
+        "operationId": "getAiRecommendation",
+        "description": "## Overview\nRetrieve a single AIRecommendation by uid, scoped to the requesting staff member.\n\nUnlike the list endpoint, this endpoint applies no defaults: the recommendation is returned in any lifecycle state (including 'completed' and 'dismissed') and regardless of its 'producer'.\n\nReturns 404 both when no recommendation with this uid exists and when it belongs to another staff member, so the existence of another staff member's recommendation is never revealed.\n\nAvailable for **Staff tokens**",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "The uid of the AIRecommendation to retrieve (e.g., \"44b026bb-242c-46e1-a9fa-47f7231e3131\").",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested AIRecommendation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/AIRecommendation.json"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "uid": "44b026bb-242c-46e1-a9fa-47f7231e3131",
+                    "producer": "client_agent",
+                    "business_uid": "biz-1234abcd",
+                    "created_at": "2026-02-04T12:00:00Z",
+                    "updated_at": "2026-02-04T12:30:00Z",
+                    "category": "opportunity",
+                    "priority": "standard",
+                    "execution_policy": "requires_human_approval",
+                    "tags": [
+                      "Hot lead"
+                    ],
+                    "due_at": "2026-02-06T09:00:00Z",
+                    "expired_at": null,
+                    "actions": [
+                      {
+                        "uid": "act-456",
+                        "action": "reply",
+                        "display": {
+                          "btn_text": "Generate Reply"
+                        },
+                        "payload": {
+                          "suggested_reply": "Hi Elizabeth, Friday 6:00PM works for me."
+                        },
+                        "reason": "The client asked to confirm a time",
+                        "evidence": [
+                          "Client asked for Friday 6:00PM"
+                        ],
+                        "confidence": 0.85
+                      }
+                    ],
+                    "display": {
+                      "title": "Elizabeth's carpet cleaning request for Friday 6:00PM includes all the details you need."
+                    },
+                    "context": {
+                      "context_uid": "matter-456",
+                      "context_type": "matter",
+                      "context_name": "Elizabeth Blake"
+                    },
+                    "target": {
+                      "target_actor_uid": "staff-789",
+                      "target_actor_type": "staff"
+                    },
+                    "status": {
+                      "state": "completed",
+                      "state_source_type": "user",
+                      "dismissed": false,
+                      "dismissed_source_type": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - the token is missing or invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Unauthorized"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No AIRecommendation with this uid is accessible to the requesting staff member - it does not exist, or it belongs to another staff member",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "AIRecommendation not found"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
       "put": {
         "tags": [
           "AI Recommendations"
@@ -570,6 +709,38 @@
         },
         "required": [
           "action"
+        ]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "The name of the field that caused the error (e.g., \"uid\", \"status\")."
+                },
+                "code": {
+                  "type": "string",
+                  "description": "A machine-readable error code (e.g., \"invalid\", \"required\", \"not_found\")."
+                },
+                "message": {
+                  "type": "string",
+                  "description": "A human-readable error message describing the issue."
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "success",
+          "errors"
         ]
       }
     },
