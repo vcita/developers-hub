@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "Assets - Files",
-    "description": "API endpoints for managing file uploads, storage, and retrieval. Supports asynchronous file processing including virus scanning, storage, thumbnail generation, and content deduplication. Files can be linked to various business entities such as invoices, messages, and appointments.",
+    "description": "API endpoints for managing file uploads, storage, and retrieval. Supports asynchronous file processing including virus scanning, storage, thumbnail generation, and content deduplication. Files can be linked to various business entities such as invoices, messages, and meetings.\n\nA background cleanup job periodically removes files that never complete processing (stuck more than 2 hours before reaching a terminal status) and files that finished uploading but were never linked to any entity within 5 hours. Link a file promptly after upload to avoid it being purged.",
     "version": "3.0"
   },
   "servers": [
@@ -88,7 +88,7 @@
         "properties": {
           "file_uid": {
             "type": "string",
-            "description": "Unique identifier of the file to link (e.g., \"file_123abc\"). Must reference an existing file in a usable state ('scanned', 'uploaded', or 'linked')."
+            "description": "Unique identifier of the file to link (e.g., \"file_123abc\"). Must reference an existing file that is not infected, failed, or deleted; linking is allowed while the file is still processing ('pending', 'scanning') as well as once ready ('scanned', 'uploaded', 'linked')."
           },
           "entity_type": {
             "type": "string",
@@ -96,7 +96,7 @@
               "message",
               "invoice",
               "payment",
-              "appointment",
+              "meeting",
               "estimate"
             ],
             "description": "Type of entity the file is linked to (e.g., \"message\", \"invoice\")."
@@ -107,7 +107,7 @@
           },
           "client_uid": {
             "type": "string",
-            "description": "Optional client UID to associate with the relation (e.g., \"client_789abc\"). Ignored for Client tokens, where it is derived from the token."
+            "description": "Client UID to associate with the relation (e.g., \"client_789abc\"). Required for **Staff tokens** (omitting it returns a 400 CLIENT_UID_REQUIRED); ignored for **Client tokens**, where it is derived from the token instead."
           }
         },
         "required": ["file_uid", "entity_type", "entity_uid"]
@@ -124,16 +124,6 @@
           }
         },
         "required": ["file_relations"]
-      },
-      "DeleteFileRelationsResponse": {
-        "type": "object",
-        "properties": {
-          "deleted_count": {
-            "type": "integer",
-            "description": "Number of file relations that were soft deleted (e.g., 3)."
-          }
-        },
-        "required": ["deleted_count"]
       },
       "ErrorResponse": {
         "type": "object",
@@ -549,7 +539,7 @@
       "post": {
         "operationId": "FileRelationsController_create",
         "summary": "Create a file relation",
-        "description": "Links an existing file to a business entity (e.g., an invoice, message, or appointment). The referenced file must already exist and be in a usable state ('scanned', 'uploaded', or 'linked'). Once a file has at least one active relation its status becomes 'linked', protecting it from cleanup.\n\nFor **Client tokens**, the client_uid is derived from the token and any value supplied in the body is ignored. For **Staff tokens**, client_uid may be provided to associate the relation with a specific client.\n\nAvailable for **Staff and Client tokens**.",
+        "description": "Links an existing file to a business entity (e.g., an invoice, message, or meeting). The referenced file must already exist and must not be infected, failed, or deleted; linking is allowed while the file is still processing ('pending', 'scanning') as well as once ready ('scanned', 'uploaded', 'linked'). If the file is later found infected or fails processing, any relation created for it is retracted. Once a file has at least one active relation its status becomes 'linked', protecting it from cleanup.\n\nThe caller must have access to the related entity: a Staff token is checked directly against the entity. A Client token is checked by querying the client's own activity on that entity — the entity must appear in the client's activity feed (matched by message text for entity_type='message', or by activity type for every other entity type). Any error or timeout from that check is treated as no access (fails closed).\n\nFor **Client tokens**, the client_uid is derived from the token and any value supplied in the body is ignored. For **Staff tokens**, client_uid may be provided to associate the relation with a specific client; omitting it returns a 400.\n\nAvailable for **Staff and Client tokens**.",
         "tags": ["File Relations"],
         "security": [
           {
@@ -589,7 +579,7 @@
             }
           },
           "400": {
-            "description": "Bad request - File is not ready or is in an unusable state",
+            "description": "Bad request - either the file is infected, failed, or deleted (cannot be linked), or client_uid was omitted on a Staff-token request",
             "content": {
               "application/json": {
                 "schema": {
@@ -600,6 +590,16 @@
           },
           "401": {
             "description": "Unauthorized - Invalid or missing authentication token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - No access to the related entity",
             "content": {
               "application/json": {
                 "schema": {
@@ -643,7 +643,7 @@
       "get": {
         "operationId": "FileRelationsController_findByEntity",
         "summary": "Get file relations by entity",
-        "description": "Retrieves the file relations for a given entity, each including the linked file's details. Results are paginated.\n\nStaff access is scoped to the linked entity: a staff sees relations for any entity they can access, regardless of who uploaded the file. Client access is scoped to the client's own relations.\n\nAvailable for **Staff and Client tokens**.",
+        "description": "Retrieves the file relations for a given entity, each including the linked file's details. Results are paginated.\n\nStaff access is scoped to the linked entity: a staff sees relations for any entity they can access, regardless of who uploaded the file. Client access is scoped to the client's own relations. In both cases, no access to the entity is not an error — it returns an empty list (`total: 0`), indistinguishable from the entity genuinely having no relations.\n\nAvailable for **Staff and Client tokens**.",
         "tags": ["File Relations"],
         "security": [
           {
@@ -655,14 +655,14 @@
             "name": "entity_type",
             "in": "query",
             "required": true,
-            "description": "Type of entity to fetch relations for (e.g., \"invoice\", \"message\", \"appointment\").",
+            "description": "Type of entity to fetch relations for (e.g., \"invoice\", \"message\", \"meeting\").",
             "schema": {
               "type": "string",
               "enum": [
                 "message",
                 "invoice",
                 "payment",
-                "appointment",
+                "meeting",
                 "estimate"
               ]
             }
@@ -730,23 +730,15 @@
                 }
               }
             }
-          },
-          "403": {
-            "description": "Forbidden - Insufficient permissions to access relations for this entity",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
           }
         }
-      },
+      }
+    },
+    "/v3/assets/file_relations/{uid}": {
       "delete": {
-        "operationId": "FileRelationsController_deleteByEntity",
-        "summary": "Delete all entity files",
-        "description": "Soft deletes every file relation for the given entity and returns the number of relations deleted. Files left with no remaining active relations may become eligible for cleanup.\n\nAvailable for **Staff and Client tokens**.",
+        "operationId": "FileRelationsController_deleteRelation",
+        "summary": "Delete a file relation",
+        "description": "Soft deletes a single file relation by its unique identifier. If it was the file's last active relation, the file may become eligible for cleanup.\n\nA Staff token must have access to the related entity (same check as create). A Client token may only delete a relation for a file it created itself.\n\nAvailable for **Staff and Client tokens**.",
         "tags": ["File Relations"],
         "security": [
           {
@@ -755,52 +747,18 @@
         ],
         "parameters": [
           {
-            "name": "entity_type",
-            "in": "query",
+            "name": "uid",
+            "in": "path",
             "required": true,
-            "description": "Type of entity whose relations should be deleted (e.g., \"invoice\", \"message\", \"appointment\").",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "message",
-                "invoice",
-                "payment",
-                "appointment",
-                "estimate"
-              ]
-            }
-          },
-          {
-            "name": "entity_uid",
-            "in": "query",
-            "required": true,
-            "description": "Unique identifier of the entity whose relations should be deleted (e.g., \"inv_123abc\").",
+            "description": "Unique identifier of the file relation to delete (e.g., \"rel_abc123def456\").",
             "schema": {
               "type": "string"
             }
           }
         ],
         "responses": {
-          "200": {
-            "description": "Relations deleted successfully (soft delete). Returns the number of relations removed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "$ref": "#/components/schemas/Response"
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/DeleteFileRelationsResponse"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
+          "204": {
+            "description": "Relation deleted successfully (soft delete). No response body."
           },
           "401": {
             "description": "Unauthorized - Invalid or missing authentication token",
@@ -813,7 +771,17 @@
             }
           },
           "403": {
-            "description": "Forbidden - Insufficient permissions to delete relations for this entity",
+            "description": "Forbidden - No access to the related entity (Staff tokens), or the relation's file was not created by this client (Client tokens)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - File relation does not exist",
             "content": {
               "application/json": {
                 "schema": {
