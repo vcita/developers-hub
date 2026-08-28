@@ -49,7 +49,6 @@ detailed_reports
 disable_messages_notifications
 documents_enabled
 documents quota logic
-eligible_for_work_order
 enable_client_status_customization
 enable_forms_customization
 enable_reviews_auto_publishing
@@ -98,6 +97,8 @@ pkg.crm.limit_bulk_actions
 pkg.documents.promote
 pkg.marketing.promote
 pkg.payments.promote
+pkg.payments.work_order
+pkg.payments.work_order.promote
 pkg.sch.resources
 pro_campaigns
 purchase_sms_credits
