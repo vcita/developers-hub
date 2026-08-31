@@ -6,6 +6,301 @@
     "version": "v2.0"
   },
   "paths": {
+    "/v1/appointments": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "## Overview\nCreate one or more appointments on the business calendar. Available for **Staff tokens**.\n\nEach element of `appointments` is a complete appointment definition, so several appointments — including the occurrences of a recurring series — can be created in a single request. The created appointments are returned under `data.appointments`, in the order they were sent.\n\nAppointments are booked for an existing client: look up the client, service and staff member first, then send their uids in `client_id`, `service_id` and `staff_id`.",
+        "parameters": [
+          {
+            "in": "body",
+            "name": "body",
+            "schema": {
+              "properties": {
+                "appointments": {
+                  "description": "The appointments to create. Send one element per appointment; at least one is required.",
+                  "items": {
+                    "properties": {
+                      "additional_staffs": {
+                        "description": "Uids of further staff members to attach to the appointment, in addition to `staff_id`.",
+                        "type": "string",
+                        "x-reference-to": "staff"
+                      },
+                      "agenda": {
+                        "description": "Free-text agenda or notes for the appointment.",
+                        "type": "string"
+                      },
+                      "approval_mode": {
+                        "description": "Whether the appointment needs staff approval before it is confirmed. Omit to use the approval setting configured on the service.",
+                        "type": "string"
+                      },
+                      "auto_follow_up_hours": {
+                        "description": "How many hours after the appointment ends to send an automatic follow-up message. Omit to send none.",
+                        "type": "number"
+                      },
+                      "auto_redeem": {
+                        "description": "Set to `true` to redeem one session from the client's matching package instead of charging for the appointment.",
+                        "type": "boolean"
+                      },
+                      "charge_type": {
+                        "description": "How the appointment is priced. `no_price` creates a free appointment, `fixed` charges the price configured on the service, and `custom` charges the amount sent in `price`.",
+                        "enum": [
+                          "no_price",
+                          "fixed",
+                          "custom"
+                        ],
+                        "type": "string"
+                      },
+                      "client_id": {
+                        "description": "Uid of the client the appointment is booked for. Always required — this endpoint books for an existing client and does not create one.",
+                        "type": "string",
+                        "x-reference-to": "client"
+                      },
+                      "currency": {
+                        "description": "ISO 4217 currency code for `price`, for example `USD` or `ILS`. Send it whenever `price` is set.",
+                        "type": "string"
+                      },
+                      "end_time": {
+                        "description": "When the appointment ends. Always required. Interpreted in the business time zone exactly like `start_time`. Unless a different length was requested, set it to `start_time` plus the duration configured on the service.",
+                        "type": "string"
+                      },
+                      "future_bookings_limit": {
+                        "description": "How far ahead this appointment may be booked. Send `0` for no limit.",
+                        "type": "integer"
+                      },
+                      "interaction_details": {
+                        "description": "Contact details or location for the meeting. What to send depends on `interaction_type`:\n\n- `client_phone` — the client's phone number\n- `business_phone` — the business phone number\n- `client_location` — the client's address\n- `business_location`, `default_business_location` — the business address\n- `online`, `zoom`, `video_room`, `conference_bridge`, `skype` — send an empty string; the meeting link is generated for you\n\nRequired whenever the interaction type needs a value. If the value is missing from the client record, ask the caller for it rather than guessing.",
+                        "type": "string"
+                      },
+                      "interaction_type": {
+                        "description": "How the meeting takes place. Copy the value from the service's own `interaction_type` rather than picking one; ask the caller only when the service does not define one. This value determines what `interaction_details` must contain.",
+                        "enum": [
+                          "zoom",
+                          "video_room",
+                          "skype",
+                          "business_phone",
+                          "conference_bridge",
+                          "business_location",
+                          "default_business_location",
+                          "online",
+                          "client_location",
+                          "client_phone"
+                        ],
+                        "type": "string"
+                      },
+                      "is_recurring": {
+                        "description": "Set to `true` when the appointment is one occurrence of a recurring series.",
+                        "type": "boolean"
+                      },
+                      "matter_uid": {
+                        "description": "Uid of the matter (conversation) the appointment belongs to. Send it to file the appointment under an existing conversation with the client.",
+                        "type": "string",
+                        "x-reference-to": "matter"
+                      },
+                      "meeting_reminder_sms_1": {
+                        "description": "Set to `true` to send the first reminder by SMS.",
+                        "type": "boolean"
+                      },
+                      "meeting_reminder_sms_2": {
+                        "description": "Set to `true` to send the second reminder by SMS.",
+                        "type": "boolean"
+                      },
+                      "min_hours_before_meeting": {
+                        "description": "How many hours before the start time the client may still reschedule or cancel. Omit to use the setting configured on the service.",
+                        "type": "integer"
+                      },
+                      "mobile": {
+                        "description": "Set to `true` when the appointment is being created from a mobile client.",
+                        "type": "boolean"
+                      },
+                      "padding": {
+                        "description": "Buffer time in minutes to block after the appointment ends, keeping the slot free for travel or clean-up.",
+                        "type": "integer"
+                      },
+                      "price": {
+                        "description": "The amount to charge for the appointment. Send it together with a `charge_type` of `custom`. Leave it null when `charge_type` is `no_price`.",
+                        "type": "number"
+                      },
+                      "remind_before_in_hours_1": {
+                        "description": "How many hours before the start time to send the first reminder.",
+                        "type": "number"
+                      },
+                      "remind_before_in_hours_2": {
+                        "description": "How many hours before the start time to send the second reminder. Send `0` to disable it.",
+                        "type": "number"
+                      },
+                      "require_confirmation": {
+                        "description": "Set to `true` to ask the client to confirm the appointment before it is treated as booked.",
+                        "type": "boolean"
+                      },
+                      "resource_uids": {
+                        "description": "Uids of the resources — rooms, equipment and the like — to reserve for the appointment.",
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array",
+                        "x-reference-to": "resource"
+                      },
+                      "service_id": {
+                        "description": "Uid of the service being booked. Always required. The service supplies the defaults for `end_time`, `charge_type` and `interaction_type`, so read it first when deriving those.",
+                        "type": "string",
+                        "x-reference-to": "service"
+                      },
+                      "set_arrival_window_as_default": {
+                        "description": "Set to `true` to save this appointment's arrival window as the default for the service, so future bookings reuse it.",
+                        "type": "boolean"
+                      },
+                      "sms_booking_confirmation": {
+                        "description": "Set to `true` to send the client an SMS confirmation as soon as the appointment is created.",
+                        "type": "boolean"
+                      },
+                      "source_type": {
+                        "description": "Who initiated the appointment. Use `initiated_by_staff` when a staff member books on the client’s behalf, and `initiated_by_client` when the client booked it themselves.",
+                        "enum": [
+                          "initiated_by_staff",
+                          "initiated_by_client"
+                        ],
+                        "type": "string"
+                      },
+                      "staff_id": {
+                        "description": "Uid of the staff member who will provide the service. Always required. The staff member must already offer `service_id`, otherwise the request is rejected with \"The provided staff member doesn't offer the provided service\".",
+                        "type": "string",
+                        "x-reference-to": "staff"
+                      },
+                      "start_time": {
+                        "description": "When the appointment starts. Always required. The value is interpreted in the **business time zone even when it carries a `Z` suffix** — `2026-04-01T13:00:00.000Z` books 1pm business-local, not 1pm UTC. Send the wall-clock time you want and do not convert it to UTC first.",
+                        "type": "string"
+                      },
+                      "tax_uids": {
+                        "description": "Uids of the taxes to apply to the appointment price. Only relevant when the appointment is charged.",
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array",
+                        "x-reference-to": "tax"
+                      },
+                      "title": {
+                        "description": "Title shown on the calendar entry. Always required. Use the service name unless a more specific title was requested.",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "client_id",
+                      "service_id",
+                      "staff_id",
+                      "start_time",
+                      "end_time",
+                      "title"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "new_api": {
+                  "default": true,
+                  "description": "Selects the current request format for this endpoint. Always send `true`.",
+                  "type": "boolean"
+                },
+                "unified_payment_link": {
+                  "description": "Set to `true` to generate a single payment link covering every appointment created by this request, instead of a separate link per appointment.",
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "appointments",
+                "new_api"
+              ],
+              "type": "object"
+            }
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Appointments Created",
+            "examples": {
+              "application/json": {
+                "data": {
+                  "appointments": [
+                    {
+                      "approval_mode": null,
+                      "business_uid": "104a5664c3663a8d",
+                      "category_name": null,
+                      "charge_type": "no_price",
+                      "client_first_name": "Deeanna",
+                      "client_id": "bnv869hpj1kl5v35",
+                      "client_last_name": "Rice",
+                      "conversation_id": "uqleye8ammpbuvxl",
+                      "created_at": "2026-04-01T09:12:04.020Z",
+                      "currency": "ILS",
+                      "duration": 30,
+                      "end_time": "2026-04-02T14:30:00.000Z",
+                      "id": "e7j16p8hrgacto4g",
+                      "interaction_details": "0543033109",
+                      "interaction_type": "client_phone",
+                      "is_recurring": false,
+                      "no_show": false,
+                      "notes": null,
+                      "payment_id": null,
+                      "payment_status": null,
+                      "price": "0.0",
+                      "series_id": null,
+                      "service_id": "h5ak3dj8782zf4g9",
+                      "staff_display_name": "Britt Bogan",
+                      "staff_id": "gzk1di5ocdkdjv0j",
+                      "start_time": "2026-04-02T14:00:00.000Z",
+                      "state": "scheduled",
+                      "title": "Introductory phone call",
+                      "type": "appointment",
+                      "updated_at": "2026-04-01T09:12:04.020Z"
+                    }
+                  ]
+                },
+                "status": "OK"
+              }
+            }
+          },
+          "422": {
+            "description": "Appointment Creation Failure - validation error such as an unavailable time slot, a staff member who does not offer the service, or a missing required field",
+            "examples": {
+              "application/json": {
+                "error": "The requested time slot is not available",
+                "error_code": "TIMESLOT_UNAVAILABLE",
+                "status": "Error"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "default": [
+              "business/scheduling"
+            ]
+          }
+        ],
+        "summary": "Create Appointments [Business]",
+        "tags": [
+          "Appointments"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///business/scheduling/v1/appointments"
+        },
+        "x-auth-type": "Application & Application User"
+      }
+    },
     "/v1/bookings": {
       "post": {
         "consumes": [
