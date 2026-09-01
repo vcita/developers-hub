@@ -1,0 +1,1112 @@
+{
+  "swagger": "2.0",
+  "host": "api2.myclients.io",
+  "basePath": "/api/operator_api/v1",
+  "info": {
+    "title": "Operator Portal API (legacy)",
+    "version": "v1.0",
+    "description": "Internal, legacy API served by Core (`Api::OperatorApi::V1::*`) and consumed by the Operator Portal / Package Manager front-ends.\n\n**Not a partner-facing API.** All endpoints require an Operator JWT and are authorized against operator abilities (`manage`/`read` on the `package` resource).\n\nThis document covers the **packages** and **feature flags** sections of the API.\n\n### Response envelope\nEvery endpoint returns `{ \"status\": \"OK\" | \"ERROR\" | \"Warning\", ... }`. Success payloads carry `data`; failures carry `message`. Note that business-logic failures are returned as HTTP `400` with `status: \"ERROR\"` — the HTTP status alone is not sufficient, clients must inspect `status`.\n\n### Authentication\nSend the Operator JWT in the `Authorization` header, with or without the `Bearer ` prefix. When the token is close to expiry the response carries a refreshed token in the `X-REFRESH-TOKEN` header.",
+    "x-repository": "vcita/core",
+    "x-consumers": [
+      "vcita/operator-portal",
+      "vcita/package_manager"
+    ]
+  },
+  "schemes": [
+    "https"
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "securityDefinitions": {
+    "OperatorToken": {
+      "type": "apiKey",
+      "name": "Authorization",
+      "in": "header",
+      "description": "Operator JWT. Example: `Authorization: Bearer {operator_token}`"
+    }
+  },
+  "security": [
+    {
+      "OperatorToken": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Packages",
+      "description": "Package (plan) catalog management"
+    },
+    {
+      "name": "Feature Flags",
+      "description": "Feature flag catalog management"
+    }
+  ],
+  "paths": {
+    "/packages": {
+      "get": {
+        "tags": [
+          "Packages"
+        ],
+        "summary": "List packages",
+        "description": "Returns all packages in a **slim** representation — quotas, settings and features are **not** included (use `GET /packages/{id}` for those).\n\nRequires the operator `read` ability on `package`.",
+        "parameters": [
+          {
+            "name": "is_template",
+            "in": "query",
+            "type": "boolean",
+            "required": false,
+            "description": "Filter by template flag. `true` returns only template packages, `false` only non-template packages, omitted returns all."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Packages retrieved",
+            "schema": {
+              "$ref": "#/definitions/PackageListResponse"
+            },
+            "examples": {
+              "application/json": {
+                "status": "OK",
+                "data": [
+                  {
+                    "id": 42,
+                    "name": "essentials",
+                    "display_name": "Essentials",
+                    "free": false,
+                    "deprecated": false,
+                    "is_template": false,
+                    "created_at": "2024-01-14T09:12:33Z",
+                    "updated_at": "2026-02-02T11:40:05Z"
+                  },
+                  {
+                    "id": 77,
+                    "name": "tier_medium_template",
+                    "display_name": "Tier Medium (template)",
+                    "free": false,
+                    "deprecated": false,
+                    "is_template": true,
+                    "created_at": "2026-05-03T08:00:00Z",
+                    "updated_at": "2026-05-03T08:00:00Z"
+                  }
+                ]
+              }
+            }
+          },
+          "400": {
+            "description": "Business-logic error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid operator token"
+          },
+          "403": {
+            "description": "Operator lacks the required package ability",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Packages"
+        ],
+        "summary": "Create a package",
+        "description": "Creates a package. Requires the operator `manage` ability on `package`.\n\n`name` must be unique (case-insensitive) and may not contain special characters. Quotas can only be set on create — `PUT /packages/{id}` rejects a `quotas` payload.",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PackageCreateRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Package created — returns the full ActiveRecord representation of the new package",
+            "schema": {
+              "$ref": "#/definitions/PackageResponse"
+            },
+            "examples": {
+              "application/json": {
+                "status": "OK",
+                "data": {
+                  "id": 78,
+                  "uid": "a1b2c3d4e5f6g7h8",
+                  "name": "tier_high_template",
+                  "display_name": "Tier High (template)",
+                  "description": null,
+                  "staff_slots": 5,
+                  "free": false,
+                  "deprecated": false,
+                  "is_template": true,
+                  "rank": 1,
+                  "quotas": {
+                    "invoice_monthly_quota": 100,
+                    "storage_quota": 1024
+                  },
+                  "settings": {
+                    "disable_add_staff_button": false
+                  },
+                  "created_at": "2026-08-31T10:00:00Z",
+                  "updated_at": "2026-08-31T10:00:00Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or business-logic error (duplicate name, invalid quota, non-boolean `is_template`, …)",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            },
+            "examples": {
+              "application/json": {
+                "status": "ERROR",
+                "message": "Package with the name essentials already exists"
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid operator token"
+          },
+          "403": {
+            "description": "Operator lacks the `manage` package ability",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "/packages/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Package numeric id"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Packages"
+        ],
+        "summary": "Get a package",
+        "description": "Returns the **full** representation of a single package, including `quotas`, `settings` and the attached packageable features.\n\nNote: the payload is an **array** with a single element (the endpoint reuses the list implementation). An unknown id returns `status: \"OK\"` with an empty array.",
+        "responses": {
+          "200": {
+            "description": "Package retrieved",
+            "schema": {
+              "$ref": "#/definitions/PackageDetailsResponse"
+            },
+            "examples": {
+              "application/json": {
+                "status": "OK",
+                "data": [
+                  {
+                    "id": 42,
+                    "name": "essentials",
+                    "display_name": "Essentials",
+                    "staff_slots": 3,
+                    "quotas": {
+                      "invoice_monthly_quota": 100,
+                      "estimate_monthly_quota": 100,
+                      "storage_quota": 1024,
+                      "campaign_recipients_monthly_quota": 500,
+                      "clients_credit": 0,
+                      "campaigns_credit": 0,
+                      "booking_credit": 0,
+                      "sms_monthly_quota": {
+                        "us_canada": 50,
+                        "other": 10
+                      }
+                    },
+                    "settings": {
+                      "disable_add_staff_button": false,
+                      "disable_staff_slots": false,
+                      "disable_sms_purchase_button": false
+                    },
+                    "free": false,
+                    "deprecated": false,
+                    "is_template": false,
+                    "created_at": "2024-01-14T09:12:33Z",
+                    "updated_at": "2026-02-02T11:40:05Z",
+                    "features": [
+                      {
+                        "id": 12,
+                        "name": "invoices",
+                        "description": "Invoicing module"
+                      },
+                      {
+                        "id": 31,
+                        "name": "campaigns",
+                        "description": "Email campaigns"
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "400": {
+            "description": "Business-logic error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid operator token"
+          },
+          "403": {
+            "description": "Operator lacks the required package ability",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Packages"
+        ],
+        "summary": "Update a package",
+        "description": "Updates package attributes, settings and feature attachments. Requires the operator `manage` ability on `package`.\n\nSending `quotas` is rejected with `400` (`\"Can't update package quotas\"`). Every successful update is written to the audit log with the before/after values.",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/PackageUpdateRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Package updated (no payload)",
+            "schema": {
+              "$ref": "#/definitions/StatusOnlyResponse"
+            },
+            "examples": {
+              "application/json": {
+                "status": "OK"
+              }
+            }
+          },
+          "400": {
+            "description": "Validation or business-logic error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            },
+            "examples": {
+              "application/json": {
+                "status": "ERROR",
+                "message": "is_template must be boolean"
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid operator token"
+          },
+          "403": {
+            "description": "Operator lacks the `manage` package ability",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Packages"
+        ],
+        "summary": "Delete a package",
+        "description": "Permanently deletes a package. Requires the operator `manage` ability on `package`.",
+        "responses": {
+          "200": {
+            "description": "Package deleted",
+            "schema": {
+              "$ref": "#/definitions/StatusOnlyResponse"
+            },
+            "examples": {
+              "application/json": {
+                "status": "OK"
+              }
+            }
+          },
+          "400": {
+            "description": "Package not found or deletion failed",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid operator token"
+          },
+          "403": {
+            "description": "Operator lacks the `manage` package ability",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "/packages/add_feature": {
+      "post": {
+        "tags": [
+          "Packages"
+        ],
+        "summary": "Add one feature flag to several packages",
+        "description": "Attaches a single packageable feature flag to a list of packages, in one transaction. Packages that already have the feature are skipped. Fails if the feature is not `packageable`.",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "packages_ids",
+                "feature_name"
+              ],
+              "properties": {
+                "packages_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  },
+                  "description": "Package ids to attach the feature to"
+                },
+                "feature_name": {
+                  "type": "string",
+                  "description": "Feature flag name"
+                }
+              },
+              "example": {
+                "packages_ids": [
+                  42,
+                  77
+                ],
+                "feature_name": "invoices"
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Feature attached",
+            "schema": {
+              "$ref": "#/definitions/StatusOnlyResponse"
+            },
+            "examples": {
+              "application/json": {
+                "status": "OK"
+              }
+            }
+          },
+          "400": {
+            "description": "Feature is not packageable, or a package id does not exist",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            },
+            "examples": {
+              "application/json": {
+                "status": "ERROR",
+                "message": "Error in add feature to packages: feature is not packageable"
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid operator token"
+          },
+          "403": {
+            "description": "Operator lacks the `manage` package ability",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "/features": {
+      "get": {
+        "tags": [
+          "Feature Flags"
+        ],
+        "summary": "List feature flags",
+        "description": "Returns the feature-flag catalog, ordered by name. `removable` indicates whether the flag can be deleted (it cannot while it is attached to a package).",
+        "parameters": [
+          {
+            "name": "packageable",
+            "in": "query",
+            "type": "boolean",
+            "required": false,
+            "description": "When present, returns only flags whose `packageable` matches this value"
+          },
+          {
+            "name": "filter",
+            "in": "query",
+            "type": "string",
+            "required": false,
+            "description": "Case-sensitive substring match on the feature name (SQL `LIKE %filter%`)"
+          },
+          {
+            "name": "domain",
+            "in": "query",
+            "type": "string",
+            "enum": [
+              "communication",
+              "clients",
+              "assets",
+              "campaigns",
+              "online_presence",
+              "sales",
+              "financial_ops",
+              "payments",
+              "catalog",
+              "scheduling",
+              "business_administration",
+              "verticals",
+              "access_control",
+              "licensing",
+              "operators",
+              "apps",
+              "ai",
+              "integration"
+            ],
+            "required": false,
+            "description": "When present, returns only feature flags in this domain"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Feature flags retrieved",
+            "schema": {
+              "$ref": "#/definitions/FeatureListResponse"
+            },
+            "examples": {
+              "application/json": {
+                "status": "OK",
+                "data": [
+                  {
+                    "id": 12,
+                    "name": "invoices",
+                    "description": "Invoicing module",
+                    "packageable": true,
+                    "removable": false,
+                    "domain": "financial_ops",
+                    "created_at": "2023-04-01T00:00:00Z",
+                    "updated_at": "2023-04-01T00:00:00Z"
+                  }
+                ]
+              }
+            }
+          },
+          "400": {
+            "description": "Business-logic error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid operator token"
+          },
+          "403": {
+            "description": "Operator lacks the required feature ability",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Feature Flags"
+        ],
+        "summary": "Create a feature flag",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/FeatureWriteRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Feature flag created",
+            "schema": {
+              "$ref": "#/definitions/FeatureResponse"
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid operator token"
+          },
+          "403": {
+            "description": "Operator lacks the required feature ability",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "/features/{id}": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "type": "integer",
+          "description": "Feature flag numeric id"
+        }
+      ],
+      "get": {
+        "tags": [
+          "Feature Flags"
+        ],
+        "summary": "Get a feature flag",
+        "responses": {
+          "200": {
+            "description": "Feature flag retrieved",
+            "schema": {
+              "$ref": "#/definitions/FeatureResponse"
+            }
+          },
+          "400": {
+            "description": "Not found or business-logic error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid operator token"
+          },
+          "403": {
+            "description": "Operator lacks the required feature ability",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Feature Flags"
+        ],
+        "summary": "Update a feature flag",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/FeatureWriteRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Feature flag updated",
+            "schema": {
+              "$ref": "#/definitions/FeatureResponse"
+            }
+          },
+          "400": {
+            "description": "Validation error",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid operator token"
+          },
+          "403": {
+            "description": "Operator lacks the required feature ability",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Feature Flags"
+        ],
+        "summary": "Delete a feature flag",
+        "description": "Deletes a feature flag. A flag attached to at least one package cannot be deleted — the response is `status: \"Warning\"`.",
+        "responses": {
+          "200": {
+            "description": "Feature flag deleted",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "example": "OK"
+                },
+                "data": {
+                  "type": "object",
+                  "properties": {
+                    "feature_id": {
+                      "type": "integer",
+                      "example": 12
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Flag not found, or attached to a package and therefore not removable",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            },
+            "examples": {
+              "application/json": {
+                "status": "Warning",
+                "message": "Feature flag with id 12 could not be deleted"
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid operator token"
+          },
+          "403": {
+            "description": "Operator lacks the required feature ability",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            }
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "StatusOnlyResponse": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "OK"
+          ],
+          "example": "OK"
+        }
+      }
+    },
+    "ErrorResponse": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "ERROR",
+            "Warning",
+            "Error"
+          ],
+          "example": "ERROR"
+        },
+        "message": {
+          "type": "string",
+          "example": "Error updating package: ..."
+        }
+      }
+    },
+    "PackageQuotas": {
+      "type": "object",
+      "description": "Quota values. Each numeric quota must be an integer between 0 and 1,000,000. Set on create only.",
+      "properties": {
+        "invoice_monthly_quota": {
+          "type": "integer"
+        },
+        "estimate_monthly_quota": {
+          "type": "integer"
+        },
+        "storage_quota": {
+          "type": "integer",
+          "description": "Storage quota in MB"
+        },
+        "campaign_recipients_monthly_quota": {
+          "type": "integer"
+        },
+        "clients_credit": {
+          "type": "integer"
+        },
+        "campaigns_credit": {
+          "type": "integer"
+        },
+        "booking_credit": {
+          "type": "integer"
+        },
+        "sms_monthly_quota": {
+          "type": "object",
+          "properties": {
+            "us_canada": {
+              "type": "integer"
+            },
+            "other": {
+              "type": "integer"
+            }
+          }
+        }
+      }
+    },
+    "PackageSettings": {
+      "type": "object",
+      "properties": {
+        "disable_add_staff_button": {
+          "type": "boolean"
+        },
+        "disable_staff_slots": {
+          "type": "boolean"
+        },
+        "disable_sms_purchase_button": {
+          "type": "boolean"
+        }
+      }
+    },
+    "PackageFeatures": {
+      "type": "object",
+      "description": "Feature attachments to apply as part of the request",
+      "properties": {
+        "features_to_add": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Feature names to attach. Non-packageable flags are silently ignored."
+        },
+        "features_to_remove": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Feature names to detach"
+        }
+      }
+    },
+    "PackageSummary": {
+      "type": "object",
+      "description": "Slim package representation returned by `GET /packages`",
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string",
+          "description": "Internal, unique, symbolized name"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "free": {
+          "type": "boolean"
+        },
+        "deprecated": {
+          "type": "boolean",
+          "description": "Deprecated packages are kept for existing subscribers but not offered for new ones"
+        },
+        "is_template": {
+          "type": "boolean",
+          "description": "When `true` the package is a reusable configuration template, not a package a business can be subscribed to. Defaults to `false`.",
+          "default": false
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "PackageDetails": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/PackageSummary"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "staff_slots": {
+              "type": "integer"
+            },
+            "quotas": {
+              "$ref": "#/definitions/PackageQuotas"
+            },
+            "settings": {
+              "$ref": "#/definitions/PackageSettings"
+            },
+            "features": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "PackageListResponse": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "example": "OK"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PackageSummary"
+          }
+        }
+      }
+    },
+    "PackageDetailsResponse": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "example": "OK"
+        },
+        "data": {
+          "type": "array",
+          "description": "Single-element array",
+          "items": {
+            "$ref": "#/definitions/PackageDetails"
+          }
+        }
+      }
+    },
+    "PackageResponse": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "example": "OK"
+        },
+        "data": {
+          "$ref": "#/definitions/PackageDetails"
+        }
+      }
+    },
+    "PackageCreateRequest": {
+      "type": "object",
+      "required": [
+        "name",
+        "display_name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Unique (case-insensitive), no special characters, non-empty"
+        },
+        "display_name": {
+          "type": "string",
+          "description": "Non-empty"
+        },
+        "staff_slots": {
+          "type": "integer"
+        },
+        "free": {
+          "type": "boolean"
+        },
+        "is_template": {
+          "type": "boolean",
+          "description": "Marks the package as a configuration template. Must be a boolean. Defaults to `false` when omitted.",
+          "default": false
+        },
+        "quotas": {
+          "$ref": "#/definitions/PackageQuotas"
+        },
+        "settings": {
+          "$ref": "#/definitions/PackageSettings"
+        },
+        "features": {
+          "$ref": "#/definitions/PackageFeatures"
+        }
+      }
+    },
+    "PackageUpdateRequest": {
+      "type": "object",
+      "description": "All fields optional; only the supplied ones are updated. `quotas` is **not** accepted.",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "staff_slots": {
+          "type": "integer"
+        },
+        "free": {
+          "type": "boolean"
+        },
+        "deprecated": {
+          "type": "boolean"
+        },
+        "is_template": {
+          "type": "boolean",
+          "description": "Marks the package as a configuration template. Must be a boolean."
+        },
+        "settings": {
+          "$ref": "#/definitions/PackageSettings"
+        },
+        "features": {
+          "$ref": "#/definitions/PackageFeatures"
+        }
+      }
+    },
+    "Feature": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "packageable": {
+          "type": "boolean",
+          "description": "Only packageable flags may be attached to a package"
+        },
+        "removable": {
+          "type": "boolean",
+          "description": "`false` when the flag is attached to at least one package"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "domain": {
+          "type": "string",
+          "enum": [
+            "communication",
+            "clients",
+            "assets",
+            "campaigns",
+            "online_presence",
+            "sales",
+            "financial_ops",
+            "payments",
+            "catalog",
+            "scheduling",
+            "business_administration",
+            "verticals",
+            "access_control",
+            "licensing",
+            "operators",
+            "apps",
+            "ai",
+            "integration"
+          ],
+          "description": "Functional domain the feature flag belongs to, from the R&D Domain-Driven Design domain list (the same key used as the domain's API path segment). At most one per flag. **Optional** — `null` for flags that have not been classified yet; the field is purely additive and existing clients that never send it keep working unchanged.",
+          "example": "financial_ops"
+        }
+      }
+    },
+    "FeatureListResponse": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "example": "OK"
+        },
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Feature"
+          }
+        }
+      }
+    },
+    "FeatureResponse": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "example": "OK"
+        },
+        "data": {
+          "$ref": "#/definitions/Feature"
+        }
+      }
+    },
+    "FeatureWriteRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "packageable": {
+          "type": "boolean"
+        },
+        "domain": {
+          "type": "string",
+          "enum": [
+            "communication",
+            "clients",
+            "assets",
+            "campaigns",
+            "online_presence",
+            "sales",
+            "financial_ops",
+            "payments",
+            "catalog",
+            "scheduling",
+            "business_administration",
+            "verticals",
+            "access_control",
+            "licensing",
+            "operators",
+            "apps",
+            "ai",
+            "integration"
+          ],
+          "description": "Optional. When supplied it must be one of the enum values; an unknown value is rejected with HTTP 400. Omitting it on update leaves the current value untouched — it is never cleared implicitly."
+        }
+      }
+    }
+  }
+}

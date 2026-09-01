@@ -6,17 +6,17 @@
     "version": "3.0",
     "x-generated": {
       "sourceFiles": [
+        "ai_chat_configurations.json",
         "ai_receptionist_conversations.json",
-        "widget_configurations.json",
-        "ai_chat_configurations.json"
+        "widget_configurations.json"
       ],
       "pathNormalizations": [],
       "pathConflicts": [],
       "componentConflicts": [
         {
           "type": "schema",
-          "name": "NestHttpException",
-          "resolution": "Renamed to NestHttpException_widget_configurations",
+          "name": "ErrorResponse",
+          "resolution": "Renamed to ErrorResponse_widget_configurations",
           "files": [
             "merged",
             "widget_configurations.json"
@@ -24,11 +24,11 @@
         },
         {
           "type": "schema",
-          "name": "ErrorResponse",
-          "resolution": "Renamed to ErrorResponse_ai_chat_configurations",
+          "name": "NestHttpException",
+          "resolution": "Renamed to NestHttpException_widget_configurations",
           "files": [
             "merged",
-            "ai_chat_configurations.json"
+            "widget_configurations.json"
           ]
         }
       ],
@@ -43,6 +43,611 @@
     }
   ],
   "paths": {
+    "/v3/online_presence/ai_chat_configurations": {
+      "get": {
+        "tags": [
+          "AI Chat Configuration"
+        ],
+        "summary": "Retrieve an AIChatConfiguration",
+        "description": "Returns the AI chat configuration for the authenticated business. Available for **Staff tokens**.",
+        "operationId": "getAiChatConfiguration",
+        "responses": {
+          "200": {
+            "description": "AI chat configuration retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "description": "AI Receptionist Configuration for a business: controls how the AI receptionist behaves across all channels (web widget, WhatsApp, etc.). Includes FAQ/guidance, lead capture settings, business hours, knowledge inclusion flags, and proactive action offers. Returned inside `data` (wrapped by standard Response) for authenticated CRUD/main APIs.",
+                          "properties": {
+                            "uid": {
+                              "type": "string",
+                              "readOnly": true,
+                              "description": "Configuration row UID."
+                            },
+                            "business_uid": {
+                              "type": "string",
+                              "readOnly": true,
+                              "description": "Owning business UID."
+                            },
+                            "created_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "readOnly": true,
+                              "description": "Row creation time (ISO 8601)."
+                            },
+                            "updated_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "readOnly": true,
+                              "description": "Last update time (ISO 8601)."
+                            },
+                            "owner_uid": {
+                              "type": "string",
+                              "nullable": true,
+                              "readOnly": true,
+                              "description": "Staff UID of the last editor."
+                            },
+                            "config": {
+                              "type": "object",
+                              "description": "The AI chat configuration blob. Sparse — omitted keys use product defaults.",
+                              "properties": {
+                                "faq_and_guidance": {
+                                  "type": "string",
+                                  "nullable": true,
+                                  "description": "Free-text FAQ and guidance instructions for the AI receptionist."
+                                },
+                                "business_hours": {
+                                  "type": "string",
+                                  "nullable": true,
+                                  "description": "Business hours text; null uses calendar-derived defaults."
+                                },
+                                "lead_basic_contact_fields": {
+                                  "type": "string",
+                                  "nullable": true,
+                                  "enum": [
+                                    "phone_or_email",
+                                    "phone",
+                                    "email",
+                                    "both"
+                                  ],
+                                  "description": "Contact info the AI receptionist must try to collect before creating a lead. Guidance only; the CRM still creates a lead whenever a name and at least one of phone/email are present. Null uses the default (e.g., \"phone_or_email\")."
+                                },
+                                "lead_fields": {
+                                  "type": "array",
+                                  "nullable": true,
+                                  "description": "Additional lead fields the AI receptionist should try to collect (optional, never blocking).",
+                                  "maxItems": 10,
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "label": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 100,
+                                        "description": "Field label (e.g., \"Address\", \"Preferred time\")."
+                                      },
+                                      "instructions": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 200,
+                                        "description": "When/why to ask for this field (e.g., \"Only ask if the customer is requesting a home visit.\")."
+                                      }
+                                    }
+                                  }
+                                },
+                                "include_contact_info": {
+                                  "type": "boolean",
+                                  "nullable": true,
+                                  "description": "Whether to include business contact info in AI guidance context."
+                                },
+                                "include_services": {
+                                  "type": "boolean",
+                                  "nullable": true,
+                                  "description": "Whether to include business services in AI guidance context."
+                                },
+                                "include_products": {
+                                  "type": "boolean",
+                                  "nullable": true,
+                                  "description": "Whether to include business products in AI guidance context."
+                                },
+                                "include_booking_policies": {
+                                  "type": "boolean",
+                                  "nullable": true,
+                                  "description": "Whether to include booking policies in AI guidance context."
+                                },
+                                "include_terms_of_service": {
+                                  "type": "boolean",
+                                  "nullable": true,
+                                  "description": "Whether to include terms of service in AI guidance context."
+                                },
+                                "guidance_urls": {
+                                  "type": "array",
+                                  "nullable": true,
+                                  "items": {
+                                    "type": "string",
+                                    "format": "uri"
+                                  },
+                                  "description": "Extra URLs whose content is merged into AI guidance."
+                                },
+                                "ai_actions": {
+                                  "type": "array",
+                                  "nullable": true,
+                                  "description": "AI proactive action behavior. Defines which actions the AI should proactively offer and when.",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "action_uid": {
+                                        "type": "string",
+                                        "description": "Portal action UID."
+                                      },
+                                      "action_key": {
+                                        "type": "string",
+                                        "description": "Action key/type (e.g., \"schedule\", \"contact\")."
+                                      },
+                                      "should_offer": {
+                                        "type": "boolean",
+                                        "description": "Whether the AI should proactively suggest this action."
+                                      },
+                                      "when_to_offer": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 200,
+                                        "description": "Guidance text for when the AI should suggest this action (e.g., \"Offer when client asks about scheduling\")."
+                                      }
+                                    },
+                                    "required": [
+                                      "action_uid",
+                                      "action_key",
+                                      "should_offer"
+                                    ]
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "example": {
+                            "uid": "aicfg_7c2d4e91",
+                            "business_uid": "biz_2f8f7ab1",
+                            "created_at": "2026-05-28T10:30:00.000Z",
+                            "updated_at": "2026-05-28T11:12:45.000Z",
+                            "owner_uid": "staff_1182abc",
+                            "config": {
+                              "faq_and_guidance": "Answer questions about pricing, emergency calls, and availability.",
+                              "business_hours": "Mon-Fri 08:00-18:00, Sat 09:00-14:00",
+                              "lead_basic_contact_fields": "phone_or_email",
+                              "lead_fields": [
+                                {
+                                  "label": "Address",
+                                  "instructions": "Only ask if the customer is requesting a home visit."
+                                }
+                              ],
+                              "include_contact_info": true,
+                              "include_services": true,
+                              "include_products": false,
+                              "include_booking_policies": true,
+                              "include_terms_of_service": false,
+                              "guidance_urls": [
+                                "https://example.com/faq"
+                              ],
+                              "ai_actions": [
+                                {
+                                  "action_uid": "action_book",
+                                  "action_key": "schedule",
+                                  "should_offer": true,
+                                  "when_to_offer": "Offer when client asks about scheduling or availability."
+                                },
+                                {
+                                  "action_uid": "action_call",
+                                  "action_key": "contact",
+                                  "should_offer": false,
+                                  "when_to_offer": null
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found — no AI chat configuration exists for this business yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "AI chat configuration not found for this business"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "AI Chat Configuration"
+        ],
+        "summary": "Update an AIChatConfiguration",
+        "description": "Creates or updates the AI chat configuration for the authenticated business. Provided fields are merged with existing values; omitted fields are unchanged. Available for **Staff tokens**.",
+        "operationId": "upsertAiChatConfiguration",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertAiChatConfigRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "AI chat configuration updated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "description": "AI Receptionist Configuration for a business: controls how the AI receptionist behaves across all channels (web widget, WhatsApp, etc.). Includes FAQ/guidance, lead capture settings, business hours, knowledge inclusion flags, and proactive action offers. Returned inside `data` (wrapped by standard Response) for authenticated CRUD/main APIs.",
+                          "properties": {
+                            "uid": {
+                              "type": "string",
+                              "readOnly": true,
+                              "description": "Configuration row UID."
+                            },
+                            "business_uid": {
+                              "type": "string",
+                              "readOnly": true,
+                              "description": "Owning business UID."
+                            },
+                            "created_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "readOnly": true,
+                              "description": "Row creation time (ISO 8601)."
+                            },
+                            "updated_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "readOnly": true,
+                              "description": "Last update time (ISO 8601)."
+                            },
+                            "owner_uid": {
+                              "type": "string",
+                              "nullable": true,
+                              "readOnly": true,
+                              "description": "Staff UID of the last editor."
+                            },
+                            "config": {
+                              "type": "object",
+                              "description": "The AI chat configuration blob. Sparse — omitted keys use product defaults.",
+                              "properties": {
+                                "faq_and_guidance": {
+                                  "type": "string",
+                                  "nullable": true,
+                                  "description": "Free-text FAQ and guidance instructions for the AI receptionist."
+                                },
+                                "business_hours": {
+                                  "type": "string",
+                                  "nullable": true,
+                                  "description": "Business hours text; null uses calendar-derived defaults."
+                                },
+                                "lead_basic_contact_fields": {
+                                  "type": "string",
+                                  "nullable": true,
+                                  "enum": [
+                                    "phone_or_email",
+                                    "phone",
+                                    "email",
+                                    "both"
+                                  ],
+                                  "description": "Contact info the AI receptionist must try to collect before creating a lead. Guidance only; the CRM still creates a lead whenever a name and at least one of phone/email are present. Null uses the default (e.g., \"phone_or_email\")."
+                                },
+                                "lead_fields": {
+                                  "type": "array",
+                                  "nullable": true,
+                                  "description": "Additional lead fields the AI receptionist should try to collect (optional, never blocking).",
+                                  "maxItems": 10,
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "label": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 100,
+                                        "description": "Field label (e.g., \"Address\", \"Preferred time\")."
+                                      },
+                                      "instructions": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 200,
+                                        "description": "When/why to ask for this field (e.g., \"Only ask if the customer is requesting a home visit.\")."
+                                      }
+                                    }
+                                  }
+                                },
+                                "include_contact_info": {
+                                  "type": "boolean",
+                                  "nullable": true,
+                                  "description": "Whether to include business contact info in AI guidance context."
+                                },
+                                "include_services": {
+                                  "type": "boolean",
+                                  "nullable": true,
+                                  "description": "Whether to include business services in AI guidance context."
+                                },
+                                "include_products": {
+                                  "type": "boolean",
+                                  "nullable": true,
+                                  "description": "Whether to include business products in AI guidance context."
+                                },
+                                "include_booking_policies": {
+                                  "type": "boolean",
+                                  "nullable": true,
+                                  "description": "Whether to include booking policies in AI guidance context."
+                                },
+                                "include_terms_of_service": {
+                                  "type": "boolean",
+                                  "nullable": true,
+                                  "description": "Whether to include terms of service in AI guidance context."
+                                },
+                                "guidance_urls": {
+                                  "type": "array",
+                                  "nullable": true,
+                                  "items": {
+                                    "type": "string",
+                                    "format": "uri"
+                                  },
+                                  "description": "Extra URLs whose content is merged into AI guidance."
+                                },
+                                "ai_actions": {
+                                  "type": "array",
+                                  "nullable": true,
+                                  "description": "AI proactive action behavior. Defines which actions the AI should proactively offer and when.",
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "action_uid": {
+                                        "type": "string",
+                                        "description": "Portal action UID."
+                                      },
+                                      "action_key": {
+                                        "type": "string",
+                                        "description": "Action key/type (e.g., \"schedule\", \"contact\")."
+                                      },
+                                      "should_offer": {
+                                        "type": "boolean",
+                                        "description": "Whether the AI should proactively suggest this action."
+                                      },
+                                      "when_to_offer": {
+                                        "type": "string",
+                                        "nullable": true,
+                                        "maxLength": 200,
+                                        "description": "Guidance text for when the AI should suggest this action (e.g., \"Offer when client asks about scheduling\")."
+                                      }
+                                    },
+                                    "required": [
+                                      "action_uid",
+                                      "action_key",
+                                      "should_offer"
+                                    ]
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "example": {
+                            "uid": "aicfg_7c2d4e91",
+                            "business_uid": "biz_2f8f7ab1",
+                            "created_at": "2026-05-28T10:30:00.000Z",
+                            "updated_at": "2026-05-28T11:12:45.000Z",
+                            "owner_uid": "staff_1182abc",
+                            "config": {
+                              "faq_and_guidance": "Answer questions about pricing, emergency calls, and availability.",
+                              "business_hours": "Mon-Fri 08:00-18:00, Sat 09:00-14:00",
+                              "lead_basic_contact_fields": "phone_or_email",
+                              "lead_fields": [
+                                {
+                                  "label": "Address",
+                                  "instructions": "Only ask if the customer is requesting a home visit."
+                                }
+                              ],
+                              "include_contact_info": true,
+                              "include_services": true,
+                              "include_products": false,
+                              "include_booking_policies": true,
+                              "include_terms_of_service": false,
+                              "guidance_urls": [
+                                "https://example.com/faq"
+                              ],
+                              "ai_actions": [
+                                {
+                                  "action_uid": "action_book",
+                                  "action_key": "schedule",
+                                  "should_offer": true,
+                                  "when_to_offer": "Offer when client asks about scheduling or availability."
+                                },
+                                {
+                                  "action_uid": "action_call",
+                                  "action_key": "contact",
+                                  "should_offer": false,
+                                  "when_to_offer": null
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized — missing or invalid token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity — validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "invalid",
+                      "field": "ai_actions",
+                      "message": "ai_actions must be an array"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v3/online_presence/ai_receptionist_conversations": {
       "get": {
         "operationId": "listAiReceptionistConversations",
@@ -3184,615 +3789,161 @@
           }
         ]
       }
-    },
-    "/v3/online_presence/ai_chat_configurations": {
-      "get": {
-        "tags": [
-          "AI Chat Configuration"
-        ],
-        "summary": "Retrieve an AIChatConfiguration",
-        "description": "Returns the AI chat configuration for the authenticated business. Available for **Staff tokens**.",
-        "operationId": "getAiChatConfiguration",
-        "responses": {
-          "200": {
-            "description": "AI chat configuration retrieved successfully.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "success": {
-                          "type": "boolean",
-                          "description": "Indicates whether the API request was successful (true) or failed (false)."
-                        },
-                        "data": {
-                          "type": "object",
-                          "description": "The response payload. Present on successful responses (success: true)."
-                        },
-                        "error": {
-                          "type": "string",
-                          "description": "Error message for simple error responses. Used in some legacy endpoints."
-                        },
-                        "errors": {
-                          "type": "array",
-                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "code": {
-                                "type": "string",
-                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
-                              },
-                              "message": {
-                                "type": "string",
-                                "description": "Human-readable error message."
-                              },
-                              "field": {
-                                "type": "string",
-                                "description": "The field that caused the error (for validation errors)."
-                              }
-                            },
-                            "required": [
-                              "code",
-                              "message"
-                            ]
-                          }
-                        }
-                      },
-                      "required": [
-                        "success"
-                      ],
-                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "type": "object",
-                          "description": "AI Receptionist Configuration for a business: controls how the AI receptionist behaves across all channels (web widget, WhatsApp, etc.). Includes FAQ/guidance, lead capture settings, business hours, knowledge inclusion flags, and proactive action offers. Returned inside `data` (wrapped by standard Response) for authenticated CRUD/main APIs.",
-                          "properties": {
-                            "uid": {
-                              "type": "string",
-                              "readOnly": true,
-                              "description": "Configuration row UID."
-                            },
-                            "business_uid": {
-                              "type": "string",
-                              "readOnly": true,
-                              "description": "Owning business UID."
-                            },
-                            "created_at": {
-                              "type": "string",
-                              "format": "date-time",
-                              "readOnly": true,
-                              "description": "Row creation time (ISO 8601)."
-                            },
-                            "updated_at": {
-                              "type": "string",
-                              "format": "date-time",
-                              "readOnly": true,
-                              "description": "Last update time (ISO 8601)."
-                            },
-                            "owner_uid": {
-                              "type": "string",
-                              "nullable": true,
-                              "readOnly": true,
-                              "description": "Staff UID of the last editor."
-                            },
-                            "config": {
-                              "type": "object",
-                              "description": "The AI chat configuration blob. Sparse — omitted keys use product defaults.",
-                              "properties": {
-                                "faq_and_guidance": {
-                                  "type": "string",
-                                  "nullable": true,
-                                  "description": "Free-text FAQ and guidance instructions for the AI receptionist."
-                                },
-                                "business_hours": {
-                                  "type": "string",
-                                  "nullable": true,
-                                  "description": "Business hours text; null uses calendar-derived defaults."
-                                },
-                                "lead_basic_contact_fields": {
-                                  "type": "string",
-                                  "nullable": true,
-                                  "enum": [
-                                    "phone_or_email",
-                                    "phone",
-                                    "email",
-                                    "both"
-                                  ],
-                                  "description": "Contact info the AI receptionist must try to collect before creating a lead. Guidance only; the CRM still creates a lead whenever a name and at least one of phone/email are present. Null uses the default (e.g., \"phone_or_email\")."
-                                },
-                                "lead_fields": {
-                                  "type": "array",
-                                  "nullable": true,
-                                  "description": "Additional lead fields the AI receptionist should try to collect (optional, never blocking).",
-                                  "maxItems": 10,
-                                  "items": {
-                                    "type": "object",
-                                    "properties": {
-                                      "label": {
-                                        "type": "string",
-                                        "nullable": true,
-                                        "maxLength": 100,
-                                        "description": "Field label (e.g., \"Address\", \"Preferred time\")."
-                                      },
-                                      "instructions": {
-                                        "type": "string",
-                                        "nullable": true,
-                                        "maxLength": 200,
-                                        "description": "When/why to ask for this field (e.g., \"Only ask if the customer is requesting a home visit.\")."
-                                      }
-                                    }
-                                  }
-                                },
-                                "include_contact_info": {
-                                  "type": "boolean",
-                                  "nullable": true,
-                                  "description": "Whether to include business contact info in AI guidance context."
-                                },
-                                "include_services": {
-                                  "type": "boolean",
-                                  "nullable": true,
-                                  "description": "Whether to include business services in AI guidance context."
-                                },
-                                "include_products": {
-                                  "type": "boolean",
-                                  "nullable": true,
-                                  "description": "Whether to include business products in AI guidance context."
-                                },
-                                "include_booking_policies": {
-                                  "type": "boolean",
-                                  "nullable": true,
-                                  "description": "Whether to include booking policies in AI guidance context."
-                                },
-                                "include_terms_of_service": {
-                                  "type": "boolean",
-                                  "nullable": true,
-                                  "description": "Whether to include terms of service in AI guidance context."
-                                },
-                                "guidance_urls": {
-                                  "type": "array",
-                                  "nullable": true,
-                                  "items": {
-                                    "type": "string",
-                                    "format": "uri"
-                                  },
-                                  "description": "Extra URLs whose content is merged into AI guidance."
-                                },
-                                "ai_actions": {
-                                  "type": "array",
-                                  "nullable": true,
-                                  "description": "AI proactive action behavior. Defines which actions the AI should proactively offer and when.",
-                                  "items": {
-                                    "type": "object",
-                                    "properties": {
-                                      "action_uid": {
-                                        "type": "string",
-                                        "description": "Portal action UID."
-                                      },
-                                      "action_key": {
-                                        "type": "string",
-                                        "description": "Action key/type (e.g., \"schedule\", \"contact\")."
-                                      },
-                                      "should_offer": {
-                                        "type": "boolean",
-                                        "description": "Whether the AI should proactively suggest this action."
-                                      },
-                                      "when_to_offer": {
-                                        "type": "string",
-                                        "nullable": true,
-                                        "maxLength": 200,
-                                        "description": "Guidance text for when the AI should suggest this action (e.g., \"Offer when client asks about scheduling\")."
-                                      }
-                                    },
-                                    "required": [
-                                      "action_uid",
-                                      "action_key",
-                                      "should_offer"
-                                    ]
-                                  }
-                                }
-                              }
-                            }
-                          },
-                          "example": {
-                            "uid": "aicfg_7c2d4e91",
-                            "business_uid": "biz_2f8f7ab1",
-                            "created_at": "2026-05-28T10:30:00.000Z",
-                            "updated_at": "2026-05-28T11:12:45.000Z",
-                            "owner_uid": "staff_1182abc",
-                            "config": {
-                              "faq_and_guidance": "Answer questions about pricing, emergency calls, and availability.",
-                              "business_hours": "Mon-Fri 08:00-18:00, Sat 09:00-14:00",
-                              "lead_basic_contact_fields": "phone_or_email",
-                              "lead_fields": [
-                                {
-                                  "label": "Address",
-                                  "instructions": "Only ask if the customer is requesting a home visit."
-                                }
-                              ],
-                              "include_contact_info": true,
-                              "include_services": true,
-                              "include_products": false,
-                              "include_booking_policies": true,
-                              "include_terms_of_service": false,
-                              "guidance_urls": [
-                                "https://example.com/faq"
-                              ],
-                              "ai_actions": [
-                                {
-                                  "action_uid": "action_book",
-                                  "action_key": "schedule",
-                                  "should_offer": true,
-                                  "when_to_offer": "Offer when client asks about scheduling or availability."
-                                },
-                                {
-                                  "action_uid": "action_call",
-                                  "action_key": "contact",
-                                  "should_offer": false,
-                                  "when_to_offer": null
-                                }
-                              ]
-                            }
-                          }
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized — missing or invalid token.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found — no AI chat configuration exists for this business yet.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "not_found",
-                      "message": "AI chat configuration not found for this business"
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      },
-      "put": {
-        "tags": [
-          "AI Chat Configuration"
-        ],
-        "summary": "Update an AIChatConfiguration",
-        "description": "Creates or updates the AI chat configuration for the authenticated business. Provided fields are merged with existing values; omitted fields are unchanged. Available for **Staff tokens**.",
-        "operationId": "upsertAiChatConfiguration",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpsertAiChatConfigRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "AI chat configuration updated successfully.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "success": {
-                          "type": "boolean",
-                          "description": "Indicates whether the API request was successful (true) or failed (false)."
-                        },
-                        "data": {
-                          "type": "object",
-                          "description": "The response payload. Present on successful responses (success: true)."
-                        },
-                        "error": {
-                          "type": "string",
-                          "description": "Error message for simple error responses. Used in some legacy endpoints."
-                        },
-                        "errors": {
-                          "type": "array",
-                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "code": {
-                                "type": "string",
-                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
-                              },
-                              "message": {
-                                "type": "string",
-                                "description": "Human-readable error message."
-                              },
-                              "field": {
-                                "type": "string",
-                                "description": "The field that caused the error (for validation errors)."
-                              }
-                            },
-                            "required": [
-                              "code",
-                              "message"
-                            ]
-                          }
-                        }
-                      },
-                      "required": [
-                        "success"
-                      ],
-                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "type": "object",
-                          "description": "AI Receptionist Configuration for a business: controls how the AI receptionist behaves across all channels (web widget, WhatsApp, etc.). Includes FAQ/guidance, lead capture settings, business hours, knowledge inclusion flags, and proactive action offers. Returned inside `data` (wrapped by standard Response) for authenticated CRUD/main APIs.",
-                          "properties": {
-                            "uid": {
-                              "type": "string",
-                              "readOnly": true,
-                              "description": "Configuration row UID."
-                            },
-                            "business_uid": {
-                              "type": "string",
-                              "readOnly": true,
-                              "description": "Owning business UID."
-                            },
-                            "created_at": {
-                              "type": "string",
-                              "format": "date-time",
-                              "readOnly": true,
-                              "description": "Row creation time (ISO 8601)."
-                            },
-                            "updated_at": {
-                              "type": "string",
-                              "format": "date-time",
-                              "readOnly": true,
-                              "description": "Last update time (ISO 8601)."
-                            },
-                            "owner_uid": {
-                              "type": "string",
-                              "nullable": true,
-                              "readOnly": true,
-                              "description": "Staff UID of the last editor."
-                            },
-                            "config": {
-                              "type": "object",
-                              "description": "The AI chat configuration blob. Sparse — omitted keys use product defaults.",
-                              "properties": {
-                                "faq_and_guidance": {
-                                  "type": "string",
-                                  "nullable": true,
-                                  "description": "Free-text FAQ and guidance instructions for the AI receptionist."
-                                },
-                                "business_hours": {
-                                  "type": "string",
-                                  "nullable": true,
-                                  "description": "Business hours text; null uses calendar-derived defaults."
-                                },
-                                "lead_basic_contact_fields": {
-                                  "type": "string",
-                                  "nullable": true,
-                                  "enum": [
-                                    "phone_or_email",
-                                    "phone",
-                                    "email",
-                                    "both"
-                                  ],
-                                  "description": "Contact info the AI receptionist must try to collect before creating a lead. Guidance only; the CRM still creates a lead whenever a name and at least one of phone/email are present. Null uses the default (e.g., \"phone_or_email\")."
-                                },
-                                "lead_fields": {
-                                  "type": "array",
-                                  "nullable": true,
-                                  "description": "Additional lead fields the AI receptionist should try to collect (optional, never blocking).",
-                                  "maxItems": 10,
-                                  "items": {
-                                    "type": "object",
-                                    "properties": {
-                                      "label": {
-                                        "type": "string",
-                                        "nullable": true,
-                                        "maxLength": 100,
-                                        "description": "Field label (e.g., \"Address\", \"Preferred time\")."
-                                      },
-                                      "instructions": {
-                                        "type": "string",
-                                        "nullable": true,
-                                        "maxLength": 200,
-                                        "description": "When/why to ask for this field (e.g., \"Only ask if the customer is requesting a home visit.\")."
-                                      }
-                                    }
-                                  }
-                                },
-                                "include_contact_info": {
-                                  "type": "boolean",
-                                  "nullable": true,
-                                  "description": "Whether to include business contact info in AI guidance context."
-                                },
-                                "include_services": {
-                                  "type": "boolean",
-                                  "nullable": true,
-                                  "description": "Whether to include business services in AI guidance context."
-                                },
-                                "include_products": {
-                                  "type": "boolean",
-                                  "nullable": true,
-                                  "description": "Whether to include business products in AI guidance context."
-                                },
-                                "include_booking_policies": {
-                                  "type": "boolean",
-                                  "nullable": true,
-                                  "description": "Whether to include booking policies in AI guidance context."
-                                },
-                                "include_terms_of_service": {
-                                  "type": "boolean",
-                                  "nullable": true,
-                                  "description": "Whether to include terms of service in AI guidance context."
-                                },
-                                "guidance_urls": {
-                                  "type": "array",
-                                  "nullable": true,
-                                  "items": {
-                                    "type": "string",
-                                    "format": "uri"
-                                  },
-                                  "description": "Extra URLs whose content is merged into AI guidance."
-                                },
-                                "ai_actions": {
-                                  "type": "array",
-                                  "nullable": true,
-                                  "description": "AI proactive action behavior. Defines which actions the AI should proactively offer and when.",
-                                  "items": {
-                                    "type": "object",
-                                    "properties": {
-                                      "action_uid": {
-                                        "type": "string",
-                                        "description": "Portal action UID."
-                                      },
-                                      "action_key": {
-                                        "type": "string",
-                                        "description": "Action key/type (e.g., \"schedule\", \"contact\")."
-                                      },
-                                      "should_offer": {
-                                        "type": "boolean",
-                                        "description": "Whether the AI should proactively suggest this action."
-                                      },
-                                      "when_to_offer": {
-                                        "type": "string",
-                                        "nullable": true,
-                                        "maxLength": 200,
-                                        "description": "Guidance text for when the AI should suggest this action (e.g., \"Offer when client asks about scheduling\")."
-                                      }
-                                    },
-                                    "required": [
-                                      "action_uid",
-                                      "action_key",
-                                      "should_offer"
-                                    ]
-                                  }
-                                }
-                              }
-                            }
-                          },
-                          "example": {
-                            "uid": "aicfg_7c2d4e91",
-                            "business_uid": "biz_2f8f7ab1",
-                            "created_at": "2026-05-28T10:30:00.000Z",
-                            "updated_at": "2026-05-28T11:12:45.000Z",
-                            "owner_uid": "staff_1182abc",
-                            "config": {
-                              "faq_and_guidance": "Answer questions about pricing, emergency calls, and availability.",
-                              "business_hours": "Mon-Fri 08:00-18:00, Sat 09:00-14:00",
-                              "lead_basic_contact_fields": "phone_or_email",
-                              "lead_fields": [
-                                {
-                                  "label": "Address",
-                                  "instructions": "Only ask if the customer is requesting a home visit."
-                                }
-                              ],
-                              "include_contact_info": true,
-                              "include_services": true,
-                              "include_products": false,
-                              "include_booking_policies": true,
-                              "include_terms_of_service": false,
-                              "guidance_urls": [
-                                "https://example.com/faq"
-                              ],
-                              "ai_actions": [
-                                {
-                                  "action_uid": "action_book",
-                                  "action_key": "schedule",
-                                  "should_offer": true,
-                                  "when_to_offer": "Offer when client asks about scheduling or availability."
-                                },
-                                {
-                                  "action_uid": "action_call",
-                                  "action_key": "contact",
-                                  "should_offer": false,
-                                  "when_to_offer": null
-                                }
-                              ]
-                            }
-                          }
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized — missing or invalid token.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Unprocessable Entity — validation error.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "invalid",
-                      "field": "ai_actions",
-                      "message": "ai_actions must be an array"
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
     }
   },
   "components": {
     "schemas": {
+      "UpsertAiChatConfigRequest": {
+        "type": "object",
+        "description": "Request body for upserting the AI chat configuration. All fields are optional — only provided fields are merged with existing values.",
+        "properties": {
+          "faq_and_guidance": {
+            "type": "string",
+            "nullable": true,
+            "description": "Free-text FAQ and guidance instructions for the AI receptionist."
+          },
+          "business_hours": {
+            "type": "string",
+            "nullable": true,
+            "description": "Business hours text; null uses calendar-derived defaults."
+          },
+          "lead_basic_contact_fields": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "phone_or_email",
+              "phone",
+              "email",
+              "both"
+            ],
+            "description": "Contact info the AI receptionist must try to collect before creating a lead. Guidance only; the CRM still creates a lead whenever a name and at least one of phone/email are present. Null uses the default (e.g., \"phone_or_email\")."
+          },
+          "lead_fields": {
+            "type": "array",
+            "nullable": true,
+            "maxItems": 10,
+            "description": "Additional lead fields the AI receptionist should try to collect (optional, never blocking).",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "nullable": true,
+                  "maxLength": 100,
+                  "description": "Field label (e.g., \"Address\")."
+                },
+                "instructions": {
+                  "type": "string",
+                  "nullable": true,
+                  "maxLength": 200,
+                  "description": "When/why to ask for this field (e.g., \"Only ask if the customer is requesting a home visit.\")."
+                }
+              }
+            }
+          },
+          "include_contact_info": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether to include business contact info in AI guidance context."
+          },
+          "include_services": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether to include business services in AI guidance context."
+          },
+          "include_products": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether to include business products in AI guidance context."
+          },
+          "include_booking_policies": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether to include booking policies in AI guidance context."
+          },
+          "include_terms_of_service": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether to include terms of service in AI guidance context."
+          },
+          "allow_chat_based_online_scheduling": {
+            "type": "boolean",
+            "nullable": true,
+            "default": true,
+            "description": "Whether the AI receptionist may complete a booking inside the chat. Independent of the business's own online-scheduling setting — both must be on for in-chat booking to run; when off, the receptionist offers a link to the booking screen instead. Defaults to true. (e.g., true, false)"
+          },
+          "guidance_urls": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Extra URLs whose content is merged into AI guidance."
+          },
+          "ai_actions": {
+            "type": "array",
+            "nullable": true,
+            "description": "AI proactive action behavior.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "action_uid": {
+                  "type": "string",
+                  "description": "Portal action UID."
+                },
+                "action_key": {
+                  "type": "string",
+                  "description": "Action key/type (e.g., \"schedule\", \"contact\")."
+                },
+                "should_offer": {
+                  "type": "boolean",
+                  "description": "Whether the AI should proactively suggest this action."
+                },
+                "when_to_offer": {
+                  "type": "string",
+                  "nullable": true,
+                  "maxLength": 200,
+                  "description": "Guidance text for when the AI should suggest this action."
+                }
+              },
+              "required": [
+                "action_uid",
+                "action_key",
+                "should_offer"
+              ]
+            }
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "field": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
       "ChatTranscriptDocument": {
         "type": "object",
         "description": "Structured transcript object captured when a session ends. Uses the same visitor-visible message list shape returned by chat session resume APIs.",
@@ -4593,7 +4744,7 @@
           }
         }
       },
-      "ErrorResponse": {
+      "ErrorResponse_widget_configurations": {
         "type": "object",
         "description": "Standard v3 error envelope.",
         "properties": {
@@ -5034,164 +5185,19 @@
           "widget_configurations",
           "total"
         ]
-      },
-      "UpsertAiChatConfigRequest": {
-        "type": "object",
-        "description": "Request body for upserting the AI chat configuration. All fields are optional — only provided fields are merged with existing values.",
-        "properties": {
-          "faq_and_guidance": {
-            "type": "string",
-            "nullable": true,
-            "description": "Free-text FAQ and guidance instructions for the AI receptionist."
-          },
-          "business_hours": {
-            "type": "string",
-            "nullable": true,
-            "description": "Business hours text; null uses calendar-derived defaults."
-          },
-          "lead_basic_contact_fields": {
-            "type": "string",
-            "nullable": true,
-            "enum": [
-              "phone_or_email",
-              "phone",
-              "email",
-              "both"
-            ],
-            "description": "Contact info the AI receptionist must try to collect before creating a lead. Guidance only; the CRM still creates a lead whenever a name and at least one of phone/email are present. Null uses the default (e.g., \"phone_or_email\")."
-          },
-          "lead_fields": {
-            "type": "array",
-            "nullable": true,
-            "maxItems": 10,
-            "description": "Additional lead fields the AI receptionist should try to collect (optional, never blocking).",
-            "items": {
-              "type": "object",
-              "properties": {
-                "label": {
-                  "type": "string",
-                  "nullable": true,
-                  "maxLength": 100,
-                  "description": "Field label (e.g., \"Address\")."
-                },
-                "instructions": {
-                  "type": "string",
-                  "nullable": true,
-                  "maxLength": 200,
-                  "description": "When/why to ask for this field (e.g., \"Only ask if the customer is requesting a home visit.\")."
-                }
-              }
-            }
-          },
-          "include_contact_info": {
-            "type": "boolean",
-            "nullable": true,
-            "description": "Whether to include business contact info in AI guidance context."
-          },
-          "include_services": {
-            "type": "boolean",
-            "nullable": true,
-            "description": "Whether to include business services in AI guidance context."
-          },
-          "include_products": {
-            "type": "boolean",
-            "nullable": true,
-            "description": "Whether to include business products in AI guidance context."
-          },
-          "include_booking_policies": {
-            "type": "boolean",
-            "nullable": true,
-            "description": "Whether to include booking policies in AI guidance context."
-          },
-          "include_terms_of_service": {
-            "type": "boolean",
-            "nullable": true,
-            "description": "Whether to include terms of service in AI guidance context."
-          },
-          "guidance_urls": {
-            "type": "array",
-            "nullable": true,
-            "items": {
-              "type": "string",
-              "format": "uri"
-            },
-            "description": "Extra URLs whose content is merged into AI guidance."
-          },
-          "ai_actions": {
-            "type": "array",
-            "nullable": true,
-            "description": "AI proactive action behavior.",
-            "items": {
-              "type": "object",
-              "properties": {
-                "action_uid": {
-                  "type": "string",
-                  "description": "Portal action UID."
-                },
-                "action_key": {
-                  "type": "string",
-                  "description": "Action key/type (e.g., \"schedule\", \"contact\")."
-                },
-                "should_offer": {
-                  "type": "boolean",
-                  "description": "Whether the AI should proactively suggest this action."
-                },
-                "when_to_offer": {
-                  "type": "string",
-                  "nullable": true,
-                  "maxLength": 200,
-                  "description": "Guidance text for when the AI should suggest this action."
-                }
-              },
-              "required": [
-                "action_uid",
-                "action_key",
-                "should_offer"
-              ]
-            }
-          }
-        }
-      },
-      "ErrorResponse_ai_chat_configurations": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean",
-            "enum": [
-              false
-            ]
-          },
-          "errors": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "code": {
-                  "type": "string"
-                },
-                "message": {
-                  "type": "string"
-                },
-                "field": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        }
       }
     },
     "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Staff token"
+      },
       "Bearer": {
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "JWT",
         "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
-      },
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer",
-        "description": "Staff token"
       },
       "AiReceptionistConversations": {
         "type": "http",
@@ -5209,16 +5215,16 @@
   },
   "tags": [
     {
+      "name": "AI Chat Configuration",
+      "description": "AI chat behavior configuration for the authenticated business (**Staff tokens**)."
+    },
+    {
       "name": "AI Receptionist Conversation",
       "description": "Persisted AI Receptionist conversations for the authenticated business (**Staff tokens**)."
     },
     {
       "name": "Web AI Widget",
       "description": "Widget configuration resources under `/v3/online_presence/widget_configurations`."
-    },
-    {
-      "name": "AI Chat Configuration",
-      "description": "AI chat behavior configuration for the authenticated business (**Staff tokens**)."
     }
   ]
 }
