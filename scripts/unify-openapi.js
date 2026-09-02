@@ -236,6 +236,28 @@ function convertSwaggerToOpenAPI(operation, fileName) {
     delete converted.consumes;
     delete converted.produces;
   }
+
+  // Fallback: convert any remaining Swagger 2.0 response `schema`/`examples` into
+  // OpenAPI 3 `content` (handles operations that declare neither consumes nor produces)
+  if (converted.responses) {
+    for (const [statusCode, response] of Object.entries(converted.responses)) {
+      if (!response || (!response.schema && !response.examples)) continue;
+
+      const { schema, examples, ...rest } = response;
+      const content = { ...(response.content || {}) };
+      const mediaTypes = examples ? Object.keys(examples) : ['application/json'];
+
+      mediaTypes.forEach(mediaType => {
+        content[mediaType] = {
+          ...(content[mediaType] || {}),
+          ...(schema && { schema }),
+          ...(examples && examples[mediaType] !== undefined && { example: examples[mediaType] })
+        };
+      });
+
+      converted.responses[statusCode] = { ...rest, content };
+    }
+  }
   
   // Fallback: Convert any remaining body parameters to requestBody (handles cases without consumes)
   if (converted.parameters && !converted.requestBody) {
@@ -1043,6 +1065,13 @@ async function processDomain(domainPath, domainName) {
     const securityScheme = fileToSchemeName[sourceFile] || 'Bearer';
     
     for (const [method, operation] of Object.entries(pathMethods)) {
+      // Path-level parameters are not an operation - carry them through untouched
+      // (spreading the array here would turn it into an object keyed "0", "1", ...)
+      if (method === 'parameters') {
+        pathsWithSecurity[pathKey].parameters = operation;
+        continue;
+      }
+
       // Remove any existing security definition from the operation
       // We'll add the correct one based on our rules
       const { security: existingSecurity, ...operationWithoutSecurity } = operation;
