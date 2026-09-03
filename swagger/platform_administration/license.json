@@ -15,6 +15,14 @@
     {
       "name": "Offering",
       "description": "The offering API facilitates seamless CRUD operations, allowing staff to create, retrieve, update, and delete offering items, and related entities with ease."
+    },
+    {
+      "name": "License Packages",
+      "description": "Manage packages in the license catalog. Admin actors only."
+    },
+    {
+      "name": "License Features",
+      "description": "Manage feature flags in the license catalog. Admin actors only."
     }
   ],
   "components": {
@@ -2268,6 +2276,1373 @@
           },
           "500": {
             "description": "Internal server error"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Features Packages"
+        ],
+        "summary": "Create a license package",
+        "operationId": "createFeaturesPackage",
+        "description": "## Overview\nCreate a package. The name must be unique. Unlike the list and show operations, the created package is returned as a full record rather than a reduced field set.\n\nAvailable for **admin actors only** — an Okta admin token (introspected by the API gateway) or, outside production, the static admin token. Any other actor type receives 403. Note the list operation on this path is **not** admin-only: it remains available to staff tokens, so authorization differs per operation.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Internal name, unique across packages (e.g., \"essentials\")"
+                  },
+                  "display_name": {
+                    "type": "string",
+                    "description": "Name shown to users (e.g., \"Essentials\")"
+                  },
+                  "staff_slots": {
+                    "type": "integer",
+                    "description": "Staff seats included (e.g., 1, 5)"
+                  },
+                  "free": {
+                    "type": "boolean",
+                    "description": "Whether the package is free (e.g., true, false)"
+                  },
+                  "settings": {
+                    "type": "object",
+                    "description": "Feature toggles carried by the package.",
+                    "properties": {
+                      "disable_add_staff_button": {
+                        "type": "boolean",
+                        "description": "Hides the add-staff button (e.g., true, false)"
+                      },
+                      "disable_staff_slots": {
+                        "type": "boolean",
+                        "description": "Disables staff seat management (e.g., true, false)"
+                      },
+                      "disable_sms_purchase_button": {
+                        "type": "boolean",
+                        "description": "Hides the SMS purchase button (e.g., true, false)"
+                      }
+                    }
+                  },
+                  "quotas": {
+                    "type": "object",
+                    "description": "Usage quotas granted by the package.",
+                    "properties": {
+                      "invoice_monthly_quota": {
+                        "type": "integer",
+                        "description": "Monthly cap on invoices (e.g., 5, 100)"
+                      },
+                      "estimate_monthly_quota": {
+                        "type": "integer",
+                        "description": "Monthly cap on estimates (e.g., 5, 100)"
+                      },
+                      "storage_quota": {
+                        "type": "integer",
+                        "description": "Storage allowance in megabytes (e.g., 1024)"
+                      },
+                      "campaign_recipients_monthly_quota": {
+                        "type": "integer",
+                        "description": "Monthly cap on campaign recipients (e.g., 500)"
+                      },
+                      "clients_credit": {
+                        "type": "integer",
+                        "description": "Client credits (e.g., 50)"
+                      },
+                      "campaigns_credit": {
+                        "type": "integer",
+                        "description": "Campaign credits (e.g., 5)"
+                      },
+                      "booking_credit": {
+                        "type": "integer",
+                        "description": "Booking credits (e.g., 10)"
+                      },
+                      "sms_monthly_quota": {
+                        "type": "object",
+                        "description": "Monthly SMS allowance by destination.",
+                        "properties": {
+                          "us_canada": {
+                            "type": "integer",
+                            "description": "US and Canada allowance (e.g., 100)"
+                          },
+                          "other": {
+                            "type": "integer",
+                            "description": "All other destinations (e.g., 20)"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "features": {
+                    "type": "object",
+                    "description": "Packageable features to attach or detach in the same call.",
+                    "properties": {
+                      "features_to_add": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "description": "Feature names to attach (e.g., [\"online_scheduling\"])"
+                      },
+                      "features_to_remove": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "description": "Feature names to detach (e.g., [\"sms_reminders\"])"
+                      }
+                    }
+                  }
+                }
+              },
+              "example": {
+                "name": "essentials",
+                "display_name": "Essentials",
+                "staff_slots": 1,
+                "free": false,
+                "quotas": {
+                  "invoice_monthly_quota": 5
+                },
+                "features": {
+                  "features_to_add": [
+                    "online_scheduling"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created package",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "features_package": {
+                              "$ref": "https://vcita.github.io/developers-hub/entities/license/featuresPackage.json"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "features_package": {
+                      "id": 1,
+                      "uid": "4c571054c3bd11f0",
+                      "name": "scheduling",
+                      "display_name": "Online Scheduling",
+                      "free": false,
+                      "deprecated": false,
+                      "created_at": "Wed, May 29, 2013 at 12:21pm",
+                      "updated_at": "Tue, July 14 at 7:25am",
+                      "staff_slots": 0,
+                      "quotas": {
+                        "invoice_monthly_quota": 5
+                      },
+                      "settings": {
+                        "disable_add_staff_button": false
+                      },
+                      "features": [
+                        {
+                          "id": 2231,
+                          "name": "online_scheduling",
+                          "description": "Online scheduling for clients"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed, for example a duplicate name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "invalid",
+                      "message": "Package with the name essentials already exists"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The credential was rejected at introspection"
+          },
+          "403": {
+            "description": "The actor is authenticated but is not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "403 Forbidden"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/license/features": {
+      "get": {
+        "tags": [
+          "License Features"
+        ],
+        "summary": "List license features",
+        "operationId": "listLicenseFeatures",
+        "description": "## Overview\nList feature flags in the license catalog, ordered by name.\n\nAvailable for **admin actors only** — an Okta admin token (introspected by the API gateway) or, outside production, the static admin token. Any other actor type receives 403.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "filter",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Case-sensitive substring match on the feature name (e.g., \"scheduling\")"
+          },
+          {
+            "in": "query",
+            "name": "packageable",
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Return only features that may (or may not) be attached to a package (e.g., true, false)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The features in the catalog",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "features": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "https://vcita.github.io/developers-hub/entities/license/feature.json"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "features": [
+                      {
+                        "id": 2231,
+                        "name": "3_services_limitation",
+                        "description": "3 service limitation per account",
+                        "packageable": true,
+                        "removable": false,
+                        "created_at": "Wed, May 29, 2013 at 12:21pm",
+                        "updated_at": "Thu, September 03 at 9:50am"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The credential was rejected at introspection"
+          },
+          "403": {
+            "description": "The actor is authenticated but is not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "403 Forbidden"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "License Features"
+        ],
+        "summary": "Create a license feature",
+        "operationId": "createLicenseFeature",
+        "description": "## Overview\nCreate a feature flag. The name must be present and unique, case-insensitively.\n\nAvailable for **admin actors only** — an Okta admin token (introspected by the API gateway) or, outside production, the static admin token. Any other actor type receives 403.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Internal name, unique case-insensitively (e.g., \"online_scheduling\")"
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "What the feature controls (e.g., \"Online scheduling for clients\")"
+                  },
+                  "packageable": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Whether the feature may be attached to a package (e.g., true, false)"
+                  }
+                }
+              },
+              "example": {
+                "name": "online_scheduling",
+                "description": "Online scheduling for clients",
+                "packageable": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created feature",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "feature": {
+                              "$ref": "https://vcita.github.io/developers-hub/entities/license/feature.json"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "feature": {
+                      "id": 2231,
+                      "name": "3_services_limitation",
+                      "description": "3 service limitation per account",
+                      "packageable": true,
+                      "removable": false,
+                      "created_at": "Wed, May 29, 2013 at 12:21pm",
+                      "updated_at": "Thu, September 03 at 9:50am"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed, for example a blank or duplicate name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "invalid",
+                      "message": "Failed to create feature: Name can't be blank"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The credential was rejected at introspection"
+          },
+          "403": {
+            "description": "The actor is authenticated but is not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "403 Forbidden"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/license/features/{id}": {
+      "get": {
+        "tags": [
+          "License Features"
+        ],
+        "summary": "Get a license feature",
+        "operationId": "getLicenseFeature",
+        "description": "## Overview\nRetrieve one feature flag.\n\nAvailable for **admin actors only** — an Okta admin token (introspected by the API gateway) or, outside production, the static admin token. Any other actor type receives 403.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Numeric identifier of the record (e.g., 1, 2231)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested feature",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "feature": {
+                              "$ref": "https://vcita.github.io/developers-hub/entities/license/feature.json"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "feature": {
+                      "id": 2231,
+                      "name": "3_services_limitation",
+                      "description": "3 service limitation per account",
+                      "packageable": true,
+                      "removable": false,
+                      "created_at": "Wed, May 29, 2013 at 12:21pm",
+                      "updated_at": "Thu, September 03 at 9:50am"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The credential was rejected at introspection"
+          },
+          "403": {
+            "description": "The actor is authenticated but is not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "403 Forbidden"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No feature with that id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Feature with id 0 doesn't exist"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "License Features"
+        ],
+        "summary": "Update a license feature",
+        "operationId": "updateLicenseFeature",
+        "description": "## Overview\nUpdate a feature flag's name, description or packageable flag.\n\nAvailable for **admin actors only** — an Okta admin token (introspected by the API gateway) or, outside production, the static admin token. Any other actor type receives 403.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Numeric identifier of the record (e.g., 1, 2231)"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Internal name, unique case-insensitively (e.g., \"online_scheduling\")"
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "What the feature controls (e.g., \"Online scheduling for clients\")"
+                  },
+                  "packageable": {
+                    "type": "boolean",
+                    "description": "Whether the feature may be attached to a package (e.g., true, false)"
+                  }
+                }
+              },
+              "example": {
+                "description": "Online scheduling for clients",
+                "packageable": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated feature",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "feature": {
+                              "$ref": "https://vcita.github.io/developers-hub/entities/license/feature.json"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "feature": {
+                      "id": 2231,
+                      "name": "3_services_limitation",
+                      "description": "3 service limitation per account",
+                      "packageable": true,
+                      "removable": false,
+                      "created_at": "Wed, May 29, 2013 at 12:21pm",
+                      "updated_at": "Thu, September 03 at 9:50am"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "invalid",
+                      "message": "Feature flag could not be updated"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The credential was rejected at introspection"
+          },
+          "403": {
+            "description": "The actor is authenticated but is not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "403 Forbidden"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No feature with that id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Feature with id 0 doesn't exist"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "License Features"
+        ],
+        "summary": "Delete a license feature",
+        "operationId": "deleteLicenseFeature",
+        "description": "## Overview\nDelete a feature flag. A feature attached to any package cannot be deleted; the request returns **409** and the feature is kept. Check `removable` on the feature before calling.\n\nAvailable for **admin actors only** — an Okta admin token (introspected by the API gateway) or, outside production, the static admin token. Any other actor type receives 403.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Numeric identifier of the record (e.g., 1, 2231)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The feature was deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The credential was rejected at introspection"
+          },
+          "403": {
+            "description": "The actor is authenticated but is not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "403 Forbidden"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No feature with that id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Feature with id 0 doesn't exist"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The feature exists but a package still uses it, so it was not deleted. `removable` on the feature tells you this in advance.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "conflict",
+                      "message": "Feature flag with id 2231 could not be deleted"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/license/features_packages/{id}": {
+      "get": {
+        "tags": [
+          "Features Packages"
+        ],
+        "summary": "Get a license package",
+        "operationId": "getFeaturesPackage",
+        "description": "## Overview\nRetrieve one package including its quotas, settings and attached packageable features.\n\nAvailable for **admin actors only** — an Okta admin token (introspected by the API gateway) or, outside production, the static admin token. Any other actor type receives 403. Note the list operation on this path is **not** admin-only: it remains available to staff tokens, so authorization differs per operation.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Numeric identifier of the record (e.g., 1, 2231)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested package, with quotas, settings and attached features",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "features_package": {
+                              "$ref": "https://vcita.github.io/developers-hub/entities/license/featuresPackage.json"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "features_package": {
+                      "id": 1,
+                      "uid": "4c571054c3bd11f0",
+                      "name": "scheduling",
+                      "display_name": "Online Scheduling",
+                      "free": false,
+                      "deprecated": false,
+                      "created_at": "Wed, May 29, 2013 at 12:21pm",
+                      "updated_at": "Tue, July 14 at 7:25am",
+                      "staff_slots": 0,
+                      "quotas": {
+                        "invoice_monthly_quota": 5
+                      },
+                      "settings": {
+                        "disable_add_staff_button": false
+                      },
+                      "features": [
+                        {
+                          "id": 2231,
+                          "name": "online_scheduling",
+                          "description": "Online scheduling for clients"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The credential was rejected at introspection"
+          },
+          "403": {
+            "description": "The actor is authenticated but is not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "403 Forbidden"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No package with that id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Package with id 0 doesn't exist"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Features Packages"
+        ],
+        "summary": "Update a license package",
+        "operationId": "updateFeaturesPackage",
+        "description": "## Overview\nUpdate a package's attributes and optionally attach or detach packageable features. Quotas cannot be changed through this operation and sending `quotas` fails the request.\n\nAvailable for **admin actors only** — an Okta admin token (introspected by the API gateway) or, outside production, the static admin token. Any other actor type receives 403. Note the list operation on this path is **not** admin-only: it remains available to staff tokens, so authorization differs per operation.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Numeric identifier of the record (e.g., 1, 2231)"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Internal name, unique across packages (e.g., \"essentials\")"
+                  },
+                  "display_name": {
+                    "type": "string",
+                    "description": "Name shown to users (e.g., \"Essentials\")"
+                  },
+                  "staff_slots": {
+                    "type": "integer",
+                    "description": "Staff seats included (e.g., 1, 5)"
+                  },
+                  "free": {
+                    "type": "boolean",
+                    "description": "Whether the package is free (e.g., true, false)"
+                  },
+                  "deprecated": {
+                    "type": "boolean",
+                    "description": "Whether the package is deprecated (e.g., true, false)"
+                  },
+                  "settings": {
+                    "type": "object",
+                    "description": "Feature toggles carried by the package.",
+                    "properties": {
+                      "disable_add_staff_button": {
+                        "type": "boolean",
+                        "description": "Hides the add-staff button (e.g., true, false)"
+                      },
+                      "disable_staff_slots": {
+                        "type": "boolean",
+                        "description": "Disables staff seat management (e.g., true, false)"
+                      },
+                      "disable_sms_purchase_button": {
+                        "type": "boolean",
+                        "description": "Hides the SMS purchase button (e.g., true, false)"
+                      }
+                    }
+                  },
+                  "features": {
+                    "type": "object",
+                    "description": "Packageable features to attach or detach in the same call.",
+                    "properties": {
+                      "features_to_add": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "description": "Feature names to attach (e.g., [\"online_scheduling\"])"
+                      },
+                      "features_to_remove": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "description": "Feature names to detach (e.g., [\"sms_reminders\"])"
+                      }
+                    }
+                  }
+                }
+              },
+              "example": {
+                "display_name": "Essentials (2026)",
+                "deprecated": true,
+                "features": {
+                  "features_to_remove": [
+                    "sms_reminders"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated package",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "features_package": {
+                              "$ref": "https://vcita.github.io/developers-hub/entities/license/featuresPackage.json"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "features_package": {
+                      "id": 1,
+                      "uid": "4c571054c3bd11f0",
+                      "name": "scheduling",
+                      "display_name": "Online Scheduling",
+                      "free": false,
+                      "deprecated": false,
+                      "created_at": "Wed, May 29, 2013 at 12:21pm",
+                      "updated_at": "Tue, July 14 at 7:25am",
+                      "staff_slots": 0,
+                      "quotas": {
+                        "invoice_monthly_quota": 5
+                      },
+                      "settings": {
+                        "disable_add_staff_button": false
+                      },
+                      "features": [
+                        {
+                          "id": 2231,
+                          "name": "online_scheduling",
+                          "description": "Online scheduling for clients"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed. Quotas cannot be changed through this operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "invalid",
+                      "message": "Can't update package quotas"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The credential was rejected at introspection"
+          },
+          "403": {
+            "description": "The actor is authenticated but is not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "403 Forbidden"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No package with that id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Package with id 0 doesn't exist"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Features Packages"
+        ],
+        "summary": "Delete a license package",
+        "operationId": "deleteFeaturesPackage",
+        "description": "## Overview\nDelete a package.\n\nAvailable for **admin actors only** — an Okta admin token (introspected by the API gateway) or, outside production, the static admin token. Any other actor type receives 403. Note the list operation on this path is **not** admin-only: it remains available to staff tokens, so authorization differs per operation.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Numeric identifier of the record (e.g., 1, 2231)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The package was deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The credential was rejected at introspection"
+          },
+          "403": {
+            "description": "The actor is authenticated but is not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "403 Forbidden"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No package with that id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Package with id 0 doesn't exist"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/license/features_packages/add_feature": {
+      "post": {
+        "tags": [
+          "Features Packages"
+        ],
+        "summary": "Add a feature to several license packages",
+        "operationId": "addFeatureToFeaturesPackages",
+        "description": "## Overview\nAttach one packageable feature to a list of packages in a single call. The feature must exist and have `packageable: true`, otherwise the request fails.\n\n> A package that already has the feature is **skipped**, not rejected, so the call is safe to repeat. Only packages actually modified are recorded in the audit trail.\n> If any id in the list does not exist the **whole call rolls back** — no package keeps the feature and no audit row is written.\n\nAvailable for **admin actors only** — an Okta admin token (introspected by the API gateway) or, outside production, the static admin token. Any other actor type receives 403. Note the list operation on this path is **not** admin-only: it remains available to staff tokens, so authorization differs per operation.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "packages_ids",
+                  "feature_name"
+                ],
+                "properties": {
+                  "packages_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "description": "Identifiers of the packages to attach the feature to (e.g., [1, 2])"
+                  },
+                  "feature_name": {
+                    "type": "string",
+                    "description": "Internal name of a packageable feature (e.g., \"online_scheduling\")"
+                  }
+                }
+              },
+              "example": {
+                "packages_ids": [
+                  1,
+                  2
+                ],
+                "feature_name": "online_scheduling"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The feature was attached to every listed package Returns 201 because the platform maps every successful POST to created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A required param is missing, the feature does not exist or is not packageable, or one of the package ids does not exist. Nothing is changed when this happens - the whole call rolls back.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "invalid",
+                      "message": "Error in add feature to packages: feature is not packageable"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The credential was rejected at introspection"
+          },
+          "403": {
+            "description": "The actor is authenticated but is not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "403 Forbidden"
+                    }
+                  ]
+                }
+              }
+            }
           }
         }
       }
