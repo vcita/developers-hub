@@ -152,6 +152,47 @@
             }
           }
         }
+      },
+      "CreateFileArchiveRequest": {
+        "type": "object",
+        "required": ["entity_type", "entity_uid"],
+        "properties": {
+          "entity_type": {
+            "type": "string",
+            "enum": ["message", "invoice", "payment", "appointment", "estimate"],
+            "description": "Entity type whose files are archived (e.g., \"message\", \"invoice\")."
+          },
+          "entity_uid": {
+            "type": "string",
+            "description": "Entity UID whose files are archived (e.g., \"msg_Aa1Bb2Cc3Dd4Ee5F\")."
+          }
+        }
+      },
+      "FileArchive": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "readOnly": true,
+            "description": "Pre-signed url to the archive; hand it to the browser to download (e.g., \"https://vcita-files.s3.eu-central-1.amazonaws.com/archives/biz_1/uuid.zip?X-Amz-Signature=...\")."
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true,
+            "description": "When the url stops working (e.g., \"2026-09-03T14:15:00.000Z\")."
+          },
+          "file_count": {
+            "type": "integer",
+            "readOnly": true,
+            "description": "How many files the archive holds (e.g., 8)."
+          },
+          "skipped_count": {
+            "type": "integer",
+            "readOnly": true,
+            "description": "How many linked files were left out because their bytes are not readable - still processing, or retracted (e.g., 2)."
+          }
+        }
       }
     }
   },
@@ -786,6 +827,112 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/assets/file_relations/archive": {
+      "post": {
+        "operationId": "createFileArchive",
+        "summary": "Archive the files linked to an entity",
+        "description": "Zips every readable file linked to one entity and returns a pre-signed url to the archive, for bulk download.\n\nTakes the **entity**, never a list of file uids, so a caller cannot name files it has no access to. Access is the same as reading the relations: a client sees only its own, and staff must be able to reach the entity under the business collaboration rules.\n\nFiles whose bytes are not readable yet - still processing, or retracted after an 'infected'/'failed' verdict - are left out rather than failing the archive, and `skipped_count` says how many. Entries are stored uncompressed, since the payloads are already compressed formats.\n\nThe url is short-lived; request a new archive rather than holding on to it.\n\nAvailable for **Staff and Client tokens**.",
+        "tags": ["File Relations"],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFileArchiveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Archive created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/Response"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "file_archive": {
+                              "$ref": "#/components/schemas/FileArchive"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "file_archive": {
+                      "url": "https://vcita-files.s3.eu-central-1.amazonaws.com/archives/biz_Aa1Bb2Cc3Dd4Ee5F/6f1a0f3c-9b1e-4a7f-bb54-2c9c1f7d5a10.zip?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Expires=900&X-Amz-Signature=6f2b",
+                      "expires_at": "2026-09-03T14:15:00.000Z",
+                      "file_count": 8,
+                      "skipped_count": 2
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - the actor has no access to the entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "ENTITY_ACCESS_DENIED",
+                  "message": "You do not have access to this entity"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found - no readable files are linked to the entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "NO_ARCHIVABLE_FILES",
+                  "message": "No readable files are linked to this entity"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable - the entity holds more files than one archive may carry, or their total size exceeds the archive limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "TOO_MANY_FILES",
+                  "message": "Cannot archive more than 10 files at once",
+                  "file_count": 25,
+                  "max_files": 10
                 }
               }
             }
