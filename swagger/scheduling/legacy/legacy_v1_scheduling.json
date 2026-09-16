@@ -373,7 +373,7 @@
                   "x-reference-to": "event_instance"
                 },
                 "form_data": {
-                  "description": "Client form data for the scheduling form. **Required** - every field marked `required: true` in the form definition must be present here, even when `client_id` is supplied. Field uids come from `GET /platform/v1/scheduling/scheduling_forms/get_form`.\n\n## Structure\n`form_data` is an object of named sections - `fields`, `service_fields`, `meeting_details`, `others`, `policies`, `client_settings`. Every section is an object, never an array, and `fields` is keyed by field uid:\n```json\n{\n  \"form_data\": {\n    \"fields\": {\n      \"{email_field_id}\": \"client@example.com\",\n      \"{first_name_field_id}\": \"John\"\n    },\n    \"others\": { \"notes\": null },\n    \"policies\": {}\n  }\n}\n```\n\nThere is no `field_id` / `type` / `new_data` wrapper.",
+                  "description": "Client form data for the scheduling form. **Required** - every field marked `required: true` in the form definition must be present here, even when `client_id` is supplied. Field uids come from `GET /platform/v1/scheduling/scheduling_forms/get_form?business_id={business_id}&service_id={service_id}`.\n\n## Structure\n`form_data` is an object of named sections - `fields`, `service_fields`, `meeting_details`, `others`, `policies`, `client_settings`. Every section is an object, never an array, and `fields` is keyed by field uid:\n```json\n{\n  \"form_data\": {\n    \"fields\": {\n      \"{email_field_id}\": \"client@example.com\",\n      \"{first_name_field_id}\": \"John\"\n    },\n    \"others\": { \"notes\": null },\n    \"policies\": {}\n  }\n}\n```\n\nThere is no `field_id` / `type` / `new_data` wrapper.",
                   "type": "object",
                   "properties": {
                     "fields": {
@@ -1015,6 +1015,14 @@
             "required": true,
             "type": "string",
             "x-reference-to": "business"
+          },
+          {
+            "description": "Service uid, to get the form for a specific service. Omit it and the business-level form is returned, which can miss service-specific fields. Accepts a comma-separated list of uids for a multi-service booking (e.g. \"vpa6mzkt11f1n2pc,x8enou59f38uy7kb\").",
+            "in": "query",
+            "name": "service_id",
+            "required": false,
+            "type": "string",
+            "x-reference-to": "service"
           }
         ],
         "produces": [
@@ -1365,7 +1373,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nLists the bookable services of a business - both `AppointmentService` (one-on-one appointments) and `EventService` (group events).\n\n## Why you need it\nThis is where `service_id` for `POST /platform/v1/scheduling/bookings` comes from, together with `providers_staff` - the staff uids allowed to provide that service, which is what you pass as `staff_id`.\n\nTwo service attributes change what the booking request must contain:\n- `interaction_type` - when it is `client_location` or `client_phone`, `form_data.meeting_details.meeting_interaction_details` is required.\n- `duration` - determines how many consecutive slots from `GET /platform/v1/staff/availability` the booking needs.\n\nAccessible **without authentication**, as well as with Client, Staff and Directory tokens.",
+        "description": "## Overview\nLists the bookable services of a business - both `AppointmentService` (one-on-one appointments) and `EventService` (group events).\n\n## Why you need it\n`id` is the `service_id` for `POST /platform/v1/scheduling/bookings`, and `providers_staff` holds the staff uids allowed to provide that service - one of which is the `staff_id`.\n\nWhen `interaction_type` is `client_location` or `client_phone`, the booking must also carry `form_data.meeting_details.meeting_interaction_details`.",
         "parameters": [
           {
             "description": "Business uid",
@@ -1374,6 +1382,20 @@
             "required": true,
             "type": "string",
             "x-reference-to": "business"
+          },
+          {
+            "description": "Page number, for paging through the list.",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "description": "Number of services per page.",
+            "in": "query",
+            "name": "per_page",
+            "required": false,
+            "type": "integer"
           }
         ],
         "produces": [
@@ -1436,6 +1458,16 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Missing a mandatory parameter",
+            "examples": {
+              "application/json": {
+                "status": "Error",
+                "error": "Mandatory parameter business_id is missing",
+                "error_code": "PARAMETER_MISSING"
+              }
+            }
           }
         },
         "security": [
@@ -1470,7 +1502,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nReturns available time slots for one or more staff members. The endpoint considers staff weekly availability schedules, calendar sync conflicts, blocked times, and existing bookings to compute open appointment or event slots.\n\nThe response can be aggregated by date (default) or by staff member using the `aggregate_by` parameter.\n\nAuthentication is optional. When a valid client token is provided, availability may be filtered based on the client's context. When no token is provided, the endpoint returns availability without client-specific filtering.\n\nAvailable for **Staff, Directory, and Client tokens**. Also accessible without authentication.\n\n## Slot granularity\nSlots are returned at a fixed granularity (10 minutes), **independent of the duration of the service you intend to book**. A returned slot start is therefore not by itself a bookable start time: to book a 60-minute service you must confirm that six consecutive 10-minute slots are present with no gap. Booking a start time whose service duration does not fit fails with `422 TIMESLOT_UNAVAILABLE` on `POST /platform/v1/scheduling/bookings`.",
+        "description": "## Overview\nReturns available time slots for one or more staff members. The endpoint considers staff weekly availability schedules, calendar sync conflicts, blocked times, and existing bookings to compute open appointment or event slots.\n\nThe response can be aggregated by date (default) or by staff member using the `aggregate_by` parameter.\n\nAuthentication is optional. When a valid client token is provided, availability may be filtered based on the client's context. When no token is provided, the endpoint returns availability without client-specific filtering.\n\nAvailable for **Staff, Directory, and Client tokens**. Also accessible without authentication.",
         "parameters": [
           {
             "description": "The start date of the availability window in `YYYY-MM-DD` format (e.g., \"2026-03-03\"). Must be a valid date string that can be parsed into a timezone-aware datetime.",
@@ -1494,14 +1526,6 @@
             "name": "staff_ids_array",
             "required": true,
             "type": "string"
-          },
-          {
-            "description": "Business uid. Although the endpoint returns `200 OK` without it, the response is then an **empty** `availabilities` object with no error - in practice this parameter is required for any meaningful result.",
-            "in": "query",
-            "name": "business_id",
-            "required": true,
-            "type": "string",
-            "x-reference-to": "business"
           },
           {
             "description": "IANA time zone identifier used to localize the returned availability slots (e.g., \"UTC\", \"America/New_York\", \"Asia/Jerusalem\"). Defaults to \"UTC\" if not provided. The time zone affects the `start_time` formatting and date grouping in the response.",
