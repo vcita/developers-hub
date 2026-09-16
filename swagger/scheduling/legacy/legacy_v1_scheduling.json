@@ -342,7 +342,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nCreates a booking for either an appointment with a staff member or registration for a group event.\n\n## Relationship to appointments and events\nA **booking** is the lifecycle/action interface for scheduled items:\n- For an **appointment booking**, this endpoint creates the appointment on the business calendar and returns it as a `booking` object.\n- For an **event registration**, this endpoint creates a registration (attendance) for the event instance and returns it as a `booking` object.\n\n## When to use\nIf you are looking for an endpoint to **create appointments** or **register clients to events**, this is the endpoint to use.\n\nAvailable for **Client and Staff tokens**.",
+        "description": "## Overview\nCreates a booking for either an appointment with a staff member or registration for a group event.\n\n## Relationship to appointments and events\nA **booking** is the lifecycle/action interface for scheduled items:\n- For an **appointment booking**, this endpoint creates the appointment on the business calendar and returns it as a `booking` object.\n- For an **event registration**, this endpoint creates a registration (attendance) for the event instance and returns it as a `booking` object.\n\n## When to use\nIf you are looking for an endpoint to **create appointments** or **register clients to events**, this is the endpoint to use.\n\n## Authentication\nAvailable for **Client and Staff tokens**. The endpoint also accepts **unauthenticated** requests, which is how anonymous client-portal / LiveSite bookings are created: when no token is supplied, the client is resolved (or created) from the email in `form_data.fields`.\n\nSupply a Client token together with `client_id` to book on behalf of an existing, known client.\n\n## Required fields\n`business_id` is always required. For an **appointment** booking, `service_id`, `staff_id`, `start_time` and `form_data` are required as well. For an **event registration**, supply `event_instance_id` and `form_data` instead of `service_id` / `staff_id` / `start_time`.\n\nA missing top-level parameter fails with `400 PARAMETER_MISSING`; a missing scheduling-form field fails with `422 FORM_VALIDATION_ERROR`.\n\n## Prerequisites\n- `service_id` and the staff uids that may provide it (`providers_staff`) come from `GET /platform/v1/services`.\n- A bookable `start_time` comes from `GET /platform/v1/staff/availability`. **Availability slots are returned at a fixed granularity (10 minutes) regardless of the service duration** - you must verify that the full service duration fits in a contiguous run of returned slots, otherwise the booking fails with `422 TIMESLOT_UNAVAILABLE`.\n- The `form_data.fields` uids come from `GET /platform/v1/scheduling/scheduling_forms/get_form`.",
         "parameters": [
           {
             "in": "body",
@@ -363,7 +363,7 @@
                   "type": "string"
                 },
                 "client_id": {
-                  "description": "Client uid. If not provided, form_data with client fields (email, first_name) is required.",
+                  "description": "Client uid. Only usable with a Client token. Does not exempt the request from scheduling-form validation: fields marked `required: true` must still be supplied via `form_data.fields`, otherwise the request fails with 422 `FORM_VALIDATION_ERROR`.",
                   "type": "string",
                   "x-reference-to": "client"
                 },
@@ -373,44 +373,20 @@
                   "x-reference-to": "event_instance"
                 },
                 "form_data": {
-                  "description": "Client form data containing scheduling fields. **Required when `client_id` is not provided** - the API requires client identification either via existing `client_id` or via form_data fields.\n\n## When to use\n- **Prefer `client_id`**: If you have an existing client_id, use it instead of form_data. This is simpler and avoids form validation.\n- **Use form_data**: Only when creating a booking for a new client who doesn't exist yet.\n\n## How to obtain field IDs\nCall `GET /platform/v1/forms?business_id={business_id}&form_type=scheduling&service_uid={service_id}` to get the scheduling form definition. Required fields (typically email and first_name) will have `required: true`.\n\n## Structure (IMPORTANT - Array format)\nThe `fields` property must be an **array of field objects**, NOT a key-value object:\n```json\n{\n  \"form_data\": {\n    \"fields\": [\n      {\n        \"field_id\": \"{email_field_id}\",\n        \"type\": \"email\",\n        \"new_data\": \"client@example.com\"\n      },\n      {\n        \"field_id\": \"{first_name_field_id}\",\n        \"type\": \"first_name\",\n        \"new_data\": \"John\"\n      }\n    ],\n    \"service_fields\": [],\n    \"others\": { \"notes\": null },\n    \"policies\": {}\n  }\n}\n```\n\n**Warning**: Using the wrong format (e.g., `{\"field_id\": \"value\"}` as a key-value object) will cause validation errors.\n\n## Meeting details\nWhen the service interaction_type is `client_location` or `phone_call`, include meeting details:\n```json\n{\n  \"form_data\": {\n    \"fields\": [...],\n    \"meeting_details\": {\n      \"meeting_interaction_details\": \"123 Main St, City\"\n    }\n  }\n}\n```",
+                  "description": "Client form data for the scheduling form. **Required** - every field marked `required: true` in the form definition must be present here, even when `client_id` is supplied. Field uids come from `GET /platform/v1/scheduling/scheduling_forms/get_form?business_id={business_id}&service_id={service_id}`.\n\n## Structure\n`form_data` is an object of named sections - `fields`, `service_fields`, `meeting_details`, `others`, `policies`, `client_settings`. Every section is an object, never an array, and `fields` is keyed by field uid:\n```json\n{\n  \"form_data\": {\n    \"fields\": {\n      \"{email_field_id}\": \"client@example.com\",\n      \"{first_name_field_id}\": \"John\"\n    },\n    \"others\": { \"notes\": null },\n    \"policies\": {}\n  }\n}\n```\n\nThere is no `field_id` / `type` / `new_data` wrapper.",
                   "type": "object",
                   "properties": {
                     "fields": {
-                      "type": "array",
-                      "description": "Array of field objects. Each object must have field_id (from form definition), type (field type like 'email', 'first_name'), and new_data (the value as string).",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "field_id": {
-                            "type": "string",
-                            "description": "The field ID from the scheduling form definition"
-                          },
-                          "type": {
-                            "type": "string",
-                            "description": "The field type (e.g., 'email', 'first_name', 'phone')"
-                          },
-                          "new_data": {
-                            "type": "string",
-                            "description": "The field value as a string"
-                          }
-                        },
-                        "required": [
-                          "field_id",
-                          "new_data"
-                        ]
-                      }
+                      "type": "object",
+                      "description": "Client fields, keyed by field uid. Values are strings, except a phone field which takes an object (e.g., {\"prefix_value\": \"US\", \"value\": \"5551234\"})."
                     },
                     "service_fields": {
-                      "type": "array",
-                      "description": "Service-specific custom fields (same structure as fields)",
-                      "items": {
-                        "type": "object"
-                      }
+                      "type": "object",
+                      "description": "Service-specific custom fields, keyed by fieldset field id. Omit when the service has no fieldset."
                     },
                     "meeting_details": {
                       "type": "object",
-                      "description": "Meeting location details (required for client_location or phone_call services)",
+                      "description": "Meeting location details. Required when the service interaction_type is client_location or client_phone.",
                       "properties": {
                         "meeting_interaction_details": {
                           "type": "string",
@@ -430,7 +406,7 @@
                     },
                     "policies": {
                       "type": "object",
-                      "description": "Policy acceptance data"
+                      "description": "Policy acceptance, keyed by policy id (e.g., {\"meetings_policy\": true})."
                     }
                   }
                 },
@@ -458,12 +434,12 @@
                   "type": "string"
                 },
                 "staff_id": {
-                  "description": "Staff uid. Required for appointment booking.",
+                  "description": "Staff uid. Required for appointment booking. Must be one of the service's `providers_staff` (see `GET /platform/v1/services`).",
                   "type": "string",
                   "x-reference-to": "staff"
                 },
                 "start_time": {
-                  "description": "ISO 8601 format. Required for appointment.",
+                  "description": "ISO 8601 format (e.g., \"2026-09-16T15:00:00Z\"). Required for appointment. Must be a slot where the whole service duration fits - see `GET /platform/v1/staff/availability`.",
                   "type": "string"
                 },
                 "time_zone": {
@@ -472,7 +448,8 @@
                 }
               },
               "required": [
-                "business_id"
+                "business_id",
+                "form_data"
               ],
               "type": "object"
             }
@@ -486,41 +463,55 @@
             "description": "Success",
             "examples": {
               "application/json": {
+                "status": "OK",
                 "data": {
+                  "token": null,
                   "booking": {
-                    "business_id": "e62db14aa58c7675",
-                    "client_id": "1kfvtps4a4wlh3lc",
-                    "conversation_id": "ugd2qqidl75wrto6",
-                    "created_at": "2020-01-19T07:44:21Z",
+                    "id": "84wnnfr46ezvk8av",
+                    "title": "In-office appointment",
+                    "status": "requested",
+                    "start_time": "2026-09-16T15:00:00Z",
                     "duration": 60,
-                    "event_instance_id": "a8ma2ephjfvwnvy7 (only for event)",
-                    "id": "v8mvcenb8y3wej2n",
-                    "service_id": "mxmuh2mewjxe9vip",
-                    "source_data": {
-                      "campaign": null,
-                      "channel": "",
-                      "name": "client_portal",
-                      "website_url": null
-                    },
-                    "staff_id": "mg9d91uh92bclwzg",
-                    "start_time": "2020-01-22T13:00:00Z",
-                    "status": "scheduled",
+                    "client_id": "kabgzfnpi9tahre7",
+                    "staff_id": "bqhvdcsdg90twblu",
+                    "business_id": "9ec2ea20q48brjq5",
+                    "conversation_id": "po2z06jekmvqxbve",
+                    "created_at": "2026-09-14T14:26:01Z",
+                    "service_id": "x8enou59f38uy7kb",
+                    "event_instance_id": null,
+                    "type": "appointment",
                     "time_zone": "UTC",
-                    "title": "Imm + free",
-                    "type": "appointment/event"
+                    "payment_status": null,
+                    "auto_reply_message": "<div>Thanks for your booking. Looking forward to meeting you!</div>",
+                    "linked_booking_uid": null,
+                    "source_data": {
+                      "name": "api",
+                      "channel": "",
+                      "campaign": null,
+                      "website_url": null
+                    }
                   }
-                },
-                "status": "OK"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A mandatory top-level parameter is missing. `error` is a string.",
+            "examples": {
+              "application/json": {
+                "status": "Error",
+                "error": "Mandatory parameter staff_id is missing",
+                "error_code": "PARAMETER_MISSING"
               }
             }
           },
           "422": {
-            "description": "Failure",
+            "description": "Business-rule failure. Note that the type of `error` depends on `error_code`: it is a **string** for `TIMESLOT_UNAVAILABLE` / `ALREADY_REGISTERED`, and an **object keyed by scheduling-form field uid** for `FORM_VALIDATION_ERROR`.",
             "examples": {
               "application/json": {
-                "error": "error text",
-                "error_code": "TIMESLOT_UNAVAILABLE/ALREADY_REGISTERED",
-                "status": "Error"
+                "status": "Error",
+                "error": "Timeslot Unavailable",
+                "error_code": "TIMESLOT_UNAVAILABLE/ALREADY_REGISTERED/FORM_VALIDATION_ERROR"
               }
             }
           }
@@ -1010,6 +1001,130 @@
         "x-auth-type": "Application & Application User"
       }
     },
+    "/scheduling/scheduling_forms/get_form": {
+      "get": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "## Overview\nReturns the definition of the business's **scheduling form** - the fields a client must fill in when booking.\n\n## Why you need it\nThe field uids returned here are the keys of `form_data.fields` in `POST /platform/v1/scheduling/bookings`. Every field with `required: true` must be present in `form_data.fields`, otherwise the booking fails with `422 FORM_VALIDATION_ERROR`. There is no fixed set of uids - they differ per business, so this endpoint must be called before booking.\n\n## Structure\n`data.sections` is an array of sections. A section of `type: \"fields\"` carries `fields` as an **array of arrays** (rows of fields); a section of `type: \"policies\"` carries policy entries whose `id` (e.g. `meetings_policy`) is the key used in `form_data.policies`.\n\nAccessible **without authentication**, as well as with Client, Staff and Directory tokens.",
+        "parameters": [
+          {
+            "description": "Business uid",
+            "in": "query",
+            "name": "business_id",
+            "required": true,
+            "type": "string",
+            "x-reference-to": "business"
+          },
+          {
+            "description": "Service uid, to get the form for a specific service. Omit it and the business-level form is returned, which can miss service-specific fields. Accepts a comma-separated list of uids for a multi-service booking (e.g. \"vpa6mzkt11f1n2pc,x8enou59f38uy7kb\").",
+            "in": "query",
+            "name": "service_id",
+            "required": false,
+            "type": "string",
+            "x-reference-to": "service"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "examples": {
+              "application/json": {
+                "status": "OK",
+                "data": {
+                  "type": "scheduling",
+                  "title": "Scheduling form",
+                  "sections": [
+                    {
+                      "title": "Add your info",
+                      "type": "fields",
+                      "editable": true,
+                      "fields": [
+                        [
+                          {
+                            "id": "vvx3507vmuy3mz5e",
+                            "type": "email",
+                            "label": "Email",
+                            "required": true,
+                            "object_type": "contact"
+                          }
+                        ],
+                        [
+                          {
+                            "id": "m9nb5f34rvvkl4mi",
+                            "type": "firstname",
+                            "label": "First Name",
+                            "required": true,
+                            "object_type": "contact"
+                          }
+                        ],
+                        [
+                          {
+                            "id": "40te4wanxx8np5e4",
+                            "type": "lastname",
+                            "label": "Last Name",
+                            "required": false,
+                            "object_type": "contact"
+                          }
+                        ],
+                        [
+                          {
+                            "id": "kax0l7n032honlot",
+                            "type": "phone",
+                            "label": "Phone",
+                            "required": false,
+                            "object_type": "contact"
+                          }
+                        ]
+                      ]
+                    },
+                    {
+                      "title": "Business policy",
+                      "type": "policies",
+                      "fields": [
+                        {
+                          "id": "meetings_policy",
+                          "type": "policy",
+                          "label": "Booking policy"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "default": [
+              "platform"
+            ]
+          }
+        ],
+        "summary": "Get Scheduling Form",
+        "tags": [
+          "Bookings"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "GET",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///platform/v1/scheduling/scheduling_forms/get_form"
+        },
+        "x-auth-type": "Application & Application User"
+      }
+    },
     "/scheduling/waitlist": {
       "post": {
         "consumes": [
@@ -1249,6 +1364,135 @@
           },
           "type": "http_proxy",
           "uri": "https:///platform/v1/scheduling/waitlist/cancel"
+        },
+        "x-auth-type": "Application & Application User"
+      }
+    },
+    "/services": {
+      "get": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "## Overview\nLists the bookable services of a business - both `AppointmentService` (one-on-one appointments) and `EventService` (group events).\n\n## Why you need it\n`id` is the `service_id` for `POST /platform/v1/scheduling/bookings`, and `providers_staff` holds the staff uids allowed to provide that service - one of which is the `staff_id`.\n\nWhen `interaction_type` is `client_location` or `client_phone`, the booking must also carry `form_data.meeting_details.meeting_interaction_details`.",
+        "parameters": [
+          {
+            "description": "Business uid",
+            "in": "query",
+            "name": "business_id",
+            "required": true,
+            "type": "string",
+            "x-reference-to": "business"
+          },
+          {
+            "description": "Page number, for paging through the list.",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "type": "integer"
+          },
+          {
+            "description": "Number of services per page.",
+            "in": "query",
+            "name": "per_page",
+            "required": false,
+            "type": "integer"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "examples": {
+              "application/json": {
+                "status": "OK",
+                "data": {
+                  "services": [
+                    {
+                      "id": "x8enou59f38uy7kb",
+                      "type": "AppointmentService",
+                      "service_type": "appointment",
+                      "name": "In-office appointment",
+                      "description": "",
+                      "duration": 60,
+                      "charge_type": "no_price",
+                      "price": 0.0,
+                      "currency": "CHF",
+                      "interaction_type": "default_business_location",
+                      "meeting_interaction_details": null,
+                      "approval_mode": "single_choice",
+                      "business_uid": "9ec2ea20q48brjq5",
+                      "business_enabled": true,
+                      "providers_staff": [
+                        "bqhvdcsdg90twblu",
+                        "bmk9iai9wft19yqa",
+                        "u5kpxrf7j8caq9yl"
+                      ],
+                      "staff_settings": {
+                        "random_selection": false,
+                        "joint_availability": null
+                      },
+                      "booking_restriction": {
+                        "is_client_restricted": false
+                      },
+                      "max_attendance": 1,
+                      "padding": 0
+                    },
+                    {
+                      "id": "cbyjybsjr9aunwv4",
+                      "type": "EventService",
+                      "service_type": "event",
+                      "name": "Demo class / event",
+                      "duration": 60,
+                      "charge_type": "no_price",
+                      "interaction_type": "default_business_location",
+                      "business_uid": "9ec2ea20q48brjq5",
+                      "providers_staff": [
+                        "bqhvdcsdg90twblu"
+                      ],
+                      "max_attendance": 10,
+                      "event_display_remaining_spots": true
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing a mandatory parameter",
+            "examples": {
+              "application/json": {
+                "status": "Error",
+                "error": "Mandatory parameter business_id is missing",
+                "error_code": "PARAMETER_MISSING"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "default": [
+              "platform"
+            ]
+          }
+        ],
+        "summary": "List Services",
+        "tags": [
+          "Services"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "GET",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///platform/v1/services"
         },
         "x-auth-type": "Application & Application User"
       }
