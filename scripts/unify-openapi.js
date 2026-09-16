@@ -150,6 +150,34 @@ function extractBasePath(content, fileName) {
   return '';
 }
 
+// Swagger 2.0 lets a non-body parameter carry JSON-Schema validation keywords
+// directly (type, default, enum, minimum, ...). OpenAPI 3.0 allows only
+// name/in/description/required/deprecated/allowEmptyValue/style/explode/
+// allowReserved/schema/example/examples/content on a Parameter Object, so every
+// other keyword has to move into `schema` — strict validators (e.g. ReadMe)
+// otherwise reject the spec with "must NOT have unevaluated properties".
+const PARAM_SCHEMA_KEYWORDS = [
+  'format', 'enum', 'items', 'default', 'maximum', 'exclusiveMaximum', 'minimum',
+  'exclusiveMinimum', 'maxLength', 'minLength', 'pattern', 'maxItems', 'minItems',
+  'uniqueItems', 'multipleOf'
+];
+
+// Split a parameter into the keywords that belong in `schema` and the rest of its fields.
+function extractParamSchemaKeywords(param) {
+  const schemaKeywords = {};
+  const rest = {};
+
+  for (const [key, value] of Object.entries(param)) {
+    if (PARAM_SCHEMA_KEYWORDS.includes(key)) {
+      schemaKeywords[key] = value;
+    } else {
+      rest[key] = value;
+    }
+  }
+
+  return { schemaKeywords, rest };
+}
+
 // Convert Swagger 2.0 operation to OpenAPI 3.0
 function convertSwaggerToOpenAPI(operation, fileName) {
   if (!operation) return operation;
@@ -282,15 +310,12 @@ function convertSwaggerToOpenAPI(operation, fileName) {
       
       // Always ensure parameters use schema format (even if already partially converted)
       if (param.type) {
-        const { type, format, enum: enumValues, items, collectionFormat, ...rest } = param;
+        const { schemaKeywords, rest } = extractParamSchemaKeywords(param);
+        const { type, collectionFormat, schema, ...paramRest } = rest;
         newParam = {
-          ...rest,
-          schema: param.schema || {
-            type,
-            ...(format && { format }),
-            ...(enumValues && { enum: enumValues }),
-            ...(items && { items })
-          }
+          ...paramRest,
+          // An existing `schema` wins over keywords left behind on the parameter.
+          schema: schema ? { ...schemaKeywords, ...schema } : { type, ...schemaKeywords }
         };
         
         // Convert Swagger 2.0 collectionFormat to OpenAPI 3.0 style/explode
@@ -324,10 +349,20 @@ function convertSwaggerToOpenAPI(operation, fileName) {
         }
       } else {
         newParam = param;
-        
+
+        // A partially converted parameter can still carry schema keywords alongside
+        // its `schema` (body parameters keep theirs — that schema is the payload).
+        if (param.in !== 'body') {
+          const { schemaKeywords, rest } = extractParamSchemaKeywords(param);
+          if (Object.keys(schemaKeywords).length > 0) {
+            const { schema, ...paramRest } = rest;
+            newParam = { ...paramRest, schema: { ...schemaKeywords, ...(schema || {}) } };
+          }
+        }
+
         // Handle collectionFormat even if no type conversion needed
         if (param.collectionFormat) {
-          const { collectionFormat, ...rest } = param;
+          const { collectionFormat, ...rest } = newParam;
           newParam = { ...rest };
           
           switch (collectionFormat) {
@@ -451,15 +486,11 @@ function normalizeEndpoints(fileContent, fileName) {
     if (methods.parameters && isSwagger2) {
       convertedMethods.parameters = methods.parameters.map(param => {
         if (param.type) {
-          const { type, format, enum: enumValues, items, ...rest } = param;
+          const { schemaKeywords, rest } = extractParamSchemaKeywords(param);
+          const { type, ...paramRest } = rest;
           return {
-            ...rest,
-            schema: {
-              type,
-              ...(format && { format }),
-              ...(enumValues && { enum: enumValues }),
-              ...(items && { items })
-            }
+            ...paramRest,
+            schema: { type, ...schemaKeywords }
           };
         }
         return param;
