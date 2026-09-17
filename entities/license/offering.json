@@ -18,11 +18,12 @@
       },
       "type": {
         "type": "string",
-        "description": "Type of the offering. Possible values include: **package** for the main business subscription; **app** for marketplace app subscriptions and **addon** for other SKUs like SMS and staff_seats. A user can have one subscription with package, one subscription per SKU of type apps and any number of subscriptions for any SKU",
+        "description": "Type of the offering. Possible values include: **package** for the main business subscription; **app** for marketplace app subscriptions and **addon** for other SKUs like SMS and staff_seats. **one_time_purchase** for single-charge packs such as an SMS or token bundle. A user can have one subscription with package, one subscription per SKU of type apps and any number of subscriptions for any SKU",
         "enum":[
           "package",
           "app",
-          "addon"
+          "addon",
+          "one_time_purchase"
         ]
       },
       "SKU": {
@@ -50,6 +51,26 @@
           "external_single_charge",
           "bundle"
         ]
+      },
+      "quotas": {
+        "type": "array",
+        "description": "The credit the offering grants and the window it is granted over. Always present: an offering created without an explicit quota carries its own `quantity` with a null `period`, which means the credit is not metered here. A quota with a `period` makes the offering **countable** - a subscription created from it grants that credit, and usage reported for the offering SKU is metered against it. Written with the offering and never changed once a period is set; existing subscribers keep the old amount. Exactly one entry.",
+        "items": {
+          "type": "object",
+          "required": ["quantity"],
+          "properties": {
+            "period": {
+              "type": "string",
+              "nullable": true,
+              "description": "The window the credit is granted over. `monthly` recurs and requires an `addon` offering with the `bundle` payment type; `life_long` never resets and requires a `one_time_purchase` offering paid by `single_charge` or `external_single_charge`. Null when the credit is not period-managed here.",
+              "enum": ["monthly", "life_long"]
+            },
+            "quantity": {
+              "type": "integer",
+              "description": "The credit this period grants, in units of the offering SKU. `-1` means unlimited."
+            }
+          }
+        }
       },
       "is_active":{
         "type":"boolean",
@@ -177,7 +198,8 @@
         "display_name",
         "quantity",
         "payment_type",
-        "prices"
+        "prices",
+        "quotas"
       ],
     "example": {
       "uid": "bc33f12d-98ee-428f-9f65-18bba589cb95",
