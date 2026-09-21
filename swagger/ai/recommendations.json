@@ -382,7 +382,7 @@
           "AI Recommendations"
         ],
         "summary": "Update an AIRecommendation",
-        "description": "## Overview\nUpdate an existing AIRecommendation by UID.\n\n**Available for Staff tokens**",
+        "description": "## Overview\nPartial update of an existing AIRecommendation by UID: its `status`, its `target` actor, or both.\n\nScoped to the requesting staff member: only the recommendation's current target, or a caller acting as them, can update it at all. Returns 404 both when no recommendation with this uid exists and when it belongs to another staff member, so the existence of another staff member's recommendation is never revealed.\n\nReassigning via `target` hands the recommendation to another staff member and notifies them the same way a newly created recommendation would. Only staff-to-staff reassignment is supported, a dismissed or completed recommendation cannot be reassigned, and a reassignment cannot carry a `status` that resolves the recommendation.\n\n**Available for Staff tokens**",
         "security": [
           {
             "Bearer": []
@@ -404,6 +404,26 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/AIRecommendationUpdateRequest"
+              },
+              "examples": {
+                "reassign": {
+                  "summary": "Reassign the recommendation to another staff member",
+                  "value": {
+                    "target": {
+                      "target_actor_uid": "staff-789",
+                      "target_actor_type": "staff"
+                    }
+                  }
+                },
+                "complete": {
+                  "summary": "Mark the recommendation completed",
+                  "value": {
+                    "status": {
+                      "state": "completed",
+                      "state_source_type": "user"
+                    }
+                  }
+                }
               }
             }
           }
@@ -425,6 +445,63 @@
                           "$ref": "https://vcita.github.io/developers-hub/entities/ai/AIRecommendation.json"
                         }
                       }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Nothing to update (neither `status` nor `target` given), a reassignment that is not staff-to-staff, an attempt to reassign a dismissed or completed recommendation, or a reassignment sent with a `status` that resolves it. Nothing is written when the request is rejected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "invalid",
+                      "message": "A dismissed recommendation cannot be reassigned"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - the token is missing or invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Unauthorized"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No AIRecommendation with this uid is accessible to the requesting staff member - it does not exist, or it belongs to another staff member",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "AIRecommendation not found"
                     }
                   ]
                 }
@@ -638,8 +715,31 @@
                 "description": "The source that dismissed the recommendation. Null when the recommendation has not been dismissed."
               }
             }
+          },
+          "target": {
+            "type": "object",
+            "description": "Hand the recommendation to another staff member (reassignment). Only staff-to-staff reassignment is supported - a directory-targeted recommendation cannot be reassigned, nor can one be handed to a directory. A dismissed or completed recommendation is refused, and so is a reassignment sent together with a `status` that resolves the recommendation - a resolved recommendation keeps its assignee. The new target is notified the same way they would be about a newly created recommendation. All of these are 400s.",
+            "required": [
+              "target_actor_uid",
+              "target_actor_type"
+            ],
+            "properties": {
+              "target_actor_uid": {
+                "type": "string",
+                "description": "A unique identifier for the actor that should own the recommendation from now on (e.g., \"staff-789\")."
+              },
+              "target_actor_type": {
+                "type": "string",
+                "enum": [
+                  "staff",
+                  "directory"
+                ],
+                "description": "The type of target actor. Reassignment supports \"staff\" only."
+              }
+            }
           }
-        }
+        },
+        "description": "Partial update of a recommendation: its `status`, its `target` actor, or both. A body carrying neither is rejected with 400. Both members are validated before either is applied, so a rejected request leaves the recommendation untouched rather than half-updated."
       },
       "AIRecommendationList": {
         "type": "object",
