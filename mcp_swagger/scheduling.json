@@ -1298,7 +1298,7 @@
     },
     "/platform/v1/scheduling/waitlist": {
       "post": {
-        "description": "## Overview\nJoin an event waitlist.\n\n## Booking note\nTo **register a client** directly to an event instance (instead of joining the waitlist), create a booking using `POST /platform/v1/scheduling/bookings` and provide `event_instance_id`.\n\nAvailable for **Staff, App, Directory, and Client tokens**.\n\n## Client Identification\nClient tokens: The client is identified from the token.\nStaff/App/Directory tokens: Must provide `client_id` to identify which client to add to the waitlist.\n\n## Note\nValidation errors may return dynamic form field IDs. To get the form field definitions, call `GET /platform/v1/forms?business_id={business_id}&form_type=scheduling&service_uid={event_service_id}`.",
+        "description": "## Overview\nJoin an event waitlist.\n\n## Booking note\nTo **register a client** directly to an event instance (instead of joining the waitlist), create a booking using `POST /platform/v1/scheduling/bookings` and provide `event_instance_id`.\n\nAvailable for **Staff, App, Directory, and Client tokens**.\n\n## Client Identification\nClient tokens: The client is identified from the token.\nStaff/App/Directory tokens: Must provide `client_id` to identify which client to add to the waitlist.\n\n## Required fields\n`business_id` and `event_instance_id` are always required. With a **Staff, App or Directory token**, `client_id` and `form_data` are required as well: the request is validated against the business's **scheduling form**, and every field marked `required: true` there (by default Email and First Name) must be supplied in `form_data.fields`, even though `client_id` already identifies the client. A missing scheduling-form field fails with `422 FORM_VALIDATION_ERROR`, and this check runs before the event instance is looked up.\n\n## Prerequisites\n- The `form_data.fields` uids come from `GET /platform/v1/scheduling/scheduling_forms/get_form?business_id={business_id}`. They differ per business, so look them up rather than hard-coding them.",
         "parameters": [],
         "responses": {
           "201": {
@@ -1339,12 +1339,16 @@
             }
           },
           "422": {
-            "description": "Failure",
+            "description": "Business-rule failure. The type of `error` depends on the failure: an **object keyed by scheduling-form field uid** for `FORM_VALIDATION_ERROR`, otherwise a string (e.g. `Invalid staff`).",
             "content": {
               "application/json": {
                 "example": {
-                  "error": "Invalid staff",
-                  "status": "Error"
+                  "status": "Error",
+                  "error": {
+                    "qxr2cjzo4ifzbpjp": "This field cannot be empty",
+                    "1ztpm5wo248q5uze": "This field cannot be empty"
+                  },
+                  "error_code": "FORM_VALIDATION_ERROR"
                 }
               }
             }
@@ -1383,7 +1387,7 @@
                     "type": "string"
                   },
                   "client_id": {
-                    "description": "Client UID. Required for Staff/App/Directory tokens.",
+                    "description": "Client UID. Required for Staff/App/Directory tokens. Does not exempt the request from scheduling-form validation: fields marked `required: true` must still be supplied via `form_data.fields`, otherwise the request fails with 422 `FORM_VALIDATION_ERROR`.",
                     "type": "string",
                     "x-reference-to": "client"
                   },
@@ -1391,6 +1395,16 @@
                     "description": "Event instance UID. Required - identifies which event to join the waitlist for.",
                     "type": "string",
                     "x-reference-to": "event_instance"
+                  },
+                  "form_data": {
+                    "description": "Client form data for the business's scheduling form. Required for Staff/App/Directory tokens - every field marked `required: true` in the form definition must be present, even when `client_id` is supplied. Field uids come from `GET /platform/v1/scheduling/scheduling_forms/get_form?business_id={business_id}`.\n\n## Structure\n`fields` is an object keyed by field uid - the same shape as `form_data` on `POST /platform/v1/scheduling/bookings`:\n```json\n{\n  \"form_data\": {\n    \"fields\": {\n      \"{email_field_id}\": \"client@example.com\",\n      \"{first_name_field_id}\": \"John\"\n    }\n  }\n}\n```",
+                    "type": "object",
+                    "properties": {
+                      "fields": {
+                        "type": "object",
+                        "description": "Client fields, keyed by scheduling-form field uid."
+                      }
+                    }
                   },
                   "matter_uid": {
                     "description": "Matter/conversation UID to associate with this waitlist entry.",
