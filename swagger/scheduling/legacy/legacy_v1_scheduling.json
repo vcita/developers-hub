@@ -1130,7 +1130,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "## Overview\nJoin an event waitlist.\n\n## Booking note\nTo **register a client** directly to an event instance (instead of joining the waitlist), create a booking using `POST /platform/v1/scheduling/bookings` and provide `event_instance_id`.\n\nAvailable for **Staff, App, Directory, and Client tokens**.\n\n## Client Identification\nClient tokens: The client is identified from the token.\nStaff/App/Directory tokens: Must provide `client_id` to identify which client to add to the waitlist.\n\n## Required fields\n`business_id` and `event_instance_id` are always required. With a **Staff, App or Directory token**, `client_id` and `form_data` are required as well: the request is validated against the business's **scheduling form**, and every field marked `required: true` there (by default Email and First Name) must be supplied in `form_data.fields`, even though `client_id` already identifies the client. A missing scheduling-form field fails with `422 FORM_VALIDATION_ERROR`, and this check runs before the event instance is looked up.\n\n## Prerequisites\n- The `form_data.fields` uids come from `GET /platform/v1/scheduling/scheduling_forms/get_form?business_id={business_id}`. They differ per business, so look them up rather than hard-coding them.",
+        "description": "## Overview\nJoin an event waitlist.\n\n## Booking note\nTo **register a client** directly to an event instance (instead of joining the waitlist), create a booking using `POST /platform/v1/scheduling/bookings` and provide `event_instance_id`.\n\nAvailable for **Staff, App, Directory, and Client tokens**.\n\n## Client Identification\nClient tokens: The client is identified from the token.\nStaff/App/Directory tokens: Must provide `client_id` to identify which client to add to the waitlist.\n\n## Required fields\n`business_id` and `event_instance_id` are always required. With a **Staff, App or Directory token**, `client_id` and `form_data` are required as well: the request is validated against the business's **scheduling form**, and every field marked `required: true` there (by default Email and First Name) must be supplied in `form_data.fields`, even though `client_id` already identifies the client. A missing scheduling-form field fails with `422 FORM_VALIDATION_ERROR`, and this check runs before the event instance is looked up.\n\n## Prerequisites\n- `event_instance_id` is a scheduled event instance, not a service. Joining a waitlist needs an existing occurrence of an event-type service; passing the service uid fails with `422 Unauthorized`.\n- The `form_data.fields` uids come from `GET /platform/v1/scheduling/scheduling_forms/get_form?business_id={business_id}`. They differ per business, so look them up rather than hard-coding them.",
         "parameters": [
           {
             "in": "body",
@@ -1152,7 +1152,7 @@
                   "x-reference-to": "client"
                 },
                 "event_instance_id": {
-                  "description": "Event instance UID. Required - identifies which event to join the waitlist for.",
+                  "description": "UID of a scheduled **event instance** - one dated occurrence of an event-type service, as returned in `data.event_instance.uid` by `GET /platform/v1/scheduling/event_instance/{event_instance_id}`. Required. It is **not** the service uid: an event instance refers to its service through its own `service_id`. A value that is not an event instance of this business - a service uid included - fails with 422 `Unauthorized`.",
                   "type": "string",
                   "x-reference-to": "event_instance"
                 },
@@ -1232,7 +1232,7 @@
             }
           },
           "422": {
-            "description": "Business-rule failure. The type of `error` depends on the failure: an **object keyed by scheduling-form field uid** for `FORM_VALIDATION_ERROR`, otherwise a string (e.g. `Invalid staff`).",
+            "description": "Business-rule failure. The type of `error` depends on the failure: an **object keyed by scheduling-form field uid** for `FORM_VALIDATION_ERROR`, otherwise a string - e.g. `Unauthorized` when `event_instance_id` is not an event instance of this business (such as a service uid), or `Invalid staff`.",
             "examples": {
               "application/json": {
                 "status": "Error",
