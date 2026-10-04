@@ -24,7 +24,10 @@ npm install
 
 ### Basic Usage
 ```bash
-# Run the unification script
+# Run the unification script (this is how the committed mcp_swagger/ files are generated)
+node scripts/unify-openapi.js --flatten-refs
+
+# Without flattening (keeps external $ref URLs; do not commit this output)
 node scripts/unify-openapi.js
 
 # With verbose logging
@@ -302,7 +305,10 @@ node scripts/unify-openapi.js --verbose
 
 Available package scripts:
 ```bash
-# Standard run
+# Standard run (this is how the committed mcp_swagger/ files are generated)
+npm run unify:flatten
+
+# Without flattening (keeps external $ref URLs)
 npm run unify
 
 # With verbose logging
@@ -310,9 +316,6 @@ npm run unify:verbose
 
 # Dry run with verbose output
 npm run unify:dry-run
-
-# Flatten external entity references into inline JSON
-npm run unify:flatten
 ```
 
 ## 🔄 Re-running the Script
