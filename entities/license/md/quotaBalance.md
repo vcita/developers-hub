@@ -14,8 +14,8 @@ A quota balance is the state of one allowance subscription of a business in its 
 | credit | The units the allowance grants per period; null when unlimited (e.g., 300000) | integer | Yes |
 | consumed | The units used in the current period (e.g., 96000) | integer | Yes |
 | left | credit minus consumed; negative after an overdraw. Null when unlimited, which is never reported as -1 (e.g., 204000) | integer | Yes |
-| resets_at | When a monthly allowance starts its next period; null for life_long (e.g., "2026-10-10T00:00:00Z") | string | Yes |
-| expires_at | When a life_long pack expires, if it does; null for monthly (e.g., "2027-02-01T00:00:00Z") | string | Yes |
+| resets_at | When a monthly allowance starts its next period. Null for life_long, and for an allowance that ends on or before that day (e.g., "2026-10-10T00:00:00Z") | string | Yes |
+| expires_at | When the allowance ends, for any period; null when it has no end date (e.g., "2027-02-01T00:00:00Z") | string | Yes |
 
 ## Example
 
