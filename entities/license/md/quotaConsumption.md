@@ -1,6 +1,6 @@
 ## QuotaConsumption
 
-A quota consumption is one row of the usage ledger: units of a metered SKU charged to one allowance subscription of a business. Usage is reported by internal services over a queue, so the API only reads it. One reported event writes one row per allowance it was charged to, so an event split across a monthly allowance and a pack has two rows sharing its consumption_attempt_uid.
+A quota consumption is one row of the usage ledger: units of a metered SKU charged to one allowance subscription of a business. Usage is reported through `POST /v3/license/quota_consumptions` or published by internal services on the queue, and the ingest records it asynchronously: a row exists only once it was recorded, and the POST echoes the report without uid, subscription_uid, period and window_start until then. One reported event writes one row per allowance it was charged to, so an event split across a monthly allowance and a pack has two rows sharing its consumption_attempt_uid.
 
 ## Properties
 
@@ -16,7 +16,7 @@ A quota consumption is one row of the usage ledger: units of a metered SKU charg
 | window_start | The UTC day the charged period started on; 1970-01-01 for life_long (e.g., "2026-09-10") | string | Yes |
 | quantity | The units charged to this allowance (e.g., 120) | integer | Yes |
 | source | The registered service that reported the usage (e.g., "aiagents") | string | Yes |
-| actor_uid | The reporting actor's uid, when the publisher sent one. An App token sees only rows carrying its own uid (e.g., "aiagents") | string |  |
+| actor_uid | The reporting actor's uid, when the publisher sent one; the POST sets it to the reporting App's uid. An App token sees only rows carrying its own uid (e.g., "aiagents") | string |  |
 | consumption_attempt_uid | The publisher's own id for the reported event; every row of one event shares it (e.g., "msg_7f3a") | string | Yes |
 | occurred_at | When the usage happened, as reported by the publisher (e.g., "2026-09-15T10:00:00Z") | string | Yes |
 
