@@ -16,7 +16,7 @@ A quota consumption is one row of the usage ledger: units of a metered SKU charg
 | window_start | The UTC day the charged period started on; 1970-01-01 for life_long (e.g., "2026-09-10") | string | Yes |
 | quantity | The units charged to this allowance (e.g., 120) | integer | Yes |
 | source | The registered service that reported the usage (e.g., "aiagents") | string | Yes |
-| actor_uid | The reporting actor's uid, when the publisher sent one; the POST sets it to the reporting App's uid. An App token sees only rows carrying its own uid (e.g., "aiagents") | string |  |
+| actor_uid | The uid of the actor that published the usage, an App or an admin, taken from the event's publisher and never from the payload. An App token sees only rows carrying its own uid (e.g., "aiagents") | string |  |
 | consumption_attempt_uid | The publisher's own id for the reported event; every row of one event shares it (e.g., "msg_7f3a") | string | Yes |
 | occurred_at | When the usage happened, as reported by the publisher (e.g., "2026-09-15T10:00:00Z") | string | Yes |
 
