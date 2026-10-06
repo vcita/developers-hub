@@ -72,7 +72,7 @@
           "AI Recommendations"
         ],
         "summary": "Get all AIRecommendations",
-        "description": "## Overview\nRetrieve a list of AIRecommendations with optional filtering by status, target, context, producer, and action UID.\n\nAvailable for **Staff, Directory, and Client tokens**",
+        "description": "## Overview\nRetrieve a list of AIRecommendations with optional filtering by status, category, target, context, context type, producer, and action UID. All filters combine with AND logic.\n\nAvailable for **Staff, Directory, and Client tokens**",
         "parameters": [
           {
             "name": "page",
@@ -118,7 +118,7 @@
                 "snoozed"
               ]
             },
-            "description": "Filter by recommendation lifecycle state: 'active', 'completed', 'dismissed', 'approved', or 'snoozed'."
+            "description": "Filter by recommendation lifecycle state: 'active', 'completed', 'dismissed', 'approved', or 'snoozed'. Defaults to 'active' when omitted."
           },
           {
             "name": "target",
@@ -135,6 +135,20 @@
               "type": "string"
             },
             "description": "Filter by context UID."
+          },
+          {
+            "name": "context_type",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "matter",
+                "client",
+                "business",
+                "ai_rec_conversation"
+              ]
+            },
+            "description": "Filter by context type: 'matter', 'client', 'business' or 'ai_rec_conversation'."
           },
           {
             "name": "action_uid",
@@ -156,7 +170,7 @@
                 "upcoming"
               ]
             },
-            "description": "Filter by category bucket. Only active recommendations are bucketed. Each record belongs to one bucket only, checked in this order:\nupcoming – due_at is in the future (regardless of stored category).\nneeds_attention / opportunity / fyi – due_at is not in the future (past or unset) and the stored category matches the requested bucket."
+            "description": "Filter by category bucket. Each record belongs to exactly one bucket:\nupcoming – due_at is in the future, whatever the stored category.\nneeds_attention – due_at is in the past or unset, stored category is needs_attention.\nopportunity – due_at is in the past or unset, stored category is opportunity.\nfyi – due_at is in the past or unset, stored category is fyi."
           },
           {
             "name": "producer",
@@ -258,7 +272,7 @@
                           "properties": {
                             "counts": {
                               "type": "object",
-                              "description": "Returned only when 'include=counts' is requested. Number of recommendations per bucket across the full set matching every query filter except 'category' and 'status' (that is: 'target', 'context', and 'producer' are all applied; 'category' is intentionally ignored and counts always reflect active recommendations regardless of the 'status' filter). This lets the caller show how many items exist in each bucket regardless of the category currently being requested. The counts are computed scope-wide - they are also independent of pagination, so they reflect totals even for buckets not present in the returned page. Only active recommendations are counted. Every matching recommendation is counted in exactly one bucket (no overlap), evaluated in this order: future 'due_at' -> 'upcoming'; else by stored category -> 'needs_attention', 'opportunity', or 'fyi'.",
+                              "description": "Returned only when 'include=counts' is requested. Number of recommendations per bucket, matching every query filter except 'category' and pagination. 'status' applies, so counts describe the same lifecycle state as the list (active when omitted). Every recommendation is counted in exactly one bucket: future 'due_at' -> 'upcoming'; else by stored category -> 'needs_attention', 'opportunity', or 'fyi'.",
                               "properties": {
                                 "needs_attention": {
                                   "type": "integer",
@@ -454,9 +468,11 @@
                                       "estimate",
                                       "schedule",
                                       "acknowledge",
-                                      "chat_with_bizai"
+                                      "chat_with_bizai",
+                                      "navigate",
+                                      "call"
                                     ],
-                                    "description": "The type of action recommended. Possible values:\n- 'reply': Suggests responding to a user message.\n- 'estimate': Suggests providing a price estimate.\n- 'schedule': Suggests scheduling an appointment or meeting.\n- 'acknowledge': No action or artifact is prepared; the user reviews the item and then completes or dismisses it.\n- 'chat_with_bizai': Hands the item off to BizAI (the business AI chat assistant) to handle on the user's behalf."
+                                    "description": "The type of action recommended. Possible values:\n- 'reply': Suggests responding to a user message.\n- 'estimate': Suggests providing a price estimate.\n- 'schedule': Suggests scheduling an appointment or meeting.\n- 'acknowledge': No action or artifact is prepared; the user reviews the item and then completes or dismisses it.\n- 'chat_with_bizai': Hands the item off to BizAI (the business AI chat assistant) to handle on the user's behalf.\n- 'navigate': Takes the user to the item's context; nothing is prepared or handed off.\n- 'call': Suggests phoning the contact; the call is placed from the user's own device and nothing is prepared or sent."
                                   },
                                   "display": {
                                     "type": "object",
@@ -842,9 +858,11 @@
                                       "estimate",
                                       "schedule",
                                       "acknowledge",
-                                      "chat_with_bizai"
+                                      "chat_with_bizai",
+                                      "navigate",
+                                      "call"
                                     ],
-                                    "description": "The type of action recommended. Possible values:\n- 'reply': Suggests responding to a user message.\n- 'estimate': Suggests providing a price estimate.\n- 'schedule': Suggests scheduling an appointment or meeting.\n- 'acknowledge': No action or artifact is prepared; the user reviews the item and then completes or dismisses it.\n- 'chat_with_bizai': Hands the item off to BizAI (the business AI chat assistant) to handle on the user's behalf."
+                                    "description": "The type of action recommended. Possible values:\n- 'reply': Suggests responding to a user message.\n- 'estimate': Suggests providing a price estimate.\n- 'schedule': Suggests scheduling an appointment or meeting.\n- 'acknowledge': No action or artifact is prepared; the user reviews the item and then completes or dismisses it.\n- 'chat_with_bizai': Hands the item off to BizAI (the business AI chat assistant) to handle on the user's behalf.\n- 'navigate': Takes the user to the item's context; nothing is prepared or handed off.\n- 'call': Suggests phoning the contact; the call is placed from the user's own device and nothing is prepared or sent."
                                   },
                                   "display": {
                                     "type": "object",
@@ -1327,9 +1345,11 @@
                                       "estimate",
                                       "schedule",
                                       "acknowledge",
-                                      "chat_with_bizai"
+                                      "chat_with_bizai",
+                                      "navigate",
+                                      "call"
                                     ],
-                                    "description": "The type of action recommended. Possible values:\n- 'reply': Suggests responding to a user message.\n- 'estimate': Suggests providing a price estimate.\n- 'schedule': Suggests scheduling an appointment or meeting.\n- 'acknowledge': No action or artifact is prepared; the user reviews the item and then completes or dismisses it.\n- 'chat_with_bizai': Hands the item off to BizAI (the business AI chat assistant) to handle on the user's behalf."
+                                    "description": "The type of action recommended. Possible values:\n- 'reply': Suggests responding to a user message.\n- 'estimate': Suggests providing a price estimate.\n- 'schedule': Suggests scheduling an appointment or meeting.\n- 'acknowledge': No action or artifact is prepared; the user reviews the item and then completes or dismisses it.\n- 'chat_with_bizai': Hands the item off to BizAI (the business AI chat assistant) to handle on the user's behalf.\n- 'navigate': Takes the user to the item's context; nothing is prepared or handed off.\n- 'call': Suggests phoning the contact; the call is placed from the user's own device and nothing is prepared or sent."
                                   },
                                   "display": {
                                     "type": "object",
@@ -8836,9 +8856,11 @@
                           "estimate",
                           "schedule",
                           "acknowledge",
-                          "chat_with_bizai"
+                          "chat_with_bizai",
+                          "navigate",
+                          "call"
                         ],
-                        "description": "The type of action recommended. Possible values:\n- 'reply': Suggests responding to a user message.\n- 'estimate': Suggests providing a price estimate.\n- 'schedule': Suggests scheduling an appointment or meeting.\n- 'acknowledge': No action or artifact is prepared; the user reviews the item and then completes or dismisses it.\n- 'chat_with_bizai': Hands the item off to BizAI (the business AI chat assistant) to handle on the user's behalf."
+                        "description": "The type of action recommended. Possible values:\n- 'reply': Suggests responding to a user message.\n- 'estimate': Suggests providing a price estimate.\n- 'schedule': Suggests scheduling an appointment or meeting.\n- 'acknowledge': No action or artifact is prepared; the user reviews the item and then completes or dismisses it.\n- 'chat_with_bizai': Hands the item off to BizAI (the business AI chat assistant) to handle on the user's behalf.\n- 'navigate': Takes the user to the item's context; nothing is prepared or handed off.\n- 'call': Suggests phoning the contact; the call is placed from the user's own device and nothing is prepared or sent."
                       },
                       "display": {
                         "type": "object",
@@ -9059,9 +9081,11 @@
               "estimate",
               "schedule",
               "acknowledge",
-              "chat_with_bizai"
+              "chat_with_bizai",
+              "navigate",
+              "call"
             ],
-            "description": "The type of action recommended. Possible values:\n- 'reply': Suggests responding to a user message.\n- 'estimate': Suggests providing a price estimate.\n- 'schedule': Suggests scheduling an appointment or meeting.\n- 'acknowledge': No action or artifact is prepared; the user reviews the item and then completes or dismisses it.\n- 'chat_with_bizai': Hands the item off to BizAI (the business AI chat assistant) to handle on the user's behalf."
+            "description": "The type of action recommended. Possible values:\n- 'reply': Suggests responding to a user message.\n- 'estimate': Suggests providing a price estimate.\n- 'schedule': Suggests scheduling an appointment or meeting.\n- 'acknowledge': No action or artifact is prepared; the user reviews the item and then completes or dismisses it.\n- 'chat_with_bizai': Hands the item off to BizAI (the business AI chat assistant) to handle on the user's behalf.\n- 'navigate': Takes the user to the item's context; nothing is prepared or handed off.\n- 'call': Suggests phoning the contact; the call is placed from the user's own device and nothing is prepared or sent."
           },
           "display": {
             "type": "object",
