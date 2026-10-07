@@ -660,6 +660,73 @@
             }
           }
         }
+      },
+      "CreateQuotaConsumptionDTO": {
+        "type": "object",
+        "required": [
+          "sku",
+          "quantity"
+        ],
+        "properties": {
+          "business_uid": {
+            "type": "string",
+            "maxLength": 16,
+            "description": "The business the usage belongs to. An App acting for a business reports for that business whatever it sends; an Admin, or an App acting for no business, names it (e.g., \"ixfxpxc7s7shyf0m\")"
+          },
+          "sku": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "The metered addon SKU (e.g., \"ai_credit\")"
+          },
+          "quantity": {
+            "type": "integer",
+            "description": "Units consumed, a positive integer (e.g., 30)"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the usage happened; defaults to now. It decides the period charged (e.g., \"2026-10-05T09:44:43Z\")"
+          },
+          "source": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "The source the usage is reported for. An App reports as itself unless it names another source; an Admin names the source it reports for (e.g., \"aiagents\")"
+          },
+          "consumption_attempt_uid": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "The reporter's own id for this usage, reused when reporting it again so a retry records nothing twice; generated when left out (e.g., \"msg_7f3a\")"
+          },
+          "subscription_uid": {
+            "type": "string",
+            "maxLength": 36,
+            "description": "Charge this allowance instead of letting the ingest choose (e.g., \"bc33f12d-98ee-428f-9f65-18bba589cb95\")"
+          }
+        }
+      },
+      "QuotaConsumptionList": {
+        "type": "object",
+        "properties": {
+          "quota_consumptions": {
+            "description": "List of Quota Consumptions",
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/license/quotaConsumption.json"
+            }
+          }
+        }
+      },
+      "QuotaBalanceList": {
+        "type": "object",
+        "properties": {
+          "quota_balances": {
+            "description": "List of Quota Balances",
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/license/quotaBalance.json"
+            }
+          }
+        }
       }
     },
     "securitySchemes": {
@@ -3798,6 +3865,507 @@
             }
           }
         }
+      }
+    },
+    "/license/quota_consumptions": {
+      "post": {
+        "operationId": "createQuotaConsumption",
+        "summary": "Report Quota Usage",
+        "description": "## Overview\nReports one usage of a metered addon SKU. The report is accepted as sent and published for the quota ingest, which validates it, charges the business's allowances in order (the monthly first, then packs), drops a repeated `consumption_attempt_uid` and rejects usage it cannot record; a rejection is logged, not answered. The response echoes the usage as accepted: `uid`, `subscription_uid`, `period` and `window_start` are filled in once it is recorded, which `GET /v3/license/quota_consumptions?source=…&consumption_attempt_uid=…` shows.\n\nAvailable for **App tokens** and **Admin tokens**.\n\n### Token Permissions\n\n| Token Type | Allowed | Restrictions |\n|------------|---------|-------------|\n| **App** | Yes | Reports for the business its token acts for (a `business_uid` in the body is ignored then, and required when the App acts for no business), as itself when `source` is left out or for the `source` it names. The App must be a registered quota consumer for the usage to be recorded. |\n| **Admin** | Yes | Names `business_uid` and `source`; the usage is recorded under that source and attributed to the admin. |\n| **Staff** | No | |\n| **Directory** | No | |\n\n### Retrying\nSend the same `consumption_attempt_uid` when reporting the same usage again; the ingest records it once.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateQuotaConsumptionDTO"
+              },
+              "example": {
+                "sku": "ai_credit",
+                "quantity": 30,
+                "occurred_at": "2026-10-05T09:44:43Z",
+                "consumption_attempt_uid": "msg_7f3a"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The usage was accepted for recording",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "#/components/schemas/QuotaConsumptionList"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "quota_consumptions": [
+                      {
+                        "business_uid": "ixfxpxc7s7shyf0m",
+                        "sku": "ai_credit",
+                        "quantity": 30,
+                        "source": "aiagents",
+                        "actor_uid": "aiagents",
+                        "consumption_attempt_uid": "msg_7f3a",
+                        "occurred_at": "2026-10-05T09:44:43.000Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A key the report does not declare",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "property actor_uid should not exist",
+                      "code": "bad_request"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "Unauthorized",
+                      "code": "unauthorized"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is not an App or Admin token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "Forbidden",
+                      "code": "forbidden"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Quota Consumption"
+        ]
+      },
+      "get": {
+        "summary": "List Quota Consumptions",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "source",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only usage reported by this source (e.g., \"aiagents\")"
+          },
+          {
+            "in": "query",
+            "name": "consumption_attempt_uid",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only the rows of this reported event (e.g., \"msg_7f3a\")"
+          },
+          {
+            "in": "query",
+            "name": "sku",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only usage of this SKU (e.g., \"ai_credit\")"
+          },
+          {
+            "in": "query",
+            "name": "subscription_uid",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only usage charged to this allowance subscription (e.g., \"bc33f12d-98ee-428f-9f65-18bba589cb95\")"
+          },
+          {
+            "in": "query",
+            "name": "business_uid",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only usage of this business, within what the token can read (e.g., \"ixfxpxc7s7shyf0m\")"
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "Page number of the results"
+          },
+          {
+            "in": "query",
+            "name": "per_page",
+            "schema": {
+              "type": "integer",
+              "default": 25,
+              "maximum": 100
+            },
+            "description": "How many items to return per page"
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "type": "string",
+              "default": "updated_at:desc"
+            },
+            "description": "Sort by fields, e.g., \"created_at:asc,updated_at:desc\""
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of Quota Consumptions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "#/components/schemas/QuotaConsumptionList"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "quota_consumptions": [
+                      {
+                        "uid": "5c8bd6f1-3f0e-4d0a-9a57-2b8f0f6d7a31",
+                        "created_at": "2026-09-15T10:00:01Z",
+                        "updated_at": "2026-09-15T10:00:01Z",
+                        "business_uid": "ixfxpxc7s7shyf0m",
+                        "subscription_uid": "bc33f12d-98ee-428f-9f65-18bba589cb95",
+                        "sku": "ai_credit",
+                        "period": "monthly",
+                        "window_start": "2026-09-10",
+                        "quantity": 70,
+                        "source": "aiagents",
+                        "actor_uid": "aiagents",
+                        "consumption_attempt_uid": "msg_7f3a",
+                        "occurred_at": "2026-09-15T10:00:00Z"
+                      },
+                      {
+                        "uid": "9e0f1a2b-3c4d-4e5f-8a9b-0c1d2e3f4a5b",
+                        "created_at": "2026-09-15T10:00:01Z",
+                        "updated_at": "2026-09-15T10:00:01Z",
+                        "business_uid": "ixfxpxc7s7shyf0m",
+                        "subscription_uid": "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+                        "sku": "ai_credit",
+                        "period": "life_long",
+                        "window_start": "1970-01-01",
+                        "quantity": 50,
+                        "source": "aiagents",
+                        "actor_uid": "aiagents",
+                        "consumption_attempt_uid": "msg_7f3a",
+                        "occurred_at": "2026-09-15T10:00:00Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "Invalid query parameter: 'colour' for this API",
+                      "code": "bad_request"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "Unauthorized",
+                      "code": "unauthorized"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token type cannot read quota usage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "Forbidden resource",
+                      "code": "unexpected"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Quota Consumption"
+        ],
+        "description": "## Overview\nList the recorded usage of metered SKUs, the quota ledger. Usage is reported through `POST /v3/license/quota_consumptions` or by internal services over a queue, is recorded asynchronously, and is never changed through the API. To see what happened to one reported event, filter on its source and consumption_attempt_uid, e.g. `?source=aiagents&consumption_attempt_uid=msg_7f3a`. An event split across a monthly allowance and a pack has one row for each.\n\nAvailable for **Staff, Directory, App and Operator tokens**.\n\n**Note:** Staff, Directory and Operator tokens read the business they act for; a token that acts for no business gets 400. App tokens see only rows whose actor_uid is their own uid, in the business they act for; an App token that acts for no business must filter by business_uid, and gets 400 without it."
+      }
+    },
+    "/license/quota_balances": {
+      "get": {
+        "summary": "List Quota Balances",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "sku",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only allowances for this SKU (e.g., \"ai_credit\")"
+          },
+          {
+            "in": "query",
+            "name": "subscription_uid",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only this allowance subscription (e.g., \"bc33f12d-98ee-428f-9f65-18bba589cb95\")"
+          },
+          {
+            "in": "query",
+            "name": "include_depleted",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "description": "Also return life_long packs that are used up (e.g., true)"
+          },
+          {
+            "in": "query",
+            "name": "business_uid",
+            "schema": {
+              "type": "string"
+            },
+            "description": "The business to read. Required for an Admin token; must match a Directory token's business; not accepted from other tokens, which read the business they act for (e.g., \"ixfxpxc7s7shyf0m\")"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The balance of each live allowance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "#/components/schemas/QuotaBalanceList"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "quota_balances": [
+                      {
+                        "subscription_uid": "bc33f12d-98ee-428f-9f65-18bba589cb95",
+                        "business_uid": "ixfxpxc7s7shyf0m",
+                        "sku": "ai_credit",
+                        "period": "monthly",
+                        "unlimited": false,
+                        "credit": 300000,
+                        "consumed": 96000,
+                        "left": 204000,
+                        "resets_at": "2026-10-10T00:00:00Z",
+                        "expires_at": null
+                      },
+                      {
+                        "subscription_uid": "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+                        "business_uid": "ixfxpxc7s7shyf0m",
+                        "sku": "ai_credit",
+                        "period": "life_long",
+                        "unlimited": false,
+                        "credit": 100000,
+                        "consumed": 50,
+                        "left": 99950,
+                        "resets_at": null,
+                        "expires_at": null
+                      },
+                      {
+                        "subscription_uid": "7d6c5b4a-3f2e-4d1c-9b0a-8f7e6d5c4b3a",
+                        "business_uid": "ixfxpxc7s7shyf0m",
+                        "sku": "ai_receptionist_chat",
+                        "period": "monthly",
+                        "unlimited": true,
+                        "credit": null,
+                        "consumed": 96000,
+                        "left": null,
+                        "resets_at": "2026-10-01T00:00:00Z",
+                        "expires_at": null
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "business_uid is required for this token",
+                      "code": "bad_request"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "Unauthorized",
+                      "code": "unauthorized"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token type cannot read quota balances, or the token acts for one of the business's clients",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "Forbidden resource",
+                      "code": "unexpected"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Quota Balance"
+        ],
+        "description": "## Overview\nList the balance of each live allowance a business has for its metered SKUs: one row per allowance, never one combined number, in the order usage is charged (monthly by soonest reset, then packs oldest first). A monthly allowance at zero is still listed, since it resets; a used-up life_long pack is hidden unless include_depleted=true. When unlimited is true, credit and left are null, so check the flag. left can be negative after an overdraw. An allowance that ends on or before its next reset returns its expires_at and no resets_at. Unknown query parameters are rejected with 400.\n\nAvailable for **Staff, Directory, App, Operator and Admin tokens**.\n\n**Note:** Staff, App, Directory and Operator tokens read the business they act for; a token that acts for no business gets 400, even when it passes business_uid, and an App token acting for one of the business's clients gets 403. An Admin token names the business with business_uid."
       }
     }
   }
