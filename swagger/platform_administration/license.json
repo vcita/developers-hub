@@ -730,44 +730,21 @@
       },
       "QuotaTotal": {
         "type": "object",
-        "description": "The balance of one SKU summed across the allowances the query matched, including a used-up pack the list hides. Same fields and meaning as a quotaBalance row.",
+        "description": "What is left of one SKU across the allowances the query matched, including a used-up pack the list hides.",
         "properties": {
           "sku": {
             "type": "string",
             "description": "The metered addon SKU (e.g., \"ai_credit\")"
           },
-          "unlimited": {
-            "type": "boolean",
-            "description": "True when any allowance of this SKU is unlimited; credit and left are then null"
-          },
-          "credit": {
-            "type": "integer",
-            "nullable": true,
-            "description": "Units granted across the live allowances; null when unlimited (e.g., 400000)"
-          },
-          "consumed": {
-            "type": "integer",
-            "description": "Units used across the live allowances in their current periods (e.g., 96050)"
-          },
           "left": {
             "type": "integer",
             "nullable": true,
-            "description": "credit minus consumed across the live allowances, negative after an overdraw; null when unlimited (e.g., 303950)"
-          },
-          "resets_at": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true,
-            "description": "The soonest reset among the monthly allowances, when the total next grows; null with packs only (e.g., \"2026-10-10T00:00:00Z\")"
+            "description": "left summed across the matched allowances, negative after an overdraw; null when any of them is unlimited (e.g., 303950)"
           }
         },
         "required": [
           "sku",
-          "unlimited",
-          "credit",
-          "consumed",
-          "left",
-          "resets_at"
+          "left"
         ]
       }
     },
@@ -4186,7 +4163,7 @@
                         },
                         "meta": {
                           "type": "object",
-                          "description": "Totals derived from the same allowances, one per SKU",
+                          "description": "What is left per SKU, derived from the same allowances",
                           "properties": {
                             "totals": {
                               "type": "array",
@@ -4246,7 +4223,7 @@
         "tags": [
           "Quota Balance"
         ],
-        "description": "List the balance of each live allowance a business has for its metered SKUs: one row per allowance, in the order usage is charged (monthly by soonest reset, then packs oldest first). A monthly allowance at zero is still listed, since it resets; a used-up life_long pack is hidden unless `include_depleted=true`. When `unlimited` is true, `credit` and `left` are null. `left` can be negative after an overdraw. An allowance that ends on or before its next reset returns its `expires_at` and no `resets_at`. `meta.totals` is the combined number per SKU: the balances summed across the allowances the query matches (`sku` and `subscription_uid` narrow it, `include_depleted` never does, so a hidden pack still counts); a SKU with any unlimited allowance is unlimited there too.\n\nAvailable for **Staff, Directory, App, Operator and Internal tokens**. All but an Internal token read the business they act for; an Internal token names it with `business_uid`."
+        "description": "List the balance of each live allowance a business has for its metered SKUs: one row per allowance, in the order usage is charged (monthly by soonest reset, then packs oldest first). A monthly allowance at zero is still listed, since it resets; a used-up life_long pack is hidden unless `include_depleted=true`. An unlimited allowance has null `credit` and `left`; there is no flag, null is the signal. `left` can be negative after an overdraw. An allowance that ends on or before its next reset returns its `expires_at` and no `resets_at`. `meta.totals` is the combined number per SKU: `left` summed across the allowances the query matches (`sku` and `subscription_uid` narrow it, `include_depleted` never does, so a hidden pack still counts); null when any allowance of the SKU is unlimited.\n\nAvailable for **Staff, Directory, App, Operator and Internal tokens**. All but an Internal token read the business they act for; an Internal token names it with `business_uid`."
       }
     }
   }
