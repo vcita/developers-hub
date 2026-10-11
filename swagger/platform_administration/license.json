@@ -727,6 +727,48 @@
             }
           }
         }
+      },
+      "QuotaTotal": {
+        "type": "object",
+        "description": "The balance of one SKU summed across the allowances the query matched, including a used-up pack the list hides. Same fields and meaning as a quotaBalance row.",
+        "properties": {
+          "sku": {
+            "type": "string",
+            "description": "The metered addon SKU (e.g., \"ai_credit\")"
+          },
+          "unlimited": {
+            "type": "boolean",
+            "description": "True when any allowance of this SKU is unlimited; credit and left are then null"
+          },
+          "credit": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Units granted across the live allowances; null when unlimited (e.g., 400000)"
+          },
+          "consumed": {
+            "type": "integer",
+            "description": "Units used across the live allowances in their current periods (e.g., 96050)"
+          },
+          "left": {
+            "type": "integer",
+            "nullable": true,
+            "description": "credit minus consumed across the live allowances, negative after an overdraw; null when unlimited (e.g., 303950)"
+          },
+          "resets_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "The soonest reset among the monthly allowances, when the total next grows; null with packs only (e.g., \"2026-10-10T00:00:00Z\")"
+          }
+        },
+        "required": [
+          "sku",
+          "unlimited",
+          "credit",
+          "consumed",
+          "left",
+          "resets_at"
+        ]
       }
     },
     "securitySchemes": {
@@ -4248,6 +4290,22 @@
                         "data": {
                           "type": "object",
                           "$ref": "#/components/schemas/QuotaBalanceList"
+                        },
+                        "meta": {
+                          "type": "object",
+                          "description": "Totals derived from the same allowances, one per SKU",
+                          "properties": {
+                            "totals": {
+                              "type": "array",
+                              "description": "One total per SKU the business has a live allowance for, sorted by SKU",
+                              "items": {
+                                "$ref": "#/components/schemas/QuotaTotal"
+                              }
+                            }
+                          },
+                          "required": [
+                            "totals"
+                          ]
                         }
                       }
                     }
@@ -4292,6 +4350,26 @@
                         "left": null,
                         "resets_at": "2026-10-01T00:00:00Z",
                         "expires_at": null
+                      }
+                    ]
+                  },
+                  "meta": {
+                    "totals": [
+                      {
+                        "sku": "ai_credit",
+                        "unlimited": false,
+                        "credit": 400000,
+                        "consumed": 96050,
+                        "left": 303950,
+                        "resets_at": "2026-10-10T00:00:00Z"
+                      },
+                      {
+                        "sku": "ai_receptionist_chat",
+                        "unlimited": true,
+                        "credit": null,
+                        "consumed": 96000,
+                        "left": null,
+                        "resets_at": "2026-10-01T00:00:00Z"
                       }
                     ]
                   }
@@ -4365,7 +4443,7 @@
         "tags": [
           "Quota Balance"
         ],
-        "description": "## Overview\nList the balance of each live allowance a business has for its metered SKUs: one row per allowance, never one combined number, in the order usage is charged (monthly by soonest reset, then packs oldest first). A monthly allowance at zero is still listed, since it resets; a used-up life_long pack is hidden unless include_depleted=true. When unlimited is true, credit and left are null, so check the flag. left can be negative after an overdraw. An allowance that ends on or before its next reset returns its expires_at and no resets_at. Unknown query parameters are rejected with 400.\n\nAvailable for **Staff, Directory, App, Operator and Admin tokens**.\n\n**Note:** Staff, App, Directory and Operator tokens read the business they act for; a token that acts for no business gets 400, even when it passes business_uid, and an App token acting for one of the business's clients gets 403. An Admin token names the business with business_uid."
+        "description": "## Overview\nList the balance of each live allowance a business has for its metered SKUs: one row per allowance, in the order usage is charged (monthly by soonest reset, then packs oldest first). A monthly allowance at zero is still listed, since it resets; a used-up life_long pack is hidden unless include_depleted=true. When unlimited is true, credit and left are null, so check the flag. left can be negative after an overdraw. An allowance that ends on or before its next reset returns its expires_at and no resets_at. Unknown query parameters are rejected with 400. meta.totals is the combined number per SKU: the balances summed across the allowances the query matches (sku and subscription_uid narrow it, include_depleted never does, so a hidden pack still counts); a SKU with any unlimited allowance is unlimited there too.\n\nAvailable for **Staff, Directory, App, Operator and Admin tokens**.\n\n**Note:** Staff, App, Directory and Operator tokens read the business they act for; a token that acts for no business gets 400, even when it passes business_uid, and an App token acting for one of the business's clients gets 403. An Admin token names the business with business_uid."
       }
     }
   }
