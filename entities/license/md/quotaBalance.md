@@ -1,6 +1,6 @@
 ## QuotaBalance
 
-A quota balance is the state of one allowance subscription of a business in its current period: what it grants, what was used and what is left. There is one row per allowance and never one combined number; add up the rows of a SKU to know whether the business can still consume it.
+A quota balance is the state of one allowance subscription of a business in its current period: what it grants, what was used and what is left. There is one row per allowance; the combined number per SKU is in the list response's meta.totals. Webhook: when an allowance's left crosses from above zero to zero or below, a model update with class `quota_balance` and event `exhausted` is published, once per allowance per period and never for an unlimited allowance. Register a webhook on entity `quota_balance`, event `exhausted`; its payload is `{ subscription_uid, business_uid, sku, period, window_start, left, exhausted_at }`, where left is how far the allowance went (0 or negative) and exhausted_at is when the usage happened. It is a fact, not an instruction: a business with another allowance left can keep consuming.
 
 ## Properties
 
