@@ -127,11 +127,12 @@
             "name": "status",
             "required": false,
             "in": "query",
-            "description": "Return only plans in this state. Every plan that stopped early is `cancelled`; read `cancel_reason` for why.",
+            "description": "Return only plans in this status. A plan whose scheduled installment failed to charge is `paused`. A plan that was cancelled and will collect nothing further is `cancelled`; read `cancel_reason` for why.",
             "schema": {
               "type": "string",
               "enum": [
                 "active",
+                "paused",
                 "completed",
                 "cancelled"
               ]
@@ -574,7 +575,7 @@
       "patch": {
         "operationId": "updatePaymentPlan",
         "summary": "Update a PaymentPlan",
-        "description": "Update a PaymentPlan. Only two fields are accepted:\n\n* `payment_method_uid` (with `payment_method_type`) — charge a different saved payment method from the next installment onwards.\n* `status` — set to `cancelled` to stop the plan. No further installment is collected. Installments already collected are not refunded, and for a linked plan they stay applied to the invoice. `cancelled` is the only status a client may set, and only while the plan is `active`.\n\nAvailable for **Staff Tokens**.",
+        "description": "Update a PaymentPlan's payment method, or set its `status`: `active` resumes a `paused` plan, `cancelled` stops an `active` or `paused` plan.\n\nAvailable for **Staff Tokens**.",
         "parameters": [
           {
             "name": "uid",
@@ -609,8 +610,9 @@
                   },
                   "status": {
                     "type": "string",
-                    "description": "Set to `cancelled` to stop the plan. This is the only value a client may set (e.g., \"cancelled\")",
+                    "description": "`active` resumes a `paused` plan: the failed installment is charged within a few minutes, then payments continue at the same frequency from the resume date. If that charge fails, the plan returns to `paused`. `cancelled` stops the plan; installments already collected are not refunded, and for a linked plan they stay applied to the invoice (e.g., \"active\", \"cancelled\")",
                     "enum": [
+                      "active",
                       "cancelled"
                     ]
                   }
