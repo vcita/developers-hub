@@ -660,6 +660,92 @@
             }
           }
         }
+      },
+      "CreateQuotaConsumptionDTO": {
+        "type": "object",
+        "required": [
+          "sku",
+          "quantity"
+        ],
+        "properties": {
+          "business_uid": {
+            "type": "string",
+            "maxLength": 16,
+            "description": "The business the usage belongs to. An App acting for a business reports for that business whatever it sends; an Admin, or an App acting for no business, names it (e.g., \"ixfxpxc7s7shyf0m\")"
+          },
+          "sku": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "The metered addon SKU (e.g., \"ai_credit\")"
+          },
+          "quantity": {
+            "type": "integer",
+            "description": "Units consumed, a positive integer (e.g., 30)"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the usage happened; defaults to now. It decides the period charged (e.g., \"2026-10-05T09:44:43Z\")"
+          },
+          "source": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "The source the usage is reported for. An App reports as itself unless it names another source; an Admin names the source it reports for (e.g., \"aiagents\")"
+          },
+          "consumption_attempt_uid": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "The reporter's own id for this usage, reused when reporting it again so a retry records nothing twice; generated when left out (e.g., \"msg_7f3a\")"
+          },
+          "subscription_uid": {
+            "type": "string",
+            "maxLength": 36,
+            "description": "Charge this allowance instead of letting the ingest choose (e.g., \"bc33f12d-98ee-428f-9f65-18bba589cb95\")"
+          }
+        }
+      },
+      "QuotaConsumptionList": {
+        "type": "object",
+        "properties": {
+          "quota_consumptions": {
+            "description": "List of Quota Consumptions",
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/license/quotaConsumption.json"
+            }
+          }
+        }
+      },
+      "QuotaBalanceList": {
+        "type": "object",
+        "properties": {
+          "quota_balances": {
+            "description": "List of Quota Balances",
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/license/quotaBalance.json"
+            }
+          }
+        }
+      },
+      "QuotaTotal": {
+        "type": "object",
+        "description": "What can still be consumed of one SKU across the allowances the query matched.",
+        "properties": {
+          "sku": {
+            "type": "string",
+            "description": "The metered addon SKU (e.g., \"ai_credit\")"
+          },
+          "left": {
+            "type": "integer",
+            "nullable": true,
+            "description": "The sum of what each matched allowance has left, counting an overdrawn one as 0; never negative; null when any of them is unlimited (e.g., 303950)"
+          }
+        },
+        "required": [
+          "sku",
+          "left"
+        ]
       }
     },
     "securitySchemes": {
@@ -3798,6 +3884,346 @@
             }
           }
         }
+      }
+    },
+    "/license/quota_consumptions": {
+      "post": {
+        "operationId": "createQuotaConsumption",
+        "summary": "Create a QuotaConsumption",
+        "description": "Report one usage of a metered addon SKU. The report is accepted as sent and published for the quota ingest, which validates it, charges the business's allowances in order (the monthly first, then packs), records a repeated `consumption_attempt_uid` once and rejects usage it cannot record; a rejection is logged, not answered. The response echoes the usage as accepted; `uid`, `subscription_uid`, `period` and `window_start` are filled in once it is recorded, as `GET /v3/license/quota_consumptions?source=…&consumption_attempt_uid=…` shows.\n\nAvailable for **App and Internal tokens**. An App reports for the business its token acts for, as itself (`business_uid` is required only when it acts for no business); an Internal token names `business_uid` and `source`.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateQuotaConsumptionDTO"
+              },
+              "example": {
+                "sku": "ai_credit",
+                "quantity": 30,
+                "occurred_at": "2026-10-05T09:44:43Z",
+                "consumption_attempt_uid": "msg_7f3a"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The usage was accepted for recording",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "#/components/schemas/QuotaConsumptionList"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A key the report does not declare",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is not an App or Internal token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Quota Consumption"
+        ]
+      },
+      "get": {
+        "summary": "List all QuotaConsumptions",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "source",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only usage reported by this source (e.g., \"aiagents\")"
+          },
+          {
+            "in": "query",
+            "name": "consumption_attempt_uid",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only the rows of this reported event (e.g., \"msg_7f3a\")"
+          },
+          {
+            "in": "query",
+            "name": "sku",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only usage of this SKU (e.g., \"ai_credit\")"
+          },
+          {
+            "in": "query",
+            "name": "subscription_uid",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only usage charged to this allowance subscription (e.g., \"bc33f12d-98ee-428f-9f65-18bba589cb95\")"
+          },
+          {
+            "in": "query",
+            "name": "business_uid",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only usage of this business, within what the token can read (e.g., \"ixfxpxc7s7shyf0m\")"
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "Page number of the results"
+          },
+          {
+            "in": "query",
+            "name": "per_page",
+            "schema": {
+              "type": "integer",
+              "default": 25,
+              "maximum": 100
+            },
+            "description": "How many items to return per page"
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "type": "string",
+              "default": "updated_at:desc"
+            },
+            "description": "Sort by fields, e.g., \"created_at:asc,updated_at:desc\""
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of Quota Consumptions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "#/components/schemas/QuotaConsumptionList"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: an unknown query parameter, or a token that acts for no business and does not filter by business_uid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token type cannot read quota usage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Quota Consumption"
+        ],
+        "description": "List the recorded usage of metered SKUs, the quota ledger. Usage is reported through `POST /v3/license/quota_consumptions` or by internal services over a queue, is recorded asynchronously and is never changed through the API. To see what happened to one reported event, filter on `source` and `consumption_attempt_uid`. An event split across a monthly allowance and a pack has one row for each.\n\nAvailable for **Staff, Directory, App and Operator tokens**. Staff, Directory and Operator tokens read the business they act for; an App token sees only rows whose `actor_uid` is its own, in the business it acts for or names with `business_uid`."
+      }
+    },
+    "/license/quota_balances": {
+      "get": {
+        "summary": "List all QuotaBalances",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "sku",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only allowances for this SKU (e.g., \"ai_credit\")"
+          },
+          {
+            "in": "query",
+            "name": "subscription_uid",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only this allowance subscription (e.g., \"bc33f12d-98ee-428f-9f65-18bba589cb95\")"
+          },
+          {
+            "in": "query",
+            "name": "include_depleted",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "description": "Also return life_long packs that are used up (e.g., true)"
+          },
+          {
+            "in": "query",
+            "name": "business_uid",
+            "schema": {
+              "type": "string"
+            },
+            "description": "The business to read. Required for an Internal token; must match a Directory token's business; not accepted from other tokens, which read the business they act for (e.g., \"ixfxpxc7s7shyf0m\")"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The balance of each live allowance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "#/components/schemas/QuotaBalanceList"
+                        },
+                        "meta": {
+                          "type": "object",
+                          "description": "What can still be consumed per SKU, derived from the same allowances",
+                          "properties": {
+                            "totals": {
+                              "type": "array",
+                              "description": "One total per SKU the business has a live allowance for, sorted by SKU",
+                              "items": {
+                                "$ref": "#/components/schemas/QuotaTotal"
+                              }
+                            }
+                          },
+                          "required": [
+                            "totals"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: an unknown query parameter, a business_uid from a token that acts for a business, or none from a token that does not",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token type cannot read quota balances, or the token acts for one of the business's clients",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Quota Balance"
+        ],
+        "description": "List the balance of each live allowance a business has for its metered SKUs: one row per allowance, in the order usage is charged (monthly by soonest reset, then packs oldest first). A monthly allowance at zero is still listed, since it resets; a used-up life_long pack is hidden unless `include_depleted=true`. An unlimited allowance has null `credit` and `left`; there is no flag, null is the signal. `left` can be negative after an overdraw. An allowance that ends on or before its next reset returns its `expires_at` and no `resets_at`. `meta.totals` is what can still be consumed per SKU: the `left` of each allowance the query matches, counting an overdrawn one as 0, so it is never negative (`sku` and `subscription_uid` narrow it, `include_depleted` does not); null when any allowance of the SKU is unlimited.\n\nAvailable for **Staff, Directory, App, Operator and Internal tokens**. All but an Internal token read the business they act for; an Internal token names it with `business_uid`."
       }
     }
   }
