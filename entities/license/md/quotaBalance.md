@@ -1,6 +1,6 @@
 ## QuotaBalance
 
-A quota balance is the state of one allowance subscription of a business in its current period: what it grants, what was used and what is left. There is one row per allowance and never one combined number; add up the rows of a SKU to know whether the business can still consume it.
+A quota balance is the state of one allowance subscription of a business in its current period: what it grants, what was used and what is left. There is one row per allowance; the combined number per SKU is in the list response's meta.totals.
 
 ## Properties
 
