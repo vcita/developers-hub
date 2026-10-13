@@ -160,7 +160,7 @@
       "post": {
         "operationId": "FilesController_upload",
         "summary": "Create a new file",
-        "description": "Create a new file for the specified business. The API returns immediately with status='pending'. File processing (virus scan, S3 upload, thumbnail generation) happens asynchronously in the background.\n\nIf a duplicate file is detected via SHA-256 content hash, the existing file is returned immediately with status='uploaded'.\n\nRate limit: 10 uploads per user per 10 minutes. Maximum file size: 100MB.\n\nAvailable for **Staff and Client tokens**.",
+        "description": "Create a new file for the specified business. The API returns immediately with status='pending'. File processing (virus scan, S3 upload, thumbnail generation) happens asynchronously in the background.\n\nIf a duplicate file is detected via SHA-256 content hash, the existing file is returned immediately with status='uploaded'.\n\nRate limit: 10 uploads per user per 10 minutes. Maximum file size: 100MB.\n\nEach new file counts against the business storage quota (shared with documents) as soon as it is uploaded, and its space is given back when the file is deleted. A duplicate upload is not counted again. If the file would take the business over its quota, the upload is refused with 422 `STORAGE_QUOTA_EXCEEDED` and nothing is stored.\n\nAvailable for **Staff and Client tokens**.",
         "tags": ["Files"],
         "security": [
           {
@@ -251,11 +251,20 @@
             }
           },
           "422": {
-            "description": "Unprocessable Entity - Validation error in request data",
+            "description": "Unprocessable Entity - The business has reached its storage quota (`STORAGE_QUOTA_EXCEEDED`); the file was not stored",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "STORAGE_QUOTA_EXCEEDED",
+                      "description": "The business has reached its storage limit"
+                    }
+                  ]
                 }
               }
             }
