@@ -116,6 +116,16 @@
               "original": "/license/features_packages/add_feature",
               "normalized": "/v3/license/features_packages/add_feature",
               "basePath": "/v3"
+            },
+            {
+              "original": "/license/quota_consumptions",
+              "normalized": "/v3/license/quota_consumptions",
+              "basePath": "/v3"
+            },
+            {
+              "original": "/license/quota_balances",
+              "normalized": "/v3/license/quota_balances",
+              "basePath": "/v3"
             }
           ]
         },
@@ -394,8 +404,8 @@
           ]
         }
       ],
-      "totalPaths": 83,
-      "totalComponents": 50
+      "totalPaths": 85,
+      "totalComponents": 54
     }
   },
   "servers": [
@@ -7283,6 +7293,472 @@
             }
           }
         },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/license/quota_consumptions": {
+      "post": {
+        "operationId": "createQuotaConsumption",
+        "summary": "Create a QuotaConsumption",
+        "description": "Report one usage of a metered addon SKU. The report is accepted as sent and published for the quota ingest, which validates it, charges the business's allowances in order (the monthly first, then packs), records a repeated `consumption_attempt_uid` once and rejects usage it cannot record; a rejection is logged, not answered. The response echoes the usage as accepted; `uid`, `subscription_uid`, `period` and `window_start` are filled in once it is recorded, as `GET /v3/license/quota_consumptions?source=…&consumption_attempt_uid=…` shows.\n\nAvailable for **App and Internal tokens**. An App reports for the business its token acts for, as itself (`business_uid` is required only when it acts for no business); an Internal token names `business_uid` and `source`.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateQuotaConsumptionDTO"
+              },
+              "example": {
+                "sku": "ai_credit",
+                "quantity": 30,
+                "occurred_at": "2026-10-05T09:44:43Z",
+                "consumption_attempt_uid": "msg_7f3a"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The usage was accepted for recording",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/QuotaConsumptionList"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A key the report does not declare",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is not an App or Internal token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Quota Consumption"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "get": {
+        "summary": "List all QuotaConsumptions",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "source",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only usage reported by this source (e.g., \"aiagents\")"
+          },
+          {
+            "in": "query",
+            "name": "consumption_attempt_uid",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only the rows of this reported event (e.g., \"msg_7f3a\")"
+          },
+          {
+            "in": "query",
+            "name": "sku",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only usage of this SKU (e.g., \"ai_credit\")"
+          },
+          {
+            "in": "query",
+            "name": "subscription_uid",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only usage charged to this allowance subscription (e.g., \"bc33f12d-98ee-428f-9f65-18bba589cb95\")"
+          },
+          {
+            "in": "query",
+            "name": "business_uid",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only usage of this business, within what the token can read (e.g., \"ixfxpxc7s7shyf0m\")"
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "Page number of the results"
+          },
+          {
+            "in": "query",
+            "name": "per_page",
+            "schema": {
+              "type": "integer",
+              "default": 25,
+              "maximum": 100
+            },
+            "description": "How many items to return per page"
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "type": "string",
+              "default": "updated_at:desc"
+            },
+            "description": "Sort by fields, e.g., \"created_at:asc,updated_at:desc\""
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of Quota Consumptions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/QuotaConsumptionList"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: an unknown query parameter, or a token that acts for no business and does not filter by business_uid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token type cannot read quota usage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Quota Consumption"
+        ],
+        "description": "List the recorded usage of metered SKUs, the quota ledger. Usage is reported through `POST /v3/license/quota_consumptions` or by internal services over a queue, is recorded asynchronously and is never changed through the API. To see what happened to one reported event, filter on `source` and `consumption_attempt_uid`. An event split across a monthly allowance and a pack has one row for each.\n\nAvailable for **Staff, Directory, App and Operator tokens**. Staff, Directory and Operator tokens read the business they act for; an App token sees only rows whose `actor_uid` is its own, in the business it acts for or names with `business_uid`.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/license/quota_balances": {
+      "get": {
+        "summary": "List all QuotaBalances",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "sku",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only allowances for this SKU (e.g., \"ai_credit\")"
+          },
+          {
+            "in": "query",
+            "name": "subscription_uid",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only this allowance subscription (e.g., \"bc33f12d-98ee-428f-9f65-18bba589cb95\")"
+          },
+          {
+            "in": "query",
+            "name": "include_depleted",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "description": "Also return life_long packs that are used up (e.g., true)"
+          },
+          {
+            "in": "query",
+            "name": "business_uid",
+            "schema": {
+              "type": "string"
+            },
+            "description": "The business to read. Required for an Internal token; must match a Directory token's business; not accepted from other tokens, which read the business they act for (e.g., \"ixfxpxc7s7shyf0m\")"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The balance of each live allowance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/QuotaBalanceList"
+                        },
+                        "meta": {
+                          "type": "object",
+                          "description": "What can still be consumed per SKU, derived from the same allowances",
+                          "properties": {
+                            "totals": {
+                              "type": "array",
+                              "description": "One total per SKU the business has a live allowance for, sorted by SKU",
+                              "items": {
+                                "$ref": "#/components/schemas/QuotaTotal"
+                              }
+                            }
+                          },
+                          "required": [
+                            "totals"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: an unknown query parameter, a business_uid from a token that acts for a business, or none from a token that does not",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token type cannot read quota balances, or the token acts for one of the business's clients",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Quota Balance"
+        ],
+        "description": "List the balance of each live allowance a business has for its metered SKUs: one row per allowance, in the order usage is charged (monthly by soonest reset, then packs oldest first). A monthly allowance at zero is still listed, since it resets; a used-up life_long pack is hidden unless `include_depleted=true`. An unlimited allowance has null `credit` and `left`; there is no flag, null is the signal. `left` can be negative after an overdraw. An allowance that ends on or before its next reset returns its `expires_at` and no `resets_at`. `meta.totals` is what can still be consumed per SKU: the `left` of each allowance the query matches, counting an overdrawn one as 0, so it is never negative (`sku` and `subscription_uid` narrow it, `include_depleted` does not); null when any allowance of the SKU is unlimited.\n\nAvailable for **Staff, Directory, App, Operator and Internal tokens**. All but an Internal token read the business they act for; an Internal token names it with `business_uid`.",
         "security": [
           {
             "Bearer": []
@@ -24289,6 +24765,278 @@
             }
           }
         }
+      },
+      "CreateQuotaConsumptionDTO": {
+        "type": "object",
+        "required": [
+          "sku",
+          "quantity"
+        ],
+        "properties": {
+          "business_uid": {
+            "type": "string",
+            "maxLength": 16,
+            "description": "The business the usage belongs to. An App acting for a business reports for that business whatever it sends; an Admin, or an App acting for no business, names it (e.g., \"ixfxpxc7s7shyf0m\")"
+          },
+          "sku": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "The metered addon SKU (e.g., \"ai_credit\")"
+          },
+          "quantity": {
+            "type": "integer",
+            "description": "Units consumed, a positive integer (e.g., 30)"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the usage happened; defaults to now. It decides the period charged (e.g., \"2026-10-05T09:44:43Z\")"
+          },
+          "source": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "The source the usage is reported for. An App reports as itself unless it names another source; an Admin names the source it reports for (e.g., \"aiagents\")"
+          },
+          "consumption_attempt_uid": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "The reporter's own id for this usage, reused when reporting it again so a retry records nothing twice; generated when left out (e.g., \"msg_7f3a\")"
+          },
+          "subscription_uid": {
+            "type": "string",
+            "maxLength": 36,
+            "description": "Charge this allowance instead of letting the ingest choose (e.g., \"bc33f12d-98ee-428f-9f65-18bba589cb95\")"
+          }
+        }
+      },
+      "QuotaConsumptionList": {
+        "type": "object",
+        "properties": {
+          "quota_consumptions": {
+            "description": "List of Quota Consumptions",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "uid": {
+                  "type": "string",
+                  "readOnly": true,
+                  "description": "The entity unique identifier (e.g., \"5c8bd6f1-3f0e-4d0a-9a57-2b8f0f6d7a31\")"
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "readOnly": true,
+                  "description": "When the usage was recorded (e.g., \"2026-09-15T10:00:01Z\")"
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "readOnly": true,
+                  "description": "The last updated date and time of the object (e.g., \"2026-09-15T10:00:01Z\")"
+                },
+                "business_uid": {
+                  "type": "string",
+                  "readOnly": true,
+                  "description": "The business the usage was reported for (e.g., \"ixfxpxc7s7shyf0m\")"
+                },
+                "subscription_uid": {
+                  "type": "string",
+                  "readOnly": true,
+                  "description": "The allowance subscription the usage was charged to (e.g., \"bc33f12d-98ee-428f-9f65-18bba589cb95\")"
+                },
+                "sku": {
+                  "type": "string",
+                  "readOnly": true,
+                  "description": "The metered addon SKU (e.g., \"ai_credit\")"
+                },
+                "period": {
+                  "type": "string",
+                  "readOnly": true,
+                  "description": "The period of the allowance that was charged. **monthly**: resets every month on the day of the month the subscription was created; **life_long**: a pack that never resets (e.g., \"monthly\")",
+                  "enum": [
+                    "monthly",
+                    "life_long"
+                  ]
+                },
+                "window_start": {
+                  "type": "string",
+                  "format": "date",
+                  "readOnly": true,
+                  "description": "The first UTC day of the period this usage was charged against: for a monthly allowance its current window, anchored on the day the subscription started, which is also the key of its per-period counter; 1970-01-01 for a life_long pack, whose single period never ends (e.g., \"2026-09-10\")"
+                },
+                "quantity": {
+                  "type": "integer",
+                  "readOnly": true,
+                  "description": "The units charged to this allowance (e.g., 120)"
+                },
+                "source": {
+                  "type": "string",
+                  "readOnly": true,
+                  "description": "The registered service that reported the usage (e.g., \"aiagents\")"
+                },
+                "actor_uid": {
+                  "type": "string",
+                  "nullable": true,
+                  "readOnly": true,
+                  "description": "The uid of the actor that published the usage, an App or an admin, taken from the event's publisher and never from the payload. An App token sees only rows carrying its own uid (e.g., \"aiagents\")"
+                },
+                "consumption_attempt_uid": {
+                  "type": "string",
+                  "readOnly": true,
+                  "description": "The publisher's own id for the reported event; every row of one event shares it (e.g., \"msg_7f3a\")"
+                },
+                "occurred_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "readOnly": true,
+                  "description": "When the usage happened, as reported by the publisher (e.g., \"2026-09-15T10:00:00Z\")"
+                }
+              },
+              "required": [
+                "uid",
+                "created_at",
+                "updated_at",
+                "business_uid",
+                "subscription_uid",
+                "sku",
+                "period",
+                "window_start",
+                "quantity",
+                "source",
+                "consumption_attempt_uid",
+                "occurred_at"
+              ],
+              "example": {
+                "uid": "5c8bd6f1-3f0e-4d0a-9a57-2b8f0f6d7a31",
+                "created_at": "2026-09-15T10:00:01Z",
+                "updated_at": "2026-09-15T10:00:01Z",
+                "business_uid": "ixfxpxc7s7shyf0m",
+                "subscription_uid": "bc33f12d-98ee-428f-9f65-18bba589cb95",
+                "sku": "ai_credit",
+                "period": "monthly",
+                "window_start": "2026-09-10",
+                "quantity": 120,
+                "source": "aiagents",
+                "actor_uid": "aiagents",
+                "consumption_attempt_uid": "msg_7f3a",
+                "occurred_at": "2026-09-15T10:00:00Z"
+              },
+              "description": "A quota consumption is one row of the usage ledger: units of a metered SKU charged to one allowance subscription of a business. Usage is reported through `POST /v3/license/quota_consumptions` or published by internal services on the queue, and the ingest records it asynchronously: a row exists only once it was recorded, and the POST echoes the report without uid, subscription_uid, period and window_start until then. One reported event writes one row per allowance it was charged to, so an event split across a monthly allowance and a pack has two rows sharing its consumption_attempt_uid."
+            }
+          }
+        }
+      },
+      "QuotaBalanceList": {
+        "type": "object",
+        "properties": {
+          "quota_balances": {
+            "description": "List of Quota Balances",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "subscription_uid": {
+                  "type": "string",
+                  "readOnly": true,
+                  "description": "The allowance subscription (e.g., \"bc33f12d-98ee-428f-9f65-18bba589cb95\")"
+                },
+                "business_uid": {
+                  "type": "string",
+                  "readOnly": true,
+                  "description": "The business the allowance belongs to (e.g., \"ixfxpxc7s7shyf0m\")"
+                },
+                "sku": {
+                  "type": "string",
+                  "readOnly": true,
+                  "description": "The metered addon SKU (e.g., \"ai_credit\")"
+                },
+                "period": {
+                  "type": "string",
+                  "readOnly": true,
+                  "description": "How the allowance renews. **monthly**: resets every month on the day of the month the subscription was created; **life_long**: a pack that never resets (e.g., \"monthly\")",
+                  "enum": [
+                    "monthly",
+                    "life_long"
+                  ]
+                },
+                "credit": {
+                  "type": "integer",
+                  "nullable": true,
+                  "readOnly": true,
+                  "description": "The units the allowance grants per period; null when the allowance is unlimited (e.g., 300000)"
+                },
+                "consumed": {
+                  "type": "integer",
+                  "readOnly": true,
+                  "description": "The units used in the current period (e.g., 96000)"
+                },
+                "left": {
+                  "type": "integer",
+                  "nullable": true,
+                  "readOnly": true,
+                  "description": "credit minus consumed; negative after an overdraw. Null when the allowance is unlimited, which is never reported as -1 (e.g., 204000)"
+                },
+                "resets_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "nullable": true,
+                  "readOnly": true,
+                  "description": "When a monthly allowance starts its next period. Null for life_long, and for an allowance that ends on or before that day (e.g., \"2026-10-10T00:00:00Z\")"
+                },
+                "expires_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "nullable": true,
+                  "readOnly": true,
+                  "description": "When the allowance ends, for any period; null when it has no end date (e.g., \"2027-02-01T00:00:00Z\")"
+                }
+              },
+              "required": [
+                "subscription_uid",
+                "business_uid",
+                "sku",
+                "period",
+                "credit",
+                "consumed",
+                "left",
+                "resets_at",
+                "expires_at"
+              ],
+              "example": {
+                "subscription_uid": "bc33f12d-98ee-428f-9f65-18bba589cb95",
+                "business_uid": "ixfxpxc7s7shyf0m",
+                "sku": "ai_credit",
+                "period": "monthly",
+                "credit": 300000,
+                "consumed": 96000,
+                "left": 204000,
+                "resets_at": "2026-10-10T00:00:00Z",
+                "expires_at": null
+              },
+              "description": "A quota balance is the state of one allowance subscription of a business in its current period: what it grants, what was used and what is left. There is one row per allowance; the combined number per SKU is in the list response's meta.totals."
+            }
+          }
+        }
+      },
+      "QuotaTotal": {
+        "type": "object",
+        "description": "What can still be consumed of one SKU across the allowances the query matched.",
+        "properties": {
+          "sku": {
+            "type": "string",
+            "description": "The metered addon SKU (e.g., \"ai_credit\")"
+          },
+          "left": {
+            "type": "integer",
+            "nullable": true,
+            "description": "The sum of what each matched allowance has left, counting an overdrawn one as 0; never negative; null when any of them is unlimited (e.g., 303950)"
+          }
+        },
+        "required": [
+          "sku",
+          "left"
+        ]
       },
       "StatusOnlyResponse": {
         "type": "object",
