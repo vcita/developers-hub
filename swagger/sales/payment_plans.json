@@ -24,8 +24,17 @@
             "items": {
               "$ref": "https://vcita.github.io/developers-hub/entities/sales/paymentPlan.json"
             }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The number of PaymentPlans that match the request's filters, across all pages (e.g., 42)"
           }
-        }
+        },
+        "required": [
+          "payment_plans",
+          "total"
+        ]
       },
       "ErrorResponse": {
         "type": "object",
@@ -77,7 +86,7 @@
       "get": {
         "operationId": "listPaymentPlans",
         "summary": "Get all PaymentPlans",
-        "description": "## Overview\nGet a list of PaymentPlans for the business, newest updated first. Use `payment_request_uid` to find the plan collecting against a specific invoice, and `status` to list only running plans.\n\nAvailable for **Staff and Client tokens**.",
+        "description": "## Overview\nGet a list of PaymentPlans for the business, newest updated first. Use `payment_request_uid` to find the plan collecting against a specific invoice, `status` and `frequency_type` to narrow the list, and `next_payment_date_after` / `next_payment_date_before` to find the plans that will charge within a period. `total` in the response holds the number of plans that match the filters across all pages.\n\nAvailable for **Staff and Client tokens**.",
         "parameters": [
           {
             "name": "page",
@@ -107,7 +116,7 @@
             "name": "sort",
             "required": false,
             "in": "query",
-            "description": "Sort by fields. Example: sort=next_payment_date:asc,created_at:desc",
+            "description": "Sort by one or more fields, each followed by `:asc` or `:desc`, separated by commas. Sortable fields: `updated_at`, `created_at`, `start_date`, `end_date`, `next_payment_date`, `amount`, `amount_paid`, `status`, `cycles`, `cycles_count`, `client_name`. When sorting by `next_payment_date`, plans with no next payment (paused, completed and cancelled plans) come last in both directions (e.g., \"next_payment_date:asc,created_at:desc\", \"client_name:asc\")",
             "schema": {
               "default": "updated_at:desc",
               "type": "string"
@@ -127,17 +136,73 @@
             "name": "status",
             "required": false,
             "in": "query",
-            "description": "Return only plans in this status. A plan whose scheduled installment failed to charge is `paused`. A plan that was cancelled and will collect nothing further is `cancelled`; read `cancel_reason` for why.",
+            "description": "Return only plans in one of these statuses, comma-separated. A plan whose scheduled installment failed to charge is `paused`. A plan that was cancelled and will collect nothing further is `cancelled`; read `cancel_reason` for why (e.g., \"active\", \"active,paused\")",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "active",
+                  "paused",
+                  "completed",
+                  "cancelled"
+                ]
+              },
+              "uniqueItems": true
+            },
+            "style": "form",
+            "explode": false,
+            "example": [
+              "active",
+              "paused"
+            ]
+          },
+          {
+            "name": "frequency_type",
+            "required": false,
+            "in": "query",
+            "description": "Return only plans collecting at one of these frequencies, comma-separated.\n\n* `one_time` - A single payment.\n* `weekly` - Every week.\n* `bi_weekly` - Every two weeks.\n* `monthly` - Every month.\n\n(e.g., \"monthly\", \"weekly,bi_weekly\")",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "one_time",
+                  "weekly",
+                  "bi_weekly",
+                  "monthly"
+                ]
+              },
+              "uniqueItems": true
+            },
+            "style": "form",
+            "explode": false,
+            "example": [
+              "weekly",
+              "bi_weekly"
+            ]
+          },
+          {
+            "name": "next_payment_date_after",
+            "required": false,
+            "in": "query",
+            "description": "Return only plans whose next installment is due on or after this time, in ISO 8601 format. Plans with no next payment (paused, completed and cancelled plans) are not returned when this filter is set (e.g., \"2026-10-15T00:00:00Z\")",
             "schema": {
               "type": "string",
-              "enum": [
-                "active",
-                "paused",
-                "completed",
-                "cancelled"
-              ]
+              "format": "date-time"
             },
-            "example": "active"
+            "example": "2026-10-15T00:00:00Z"
+          },
+          {
+            "name": "next_payment_date_before",
+            "required": false,
+            "in": "query",
+            "description": "Return only plans whose next installment is due on or before this time, in ISO 8601 format. Combine with `next_payment_date_after` for a range, such as the next 7 days or the next 4 weeks. Plans with no next payment (paused, completed and cancelled plans) are not returned when this filter is set (e.g., \"2026-11-12T00:00:00Z\")",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "example": "2026-11-12T00:00:00Z"
           },
           {
             "name": "matter_uid",
@@ -252,9 +317,9 @@
                   "success": false,
                   "errors": [
                     {
-                      "field": "amount",
+                      "field": "frequency_type",
                       "code": "invalid",
-                      "message": "amount must be greater than 0"
+                      "message": "frequency_type must be one of one_time, weekly, bi_weekly, monthly"
                     }
                   ]
                 }

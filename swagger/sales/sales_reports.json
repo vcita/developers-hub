@@ -147,6 +147,135 @@
             "week_end_date": "2026-02-14"
           }
         }
+      },
+      "PaymentPlansSummary": {
+        "type": "object",
+        "description": "Totals of the business's payment plans. Amounts, and the payment and installment counts that go with them, are in the business currency; payments and plans in any other currency are not included in them. The plan counts in `plans` include plans in every currency, the same as the payment plans list. Only the plans the requesting staff member can see in the payment plans list are counted.",
+        "properties": {
+          "currency": {
+            "type": "string",
+            "description": "Three-letter ISO 4217 code of the business currency that every amount is in (e.g., \"USD\")"
+          },
+          "collected_this_year": {
+            "type": "object",
+            "description": "Payments collected by payment plans since January 1 of the current year, in the business time zone, until now. A partially refunded payment is counted at its amount minus the refunded part, and a fully refunded payment is not counted.",
+            "properties": {
+              "amount": {
+                "type": "number",
+                "description": "The total amount of those payments, net of partial refunds (e.g., 12500.0)"
+              },
+              "payments_count": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "The number of those payments (e.g., 41)"
+              }
+            },
+            "required": [
+              "amount",
+              "payments_count"
+            ]
+          },
+          "plans": {
+            "type": "object",
+            "description": "Counts of the business's payment plans by status.",
+            "properties": {
+              "active_count": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "The number of plans in `active` status (e.g., 18)"
+              },
+              "paused_count": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "The number of plans in `paused` status (e.g., 3)"
+              },
+              "total_count": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "The number of plans in any status (e.g., 27)"
+              }
+            },
+            "required": [
+              "active_count",
+              "paused_count",
+              "total_count"
+            ]
+          },
+          "expected_next_4_weeks": {
+            "type": "object",
+            "description": "Installments that `active` plans will charge in the next 28 days. Every installment due in that window is counted, so a weekly plan can add up to 4, but never more than the installments the plan has left. Each installment is counted at the plan's `amount`.",
+            "properties": {
+              "amount": {
+                "type": "number",
+                "description": "The total amount of those installments (e.g., 4200.0)"
+              },
+              "installments_count": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "The number of those installments (e.g., 14)"
+              }
+            },
+            "required": [
+              "amount",
+              "installments_count"
+            ]
+          },
+          "needs_review": {
+            "type": "object",
+            "description": "Plans in `paused` status, whose last scheduled installment failed to charge. Use `plans.paused_count` for the number of these plans.",
+            "properties": {
+              "amount": {
+                "type": "number",
+                "description": "The sum of the `amount` of the paused plans, one installment per plan (e.g., 950.0)"
+              }
+            },
+            "required": [
+              "amount"
+            ]
+          }
+        },
+        "required": [
+          "currency",
+          "collected_this_year",
+          "plans",
+          "expected_next_4_weeks",
+          "needs_review"
+        ]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "The name of the field that caused the error (e.g., \"currency\")."
+                },
+                "code": {
+                  "type": "string",
+                  "description": "A machine-readable error code (e.g., \"invalid\", \"missing\")."
+                },
+                "message": {
+                  "type": "string",
+                  "description": "A human-readable error message describing the issue."
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "success",
+          "errors"
+        ]
       }
     },
     "securitySchemes": {
@@ -222,6 +351,102 @@
         },
         "tags": [
           "Sales Reports"
+        ]
+      }
+    },
+    "/v3/sales/reports/payment_plans_summary": {
+      "get": {
+        "operationId": "getPaymentPlansSummary",
+        "summary": "Retrieve Payment Plans Summary",
+        "description": "## Overview\nFetch the totals shown at the top of the payment plans page: what plans collected this year, how many plans are active, what active plans will charge in the next 4 weeks, and what failed installments of paused plans need review. The totals cover all of the business's plans and do not take any list filters.\n\nAmounts are in the business currency, and payments and plans in any other currency are not included in them. Plan counts include every currency. Only the plans the requesting staff member can see in the payment plans list are counted.\n\nAvailable for **Staff tokens**.",
+        "responses": {
+          "200": {
+            "description": "Successful response containing the payment plans summary.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/PaymentPlansSummary"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "currency": "USD",
+                    "collected_this_year": {
+                      "amount": 12500.0,
+                      "payments_count": 41
+                    },
+                    "plans": {
+                      "active_count": 18,
+                      "paused_count": 3,
+                      "total_count": 27
+                    },
+                    "expected_next_4_weeks": {
+                      "amount": 4200.0,
+                      "installments_count": 14
+                    },
+                    "needs_review": {
+                      "amount": 950.0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "Authentication is required to access this resource"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but not permitted to view payments of this business.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "You are not allowed to perform this action"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Sales Reports"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
         ]
       }
     }
