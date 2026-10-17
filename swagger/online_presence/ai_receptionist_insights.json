@@ -1,0 +1,434 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Online Presence — AI Receptionist Insights",
+    "description": "Read APIs for the AI Receptionist Insights tab under `/v3/online_presence/ai_receptionist`. The questions report lists the distinct questions customers asked the receptionist in a period, how often, and how confident the receptionist was when answering, built from a ledger the service keeps up to date at every conversation close.",
+    "version": "3.0.0",
+    "contact": {}
+  },
+  "tags": [
+    {
+      "name": "AI Receptionist Insights",
+      "description": "What customers ask the AI Receptionist, for the authenticated business (**Staff tokens**)."
+    }
+  ],
+  "servers": [
+    {
+      "url": "https://api.vcita.biz",
+      "description": "API Gateway server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "**Staff tokens** — business context is taken from the token."
+      }
+    },
+    "schemas": {
+      "NestHttpException": {
+        "type": "object",
+        "description": "Standard v3 error envelope for online_presence chat APIs.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Always false for error responses.",
+            "enum": [
+              false
+            ]
+          },
+          "errors": {
+            "type": "array",
+            "description": "List of error details describing what failed.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "nullable": true,
+                  "description": "Request field that failed validation, when applicable."
+                },
+                "code": {
+                  "type": "string",
+                  "description": "Machine-readable error code."
+                },
+                "message": {
+                  "type": "string",
+                  "description": "Human-readable error message."
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ]
+            }
+          }
+        },
+        "required": [
+          "success",
+          "errors"
+        ]
+      },
+      "QuestionsReportOccurrence": {
+        "type": "object",
+        "description": "One time the question was asked in the period.",
+        "properties": {
+          "conversation_uid": {
+            "type": "string",
+            "description": "The conversation the question was asked in (see `ai_receptionist_conversations`)."
+          },
+          "text": {
+            "type": "string",
+            "description": "The customer's wording, generalized (no names, contact details, dates or times); falls back to the question in the business language."
+          },
+          "asked_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the conversation ended (ISO 8601)."
+          },
+          "certainty": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 1,
+            "maximum": 5,
+            "description": "The receptionist's own 1–5 confidence in its reply to this ask, when it recorded one."
+          },
+          "message_index": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Zero-based index of the visitor message in the conversation's transcript `messages`."
+          }
+        },
+        "required": [
+          "conversation_uid",
+          "text",
+          "asked_at",
+          "message_index"
+        ]
+      },
+      "QuestionsReportQuestion": {
+        "type": "object",
+        "description": "One distinct question, with every time it was asked in the period.",
+        "properties": {
+          "question_uid": {
+            "type": "string",
+            "description": "Stable identifier of the question (UUID). Pass it as `question_uid` when creating a learning that answers this question."
+          },
+          "question": {
+            "type": "string",
+            "description": "The question in the business's language, generalized the way any customer would ask it."
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "How many times it was asked in the period (a customer asking twice in one conversation counts twice)."
+          },
+          "avg_certainty": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 1,
+            "maximum": 5,
+            "description": "Mean of the receptionist's 1–5 confidence on its replies to this question; `null` when none carried one."
+          },
+          "occurrences": {
+            "type": "array",
+            "description": "The asks in the period, newest first, at most 50; `count` is still exact.",
+            "items": {
+              "$ref": "#/components/schemas/QuestionsReportOccurrence"
+            }
+          },
+          "answered": {
+            "type": "boolean",
+            "description": "At least one learning linked to this question has been applied to the receptionist's knowledge."
+          }
+        },
+        "required": [
+          "question_uid",
+          "question",
+          "count",
+          "occurrences",
+          "answered"
+        ]
+      },
+      "QuestionsReportPayload": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "ledger"
+            ],
+            "description": "Where the report comes from. Always `ledger`."
+          },
+          "window": {
+            "type": "object",
+            "properties": {
+              "range": {
+                "type": "string",
+                "enum": [
+                  "7d",
+                  "30d",
+                  "3m",
+                  "6m",
+                  "1y"
+                ]
+              },
+              "start_date": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "end_date": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "generated_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          },
+          "filters": {
+            "type": "object",
+            "properties": {
+              "channel": {
+                "type": "string",
+                "enum": [
+                  "all",
+                  "web",
+                  "voice",
+                  "messaging",
+                  "assistant"
+                ]
+              },
+              "leads": {
+                "type": "string",
+                "enum": [
+                  "all",
+                  "lead_captured",
+                  "booking_taken"
+                ]
+              },
+              "simulated": {
+                "type": "string",
+                "enum": [
+                  "exclude",
+                  "only",
+                  "all"
+                ]
+              }
+            }
+          },
+          "questions": {
+            "type": "array",
+            "description": "Sorted by `count`, descending.",
+            "items": {
+              "$ref": "#/components/schemas/QuestionsReportQuestion"
+            }
+          }
+        },
+        "required": [
+          "source",
+          "window",
+          "filters",
+          "questions"
+        ]
+      }
+    }
+  },
+  "paths": {
+    "/v3/online_presence/ai_receptionist/questions_report": {
+      "get": {
+        "operationId": "getAiReceptionistQuestionsReport",
+        "summary": "Get the questions customers asked the AI Receptionist",
+        "description": "Returns the distinct questions customers asked the receptionist in a trailing period, how often each was asked, the receptionist's average confidence when answering, every ask with a link to its conversation, and whether an answer has been applied. Questions are grouped across wordings and languages and written in the business's language; booking-flow steps (picking a slot, confirming) are not included. Simulated (test) conversations are never included, so `simulated=only` returns an empty list. Available for **Staff tokens**; `404` when the business is not in the Insights rollout.",
+        "tags": [
+          "AI Receptionist Insights"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "range",
+            "in": "query",
+            "description": "Trailing period ending now.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "7d",
+                "30d",
+                "3m",
+                "6m",
+                "1y"
+              ],
+              "default": "3m"
+            }
+          },
+          {
+            "name": "channel",
+            "in": "query",
+            "description": "Only asks from conversations on this channel.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "web",
+                "voice",
+                "messaging",
+                "assistant"
+              ],
+              "default": "all"
+            }
+          },
+          {
+            "name": "leads",
+            "in": "query",
+            "description": "Only asks from conversations that captured a lead or took a booking.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "lead_captured",
+                "booking_taken"
+              ],
+              "default": "all"
+            }
+          },
+          {
+            "name": "simulated",
+            "in": "query",
+            "description": "Simulated conversations are never part of the ledger; `only` therefore returns no questions.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "exclude",
+                "only",
+                "all"
+              ],
+              "default": "exclude"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The report (`{ success: true, data: { source, window, filters, questions } }`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/QuestionsReportPayload"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "source": "ledger",
+                    "window": {
+                      "range": "3m",
+                      "start_date": "2026-07-16T00:00:00.000Z",
+                      "end_date": "2026-10-16T14:00:00.000Z",
+                      "generated_at": "2026-10-16T14:00:00.000Z"
+                    },
+                    "filters": {
+                      "channel": "all",
+                      "leads": "all",
+                      "simulated": "exclude"
+                    },
+                    "questions": [
+                      {
+                        "question_uid": "7a9908af-39c9-4e3c-b8d7-f36789e392c4",
+                        "question": "When is Handyman for a Day available?",
+                        "count": 3,
+                        "avg_certainty": 4.3,
+                        "answered": false,
+                        "occurrences": [
+                          {
+                            "conversation_uid": "92346484-1d5b-470a-9d39-9d680b7b9ad9",
+                            "text": "What days are open for Handyman for a Day?",
+                            "asked_at": "2026-09-13T12:37:55.000Z",
+                            "certainty": 4,
+                            "message_index": 0
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Authentication required"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "Access denied"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The business is not in the Insights rollout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "insights_not_available",
+                      "message": "Not Found"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
