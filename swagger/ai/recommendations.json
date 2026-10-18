@@ -18,7 +18,7 @@
           "AI Recommendations"
         ],
         "summary": "Get all AIRecommendations",
-        "description": "## Overview\nRetrieve a list of AIRecommendations with optional filtering by status, category, target, context, context type, producer, and action UID. All filters combine with AND logic.\n\nAvailable for **Staff, Directory, and Client tokens**",
+        "description": "## Overview\nRetrieve a list of AIRecommendations with optional filtering by status, category, target, context, context type, producer, and action UID. All filters combine with AND logic.\n\nRecommendations whose 'due_at' has already passed are never returned, whatever the other filters: once due, a recommendation is handed back to its producer, which replaces it with a new one that has no 'due_at'.\n\nAvailable for **Staff, Directory, and Client tokens**",
         "security": [
           {
             "Bearer": []
@@ -121,7 +121,7 @@
                 "upcoming"
               ]
             },
-            "description": "Filter by category bucket. Each record belongs to exactly one bucket:\nupcoming – due_at is in the future, whatever the stored category.\nneeds_attention – due_at is in the past or unset, stored category is needs_attention.\nopportunity – due_at is in the past or unset, stored category is opportunity.\nfyi – due_at is in the past or unset, stored category is fyi."
+            "description": "Filter by category bucket. Each record belongs to exactly one bucket:\nupcoming – due_at is set (and in the future), whatever the stored category.\nneeds_attention – due_at is unset, stored category is needs_attention.\nopportunity – due_at is unset, stored category is opportunity.\nfyi – due_at is unset, stored category is fyi.\nRecommendations whose due_at has passed belong to no bucket and are never returned (e.g., \"upcoming\", \"needs_attention\")."
           },
           {
             "name": "producer",
@@ -181,23 +181,23 @@
                           "properties": {
                             "counts": {
                               "type": "object",
-                              "description": "Returned only when 'include=counts' is requested. Number of recommendations per bucket, matching every query filter except 'category' and pagination. 'status' applies, so counts describe the same lifecycle state as the list (active when omitted). Every recommendation is counted in exactly one bucket: future 'due_at' -> 'upcoming'; else by stored category -> 'needs_attention', 'opportunity', or 'fyi'.",
+                              "description": "Returned only when 'include=counts' is requested. Number of recommendations per bucket, matching every query filter except 'category' and pagination. 'status' applies, so counts describe the same lifecycle state as the list (active when omitted). Every recommendation is counted in exactly one bucket: future 'due_at' -> 'upcoming'; no 'due_at' -> by stored category: 'needs_attention', 'opportunity', or 'fyi'. Recommendations whose 'due_at' has passed are not counted.",
                               "properties": {
                                 "needs_attention": {
                                   "type": "integer",
-                                  "description": "Active recommendations with stored category 'needs_attention' and a non-future 'due_at' (past or unset)."
+                                  "description": "Recommendations with stored category 'needs_attention' and no 'due_at'."
                                 },
                                 "upcoming": {
                                   "type": "integer",
-                                  "description": "Active recommendations whose 'due_at' is in the future, regardless of stored category. Derived bucket - these are excluded from every other bucket."
+                                  "description": "Recommendations whose 'due_at' is in the future, regardless of stored category. Derived bucket - these are excluded from every other bucket."
                                 },
                                 "opportunity": {
                                   "type": "integer",
-                                  "description": "Active recommendations with stored category 'opportunity' and a non-future 'due_at' (past or unset)."
+                                  "description": "Recommendations with stored category 'opportunity' and no 'due_at'."
                                 },
                                 "fyi": {
                                   "type": "integer",
-                                  "description": "Active recommendations with stored category 'fyi' and a non-future 'due_at' (past or unset)."
+                                  "description": "Recommendations with stored category 'fyi' and no 'due_at'."
                                 }
                               }
                             }
@@ -522,7 +522,7 @@
           "due_at": {
             "type": "string",
             "format": "date-time",
-            "description": "Optional due or target time used for urgency and upcoming behavior, in ISO 8601 format."
+            "description": "Optional due or target time, in ISO 8601 format. A recommendation with a future 'due_at' is listed in the 'upcoming' bucket; once 'due_at' passes it is no longer returned by the list endpoint (e.g., \"2026-06-08T09:00:00Z\")."
           },
           "expired_at": {
             "type": "string",

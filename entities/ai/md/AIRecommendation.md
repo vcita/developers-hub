@@ -15,7 +15,7 @@ The AIRecommendation entity.
 | priority | Relative ordering priority within the same category: 'high' (higher priority, surfaced first) or 'standard' (default priority). | string (enum: `high`, `standard`) |  |
 | execution_policy | Indicates whether this recommendation is auto-executed by an agent or requires human review: 'auto_execute' (may be executed automatically by the system or an authorized agent) or 'requires_human_approval' (must be reviewed and approved by a human before execution). | string (enum: `auto_execute`, `requires_human_approval`) |  |
 | tags | Optional user-facing tags that label the item's urgency, value, or context (for example: 'Hot lead', 'New', 'High value', 'Urgent', 'At risk', 'Follow up'). | array of strings |  |
-| due_at | Optional due or target time used for urgency and upcoming behavior, in ISO 8601 format. | string |  |
+| due_at | Optional due or target time, in ISO 8601 format. A recommendation with a future 'due_at' is listed in the 'upcoming' bucket; once 'due_at' passes it is no longer returned by the list endpoint (e.g., "2026-06-08T09:00:00Z"). | string |  |
 | expired_at | Optional expiry time used for dismissing or clearing the recommendation, in ISO 8601 format. | string |  |
 | actions | A list of recommended actions related to this entity. | array of ref to AIRecommendedAction.jsons | Yes |
 | display | Contains display-related information for the recommendation. | object | Yes |
