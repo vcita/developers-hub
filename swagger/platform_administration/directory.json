@@ -59,7 +59,46 @@
           "admin_email": {
             "type": "string",
             "format": "email",
-            "description": "Administrative contact email for the directory (e.g., \"samplepartner@vcita.com\")."
+            "deprecated": true,
+            "description": "Deprecated and ignored: it does not set the directory owner. Use `admin_account` to create the owner account (e.g., \"samplepartner@vcita.com\")."
+          },
+          "admin_account": {
+            "type": "object",
+            "description": "Creates the directory's owner account (a business that belongs to no directory) and links it as the directory admin. Without it the directory is created with no owner. Only accepted on create; the new account's UID is returned as `admin_business_uid`.",
+            "properties": {
+              "email": {
+                "type": "string",
+                "format": "email",
+                "description": "Owner login email. Must not belong to an existing user (e.g., \"owner@samplepartner.com\")."
+              },
+              "password": {
+                "type": "string",
+                "minLength": 6,
+                "maxLength": 20,
+                "description": "Owner login password, 6-20 characters (e.g., \"Str0ngPass!\")."
+              },
+              "first_name": {
+                "type": "string",
+                "description": "Owner first name (e.g., \"Dana\")."
+              },
+              "last_name": {
+                "type": "string",
+                "description": "Owner last name (e.g., \"Levi\")."
+              },
+              "business_name": {
+                "type": "string",
+                "description": "Name of the owner business. Defaults to `partner_name`, then `name` (e.g., \"Sample Partner\")."
+              },
+              "time_zone": {
+                "type": "string",
+                "description": "Owner time zone. Defaults to the directory `time_zone` (e.g., \"Eastern Time (US & Canada)\")."
+              },
+              "language": {
+                "type": "string",
+                "description": "Owner locale. Defaults to the directory `locale` (e.g., \"en\", \"de\")."
+              }
+            },
+            "required": ["email"]
           },
           "billing_type": {
             "type": "string",
@@ -362,7 +401,8 @@
           "admin_email": {
             "type": "string",
             "format": "email",
-            "description": "Administrative contact email for the directory."
+            "deprecated": true,
+            "description": "Deprecated and ignored: it does not change the directory owner (e.g., \"new-admin@samplepartner.com\")."
           },
           "billing_type": {
             "type": "string",
@@ -604,7 +644,12 @@
               "example": {
                 "name": "samplepartner",
                 "partner_name": "samplepartner",
-                "admin_email": "samplepartner@vcita.com",
+                "admin_account": {
+                  "email": "owner@samplepartner.com",
+                  "password": "Str0ngPass!",
+                  "first_name": "Dana",
+                  "last_name": "Levi"
+                },
                 "billing_type": "manual",
                 "manual_type": "co_branded",
                 "configuration_key": "samplepartner",
@@ -680,8 +725,8 @@
           "403": {
             "description": "Forbidden"
           },
-          "422": {
-            "description": "Unprocessable Entity - Validation error.",
+          "409": {
+            "description": "Conflict - A unique value is already in use, such as `subdomain`, `host_mapping` or `admin_account.email`. Nothing is created.",
             "content": {
               "application/json": {
                 "schema": {
@@ -691,9 +736,29 @@
                   "success": false,
                   "errors": [
                     {
-                      "field": "configuration_key",
-                      "code": "taken",
-                      "message": "Configuration key is already in use"
+                      "field": "admin_account.email",
+                      "code": "already_exists",
+                      "message": "Admin account email is already in use"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - Validation error. Errors in `admin_account` are reported under `admin_account.<field>`, and nothing is created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "admin_account.password",
+                      "code": "invalid",
+                      "message": "Admin account password must be 6-20 characters"
                     }
                   ]
                 }
@@ -701,7 +766,24 @@
             }
           },
           "500": {
-            "description": "Internal server error"
+            "description": "Internal server error. When the code is `orphaned_admin_business`, the owner account was created but the directory was not: the message names the business UID, which belongs to no directory and holds the owner email until it is removed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "field": "admin_account",
+                      "code": "orphaned_admin_business",
+                      "message": "The directory was not created, but its owner business 8f2k1x9q3w7z was. That business belongs to no directory and holds the owner email address; remove it before retrying with the same email."
+                    }
+                  ]
+                }
+              }
+            }
           }
         },
         "security": [
