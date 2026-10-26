@@ -192,13 +192,13 @@
       "get": {
         "summary": "List a template's StaffNotifications",
         "operationId": "listStaffNotifications",
-        "description": "## Overview\nReturn one page of the StaffNotifications that were created from one notification template. Rows are sorted by `updated_at`, then by `uid`, oldest first.\n\nUse it to get the delivery statuses of many StaffNotifications with one request per page, instead of one request per StaffNotification.\n\n## Incremental sync\nPass the highest `updated_at` that you already have as `updated_since`. The bound is inclusive, so a StaffNotification on the boundary can be returned again. De-duplicate the rows by `uid`.\n\n## Paging\nThe response has no total count. Request the next page until a page has fewer rows than `per_page`.\n\nOnly the creator of the notification template can list its StaffNotifications.\n\nAvailable for **Directory, App and Operator tokens**.",
+        "description": "## Overview\nReturn one page of the StaffNotifications that were created from one notification template.\n\nUse it to get the delivery statuses of many StaffNotifications with one request per page, instead of one request per StaffNotification.\n\n## Filters\nEvery filter names a field of the StaffNotification. `filter[notification_template_code_name]` is required. Only the filters listed here are supported. Any other filter field or operator returns `400`.\n\n## Incremental sync\nPass the highest `updated_at` that you already have as `filter[updated_at][gte]`. The bound is inclusive, so a StaffNotification on the boundary can be returned again. De-duplicate the rows by `uid`.\n\n## Paging\nThe response has no total count. Request the next page until a page has fewer rows than `per_page`.\n\nOnly the creator of the notification template can list its StaffNotifications.\n\nAvailable for **Directory, App and Operator tokens**.",
         "tags": [
           "Staff Notification"
         ],
         "parameters": [
           {
-            "name": "notification_template_code_name",
+            "name": "filter[notification_template_code_name]",
             "in": "query",
             "required": true,
             "description": "The code name of the notification template whose StaffNotifications to return (e.g., \"campaign_abc123\")",
@@ -207,7 +207,7 @@
             }
           },
           {
-            "name": "updated_since",
+            "name": "filter[updated_at][gte]",
             "in": "query",
             "required": false,
             "description": "Return only StaffNotifications updated at or after this ISO 8601 time. Inclusive (e.g., \"2026-09-09T05:30:21.000Z\")",
@@ -217,7 +217,7 @@
             }
           },
           {
-            "name": "updated_until",
+            "name": "filter[updated_at][lt]",
             "in": "query",
             "required": false,
             "description": "Return only StaffNotifications updated before this ISO 8601 time. Exclusive (e.g., \"2026-09-10T00:00:00.000Z\")",
@@ -227,21 +227,39 @@
             }
           },
           {
-            "name": "read",
+            "name": "filter[pane_status]",
             "in": "query",
             "required": false,
-            "description": "Return only StaffNotifications whose pane notification was read (true) or was not read (false) (e.g., true, false)",
+            "description": "Return only StaffNotifications whose pane notification has this status. Both values require that the pane notification was sent (e.g., \"sent\", \"read\")",
             "schema": {
-              "type": "boolean"
+              "type": "string",
+              "enum": [
+                "sent",
+                "read"
+              ]
             }
           },
           {
-            "name": "push_clicked",
+            "name": "filter[push_clicked]",
             "in": "query",
             "required": false,
             "description": "Return only StaffNotifications whose push notification was clicked (true) or was not clicked (false) (e.g., true, false)",
             "schema": {
               "type": "boolean"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "Sort order. Rows with the same updated_at are sorted by uid in the same direction (e.g., \"updated_at:asc\", \"updated_at:desc\")",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "updated_at:asc",
+                "updated_at:desc"
+              ],
+              "default": "updated_at:asc"
             }
           },
           {
@@ -324,7 +342,7 @@
             }
           },
           "400": {
-            "description": "A query parameter is not valid, the notification template does not exist, or the token is not the creator of the template",
+            "description": "A filter or query parameter is not valid, the notification template does not exist, or the token is not the creator of the template",
             "content": {
               "application/json": {
                 "schema": {
@@ -335,7 +353,7 @@
                   "errors": [
                     {
                       "code": "bad_request",
-                      "message": "Bad request -> Notification code name doesn't exist"
+                      "message": "filter does not support: read. Supported: notification_template_code_name, updated_at, pane_status, push_clicked"
                     }
                   ]
                 }
@@ -343,13 +361,42 @@
             }
           },
           "401": {
-            "description": "Unauthorized"
-          },
-          "403": {
-            "description": "Forbidden"
+            "description": "The token is missing, or its type is not Directory, App or Operator",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid token provided"
+                    }
+                  ]
+                }
+              }
+            }
           },
           "500": {
-            "description": "Internal server error"
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "internal_error",
+                      "message": "Internal server error"
+                    }
+                  ]
+                }
+              }
+            }
           }
         },
         "security": [
