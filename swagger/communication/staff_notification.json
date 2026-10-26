@@ -68,6 +68,42 @@
             }
           }
         }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ]
+            }
+          }
+        },
+        "required": [
+          "success",
+          "errors"
+        ]
       }
     },
     "securitySchemes": {
@@ -136,6 +172,175 @@
           },
           "400": {
             "description": "Invalid request parameters"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "get": {
+        "summary": "List a template's StaffNotifications",
+        "operationId": "listStaffNotifications",
+        "description": "## Overview\nReturn one page of the StaffNotifications that were created from one notification template. Rows are sorted by `updated_at`, then by `uid`, oldest first.\n\nUse it to get the delivery statuses of many StaffNotifications with one request per page, instead of one request per StaffNotification.\n\n## Incremental sync\nPass the highest `updated_at` that you already have as `updated_since`. The bound is inclusive, so a StaffNotification on the boundary can be returned again. De-duplicate the rows by `uid`.\n\n## Paging\nThe response has no total count. Request the next page until a page has fewer rows than `per_page`.\n\nOnly the creator of the notification template can list its StaffNotifications.\n\nAvailable for **Directory, App and Operator tokens**.",
+        "tags": [
+          "Staff Notification"
+        ],
+        "parameters": [
+          {
+            "name": "notification_template_code_name",
+            "in": "query",
+            "required": true,
+            "description": "The code name of the notification template whose StaffNotifications to return (e.g., \"campaign_abc123\")",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "updated_since",
+            "in": "query",
+            "required": false,
+            "description": "Return only StaffNotifications updated at or after this ISO 8601 time. Inclusive (e.g., \"2026-09-09T05:30:21.000Z\")",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "updated_until",
+            "in": "query",
+            "required": false,
+            "description": "Return only StaffNotifications updated before this ISO 8601 time. Exclusive (e.g., \"2026-09-10T00:00:00.000Z\")",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "read",
+            "in": "query",
+            "required": false,
+            "description": "Return only StaffNotifications whose pane notification was read (true) or was not read (false) (e.g., true, false)",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "push_clicked",
+            "in": "query",
+            "required": false,
+            "description": "Return only StaffNotifications whose push notification was clicked (true) or was not clicked (false) (e.g., true, false)",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "The page number (e.g., 1, 2)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "description": "How many StaffNotifications to return per page. The maximum is 100 (e.g., 25, 100)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "StaffNotifications retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "staff_notifications": {
+                              "type": "array",
+                              "description": "The StaffNotifications on this page, oldest `updated_at` first.",
+                              "items": {
+                                "$ref": "https://vcita.github.io/developers-hub/entities/communication/staff_notification.json"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "staff_notifications": [
+                      {
+                        "uid": "staff-notification-12345",
+                        "staff_uid": "staff-67890",
+                        "notification_template_code_name": "campaign_abc123",
+                        "locale": "en",
+                        "staff_portal_content": {
+                          "title": "New offer",
+                          "message_body": "See what is new this month",
+                          "deep_link": "/app/offers"
+                        },
+                        "push_status": "sent",
+                        "push_clicked": true,
+                        "pane_status": "read",
+                        "created_at": "2026-09-09T05:30:00.000Z",
+                        "updated_at": "2026-09-09T05:31:12.000Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A query parameter is not valid, the notification template does not exist, or the token is not the creator of the template",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "bad_request",
+                      "message": "Bad request -> Notification code name doesn't exist"
+                    }
+                  ]
+                }
+              }
+            }
           },
           "401": {
             "description": "Unauthorized"
