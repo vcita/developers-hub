@@ -13,9 +13,12 @@ An instance of a notification sent to a staff member, including delivery content
 | params | Additional parameters for populating notification templates. | array of objects |  |
 | staff_portal_content | Settings for pane notifications | object |  |
 | email_content | Settings for email notifications | object |  |
+| sms_content | Settings for SMS notifications | object |  |
 | push_status | The current delivery status of the push notification. | string (enum: `sent`, `failed`) |  |
+| push_clicked | Whether the staff member clicked the push notification. Null when push was not used for this staff member, which is different from "sent but not clicked" (e.g., true, false, null). | boolean |  |
 | pane_status | The current delivery status of the pane notification. | string (enum: `sent`, `read`, `failed`) |  |
 | email_status | History of delivery statuses for the email notification. Each entry represents a status the notification has passed through, in chronological order. | array of strings |  |
+| sms_status | History of delivery statuses for the SMS notification. Each entry represents a status the notification has passed through, in chronological order. | array of strings |  |
 | created_at | The date and time when the staff notification was created, in ISO 8601 format. | string | Yes |
 | updated_at | The date and time when the staff notification was last updated, in ISO 8601 format. | string | Yes |
 
@@ -40,6 +43,13 @@ An instance of a notification sent to a staff member, including delivery content
 | footer_text | Footer or closing text for the email. | string |  |
 | primary_cta_button | Call-to-action button details. | object |  |
 | secondary_cta_button | Secondary call-to-action button details. | object |  |
+
+### Sms Content Properties
+
+| Name | Description | Type | Required |
+| --- | --- | --- | --- |
+| message_body | Message body for the SMS notification. | string | Yes |
+| deep_link | Optional deep link URL for SMS notification action. | string |  |
 
 ## Example
 
@@ -72,9 +82,18 @@ JSON
     "main_text": "Thank you for booking with us. Your appointment is scheduled.",
     "footer_text": "If you have questions, contact us anytime."
   },
+  "sms_content": {
+    "message_body": "You have a new appointment scheduled for 2023-05-15 at 14:30",
+    "deep_link": "/appointments/12345"
+  },
   "push_status": "sent",
+  "push_clicked": true,
   "pane_status": "read",
   "email_status": [
+    "delivered",
+    "open"
+  ],
+  "sms_status": [
     "delivered",
     "open"
   ],
