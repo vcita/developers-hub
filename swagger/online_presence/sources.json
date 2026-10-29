@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Sources",
-    "description": "Create and read the sources of a business under `/v3/online_presence/sources`. A source tells how an activity (a client, an appointment, a payment, an invoice, a document, a review or a cart) started.\n\nEvery call is scoped to one business: a source of another business returns 404, the same as a missing one.",
+    "description": "A source tells how an activity started: a client, an appointment, a payment, an invoice, a document, a review or a cart.\n\n**Business scope.** List, get and create act on one business. A staff token gives its business. Every other token names it with `business_uid`: a directory token or an app token of a directory, for a business of its directory; an Admin token or a global app token (an app of no directory), for any business. A source of another business returns 404.\n\n**Cross-tenant reads.** An Admin token or a global app token can read the sources of every business: the list without `business_uid` (by `uid`), and the tap. Each source then carries its `business_uid`.",
     "version": "3.0.0",
     "contact": {}
   },
@@ -21,22 +21,16 @@
     "/v3/online_presence/sources": {
       "get": {
         "summary": "Get all Sources",
-        "description": "## Overview\nGet the sources of a business, newest first, with pagination. With the `uid` filter, get the sources of a whole page of activities in one call; the filter returns every match, with no pagination.\n\nAvailable for **Staff Tokens**, **Directory Tokens** (with `business_uid` of a business of the directory) and **Admin Tokens** (with `business_uid`).",
+        "description": "## Overview\nGet the sources of a business, with pagination.\n\nWith `uid`, get the listed sources in one call, with no pagination. Use it to get the sources of a page of activities.\n\nWithout `business_uid`, an Admin token or a global app token gets the listed sources of every business (`uid` is then required). Each source carries its `business_uid`.\n\nAvailable for **Staff**, **Directory**, **App** and **Admin Tokens**.",
         "parameters": [
           {
-            "name": "business_uid",
-            "in": "query",
-            "required": false,
-            "description": "The business of the sources. Required for every token except a staff token, which gives its own business and ignores this parameter.",
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/business_uid"
           },
           {
             "name": "uid",
             "in": "query",
             "required": false,
-            "description": "Filter by source identifiers, as a comma list (`uid=a1,a2`) or repeated (`uid[]=a1&uid[]=a2`). At most 500 values. Each value is A `uid`, or the legacy numeric `source_id` (1 to 10 digits). **The legacy `source_id` form is deprecated**: use the `uid`.",
+            "description": "Source identifiers, as a comma list (`uid=a1,a2`) or repeated (`uid[]=a1&uid[]=a2`). At most 500. A value of 1 to 10 digits is a legacy `source_id` (**deprecated**).",
             "schema": {
               "type": "array",
               "maxItems": 500,
@@ -51,7 +45,7 @@
             "name": "page",
             "in": "query",
             "required": false,
-            "description": "Page number of results",
+            "description": "Page number. Ignored with `uid`.",
             "schema": {
               "type": "integer",
               "minimum": 1,
@@ -62,7 +56,7 @@
             "name": "per_page",
             "in": "query",
             "required": false,
-            "description": "How many items to return per page. Max: 100",
+            "description": "Items per page. Ignored with `uid`.",
             "schema": {
               "type": "integer",
               "minimum": 1,
@@ -74,7 +68,7 @@
             "name": "sort",
             "in": "query",
             "required": false,
-            "description": "Sort by creation time. Example: sort=created_at:asc",
+            "description": "Sort by creation time.",
             "schema": {
               "type": "string",
               "enum": [
@@ -109,17 +103,10 @@
             }
           },
           "401": {
-            "description": "Unauthorized: the token may not act on this business",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
+            "$ref": "#/components/responses/Unauthorized"
           },
           "422": {
-            "description": "Invalid parameters, or `business_uid` is missing",
+            "description": "Invalid parameters, `business_uid` is missing, or `uid` is missing in a cross-tenant read",
             "content": {
               "application/json": {
                 "schema": {
@@ -140,7 +127,7 @@
       },
       "post": {
         "summary": "Create a Source",
-        "description": "## Overview\nCreate a source for a business, then store its `uid` (or, for the legacy APIs, its deprecated `source_id`) on the activity it describes. The UTM fields and `gclid` are stored only for businesses with the sales account feature, and are ignored for the others.\n\nAvailable for **Staff Tokens**, **Directory Tokens** (with `business_uid` of a business of the directory) and **Admin Tokens** (with `business_uid`).",
+        "description": "## Overview\nCreate a source for a business. Store its `uid` on the activity it describes.\n\nThe UTM fields and `gclid` are stored only for businesses with the sales account feature.\n\nAvailable for **Staff**, **Directory**, **App** and **Admin Tokens**.",
         "requestBody": {
           "required": true,
           "content": {
@@ -174,14 +161,7 @@
             }
           },
           "401": {
-            "description": "Unauthorized: the token may not act on this business",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
+            "$ref": "#/components/responses/Unauthorized"
           },
           "404": {
             "description": "Business not found",
@@ -214,28 +194,115 @@
         ]
       }
     },
-    "/v3/online_presence/sources/{uid}": {
+    "/v3/online_presence/sources/tap": {
       "get": {
-        "summary": "Get a Source",
-        "description": "## Overview\nGet one source of a business.\n\nAvailable for **Staff Tokens**, **Directory Tokens** (with `business_uid` of a business of the directory) and **Admin Tokens** (with `business_uid`).",
+        "summary": "Read all Sources (tap)",
+        "description": "## Overview\nRead the sources of every business, ordered by `updated_at`, then `uid`.\n\nThe first request sends `date` (and optionally `end_date`). Each next request sends only the `offset` of the previous response. Stop when `entities` is empty, or when you reach the end of your window: a request with `offset` has no upper bound.\n\nThe tap returns `business_uid` (null for a source of no business) and no `source_id`.\n\nAvailable for **Admin Tokens** and **global App Tokens** (an app of no directory).",
         "parameters": [
           {
-            "name": "uid",
-            "in": "path",
-            "required": true,
-            "description": "A `uid`, or the legacy numeric `source_id` (1 to 10 digits). **The legacy `source_id` form is deprecated**: use the `uid`.",
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "description": "First request only: the start of the window (ISO 8601), on `updated_at`.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "required": false,
+            "description": "First request only: the end of the window (ISO 8601, excluded). Default: `date` plus one hour.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "The `offset` of the previous response.",
             "schema": {
               "type": "string"
             }
           },
           {
-            "name": "business_uid",
+            "name": "per_page",
             "in": "query",
             "required": false,
-            "description": "The business of the sources. Required for every token except a staff token, which gives its own business and ignores this parameter.",
+            "description": "Items per page.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/SourcesTapPage"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "description": "Invalid parameters, or neither `date` nor `offset`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Source"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/online_presence/sources/{uid}": {
+      "get": {
+        "summary": "Get a Source",
+        "description": "## Overview\nGet one source of a business.\n\nAvailable for **Staff**, **Directory**, **App** and **Admin Tokens**.",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "The source `uid`. A value of 1 to 10 digits is a legacy `source_id` (**deprecated**).",
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "$ref": "#/components/parameters/business_uid"
           }
         ],
         "responses": {
@@ -261,17 +328,10 @@
             }
           },
           "401": {
-            "description": "Unauthorized: the token may not act on this business",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
+            "$ref": "#/components/responses/Unauthorized"
           },
           "404": {
-            "description": "Source not found, or the source belongs to another business",
+            "description": "Source not found in this business",
             "content": {
               "application/json": {
                 "schema": {
@@ -303,16 +363,53 @@
     }
   },
   "components": {
+    "parameters": {
+      "business_uid": {
+        "name": "business_uid",
+        "in": "query",
+        "required": false,
+        "description": "The business. Required for every token except a staff token.",
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "The token may not act on this business, or may not read across businesses",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      }
+    },
     "schemas": {
       "SourcesList": {
         "type": "object",
         "properties": {
           "sources": {
-            "description": "List of Sources",
             "type": "array",
             "items": {
               "$ref": "https://vcita.github.io/developers-hub/entities/online_presence/source.json"
             }
+          }
+        }
+      },
+      "SourcesTapPage": {
+        "type": "object",
+        "properties": {
+          "entities": {
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/online_presence/source.json"
+            }
+          },
+          "offset": {
+            "type": "string",
+            "description": "Send it as `offset` to get the next page."
           }
         }
       },
@@ -321,13 +418,13 @@
         "properties": {
           "business_uid": {
             "type": "string",
-            "description": "The business of the source. Required for every token except a staff token."
+            "description": "The business. Required for every token except a staff token."
           },
           "name": {
             "type": "string",
             "maxLength": 255,
-            "description": "How the activity started. See the `name` field of the Source entity for the known values.",
-            "nullable": true
+            "nullable": true,
+            "description": "How the activity started. See the Source entity for the known values."
           },
           "channel": {
             "type": "string",
@@ -339,7 +436,7 @@
           },
           "website_url": {
             "type": "string",
-            "description": "Values longer than 255 characters are cut."
+            "description": "Cut to 255 characters."
           },
           "utm_source": {
             "type": "string",
@@ -398,7 +495,7 @@
       "Bearer": {
         "type": "http",
         "scheme": "bearer",
-        "description": "A staff token, a directory token or an Admin token. Every token except a staff token names the business with `business_uid`."
+        "description": "A staff, directory, app or Admin token."
       }
     }
   }
