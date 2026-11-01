@@ -68,6 +68,202 @@
             }
           }
         }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code",
+                "message"
+              ]
+            }
+          }
+        },
+        "required": [
+          "success",
+          "errors"
+        ]
+      },
+      "PaneChannelStats": {
+        "type": "object",
+        "description": "The pane (in-app) channel. Present only when the template uses the pane.",
+        "required": [
+          "sent",
+          "seen",
+          "read"
+        ],
+        "properties": {
+          "sent": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Staff the notification was put in the pane for (e.g., 3000)."
+          },
+          "seen": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Staff who opened the notification pane while the notification was new. The pane marks every new notification seen at once, so this is a weak signal (e.g., 2100)."
+          },
+          "read": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Staff whose pane notification is marked read. \"Mark all as read\" also sets it, so it does not prove that the staff member opened this notification (e.g., 1100)."
+          }
+        }
+      },
+      "PushChannelStats": {
+        "type": "object",
+        "description": "The push channel. Present only when the template uses push. There is no push delivery data, so `sent` means published.",
+        "required": [
+          "sent",
+          "clicked"
+        ],
+        "properties": {
+          "sent": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Staff a push notification was published for. This does not prove delivery (e.g., 3000)."
+          },
+          "clicked": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Staff who opened the app by tapping the push notification (e.g., 310)."
+          }
+        }
+      },
+      "EmailChannelStats": {
+        "type": "object",
+        "description": "The email channel, from the email provider's delivery events. Present only when the template uses email.",
+        "required": [
+          "sent",
+          "delivered",
+          "opened",
+          "clicked",
+          "failed"
+        ],
+        "properties": {
+          "sent": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Staff an email was queued for (e.g., 2950)."
+          },
+          "delivered": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Staff whose email was delivered, opened or clicked (e.g., 2900)."
+          },
+          "opened": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Staff who opened or clicked the email (e.g., 1500)."
+          },
+          "clicked": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Staff who clicked a link in the email (e.g., 220)."
+          },
+          "failed": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Staff whose email bounced, was dropped, or could not be queued (e.g., 50)."
+          }
+        }
+      },
+      "SmsChannelStats": {
+        "type": "object",
+        "description": "The SMS channel. Present only when the template uses SMS. SMS has no read receipt, so `clicked` is a click on a link in the SMS.",
+        "required": [
+          "sent",
+          "delivered",
+          "clicked",
+          "failed"
+        ],
+        "properties": {
+          "sent": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Staff an SMS was queued for. SMS is opt-in for each staff member (e.g., 400)."
+          },
+          "delivered": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Staff whose SMS was delivered or clicked (e.g., 390)."
+          },
+          "clicked": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Staff who clicked a link in the SMS (e.g., 35)."
+          },
+          "failed": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Staff whose SMS failed, was rejected, was undeliverable or expired (e.g., 10)."
+          }
+        }
+      },
+      "StaffNotificationStats": {
+        "type": "object",
+        "description": "Delivery and engagement counts for one notification template. Every count is a number of distinct staff members, not of notifications.",
+        "required": [
+          "notification_template_code_name",
+          "recipients",
+          "engaged",
+          "channels"
+        ],
+        "properties": {
+          "notification_template_code_name": {
+            "type": "string",
+            "description": "The code name of the reported notification template (e.g., \"campaign_abc123\")."
+          },
+          "recipients": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Staff the notification was created for (e.g., 3000)."
+          },
+          "engaged": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Staff who acted on the notification in at least one channel: clicked the push, opened or clicked the email, or clicked the SMS. Pane read is not counted, because \"mark all as read\" also sets it (e.g., 1240)."
+          },
+          "channels": {
+            "type": "object",
+            "description": "One entry for each channel that the template uses. A channel that the template does not use is not present.",
+            "properties": {
+              "pane": {
+                "$ref": "#/components/schemas/PaneChannelStats"
+              },
+              "push": {
+                "$ref": "#/components/schemas/PushChannelStats"
+              },
+              "email": {
+                "$ref": "#/components/schemas/EmailChannelStats"
+              },
+              "sms": {
+                "$ref": "#/components/schemas/SmsChannelStats"
+              }
+            }
+          }
+        }
       }
     },
     "securitySchemes": {
@@ -152,6 +348,222 @@
             "Bearer": []
           }
         ]
+      },
+      "get": {
+        "summary": "List a template's StaffNotifications",
+        "operationId": "listStaffNotifications",
+        "description": "## Overview\nReturn one page of the StaffNotifications that were created from one notification template.\n\nUse it to get the delivery statuses of many StaffNotifications with one request per page, instead of one request per StaffNotification.\n\n## Filters\nEvery filter names a field of the StaffNotification. `filter[notification_template_code_name]` is required. Only the filters listed here are supported. Any other filter field or operator returns `400`.\n\n## Incremental sync\nPass the highest `updated_at` that you already have as `filter[updated_at][gte]`. The bound is inclusive, so a StaffNotification on the boundary can be returned again. De-duplicate the rows by `uid`.\n\n## Paging\nThe response has no total count. Request the next page until a page has fewer rows than `per_page`.\n\nOnly the creator of the notification template can list its StaffNotifications.\n\nAvailable for **Directory and App tokens**. The token must be the one that created the notification template.",
+        "tags": [
+          "Staff Notification"
+        ],
+        "parameters": [
+          {
+            "name": "filter[notification_template_code_name]",
+            "in": "query",
+            "required": true,
+            "description": "The code name of the notification template whose StaffNotifications to return (e.g., \"campaign_abc123\")",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "filter[updated_at][gte]",
+            "in": "query",
+            "required": false,
+            "description": "Return only StaffNotifications updated at or after this ISO 8601 time. Inclusive (e.g., \"2026-09-09T05:30:21.000Z\")",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "filter[updated_at][lt]",
+            "in": "query",
+            "required": false,
+            "description": "Return only StaffNotifications updated before this ISO 8601 time. Exclusive (e.g., \"2026-09-10T00:00:00.000Z\")",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "filter[pane_status]",
+            "in": "query",
+            "required": false,
+            "description": "Return only StaffNotifications whose pane notification has this status. Both values require that the pane notification was sent (e.g., \"sent\", \"read\")",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "sent",
+                "read"
+              ]
+            }
+          },
+          {
+            "name": "filter[push_clicked]",
+            "in": "query",
+            "required": false,
+            "description": "Return only StaffNotifications whose push notification was clicked (true) or was not clicked (false) (e.g., true, false)",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "Sort order. Rows with the same updated_at are sorted by uid in the same direction (e.g., \"updated_at:asc\", \"updated_at:desc\")",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "updated_at:asc",
+                "updated_at:desc"
+              ],
+              "default": "updated_at:asc"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "The page number (e.g., 1, 2)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "description": "How many StaffNotifications to return per page. The maximum is 100 (e.g., 25, 100)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "StaffNotifications retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "staff_notifications": {
+                              "type": "array",
+                              "description": "The StaffNotifications on this page, oldest `updated_at` first.",
+                              "items": {
+                                "$ref": "https://vcita.github.io/developers-hub/entities/communication/staff_notification.json"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "staff_notifications": [
+                      {
+                        "uid": "staff-notification-12345",
+                        "staff_uid": "staff-67890",
+                        "notification_template_code_name": "campaign_abc123",
+                        "locale": "en",
+                        "staff_portal_content": {
+                          "title": "New offer",
+                          "message_body": "See what is new this month",
+                          "deep_link": "/app/offers"
+                        },
+                        "push_status": "sent",
+                        "push_clicked": true,
+                        "pane_status": "read",
+                        "created_at": "2026-09-09T05:30:00.000Z",
+                        "updated_at": "2026-09-09T05:31:12.000Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A filter or query parameter is not valid, the notification template does not exist, or the token is not the creator of the template",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "bad_request",
+                      "message": "filter does not support: read. Supported: notification_template_code_name, updated_at, pane_status, push_clicked"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is missing, or its type is not Directory or App",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid token provided"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "internal_error",
+                      "message": "Internal server error"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
       }
     },
     "/v3/communication/staff_notifications/{uid}": {
@@ -205,6 +617,152 @@
           },
           "500": {
             "description": "Internal server error"
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/communication/reports/staff_notification_stats": {
+      "get": {
+        "summary": "Get a notification template's delivery and engagement stats",
+        "operationId": "getStaffNotificationStats",
+        "description": "## Overview\nReturn delivery and engagement counts for the StaffNotifications of one notification template, grouped by channel.\n\nEvery count is a number of distinct staff members. A staff member who received the template more than once is counted once.\n\n## Channels\nOnly the channels that the template uses are returned under `channels`: `pane`, `push`, `email` and `sms`.\n\n## Engagement\n`engaged` counts the staff members who clicked the push, opened or clicked the email, or clicked the SMS. Pane read is not counted, because \"mark all as read\" also sets it.\n\nOnly the creator of the notification template can read its stats.\n\nAvailable for **Directory and App tokens**. The token must be the one that created the notification template.",
+        "tags": [
+          "Staff Notification"
+        ],
+        "parameters": [
+          {
+            "name": "filter[notification_template_code_name]",
+            "in": "query",
+            "required": true,
+            "description": "The code name of the notification template to report on (e.g., \"campaign_abc123\")",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stats retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "staff_notification_stats": {
+                              "$ref": "#/components/schemas/StaffNotificationStats"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "staff_notification_stats": {
+                      "notification_template_code_name": "campaign_abc123",
+                      "recipients": 3000,
+                      "engaged": 1240,
+                      "channels": {
+                        "pane": {
+                          "sent": 3000,
+                          "seen": 2100,
+                          "read": 1100
+                        },
+                        "push": {
+                          "sent": 3000,
+                          "clicked": 310
+                        },
+                        "email": {
+                          "sent": 2950,
+                          "delivered": 2900,
+                          "opened": 1500,
+                          "clicked": 220,
+                          "failed": 50
+                        },
+                        "sms": {
+                          "sent": 400,
+                          "delivered": 390,
+                          "clicked": 35,
+                          "failed": 10
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The filter is not valid, the notification template does not exist, or the token is not the creator of the template",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "bad_request",
+                      "message": "Bad request -> Notification code name doesn't exist"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is missing, or its type is not Directory or App",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Invalid token provided"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "internal_error",
+                      "message": "Internal server error"
+                    }
+                  ]
+                }
+              }
+            }
           }
         },
         "security": [
