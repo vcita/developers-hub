@@ -38,13 +38,25 @@ function renderEnum(schema) {
   return '';
 }
 
+// Markdown/MDX table cells must be single-line and must not contain raw pipes.
+// Collapse embedded newlines (a property description with `\n\n` would otherwise
+// break the table) and escape any pipe characters.
+function sanitizeCell(text) {
+  return String(text == null ? '' : text)
+    .replace(/\r\n/g, '\n')
+    .replace(/\n{2,}/g, '<br /><br />')
+    .replace(/\n/g, '<br />')
+    .replace(/\|/g, '\\|')
+    .trim();
+}
+
 function renderProperties(properties, requiredKeys = []) {
   if (!properties || !isPlainObject(properties)) return '';
   const requiredSet = new Set(Array.isArray(requiredKeys) ? requiredKeys : []);
   const rows = Object.entries(properties).map(([name, prop]) => {
     const type = renderType(prop);
     const enumSuffix = renderEnum(prop);
-    const desc = (prop && prop.description) ? prop.description : '';
+    const desc = sanitizeCell(prop && prop.description ? prop.description : '');
     const required = requiredSet.has(name) ? 'Yes' : '';
     return `| ${name} | ${desc} | ${type}${enumSuffix} | ${required} |`;
   });
@@ -178,12 +190,15 @@ async function main() {
   }
 
   if (target) {
-    // Allow passing either a relative path under entities or just a base name
+    // Allow passing either a relative path under entities or just a base name,
+    // with or without the .json extension (e.g. `offering`, `offering.json`,
+    // `license/offering.json`). If the literal path doesn't resolve, fall back to a
+    // recursive search by file name under entities/.
     let candidate = path.isAbsolute(target) ? target : path.join(entitiesRoot, target);
-    if (!candidate.endsWith('.json')) {
-      // try to resolve by searching for a matching file name under entities
+    if (!(await fs.pathExists(candidate))) {
+      const wantedBase = (target.toLowerCase().endsWith('.json') ? target : `${target}.json`).toLowerCase();
       const all = await collectEntityFiles(entitiesRoot);
-      const match = all.find((p) => path.basename(p).toLowerCase() === (target.toLowerCase().endsWith('.json') ? target.toLowerCase() : `${target.toLowerCase()}.json`));
+      const match = all.find((p) => path.basename(p).toLowerCase() === path.basename(wantedBase));
       if (match) candidate = match;
     }
     if (!(await fs.pathExists(candidate))) {

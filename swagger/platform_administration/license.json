@@ -15,6 +15,14 @@
     {
       "name": "Offering",
       "description": "The offering API facilitates seamless CRUD operations, allowing staff to create, retrieve, update, and delete offering items, and related entities with ease."
+    },
+    {
+      "name": "License Packages",
+      "description": "Manage packages in the license catalog. Admin actors only."
+    },
+    {
+      "name": "License Features",
+      "description": "Manage feature flags in the license catalog. Admin actors only."
     }
   ],
   "components": {
@@ -104,13 +112,14 @@
           },
           "payment_type": {
             "type": "string",
-            "description": "The payment type field defines the payment options available for an offering. Possible values:\n- **external**: Payment is managed outside the platform (typically via partner API). When using this type, the `prices` array must be empty (`[]`).\n- **free**: No payment is required. When using this type, the `price` value in the `prices` array must be `0` or `-1`.\n- **single_charge**: A single, one-time payment is required to obtain the offering.\n- **monthly**: A recurring payment made on a monthly basis.\n- **annually**: A recurring payment made on a yearly basis.\n- **bundle**: A subscription bundled with another subscription. Bundled offerings cannot be sold separately.",
+            "description": "The payment type field defines the payment options available for an offering. Possible values:\n- **external**: Payment is managed outside the platform (typically via partner API). When using this type, the `prices` array must be empty (`[]`).\n- **external_single_charge**: A one-time, externally-managed payment (typically via partner API) that grants a single credit (e.g., SMS). Behaves like `external` for billing but its quota is counted as purchased. When using this type, the `prices` array must be empty (`[]`). Not supported for `package` offerings.\n- **free**: No payment is required. When using this type, the `price` value in the `prices` array must be `0` or `-1`.\n- **single_charge**: A single, one-time payment is required to obtain the offering.\n- **monthly**: A recurring payment made on a monthly basis.\n- **annually**: A recurring payment made on a yearly basis.\n- **bundle**: A subscription bundled with another subscription. Bundled offerings cannot be sold separately.",
             "enum": [
               "free",
               "monthly",
               "annually",
               "single_charge",
               "external",
+              "external_single_charge",
               "bundle"
             ],
             "example": "monthly"
@@ -120,6 +129,12 @@
             "description": "Current status of the directory offering",
             "default": true,
             "example": "active"
+          },
+          "is_listed": {
+            "type": "boolean",
+            "description": "Listing visibility. Defaults to true on create; when false the offering is hidden from listings but remains reachable via a direct link.",
+            "default": true,
+            "example": true
           },
           "vendor": {
             "type": "string",
@@ -204,6 +219,48 @@
               "base",
               "free"
             ]
+          },
+          "availability_rules": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Optional availability rules for the offering, keyed by rule type. When present, a business only receives this offering as a bundled item if it satisfies every rule (direct subscription and catalog visibility are not gated). Omit it or leave the lists empty to make the offering available everywhere. The only supported rule is `geo_location` (e.g., { \"geo_location\": { \"allow\": [\"US\"], \"deny\": [] } }).",
+            "properties": {
+              "geo_location": {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "Restricts the offering by the business's country (ISO 3166-1 alpha-2). `deny` always wins over `allow`; empty `allow` and `deny` means available in every country; a business whose country cannot be resolved is treated as not-allowed whenever a restriction is set (fail-closed) (e.g., { \"allow\": [\"US\", \"CA\"], \"deny\": [\"IR\"] }).",
+                "required": [
+                  "allow",
+                  "deny"
+                ],
+                "properties": {
+                  "allow": {
+                    "type": "array",
+                    "description": "Country codes the offering is available in; empty means no allow-restriction (available everywhere except `deny`) (e.g., [\"US\", \"CA\"]).",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[A-Z]{2}$"
+                    }
+                  },
+                  "deny": {
+                    "type": "array",
+                    "description": "Country codes the offering is NOT available in; takes precedence over `allow` (e.g., [\"IR\", \"KP\"]).",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[A-Z]{2}$"
+                    }
+                  }
+                }
+              }
+            },
+            "example": {
+              "geo_location": {
+                "allow": [
+                  "US"
+                ],
+                "deny": []
+              }
+            }
           }
         },
         "required": [
@@ -250,11 +307,11 @@
             },
             "example": [
               {
-                "price": 5.00,
+                "price": 5.0,
                 "currency": "USD"
               },
               {
-                "price": 4.50,
+                "price": 4.5,
                 "currency": "EUR"
               }
             ]
@@ -278,6 +335,11 @@
             "description": "Current status of the directory offering",
             "default": true
           },
+          "is_listed": {
+            "type": "boolean",
+            "description": "Listing visibility. When false the offering is hidden from listings but remains reachable via a direct link.",
+            "example": false
+          },
           "reporting_tags": {
             "type": "array",
             "items": {
@@ -300,6 +362,48 @@
               "base",
               "free"
             ]
+          },
+          "availability_rules": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Optional availability rules for the offering, keyed by rule type. When present, a business only receives this offering as a bundled item if it satisfies every rule (direct subscription and catalog visibility are not gated). Omit it or leave the lists empty to make the offering available everywhere. The only supported rule is `geo_location` (e.g., { \"geo_location\": { \"allow\": [\"US\"], \"deny\": [] } }).",
+            "properties": {
+              "geo_location": {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "Restricts the offering by the business's country (ISO 3166-1 alpha-2). `deny` always wins over `allow`; empty `allow` and `deny` means available in every country; a business whose country cannot be resolved is treated as not-allowed whenever a restriction is set (fail-closed) (e.g., { \"allow\": [\"US\", \"CA\"], \"deny\": [\"IR\"] }).",
+                "required": [
+                  "allow",
+                  "deny"
+                ],
+                "properties": {
+                  "allow": {
+                    "type": "array",
+                    "description": "Country codes the offering is available in; empty means no allow-restriction (available everywhere except `deny`) (e.g., [\"US\", \"CA\"]).",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[A-Z]{2}$"
+                    }
+                  },
+                  "deny": {
+                    "type": "array",
+                    "description": "Country codes the offering is NOT available in; takes precedence over `allow` (e.g., [\"IR\", \"KP\"]).",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[A-Z]{2}$"
+                    }
+                  }
+                }
+              }
+            },
+            "example": {
+              "geo_location": {
+                "allow": [
+                  "US"
+                ],
+                "deny": []
+              }
+            }
           }
         },
         "required": [
@@ -486,6 +590,162 @@
             }
           }
         }
+      },
+      "BulkCreateSubscriptionsDTO": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/CreateSubscriptionDTO"
+          },
+          {
+            "type": "object",
+            "description": "Request body for creating multiple identical subscriptions of an add-on offering in a single request.",
+            "properties": {
+              "quantity": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10,
+                "description": "Number of identical subscription lines to create for the offering (e.g., 3)",
+                "example": 3
+              }
+            },
+            "required": [
+              "quantity"
+            ]
+          }
+        ],
+        "example": {
+          "offering_uid": "bc33f12d-98ee-428f-9f65-18bba589cb95",
+          "purchase_currency": "USD",
+          "quantity": 3
+        }
+      },
+      "BulkCreateSubscriptionsResult": {
+        "type": "object",
+        "properties": {
+          "subscriptions": {
+            "type": "array",
+            "description": "Array of results for each requested subscription line (all items include a success indicator)",
+            "items": {
+              "type": "object",
+              "required": [
+                "success"
+              ],
+              "properties": {
+                "success": {
+                  "type": "boolean",
+                  "description": "Indicates whether this subscription line was created (e.g., true)"
+                },
+                "data": {
+                  "description": "Subscription data (present only when success is true)",
+                  "$ref": "https://vcita.github.io/developers-hub/entities/license/subscription.json"
+                },
+                "errors": {
+                  "type": "array",
+                  "description": "Error details (present only when success is false)",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "code": {
+                        "type": "string",
+                        "example": "creation_failed"
+                      },
+                      "message": {
+                        "type": "string",
+                        "example": "Failed to create subscription"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "CreateQuotaConsumptionDTO": {
+        "type": "object",
+        "required": [
+          "sku",
+          "quantity"
+        ],
+        "properties": {
+          "business_uid": {
+            "type": "string",
+            "maxLength": 16,
+            "description": "The business the usage belongs to. An App acting for a business reports for that business whatever it sends; an Admin, or an App acting for no business, names it (e.g., \"ixfxpxc7s7shyf0m\")"
+          },
+          "sku": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "The metered addon SKU (e.g., \"ai_credit\")"
+          },
+          "quantity": {
+            "type": "integer",
+            "description": "Units consumed, a positive integer (e.g., 30)"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the usage happened; defaults to now. It decides the period charged (e.g., \"2026-10-05T09:44:43Z\")"
+          },
+          "source": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "The source the usage is reported for. An App reports as itself unless it names another source; an Admin names the source it reports for (e.g., \"aiagents\")"
+          },
+          "consumption_attempt_uid": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "The reporter's own id for this usage, reused when reporting it again so a retry records nothing twice; generated when left out (e.g., \"msg_7f3a\")"
+          },
+          "subscription_uid": {
+            "type": "string",
+            "maxLength": 36,
+            "description": "Charge this allowance instead of letting the ingest choose (e.g., \"bc33f12d-98ee-428f-9f65-18bba589cb95\")"
+          }
+        }
+      },
+      "QuotaConsumptionList": {
+        "type": "object",
+        "properties": {
+          "quota_consumptions": {
+            "description": "List of Quota Consumptions",
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/license/quotaConsumption.json"
+            }
+          }
+        }
+      },
+      "QuotaBalanceList": {
+        "type": "object",
+        "properties": {
+          "quota_balances": {
+            "description": "List of Quota Balances",
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/license/quotaBalance.json"
+            }
+          }
+        }
+      },
+      "QuotaTotal": {
+        "type": "object",
+        "description": "What can still be consumed of one SKU across the allowances the query matched.",
+        "properties": {
+          "sku": {
+            "type": "string",
+            "description": "The metered addon SKU (e.g., \"ai_credit\")"
+          },
+          "left": {
+            "type": "integer",
+            "nullable": true,
+            "description": "The sum of what each matched allowance has left, counting an overdrawn one as 0; never negative; null when any of them is unlimited (e.g., 303950)"
+          }
+        },
+        "required": [
+          "sku",
+          "left"
+        ]
       }
     },
     "securitySchemes": {
@@ -541,7 +801,8 @@
                 "annualy",
                 "free",
                 "single_charge",
-                "external"
+                "external",
+                "external_single_charge"
               ]
             },
             "description": "The payment type field defines the payment options available for an offering,**external**: Payment is not done by the platform (typically an API call from the partner), **free**: No payment is required; **single_charge**: A single, one-time payment is required to obtain the offering; **monthly**: A recurring payment made on a monthly basis; **annual**: A recurring payment made on a yearly basis; **bundle**: A subscription bundled with another subscription"
@@ -553,6 +814,14 @@
               "type": "boolean"
             },
             "description": "The Offering status"
+          },
+          {
+            "in": "query",
+            "name": "is_listed",
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Filter offerings by listing visibility. `true` returns only listed offerings, `false` returns only hidden offerings; omit it to return all offerings (e.g., true, false)"
           },
           {
             "in": "query",
@@ -1614,6 +1883,115 @@
         ]
       }
     },
+    "/license/subscriptions/bulk": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkCreateSubscriptionsDTO"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Bulk create completed (may contain partial failures). Each requested line is reported independently.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "#/components/schemas/BulkCreateSubscriptionsResult"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "subscriptions": [
+                      {
+                        "success": true,
+                        "data": {
+                          "uid": "368659c8-64b7-4b53-ba13-d6260e61268c",
+                          "display_name": "1 Staff Seat",
+                          "buyer_uid": "oi5dcvf685t1563x",
+                          "business_uid": "4c3ls2gmlq786muz",
+                          "purchase_currency": "USD",
+                          "purchase_price": 10,
+                          "purchase_state": "purchased",
+                          "cancellation_date": null,
+                          "expiration_date": null,
+                          "created_at": "2026-04-29T13:56:58.123Z",
+                          "updated_at": "2026-04-29T13:56:58.123Z",
+                          "payment_type": "monthly",
+                          "bundled_from_subscription_uid": null,
+                          "is_active": true,
+                          "offering_uid": "bc33f12d-98ee-428f-9f65-18bba589cb95",
+                          "trial_type": "no_trial",
+                          "trial_period": 0,
+                          "offering_type": "addon",
+                          "charged_by": "partner",
+                          "quantity": 1,
+                          "sku": "staff_slot",
+                          "original_price": null,
+                          "coupon_code": null
+                        }
+                      },
+                      {
+                        "success": false,
+                        "errors": [
+                          {
+                            "code": "creation_failed",
+                            "message": "Failed to create subscription"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Offering is not an add-on or quantity is out of range",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "invalid_request",
+                    "message": "Bulk create is only supported for add-on offerings"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Bulk Create Subscriptions",
+        "description": "## Overview\nCreate multiple identical Subscriptions for a business in a single request. Supported for **add-on** offerings only (`type = addon`); each created subscription is a separate line (e.g., an offering of 5 staff seats with `quantity = 3` results in 3 subscription lines, 15 staff seats in total).\n\nSubscriptions are created sequentially; if one creation fails, previously created lines are kept and the error is returned.\n\nAvailable for **Staff tokens**.\n\nToken permissions and external payment type behavior are identical to `POST /license/subscriptions`.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Subscription"
+        ]
+      }
+    },
     "/license/subscriptions/{uid}": {
       "get": {
         "tags": [
@@ -1951,6 +2329,14 @@
               "default": "updated_at:desc"
             },
             "description": "Sort by fields, e.g., \"created_at:asc,updated_at:desc\""
+          },
+          {
+            "in": "query",
+            "name": "is_template",
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Return only template packages (true) or only non-template packages (false). Omit to return both. Only \"true\" and \"false\" are accepted - any other value, including 0 and 1, returns 400 (e.g., true, false)"
           }
         ],
         "responses": {
@@ -1986,6 +2372,1858 @@
             "description": "Internal server error"
           }
         }
+      },
+      "post": {
+        "tags": [
+          "Features Packages"
+        ],
+        "summary": "Create a license package",
+        "operationId": "createFeaturesPackage",
+        "description": "## Overview\nCreate a package. The name must be unique. Unlike the list and show operations, the created package is returned as a full record rather than a reduced field set.\n\nAvailable for **admin actors only** — an Okta admin token (introspected by the API gateway) or, outside production, the static admin token. Any other actor type receives 403. Note the list operation on this path is **not** admin-only: it remains available to staff tokens, so authorization differs per operation.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Internal name, unique across packages (e.g., \"essentials\")"
+                  },
+                  "display_name": {
+                    "type": "string",
+                    "description": "Name shown to users (e.g., \"Essentials\")"
+                  },
+                  "staff_slots": {
+                    "type": "integer",
+                    "description": "Staff seats included (e.g., 1, 5)"
+                  },
+                  "free": {
+                    "type": "boolean",
+                    "description": "Whether the package is free (e.g., true, false)"
+                  },
+                  "settings": {
+                    "type": "object",
+                    "description": "Feature toggles carried by the package.",
+                    "properties": {
+                      "disable_add_staff_button": {
+                        "type": "boolean",
+                        "description": "Hides the add-staff button (e.g., true, false)"
+                      },
+                      "disable_staff_slots": {
+                        "type": "boolean",
+                        "description": "Disables staff seat management (e.g., true, false)"
+                      },
+                      "disable_sms_purchase_button": {
+                        "type": "boolean",
+                        "description": "Hides the SMS purchase button (e.g., true, false)"
+                      }
+                    }
+                  },
+                  "quotas": {
+                    "type": "object",
+                    "description": "Usage quotas granted by the package.",
+                    "properties": {
+                      "invoice_monthly_quota": {
+                        "type": "integer",
+                        "description": "Monthly cap on invoices (e.g., 5, 100)"
+                      },
+                      "estimate_monthly_quota": {
+                        "type": "integer",
+                        "description": "Monthly cap on estimates (e.g., 5, 100)"
+                      },
+                      "storage_quota": {
+                        "type": "integer",
+                        "description": "Storage allowance in megabytes (e.g., 1024)"
+                      },
+                      "campaign_recipients_monthly_quota": {
+                        "type": "integer",
+                        "description": "Monthly cap on campaign recipients (e.g., 500)"
+                      },
+                      "clients_credit": {
+                        "type": "integer",
+                        "description": "Client credits (e.g., 50)"
+                      },
+                      "campaigns_credit": {
+                        "type": "integer",
+                        "description": "Campaign credits (e.g., 5)"
+                      },
+                      "booking_credit": {
+                        "type": "integer",
+                        "description": "Booking credits (e.g., 10)"
+                      },
+                      "sms_monthly_quota": {
+                        "type": "object",
+                        "description": "Monthly SMS allowance by destination.",
+                        "properties": {
+                          "us_canada": {
+                            "type": "integer",
+                            "description": "US and Canada allowance (e.g., 100)"
+                          },
+                          "other": {
+                            "type": "integer",
+                            "description": "All other destinations (e.g., 20)"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "features": {
+                    "type": "object",
+                    "description": "Packageable features to attach or detach in the same call.",
+                    "properties": {
+                      "features_to_add": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "description": "Feature names to attach (e.g., [\"online_scheduling\"])"
+                      },
+                      "features_to_remove": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "description": "Feature names to detach (e.g., [\"sms_reminders\"])"
+                      }
+                    }
+                  },
+                  "is_template": {
+                    "type": "boolean",
+                    "description": "Whether the package is a reusable configuration template rather than a package businesses subscribe to. Must be a JSON boolean - 0, 1 and the quoted forms \"true\"/\"false\" are rejected with 400. Defaults to false when omitted (e.g., true, false)"
+                  }
+                }
+              },
+              "example": {
+                "name": "essentials",
+                "display_name": "Essentials",
+                "staff_slots": 1,
+                "free": false,
+                "quotas": {
+                  "invoice_monthly_quota": 5
+                },
+                "features": {
+                  "features_to_add": [
+                    "online_scheduling"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created package",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "features_package": {
+                              "$ref": "https://vcita.github.io/developers-hub/entities/license/featuresPackage.json"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "features_package": {
+                      "id": 1,
+                      "uid": "4c571054c3bd11f0",
+                      "name": "scheduling",
+                      "display_name": "Online Scheduling",
+                      "free": false,
+                      "deprecated": false,
+                      "created_at": "Wed, May 29, 2013 at 12:21pm",
+                      "updated_at": "Tue, July 14 at 7:25am",
+                      "staff_slots": 0,
+                      "quotas": {
+                        "invoice_monthly_quota": 5
+                      },
+                      "settings": {
+                        "disable_add_staff_button": false
+                      },
+                      "features": [
+                        {
+                          "id": 2231,
+                          "name": "online_scheduling",
+                          "description": "Online scheduling for clients"
+                        }
+                      ],
+                      "is_template": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed, for example a duplicate name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "invalid",
+                      "message": "Package with the name essentials already exists"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The credential was rejected at introspection"
+          },
+          "403": {
+            "description": "The actor is authenticated but is not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "403 Forbidden"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/license/features": {
+      "get": {
+        "tags": [
+          "License Features"
+        ],
+        "summary": "List license features",
+        "operationId": "listLicenseFeatures",
+        "description": "## Overview\nList feature flags in the license catalog, ordered by name.\n\nAvailable for **admin actors only** — an Okta admin token (introspected by the API gateway) or, outside production, the static admin token. Any other actor type receives 403.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "filter",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Case-sensitive substring match on the feature name (e.g., \"scheduling\")"
+          },
+          {
+            "in": "query",
+            "name": "packageable",
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Return only features that may (or may not) be attached to a package (e.g., true, false)"
+          },
+          {
+            "in": "query",
+            "name": "domain",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "communication",
+                "clients",
+                "assets",
+                "campaigns",
+                "online_presence",
+                "sales",
+                "financial_ops",
+                "payments",
+                "catalog",
+                "scheduling",
+                "business_administration",
+                "verticals",
+                "access_control",
+                "licensing",
+                "operators",
+                "apps",
+                "ai",
+                "integration",
+                "bundles",
+                "spam_prevention",
+                "other"
+              ],
+              "description": "Functional domain the feature flag belongs to, from the R&D Domain-Driven Design domain list, plus the Package Manager categories `bundles`, `spam_prevention` and `other`. Optional -- null for flags that have not been classified yet (e.g., \"financial_ops\", \"scheduling\")"
+            },
+            "description": "Return only features in this domain. Composable with `packageable` and `filter`; a value outside the enum is rejected with HTTP 400 (e.g., \"financial_ops\")"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The features in the catalog",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "features": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "https://vcita.github.io/developers-hub/entities/license/feature.json"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "features": [
+                      {
+                        "id": 2231,
+                        "uid": "a1b2c3d4e5f6g7h8",
+                        "name": "3_services_limitation",
+                        "description": "3 service limitation per account",
+                        "packageable": true,
+                        "domain": "catalog",
+                        "removable": false,
+                        "created_at": "Wed, May 29, 2013 at 12:21pm",
+                        "updated_at": "Thu, September 03 at 9:50am"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The credential was rejected at introspection"
+          },
+          "403": {
+            "description": "The actor is authenticated but is not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "403 Forbidden"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "License Features"
+        ],
+        "summary": "Create a license feature",
+        "operationId": "createLicenseFeature",
+        "description": "## Overview\nCreate a feature flag. The name must be present and unique, case-insensitively.\n\nAvailable for **admin actors only** — an Okta admin token (introspected by the API gateway) or, outside production, the static admin token. Any other actor type receives 403.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Internal name, unique case-insensitively (e.g., \"online_scheduling\")"
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "What the feature controls (e.g., \"Online scheduling for clients\")"
+                  },
+                  "packageable": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Whether the feature may be attached to a package (e.g., true, false)"
+                  },
+                  "domain": {
+                    "type": "string",
+                    "enum": [
+                      "communication",
+                      "clients",
+                      "assets",
+                      "campaigns",
+                      "online_presence",
+                      "sales",
+                      "financial_ops",
+                      "payments",
+                      "catalog",
+                      "scheduling",
+                      "business_administration",
+                      "verticals",
+                      "access_control",
+                      "licensing",
+                      "operators",
+                      "apps",
+                      "ai",
+                      "integration",
+                      "bundles",
+                      "spam_prevention",
+                      "other"
+                    ],
+                    "description": "Optional. When supplied it must be one of the enum values; an unknown value is rejected with HTTP 400. Omitting it on update leaves the current value untouched -- it is never cleared implicitly (e.g., \"financial_ops\")"
+                  }
+                }
+              },
+              "example": {
+                "name": "online_scheduling",
+                "description": "Online scheduling for clients",
+                "packageable": true,
+                "domain": "scheduling"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The created feature",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "feature": {
+                              "$ref": "https://vcita.github.io/developers-hub/entities/license/feature.json"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "feature": {
+                      "id": 2231,
+                      "uid": "a1b2c3d4e5f6g7h8",
+                      "name": "3_services_limitation",
+                      "description": "3 service limitation per account",
+                      "packageable": true,
+                      "domain": "catalog",
+                      "removable": false,
+                      "created_at": "Wed, May 29, 2013 at 12:21pm",
+                      "updated_at": "Thu, September 03 at 9:50am"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed, for example a blank or duplicate name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "invalid",
+                      "message": "Failed to create feature: Name can't be blank"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The credential was rejected at introspection"
+          },
+          "403": {
+            "description": "The actor is authenticated but is not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "403 Forbidden"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/license/features/{uid}": {
+      "get": {
+        "tags": [
+          "License Features"
+        ],
+        "summary": "Get a license feature",
+        "operationId": "getLicenseFeature",
+        "description": "## Overview\nRetrieve one feature flag.\n\nAvailable for **admin actors only** — an Okta admin token (introspected by the API gateway) or, outside production, the static admin token. Any other actor type receives 403.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "uid",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unique identifier of the feature (e.g., \"a1b2c3d4e5f6g7h8\")"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested feature",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "feature": {
+                              "$ref": "https://vcita.github.io/developers-hub/entities/license/feature.json"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "feature": {
+                      "id": 2231,
+                      "uid": "a1b2c3d4e5f6g7h8",
+                      "name": "3_services_limitation",
+                      "description": "3 service limitation per account",
+                      "packageable": true,
+                      "domain": "catalog",
+                      "removable": false,
+                      "created_at": "Wed, May 29, 2013 at 12:21pm",
+                      "updated_at": "Thu, September 03 at 9:50am"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The credential was rejected at introspection"
+          },
+          "403": {
+            "description": "The actor is authenticated but is not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "403 Forbidden"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No feature with that id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Feature with uid nosuchuid0000000 doesn't exist"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "License Features"
+        ],
+        "summary": "Update a license feature",
+        "operationId": "updateLicenseFeature",
+        "description": "## Overview\nUpdate a feature flag's name, description or packageable flag.\n\nAvailable for **admin actors only** — an Okta admin token (introspected by the API gateway) or, outside production, the static admin token. Any other actor type receives 403.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "uid",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unique identifier of the feature (e.g., \"a1b2c3d4e5f6g7h8\")"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Internal name, unique case-insensitively (e.g., \"online_scheduling\")"
+                  },
+                  "description": {
+                    "type": "string",
+                    "description": "What the feature controls (e.g., \"Online scheduling for clients\")"
+                  },
+                  "packageable": {
+                    "type": "boolean",
+                    "description": "Whether the feature may be attached to a package (e.g., true, false)"
+                  },
+                  "domain": {
+                    "type": "string",
+                    "enum": [
+                      "communication",
+                      "clients",
+                      "assets",
+                      "campaigns",
+                      "online_presence",
+                      "sales",
+                      "financial_ops",
+                      "payments",
+                      "catalog",
+                      "scheduling",
+                      "business_administration",
+                      "verticals",
+                      "access_control",
+                      "licensing",
+                      "operators",
+                      "apps",
+                      "ai",
+                      "integration",
+                      "bundles",
+                      "spam_prevention",
+                      "other"
+                    ],
+                    "description": "Optional. When supplied it must be one of the enum values; an unknown value is rejected with HTTP 400. Omitting it on update leaves the current value untouched -- it is never cleared implicitly (e.g., \"financial_ops\")"
+                  }
+                }
+              },
+              "example": {
+                "description": "Online scheduling for clients",
+                "packageable": true,
+                "domain": "scheduling"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated feature",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "feature": {
+                              "$ref": "https://vcita.github.io/developers-hub/entities/license/feature.json"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "feature": {
+                      "id": 2231,
+                      "uid": "a1b2c3d4e5f6g7h8",
+                      "name": "3_services_limitation",
+                      "description": "3 service limitation per account",
+                      "packageable": true,
+                      "domain": "catalog",
+                      "removable": false,
+                      "created_at": "Wed, May 29, 2013 at 12:21pm",
+                      "updated_at": "Thu, September 03 at 9:50am"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "invalid",
+                      "message": "Feature flag could not be updated"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The credential was rejected at introspection"
+          },
+          "403": {
+            "description": "The actor is authenticated but is not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "403 Forbidden"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No feature with that id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Feature with uid nosuchuid0000000 doesn't exist"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "License Features"
+        ],
+        "summary": "Delete a license feature",
+        "operationId": "deleteLicenseFeature",
+        "description": "## Overview\nDelete a feature flag. A feature attached to any package cannot be deleted; the request returns **409** and the feature is kept. Check `removable` on the feature before calling.\n\nAvailable for **admin actors only** — an Okta admin token (introspected by the API gateway) or, outside production, the static admin token. Any other actor type receives 403.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "uid",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unique identifier of the feature (e.g., \"a1b2c3d4e5f6g7h8\")"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The feature was deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The credential was rejected at introspection"
+          },
+          "403": {
+            "description": "The actor is authenticated but is not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "403 Forbidden"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No feature with that id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Feature with uid nosuchuid0000000 doesn't exist"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The feature exists but a package still uses it, so it was not deleted. `removable` on the feature tells you this in advance.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "conflict",
+                      "message": "Feature flag with id 2231 could not be deleted"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The feature exists and no package uses it, but the delete failed. Distinct from 409, which means a package still uses it and the feature was deliberately kept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "server_error",
+                      "message": "Failed to delete feature 2231: Mysql2::Error: Lock wait timeout exceeded"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/license/features_packages/{id}": {
+      "get": {
+        "tags": [
+          "Features Packages"
+        ],
+        "summary": "Get a license package",
+        "operationId": "getFeaturesPackage",
+        "description": "## Overview\nRetrieve one package including its quotas, settings and attached packageable features.\n\nAvailable for **admin actors only** — an Okta admin token (introspected by the API gateway) or, outside production, the static admin token. Any other actor type receives 403. Note the list operation on this path is **not** admin-only: it remains available to staff tokens, so authorization differs per operation.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Numeric identifier of the record (e.g., 1, 2231)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested package, with quotas, settings and attached features",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "features_package": {
+                              "$ref": "https://vcita.github.io/developers-hub/entities/license/featuresPackage.json"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "features_package": {
+                      "id": 1,
+                      "uid": "4c571054c3bd11f0",
+                      "name": "scheduling",
+                      "display_name": "Online Scheduling",
+                      "free": false,
+                      "deprecated": false,
+                      "created_at": "Wed, May 29, 2013 at 12:21pm",
+                      "updated_at": "Tue, July 14 at 7:25am",
+                      "staff_slots": 0,
+                      "quotas": {
+                        "invoice_monthly_quota": 5
+                      },
+                      "settings": {
+                        "disable_add_staff_button": false
+                      },
+                      "features": [
+                        {
+                          "id": 2231,
+                          "name": "online_scheduling",
+                          "description": "Online scheduling for clients"
+                        }
+                      ],
+                      "is_template": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The credential was rejected at introspection"
+          },
+          "403": {
+            "description": "The actor is authenticated but is not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "403 Forbidden"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No package with that id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Package with id 0 doesn't exist"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Features Packages"
+        ],
+        "summary": "Update a license package",
+        "operationId": "updateFeaturesPackage",
+        "description": "## Overview\nUpdate a package's attributes and optionally attach or detach packageable features. Quotas cannot be changed through this operation and sending `quotas` fails the request.\n\nAvailable for **admin actors only** — an Okta admin token (introspected by the API gateway) or, outside production, the static admin token. Any other actor type receives 403. Note the list operation on this path is **not** admin-only: it remains available to staff tokens, so authorization differs per operation.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Numeric identifier of the record (e.g., 1, 2231)"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Internal name, unique across packages (e.g., \"essentials\")"
+                  },
+                  "display_name": {
+                    "type": "string",
+                    "description": "Name shown to users (e.g., \"Essentials\")"
+                  },
+                  "staff_slots": {
+                    "type": "integer",
+                    "description": "Staff seats included (e.g., 1, 5)"
+                  },
+                  "free": {
+                    "type": "boolean",
+                    "description": "Whether the package is free (e.g., true, false)"
+                  },
+                  "deprecated": {
+                    "type": "boolean",
+                    "description": "Whether the package is deprecated (e.g., true, false)"
+                  },
+                  "settings": {
+                    "type": "object",
+                    "description": "Feature toggles carried by the package.",
+                    "properties": {
+                      "disable_add_staff_button": {
+                        "type": "boolean",
+                        "description": "Hides the add-staff button (e.g., true, false)"
+                      },
+                      "disable_staff_slots": {
+                        "type": "boolean",
+                        "description": "Disables staff seat management (e.g., true, false)"
+                      },
+                      "disable_sms_purchase_button": {
+                        "type": "boolean",
+                        "description": "Hides the SMS purchase button (e.g., true, false)"
+                      }
+                    }
+                  },
+                  "features": {
+                    "type": "object",
+                    "description": "Packageable features to attach or detach in the same call.",
+                    "properties": {
+                      "features_to_add": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "description": "Feature names to attach (e.g., [\"online_scheduling\"])"
+                      },
+                      "features_to_remove": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "description": "Feature names to detach (e.g., [\"sms_reminders\"])"
+                      }
+                    }
+                  },
+                  "is_template": {
+                    "type": "boolean",
+                    "description": "Whether the package is a reusable configuration template rather than a package businesses subscribe to. Must be a JSON boolean - 0, 1 and the quoted forms \"true\"/\"false\" are rejected with 400. Defaults to false when omitted (e.g., true, false)"
+                  }
+                }
+              },
+              "example": {
+                "display_name": "Essentials (2026)",
+                "deprecated": true,
+                "features": {
+                  "features_to_remove": [
+                    "sms_reminders"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The updated package",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "features_package": {
+                              "$ref": "https://vcita.github.io/developers-hub/entities/license/featuresPackage.json"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "features_package": {
+                      "id": 1,
+                      "uid": "4c571054c3bd11f0",
+                      "name": "scheduling",
+                      "display_name": "Online Scheduling",
+                      "free": false,
+                      "deprecated": false,
+                      "created_at": "Wed, May 29, 2013 at 12:21pm",
+                      "updated_at": "Tue, July 14 at 7:25am",
+                      "staff_slots": 0,
+                      "quotas": {
+                        "invoice_monthly_quota": 5
+                      },
+                      "settings": {
+                        "disable_add_staff_button": false
+                      },
+                      "features": [
+                        {
+                          "id": 2231,
+                          "name": "online_scheduling",
+                          "description": "Online scheduling for clients"
+                        }
+                      ],
+                      "is_template": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed. Quotas cannot be changed through this operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "invalid",
+                      "message": "Can't update package quotas"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The credential was rejected at introspection"
+          },
+          "403": {
+            "description": "The actor is authenticated but is not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "403 Forbidden"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No package with that id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Package with id 0 doesn't exist"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Features Packages"
+        ],
+        "summary": "Delete a license package",
+        "operationId": "deleteFeaturesPackage",
+        "description": "## Overview\nDelete a package.\n\nAvailable for **admin actors only** — an Okta admin token (introspected by the API gateway) or, outside production, the static admin token. Any other actor type receives 403. Note the list operation on this path is **not** admin-only: it remains available to staff tokens, so authorization differs per operation.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Numeric identifier of the record (e.g., 1, 2231)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The package was deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The package exists but could not be deleted. The id is already checked, so this is a failure of the delete itself, not a missing record.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "invalid",
+                      "message": "Error deleting package: Mysql2::Error: Lock wait timeout exceeded"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The credential was rejected at introspection"
+          },
+          "403": {
+            "description": "The actor is authenticated but is not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "403 Forbidden"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No package with that id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Package with id 0 doesn't exist"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/license/features_packages/add_feature": {
+      "post": {
+        "tags": [
+          "Features Packages"
+        ],
+        "summary": "Add a feature to several license packages",
+        "operationId": "addFeatureToFeaturesPackages",
+        "description": "## Overview\nAttach one packageable feature to a list of packages in a single call. The feature must exist and have `packageable: true`, otherwise the request fails.\n\n> A package that already has the feature is **skipped**, not rejected, so the call is safe to repeat. Only packages actually modified are recorded in the audit trail.\n> If any id in the list does not exist the **whole call rolls back** — no package keeps the feature and no audit row is written.\n\nAvailable for **admin actors only** — an Okta admin token (introspected by the API gateway) or, outside production, the static admin token. Any other actor type receives 403. Note the list operation on this path is **not** admin-only: it remains available to staff tokens, so authorization differs per operation.",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "packages_ids",
+                  "feature_name"
+                ],
+                "properties": {
+                  "packages_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "description": "Identifiers of the packages to attach the feature to (e.g., [1, 2])"
+                  },
+                  "feature_name": {
+                    "type": "string",
+                    "description": "Internal name of a packageable feature (e.g., \"online_scheduling\")"
+                  }
+                }
+              },
+              "example": {
+                "packages_ids": [
+                  1,
+                  2
+                ],
+                "feature_name": "online_scheduling"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The feature was attached to every listed package Returns 201 because the platform maps every successful POST to created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                },
+                "example": {
+                  "success": true,
+                  "data": {}
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A required param is missing, the feature does not exist or is not packageable, or one of the package ids does not exist. Nothing is changed when this happens - the whole call rolls back.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "invalid",
+                      "message": "Error in add feature to packages: feature is not packageable"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The credential was rejected at introspection"
+          },
+          "403": {
+            "description": "The actor is authenticated but is not an admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "403 Forbidden"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/license/quota_consumptions": {
+      "post": {
+        "operationId": "createQuotaConsumption",
+        "summary": "Create a QuotaConsumption",
+        "description": "Report one usage of a metered addon SKU. The report is accepted as sent and published for the quota ingest, which validates it, charges the business's allowances in order (the monthly first, then packs), records a repeated `consumption_attempt_uid` once and rejects usage it cannot record; a rejection is logged, not answered. The response echoes the usage as accepted; `uid`, `subscription_uid`, `period` and `window_start` are filled in once it is recorded, as `GET /v3/license/quota_consumptions?source=…&consumption_attempt_uid=…` shows.\n\nAvailable for **App and Internal tokens**. An App reports for the business its token acts for, as itself (`business_uid` is required only when it acts for no business); an Internal token names `business_uid` and `source`.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateQuotaConsumptionDTO"
+              },
+              "example": {
+                "sku": "ai_credit",
+                "quantity": 30,
+                "occurred_at": "2026-10-05T09:44:43Z",
+                "consumption_attempt_uid": "msg_7f3a"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The usage was accepted for recording",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "#/components/schemas/QuotaConsumptionList"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A key the report does not declare",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is not an App or Internal token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Quota Consumption"
+        ]
+      },
+      "get": {
+        "summary": "List all QuotaConsumptions",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "source",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only usage reported by this source (e.g., \"aiagents\")"
+          },
+          {
+            "in": "query",
+            "name": "consumption_attempt_uid",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only the rows of this reported event (e.g., \"msg_7f3a\")"
+          },
+          {
+            "in": "query",
+            "name": "sku",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only usage of this SKU (e.g., \"ai_credit\")"
+          },
+          {
+            "in": "query",
+            "name": "subscription_uid",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only usage charged to this allowance subscription (e.g., \"bc33f12d-98ee-428f-9f65-18bba589cb95\")"
+          },
+          {
+            "in": "query",
+            "name": "business_uid",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only usage of this business, within what the token can read (e.g., \"ixfxpxc7s7shyf0m\")"
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "Page number of the results"
+          },
+          {
+            "in": "query",
+            "name": "per_page",
+            "schema": {
+              "type": "integer",
+              "default": 25,
+              "maximum": 100
+            },
+            "description": "How many items to return per page"
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "type": "string",
+              "default": "updated_at:desc"
+            },
+            "description": "Sort by fields, e.g., \"created_at:asc,updated_at:desc\""
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A list of Quota Consumptions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "#/components/schemas/QuotaConsumptionList"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: an unknown query parameter, or a token that acts for no business and does not filter by business_uid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token type cannot read quota usage",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Quota Consumption"
+        ],
+        "description": "List the recorded usage of metered SKUs, the quota ledger. Usage is reported through `POST /v3/license/quota_consumptions` or by internal services over a queue, is recorded asynchronously and is never changed through the API. To see what happened to one reported event, filter on `source` and `consumption_attempt_uid`. An event split across a monthly allowance and a pack has one row for each.\n\nAvailable for **Staff, Directory, App and Operator tokens**. Staff, Directory and Operator tokens read the business they act for; an App token sees only rows whose `actor_uid` is its own, in the business it acts for or names with `business_uid`."
+      }
+    },
+    "/license/quota_balances": {
+      "get": {
+        "summary": "List all QuotaBalances",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "sku",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only allowances for this SKU (e.g., \"ai_credit\")"
+          },
+          {
+            "in": "query",
+            "name": "subscription_uid",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only this allowance subscription (e.g., \"bc33f12d-98ee-428f-9f65-18bba589cb95\")"
+          },
+          {
+            "in": "query",
+            "name": "include_depleted",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "description": "Also return life_long packs that are used up (e.g., true)"
+          },
+          {
+            "in": "query",
+            "name": "business_uid",
+            "schema": {
+              "type": "string"
+            },
+            "description": "The business to read. Required for an Internal token; must match a Directory token's business; not accepted from other tokens, which read the business they act for (e.g., \"ixfxpxc7s7shyf0m\")"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The balance of each live allowance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "#/components/schemas/QuotaBalanceList"
+                        },
+                        "meta": {
+                          "type": "object",
+                          "description": "What can still be consumed per SKU, derived from the same allowances",
+                          "properties": {
+                            "totals": {
+                              "type": "array",
+                              "description": "One total per SKU the business has a live allowance for, sorted by SKU",
+                              "items": {
+                                "$ref": "#/components/schemas/QuotaTotal"
+                              }
+                            }
+                          },
+                          "required": [
+                            "totals"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: an unknown query parameter, a business_uid from a token that acts for a business, or none from a token that does not",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token type cannot read quota balances, or the token acts for one of the business's clients",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "tags": [
+          "Quota Balance"
+        ],
+        "description": "List the balance of each live allowance a business has for its metered SKUs: one row per allowance, in the order usage is charged (monthly by soonest reset, then packs oldest first). A monthly allowance at zero is still listed, since it resets; a used-up life_long pack is hidden unless `include_depleted=true`. An unlimited allowance has null `credit` and `left`; there is no flag, null is the signal. `left` can be negative after an overdraw. An allowance that ends on or before its next reset returns its `expires_at` and no `resets_at`. `meta.totals` is what can still be consumed per SKU: the `left` of each allowance the query matches, counting an overdrawn one as 0, so it is never negative (`sku` and `subscription_uid` narrow it, `include_depleted` does not); null when any allowance of the SKU is unlimited.\n\nAvailable for **Staff, Directory, App, Operator and Internal tokens**. All but an Internal token read the business they act for; an Internal token names it with `business_uid`."
       }
     }
   }

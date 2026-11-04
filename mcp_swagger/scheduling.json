@@ -18,6 +18,11 @@
           "basePath": "/business/scheduling",
           "transformations": [
             {
+              "original": "/v1/appointments",
+              "normalized": "/business/scheduling/v1/appointments",
+              "basePath": "/business/scheduling"
+            },
+            {
               "original": "/v1/bookings",
               "normalized": "/business/scheduling/v1/bookings",
               "basePath": "/business/scheduling"
@@ -139,6 +144,11 @@
               "basePath": "/platform/v1"
             },
             {
+              "original": "/scheduling/scheduling_forms/get_form",
+              "normalized": "/platform/v1/scheduling/scheduling_forms/get_form",
+              "basePath": "/platform/v1"
+            },
+            {
               "original": "/scheduling/waitlist",
               "normalized": "/platform/v1/scheduling/waitlist",
               "basePath": "/platform/v1"
@@ -146,6 +156,11 @@
             {
               "original": "/scheduling/waitlist/cancel",
               "normalized": "/platform/v1/scheduling/waitlist/cancel",
+              "basePath": "/platform/v1"
+            },
+            {
+              "original": "/services",
+              "normalized": "/platform/v1/services",
               "basePath": "/platform/v1"
             },
             {
@@ -158,7 +173,7 @@
       ],
       "pathConflicts": [],
       "componentConflicts": [],
-      "totalPaths": 32,
+      "totalPaths": 35,
       "totalComponents": 4
     }
   },
@@ -169,9 +184,301 @@
     }
   ],
   "paths": {
+    "/business/scheduling/v1/appointments": {
+      "post": {
+        "description": "## Overview\nCreate one or more appointments on the business calendar. Available for **Staff tokens**.\n\nEach element of `appointments` is a complete appointment definition, so several appointments — including the occurrences of a recurring series — can be created in a single request. The created appointments are returned under `data.appointments`, in the order they were sent.\n\nAppointments are booked for an existing client: look up the client, service and staff member first, then send their uids in `client_id`, `service_id` and `staff_id`.",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Appointments Created",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data": {
+                    "appointments": [
+                      {
+                        "approval_mode": null,
+                        "business_uid": "104a5664c3663a8d",
+                        "category_name": null,
+                        "charge_type": "no_price",
+                        "client_first_name": "Deeanna",
+                        "client_id": "bnv869hpj1kl5v35",
+                        "client_last_name": "Rice",
+                        "conversation_id": "uqleye8ammpbuvxl",
+                        "created_at": "2026-04-01T09:12:04.020Z",
+                        "currency": "ILS",
+                        "duration": 30,
+                        "end_time": "2026-04-02T14:30:00.000Z",
+                        "id": "e7j16p8hrgacto4g",
+                        "interaction_details": "0543033109",
+                        "interaction_type": "client_phone",
+                        "is_recurring": false,
+                        "no_show": false,
+                        "notes": null,
+                        "payment_id": null,
+                        "payment_status": null,
+                        "price": "0.0",
+                        "series_id": null,
+                        "service_id": "h5ak3dj8782zf4g9",
+                        "staff_display_name": "Britt Bogan",
+                        "staff_id": "gzk1di5ocdkdjv0j",
+                        "start_time": "2026-04-02T14:00:00.000Z",
+                        "state": "scheduled",
+                        "title": "Introductory phone call",
+                        "type": "appointment",
+                        "updated_at": "2026-04-01T09:12:04.020Z"
+                      }
+                    ]
+                  },
+                  "status": "OK"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Appointment Creation Failure - validation error such as an unavailable time slot, a staff member who does not offer the service, or a missing required field",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": "The requested time slot is not available",
+                  "error_code": "TIMESLOT_UNAVAILABLE",
+                  "status": "Error"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Create Appointments [Business]",
+        "tags": [
+          "Appointments"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "POST",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///business/scheduling/v1/appointments"
+        },
+        "x-auth-type": "Application & Application User",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "appointments": {
+                    "description": "The appointments to create. Send one element per appointment; at least one is required.",
+                    "items": {
+                      "properties": {
+                        "additional_staffs": {
+                          "description": "Uids of further staff members to attach to the appointment, in addition to `staff_id`.",
+                          "type": "string",
+                          "x-reference-to": "staff"
+                        },
+                        "agenda": {
+                          "description": "Free-text agenda or notes for the appointment.",
+                          "type": "string"
+                        },
+                        "approval_mode": {
+                          "description": "Whether the appointment needs staff approval before it is confirmed. Omit to use the approval setting configured on the service.",
+                          "type": "string"
+                        },
+                        "auto_follow_up_hours": {
+                          "description": "How many hours after the appointment ends to send an automatic follow-up message. Omit to send none.",
+                          "type": "number"
+                        },
+                        "auto_redeem": {
+                          "description": "Set to `true` to redeem one session from the client's matching package instead of charging for the appointment.",
+                          "type": "boolean"
+                        },
+                        "charge_type": {
+                          "description": "How the appointment is priced. `no_price` creates a free appointment, `fixed` charges the price configured on the service, and `custom` charges the amount sent in `price`.",
+                          "enum": [
+                            "no_price",
+                            "fixed",
+                            "custom"
+                          ],
+                          "type": "string"
+                        },
+                        "client_id": {
+                          "description": "Uid of the client the appointment is booked for. Always required — this endpoint books for an existing client and does not create one.",
+                          "type": "string",
+                          "x-reference-to": "client"
+                        },
+                        "currency": {
+                          "description": "ISO 4217 currency code for `price`, for example `USD` or `ILS`. Send it whenever `price` is set.",
+                          "type": "string"
+                        },
+                        "end_time": {
+                          "description": "When the appointment ends. Always required. Interpreted in the business time zone exactly like `start_time`. Unless a different length was requested, set it to `start_time` plus the duration configured on the service.",
+                          "type": "string"
+                        },
+                        "future_bookings_limit": {
+                          "description": "How far ahead this appointment may be booked. Send `0` for no limit.",
+                          "type": "integer"
+                        },
+                        "interaction_details": {
+                          "description": "Contact details or location for the meeting. What to send depends on `interaction_type`:\n\n- `client_phone` — the client's phone number\n- `business_phone` — the business phone number\n- `client_location` — the client's address\n- `business_location`, `default_business_location` — the business address\n- `online`, `zoom`, `video_room`, `conference_bridge`, `skype` — send an empty string; the meeting link is generated for you\n\nRequired whenever the interaction type needs a value. If the value is missing from the client record, ask the caller for it rather than guessing.",
+                          "type": "string"
+                        },
+                        "interaction_type": {
+                          "description": "How the meeting takes place. Copy the value from the service's own `interaction_type` rather than picking one; ask the caller only when the service does not define one. This value determines what `interaction_details` must contain.",
+                          "enum": [
+                            "zoom",
+                            "video_room",
+                            "skype",
+                            "business_phone",
+                            "conference_bridge",
+                            "business_location",
+                            "default_business_location",
+                            "online",
+                            "client_location",
+                            "client_phone"
+                          ],
+                          "type": "string"
+                        },
+                        "is_recurring": {
+                          "description": "Set to `true` when the appointment is one occurrence of a recurring series.",
+                          "type": "boolean"
+                        },
+                        "matter_uid": {
+                          "description": "Uid of the matter (conversation) the appointment belongs to. Send it to file the appointment under an existing conversation with the client.",
+                          "type": "string",
+                          "x-reference-to": "matter"
+                        },
+                        "meeting_reminder_sms_1": {
+                          "description": "Set to `true` to send the first reminder by SMS.",
+                          "type": "boolean"
+                        },
+                        "meeting_reminder_sms_2": {
+                          "description": "Set to `true` to send the second reminder by SMS.",
+                          "type": "boolean"
+                        },
+                        "min_hours_before_meeting": {
+                          "description": "How many hours before the start time the client may still reschedule or cancel. Omit to use the setting configured on the service.",
+                          "type": "integer"
+                        },
+                        "mobile": {
+                          "description": "Set to `true` when the appointment is being created from a mobile client.",
+                          "type": "boolean"
+                        },
+                        "padding": {
+                          "description": "Buffer time in minutes to block after the appointment ends, keeping the slot free for travel or clean-up.",
+                          "type": "integer"
+                        },
+                        "price": {
+                          "description": "The amount to charge for the appointment. Send it together with a `charge_type` of `custom`. Leave it null when `charge_type` is `no_price`.",
+                          "type": "number"
+                        },
+                        "remind_before_in_hours_1": {
+                          "description": "How many hours before the start time to send the first reminder.",
+                          "type": "number"
+                        },
+                        "remind_before_in_hours_2": {
+                          "description": "How many hours before the start time to send the second reminder. Send `0` to disable it.",
+                          "type": "number"
+                        },
+                        "require_confirmation": {
+                          "description": "Set to `true` to ask the client to confirm the appointment before it is treated as booked.",
+                          "type": "boolean"
+                        },
+                        "resource_uids": {
+                          "description": "Uids of the resources — rooms, equipment and the like — to reserve for the appointment.",
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array",
+                          "x-reference-to": "resource"
+                        },
+                        "service_id": {
+                          "description": "Uid of the service being booked. Always required. The service supplies the defaults for `end_time`, `charge_type` and `interaction_type`, so read it first when deriving those.",
+                          "type": "string",
+                          "x-reference-to": "service"
+                        },
+                        "set_arrival_window_as_default": {
+                          "description": "Set to `true` to save this appointment's arrival window as the default for the service, so future bookings reuse it.",
+                          "type": "boolean"
+                        },
+                        "sms_booking_confirmation": {
+                          "description": "Set to `true` to send the client an SMS confirmation as soon as the appointment is created.",
+                          "type": "boolean"
+                        },
+                        "source_type": {
+                          "description": "Who initiated the appointment. Use `initiated_by_staff` when a staff member books on the client’s behalf, and `initiated_by_client` when the client booked it themselves.",
+                          "enum": [
+                            "initiated_by_staff",
+                            "initiated_by_client"
+                          ],
+                          "type": "string"
+                        },
+                        "staff_id": {
+                          "description": "Uid of the staff member who will provide the service. Always required. The staff member must already offer `service_id`, otherwise the request is rejected with \"The provided staff member doesn't offer the provided service\".",
+                          "type": "string",
+                          "x-reference-to": "staff"
+                        },
+                        "start_time": {
+                          "description": "When the appointment starts. Always required. The value is interpreted in the **business time zone even when it carries a `Z` suffix** — `2026-04-01T13:00:00.000Z` books 1pm business-local, not 1pm UTC. Send the wall-clock time you want and do not convert it to UTC first.",
+                          "type": "string"
+                        },
+                        "tax_uids": {
+                          "description": "Uids of the taxes to apply to the appointment price. Only relevant when the appointment is charged.",
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array",
+                          "x-reference-to": "tax"
+                        },
+                        "title": {
+                          "description": "Title shown on the calendar entry. Always required. Use the service name unless a more specific title was requested.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "client_id",
+                        "service_id",
+                        "staff_id",
+                        "start_time",
+                        "end_time",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "new_api": {
+                    "default": true,
+                    "description": "Selects the current request format for this endpoint. Always send `true`.",
+                    "type": "boolean"
+                  },
+                  "unified_payment_link": {
+                    "description": "Set to `true` to generate a single payment link covering every appointment created by this request, instead of a separate link per appointment.",
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "appointments",
+                  "new_api"
+                ],
+                "type": "object"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/business/scheduling/v1/bookings": {
       "post": {
-        "description": "## Overview\nCreate a new booking (appointment or event attendance). Available for **Staff, Directory, and Application tokens**.\n\n**Important**: Always provide `client_id` parameter. Without it, the endpoint attempts to create a client from form_data and returns 'First name can't be blank' errors.\n\n## Token Authorization\n- **Staff tokens**: Client must belong to the same business as the staff member\n- **Directory tokens**: Business must be a member of the directory (requires directory_member record). Requires `X-On-Behalf-Of` header with the business UID, otherwise returns 422 Unauthorized.\n\n## Booking Types\nThis endpoint supports two types of bookings with different required parameters:\n\n### Appointment Booking (default)\nWhen `event_instance_id` is NOT provided:\n- **Required**: `business_id`, `service_id`, `staff_id`\n- **Required one of**: `start_time` OR `optional_times`\n\n### Event Registration\nWhen `event_instance_id` IS provided:\n- **Required**: `business_id`, `event_instance_id`\n\n## Client Identification\n- Use `client_id` to book for an existing client (required for Staff/App tokens)\n- Without `client_id`, the endpoint expects form_data for client creation (used by client-facing booking flows)",
+        "description": "## Overview\nCreate a new booking (appointment or event attendance). Available for **Staff, Directory, and Application tokens**.\n\n**Important**: Always provide `client_id` parameter. Without it, the endpoint attempts to create a client from form_data and returns 'First name can't be blank' errors.\n\n## Token Authorization\n- **Staff tokens**: Client must belong to the same business as the staff member\n- **Directory tokens**: Business must be a member of the directory (requires directory_member record). Requires `X-On-Behalf-Of` header with the business UID, otherwise returns 422 Unauthorized.\n\n## Booking Types\nThis endpoint supports two types of bookings with different required parameters:\n\n### Appointment Booking (default)\nWhen `event_instance_id` is NOT provided:\n- **Required**: `business_id`, `service_id`, `staff_id`\n- **Required one of**: `start_time` OR `optional_times`\n\n### Event Registration\nWhen `event_instance_id` IS provided:\n- **Required**: `business_id`, `event_instance_id`\n- Do not send `service_id`, `staff_id` or `start_time`: the event instance already fixes the service, staff and time.\n\nThe schema's `required` list holds only the fields both booking types need (`business_id`, `client_id`); Swagger 2.0 cannot express the appointment-vs-event conditional set, so it is spelled out above. A missing appointment parameter fails with `400 PARAMETER_MISSING`.\n\n## Client Identification\n- Use `client_id` to book for an existing client (required for Staff/App tokens)\n- Without `client_id`, the endpoint expects form_data for client creation (used by client-facing booking flows)",
         "parameters": [],
         "responses": {
           "201": {
@@ -288,7 +595,7 @@
                     "type": "string"
                   },
                   "matter_uid": {
-                    "description": "Matter/conversation uid to associate with the booking.",
+                    "description": "Not read by this endpoint: the booking is always created on the conversation of the client named by `client_id`, whatever value is sent here.",
                     "type": "string",
                     "x-reference-to": "matter"
                   },
@@ -322,10 +629,7 @@
                 },
                 "required": [
                   "business_id",
-                  "staff_id",
-                  "service_id",
-                  "client_id",
-                  "start_time"
+                  "client_id"
                 ],
                 "type": "object"
               }
@@ -2580,7 +2884,7 @@
         ]
       },
       "post": {
-        "description": "## Overview\nCreates a booking for either an appointment with a staff member or registration for a group event.\n\n## Relationship to appointments and events\nA **booking** is the lifecycle/action interface for scheduled items:\n- For an **appointment booking**, this endpoint creates the appointment on the business calendar and returns it as a `booking` object.\n- For an **event registration**, this endpoint creates a registration (attendance) for the event instance and returns it as a `booking` object.\n\n## When to use\nIf you are looking for an endpoint to **create appointments** or **register clients to events**, this is the endpoint to use.\n\nAvailable for **Client and Staff tokens**.",
+        "description": "## Overview\nCreates a booking for either an appointment with a staff member or registration for a group event.\n\n## Relationship to appointments and events\nA **booking** is the lifecycle/action interface for scheduled items:\n- For an **appointment booking**, this endpoint creates the appointment on the business calendar and returns it as a `booking` object.\n- For an **event registration**, this endpoint creates a registration (attendance) for the event instance and returns it as a `booking` object.\n\n## When to use\nIf you are looking for an endpoint to **create appointments** or **register clients to events**, this is the endpoint to use.\n\n## Authentication\nAvailable for **Client and Staff tokens**. The endpoint also accepts **unauthenticated** requests, which is how anonymous client-portal / LiveSite bookings are created: when no token is supplied, the client is resolved (or created) from the email in `form_data.fields`.\n\nSupply a Client token together with `client_id` to book on behalf of an existing, known client.\n\n## Required fields\n`business_id` is always required. For an **appointment** booking, `service_id`, `staff_id`, `start_time` and `form_data` are required as well. For an **event registration**, supply `event_instance_id` and `form_data` instead of `service_id` / `staff_id` / `start_time`.\n\nA missing top-level parameter fails with `400 PARAMETER_MISSING`; a missing scheduling-form field fails with `422 FORM_VALIDATION_ERROR`.\n\n## Prerequisites\n- `service_id` and the staff uids that may provide it (`providers_staff`) come from `GET /platform/v1/services`.\n- A bookable `start_time` comes from `GET /platform/v1/staff/availability`. **Availability slots are returned at a fixed granularity (10 minutes) regardless of the service duration** - you must verify that the full service duration fits in a contiguous run of returned slots, otherwise the booking fails with `422 TIMESLOT_UNAVAILABLE`.\n- The `form_data.fields` uids come from `GET /platform/v1/scheduling/scheduling_forms/get_form`.",
         "parameters": [],
         "responses": {
           "201": {
@@ -2588,43 +2892,59 @@
             "content": {
               "application/json": {
                 "example": {
+                  "status": "OK",
                   "data": {
+                    "token": null,
                     "booking": {
-                      "business_id": "e62db14aa58c7675",
-                      "client_id": "1kfvtps4a4wlh3lc",
-                      "conversation_id": "ugd2qqidl75wrto6",
-                      "created_at": "2020-01-19T07:44:21Z",
+                      "id": "84wnnfr46ezvk8av",
+                      "title": "In-office appointment",
+                      "status": "requested",
+                      "start_time": "2026-09-16T15:00:00Z",
                       "duration": 60,
-                      "event_instance_id": "a8ma2ephjfvwnvy7 (only for event)",
-                      "id": "v8mvcenb8y3wej2n",
-                      "service_id": "mxmuh2mewjxe9vip",
-                      "source_data": {
-                        "campaign": null,
-                        "channel": "",
-                        "name": "client_portal",
-                        "website_url": null
-                      },
-                      "staff_id": "mg9d91uh92bclwzg",
-                      "start_time": "2020-01-22T13:00:00Z",
-                      "status": "scheduled",
+                      "client_id": "kabgzfnpi9tahre7",
+                      "staff_id": "bqhvdcsdg90twblu",
+                      "business_id": "9ec2ea20q48brjq5",
+                      "conversation_id": "po2z06jekmvqxbve",
+                      "created_at": "2026-09-14T14:26:01Z",
+                      "service_id": "x8enou59f38uy7kb",
+                      "event_instance_id": null,
+                      "type": "appointment",
                       "time_zone": "UTC",
-                      "title": "Imm + free",
-                      "type": "appointment/event"
+                      "payment_status": null,
+                      "auto_reply_message": "<div>Thanks for your booking. Looking forward to meeting you!</div>",
+                      "linked_booking_uid": null,
+                      "source_data": {
+                        "name": "api",
+                        "channel": "",
+                        "campaign": null,
+                        "website_url": null
+                      }
                     }
-                  },
-                  "status": "OK"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A mandatory top-level parameter is missing. `error` is a string.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "Error",
+                  "error": "Mandatory parameter staff_id is missing",
+                  "error_code": "PARAMETER_MISSING"
                 }
               }
             }
           },
           "422": {
-            "description": "Failure",
+            "description": "Business-rule failure. Note that the type of `error` depends on `error_code`: it is a **string** for `TIMESLOT_UNAVAILABLE` / `ALREADY_REGISTERED`, and an **object keyed by scheduling-form field uid** for `FORM_VALIDATION_ERROR`.",
             "content": {
               "application/json": {
                 "example": {
-                  "error": "error text",
-                  "error_code": "TIMESLOT_UNAVAILABLE/ALREADY_REGISTERED",
-                  "status": "Error"
+                  "status": "Error",
+                  "error": "Timeslot Unavailable",
+                  "error_code": "TIMESLOT_UNAVAILABLE/ALREADY_REGISTERED/FORM_VALIDATION_ERROR"
                 }
               }
             }
@@ -2667,7 +2987,7 @@
                     "type": "string"
                   },
                   "client_id": {
-                    "description": "Client uid. If not provided, form_data with client fields (email, first_name) is required.",
+                    "description": "Client uid. Only usable with a Client token. Does not exempt the request from scheduling-form validation: fields marked `required: true` must still be supplied via `form_data.fields`, otherwise the request fails with 422 `FORM_VALIDATION_ERROR`.",
                     "type": "string",
                     "x-reference-to": "client"
                   },
@@ -2677,44 +2997,20 @@
                     "x-reference-to": "event_instance"
                   },
                   "form_data": {
-                    "description": "Client form data containing scheduling fields. **Required when `client_id` is not provided** - the API requires client identification either via existing `client_id` or via form_data fields.\n\n## When to use\n- **Prefer `client_id`**: If you have an existing client_id, use it instead of form_data. This is simpler and avoids form validation.\n- **Use form_data**: Only when creating a booking for a new client who doesn't exist yet.\n\n## How to obtain field IDs\nCall `GET /platform/v1/forms?business_id={business_id}&form_type=scheduling&service_uid={service_id}` to get the scheduling form definition. Required fields (typically email and first_name) will have `required: true`.\n\n## Structure (IMPORTANT - Array format)\nThe `fields` property must be an **array of field objects**, NOT a key-value object:\n```json\n{\n  \"form_data\": {\n    \"fields\": [\n      {\n        \"field_id\": \"{email_field_id}\",\n        \"type\": \"email\",\n        \"new_data\": \"client@example.com\"\n      },\n      {\n        \"field_id\": \"{first_name_field_id}\",\n        \"type\": \"first_name\",\n        \"new_data\": \"John\"\n      }\n    ],\n    \"service_fields\": [],\n    \"others\": { \"notes\": null },\n    \"policies\": {}\n  }\n}\n```\n\n**Warning**: Using the wrong format (e.g., `{\"field_id\": \"value\"}` as a key-value object) will cause validation errors.\n\n## Meeting details\nWhen the service interaction_type is `client_location` or `phone_call`, include meeting details:\n```json\n{\n  \"form_data\": {\n    \"fields\": [...],\n    \"meeting_details\": {\n      \"meeting_interaction_details\": \"123 Main St, City\"\n    }\n  }\n}\n```",
+                    "description": "Client form data for the scheduling form. **Required** - every field marked `required: true` in the form definition must be present here, even when `client_id` is supplied. Field uids come from `GET /platform/v1/scheduling/scheduling_forms/get_form?business_id={business_id}&service_id={service_id}`.\n\n## Structure\n`form_data` is an object of named sections - `fields`, `service_fields`, `meeting_details`, `others`, `policies`, `client_settings`. Every section is an object, never an array, and `fields` is keyed by field uid:\n```json\n{\n  \"form_data\": {\n    \"fields\": {\n      \"{email_field_id}\": \"client@example.com\",\n      \"{first_name_field_id}\": \"John\"\n    },\n    \"others\": { \"notes\": null },\n    \"policies\": {}\n  }\n}\n```\n\nThere is no `field_id` / `type` / `new_data` wrapper.",
                     "type": "object",
                     "properties": {
                       "fields": {
-                        "type": "array",
-                        "description": "Array of field objects. Each object must have field_id (from form definition), type (field type like 'email', 'first_name'), and new_data (the value as string).",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "field_id": {
-                              "type": "string",
-                              "description": "The field ID from the scheduling form definition"
-                            },
-                            "type": {
-                              "type": "string",
-                              "description": "The field type (e.g., 'email', 'first_name', 'phone')"
-                            },
-                            "new_data": {
-                              "type": "string",
-                              "description": "The field value as a string"
-                            }
-                          },
-                          "required": [
-                            "field_id",
-                            "new_data"
-                          ]
-                        }
+                        "type": "object",
+                        "description": "Client fields, keyed by field uid. Values are strings, except a phone field which takes an object (e.g., {\"prefix_value\": \"US\", \"value\": \"5551234\"})."
                       },
                       "service_fields": {
-                        "type": "array",
-                        "description": "Service-specific custom fields (same structure as fields)",
-                        "items": {
-                          "type": "object"
-                        }
+                        "type": "object",
+                        "description": "Service-specific custom fields, keyed by fieldset field id. Omit when the service has no fieldset."
                       },
                       "meeting_details": {
                         "type": "object",
-                        "description": "Meeting location details (required for client_location or phone_call services)",
+                        "description": "Meeting location details. Required when the service interaction_type is client_location or client_phone.",
                         "properties": {
                           "meeting_interaction_details": {
                             "type": "string",
@@ -2734,7 +3030,7 @@
                       },
                       "policies": {
                         "type": "object",
-                        "description": "Policy acceptance data"
+                        "description": "Policy acceptance, keyed by policy id (e.g., {\"meetings_policy\": true})."
                       }
                     }
                   },
@@ -2762,12 +3058,12 @@
                     "type": "string"
                   },
                   "staff_id": {
-                    "description": "Staff uid. Required for appointment booking.",
+                    "description": "Staff uid. Required for appointment booking. Must be one of the service's `providers_staff` (see `GET /platform/v1/services`).",
                     "type": "string",
                     "x-reference-to": "staff"
                   },
                   "start_time": {
-                    "description": "ISO 8601 format. Required for appointment.",
+                    "description": "ISO 8601 format (e.g., \"2026-09-16T15:00:00Z\"). Required for appointment. Must be a slot where the whole service duration fits - see `GET /platform/v1/staff/availability`.",
                     "type": "string"
                   },
                   "time_zone": {
@@ -2776,7 +3072,8 @@
                   }
                 },
                 "required": [
-                  "business_id"
+                  "business_id",
+                  "form_data"
                 ],
                 "type": "object"
               }
@@ -3235,9 +3532,131 @@
         ]
       }
     },
+    "/platform/v1/scheduling/scheduling_forms/get_form": {
+      "get": {
+        "description": "## Overview\nReturns the definition of the business's **scheduling form** - the fields a client must fill in when booking.\n\n## Why you need it\nThe field uids returned here are the keys of `form_data.fields` in `POST /platform/v1/scheduling/bookings`. Every field with `required: true` must be present in `form_data.fields`, otherwise the booking fails with `422 FORM_VALIDATION_ERROR`. There is no fixed set of uids - they differ per business, so this endpoint must be called before booking.\n\n## Structure\n`data.sections` is an array of sections. A section of `type: \"fields\"` carries `fields` as an **array of arrays** (rows of fields); a section of `type: \"policies\"` carries policy entries whose `id` (e.g. `meetings_policy`) is the key used in `form_data.policies`.\n\nAccessible **without authentication**, as well as with Client, Staff and Directory tokens.",
+        "parameters": [
+          {
+            "description": "Business uid",
+            "in": "query",
+            "name": "business_id",
+            "required": true,
+            "x-reference-to": "business",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Service uid, to get the form for a specific service. Omit it and the business-level form is returned, which can miss service-specific fields. Accepts a comma-separated list of uids for a multi-service booking (e.g. \"vpa6mzkt11f1n2pc,x8enou59f38uy7kb\").",
+            "in": "query",
+            "name": "service_id",
+            "required": false,
+            "x-reference-to": "service",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "OK",
+                  "data": {
+                    "type": "scheduling",
+                    "title": "Scheduling form",
+                    "sections": [
+                      {
+                        "title": "Add your info",
+                        "type": "fields",
+                        "editable": true,
+                        "fields": [
+                          [
+                            {
+                              "id": "vvx3507vmuy3mz5e",
+                              "type": "email",
+                              "label": "Email",
+                              "required": true,
+                              "object_type": "contact"
+                            }
+                          ],
+                          [
+                            {
+                              "id": "m9nb5f34rvvkl4mi",
+                              "type": "firstname",
+                              "label": "First Name",
+                              "required": true,
+                              "object_type": "contact"
+                            }
+                          ],
+                          [
+                            {
+                              "id": "40te4wanxx8np5e4",
+                              "type": "lastname",
+                              "label": "Last Name",
+                              "required": false,
+                              "object_type": "contact"
+                            }
+                          ],
+                          [
+                            {
+                              "id": "kax0l7n032honlot",
+                              "type": "phone",
+                              "label": "Phone",
+                              "required": false,
+                              "object_type": "contact"
+                            }
+                          ]
+                        ]
+                      },
+                      {
+                        "title": "Business policy",
+                        "type": "policies",
+                        "fields": [
+                          {
+                            "id": "meetings_policy",
+                            "type": "policy",
+                            "label": "Booking policy"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get Scheduling Form",
+        "tags": [
+          "Bookings"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "GET",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///platform/v1/scheduling/scheduling_forms/get_form"
+        },
+        "x-auth-type": "Application & Application User",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/platform/v1/scheduling/waitlist": {
       "post": {
-        "description": "## Overview\nJoin an event waitlist.\n\n## Booking note\nTo **register a client** directly to an event instance (instead of joining the waitlist), create a booking using `POST /platform/v1/scheduling/bookings` and provide `event_instance_id`.\n\nAvailable for **Staff, App, Directory, and Client tokens**.\n\n## Client Identification\nClient tokens: The client is identified from the token.\nStaff/App/Directory tokens: Must provide `client_id` to identify which client to add to the waitlist.\n\n## Note\nValidation errors may return dynamic form field IDs. To get the form field definitions, call `GET /platform/v1/forms?business_id={business_id}&form_type=scheduling&service_uid={event_service_id}`.",
+        "description": "## Overview\nJoin an event waitlist.\n\n## Booking note\nTo **register a client** directly to an event instance (instead of joining the waitlist), create a booking using `POST /platform/v1/scheduling/bookings` and provide `event_instance_id`.\n\nAvailable for **Staff, App, Directory, and Client tokens**.\n\n## Client Identification\nThe client is resolved from the **scheduling form**, not from `client_id` (which this endpoint does not read):\n- Client tokens: the logged-in client.\n- Staff/App/Directory tokens: the existing client whose email matches the form's email field in `form_data.fields`; if no client has that email, a **new client is created** from the form fields. To waitlist a known client, send that client's email.\n\n## Required fields\n`business_id` and `event_instance_id` are required. The request is also validated against the business's **scheduling form** on every call, so every field marked `required: true` there (by default Email and First Name) must be supplied in `form_data.fields`. A missing scheduling-form field fails with `422 FORM_VALIDATION_ERROR`; this check runs before the event instance is looked up.\n\n## Prerequisites\n- `event_instance_id` is a scheduled event instance, not a service. Joining a waitlist needs an existing occurrence of an event-type service; passing the service uid fails with `422 Unauthorized`.\n- The event instance must be **full**: its confirmed registrations plus active pending bookings must have reached `max_attendance`. A waitlist is only for an event with no free spot, so joining one that still has room fails with `422 Event is not full` - register the client with `POST /platform/v1/scheduling/bookings` instead.\n- The business must have **event waitlists turned on**: the `event_waitlist` feature on its plan *and* the scheduling setting `event_waitlist_enabled` (which reads as `false` while the feature is missing). Otherwise Core treats a full event instance as an unavailable slot and the call fails with `422 Timeslot Unavailable 5` - so on such a business no event can be waitlisted: an open one fails `Event is not full`, a full one fails `Timeslot Unavailable 5`. The setting is visible as `event_waitlist_enabled` on the event instance and in `GET /v2/settings/businesses/{business_uid}`.\n- The `form_data.fields` uids come from `GET /platform/v1/scheduling/scheduling_forms/get_form?business_id={business_id}`. They differ per business, so look them up rather than hard-coding them.",
         "parameters": [],
         "responses": {
           "201": {
@@ -3278,12 +3697,16 @@
             }
           },
           "422": {
-            "description": "Failure",
+            "description": "Business-rule failure. The type of `error` depends on the failure: an **object keyed by scheduling-form field uid** for `FORM_VALIDATION_ERROR`, otherwise a string - e.g. `Unauthorized` when `event_instance_id` is not an event instance of this business (such as a service uid), `Event is not full` when the event instance still has a free spot, `Timeslot Unavailable 5` when the business does not have event waitlists turned on, or `Invalid staff`.",
             "content": {
               "application/json": {
                 "example": {
-                  "error": "Invalid staff",
-                  "status": "Error"
+                  "status": "Error",
+                  "error": {
+                    "qxr2cjzo4ifzbpjp": "This field cannot be empty",
+                    "1ztpm5wo248q5uze": "This field cannot be empty"
+                  },
+                  "error_code": "FORM_VALIDATION_ERROR"
                 }
               }
             }
@@ -3322,14 +3745,24 @@
                     "type": "string"
                   },
                   "client_id": {
-                    "description": "Client UID. Required for Staff/App/Directory tokens.",
+                    "description": "Not read by this endpoint. The client is resolved from the scheduling form instead - for Staff/App/Directory tokens, by the email in `form_data.fields` (a new client is created when no client has that email). Send the client's email in `form_data` to waitlist a known client.",
                     "type": "string",
                     "x-reference-to": "client"
                   },
                   "event_instance_id": {
-                    "description": "Event instance UID. Required - identifies which event to join the waitlist for.",
+                    "description": "UID of a scheduled **event instance** - one dated occurrence of an event-type service, as returned in `data.event_instance.uid` by `GET /platform/v1/scheduling/event_instance/{event_instance_id}`. Required. It is **not** the service uid: an event instance refers to its service through its own `service_id`. A value that is not an event instance of this business - a service uid included - fails with 422 `Unauthorized`.",
                     "type": "string",
                     "x-reference-to": "event_instance"
+                  },
+                  "form_data": {
+                    "description": "Client form data for the business's scheduling form. Validated on every call - every field marked `required: true` in the form definition must be present. With a Staff/App/Directory token, the email field also selects the client: an existing client with that email, or a new client created from these fields. Field uids come from `GET /platform/v1/scheduling/scheduling_forms/get_form?business_id={business_id}`.\n\n## Structure\n`fields` is an object keyed by field uid - the same shape as `form_data` on `POST /platform/v1/scheduling/bookings`:\n```json\n{\n  \"form_data\": {\n    \"fields\": {\n      \"{email_field_id}\": \"client@example.com\",\n      \"{first_name_field_id}\": \"John\"\n    }\n  }\n}\n```",
+                    "type": "object",
+                    "properties": {
+                      "fields": {
+                        "type": "object",
+                        "description": "Client fields, keyed by scheduling-form field uid."
+                      }
+                    }
                   },
                   "matter_uid": {
                     "description": "Matter/conversation UID to associate with this waitlist entry.",
@@ -3470,6 +3903,137 @@
         ]
       }
     },
+    "/platform/v1/services": {
+      "get": {
+        "description": "## Overview\nLists the bookable services of a business - both `AppointmentService` (one-on-one appointments) and `EventService` (group events).\n\n## Why you need it\n`id` is the `service_id` for `POST /platform/v1/scheduling/bookings`, and `providers_staff` holds the staff uids allowed to provide that service - one of which is the `staff_id`.\n\nWhen `interaction_type` is `client_location` or `client_phone`, the booking must also carry `form_data.meeting_details.meeting_interaction_details`.",
+        "parameters": [
+          {
+            "description": "Business uid",
+            "in": "query",
+            "name": "business_id",
+            "required": true,
+            "x-reference-to": "business",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page number, for paging through the list.",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Number of services per page.",
+            "in": "query",
+            "name": "per_page",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "OK",
+                  "data": {
+                    "services": [
+                      {
+                        "id": "x8enou59f38uy7kb",
+                        "type": "AppointmentService",
+                        "service_type": "appointment",
+                        "name": "In-office appointment",
+                        "description": "",
+                        "duration": 60,
+                        "charge_type": "no_price",
+                        "price": 0,
+                        "currency": "CHF",
+                        "interaction_type": "default_business_location",
+                        "meeting_interaction_details": null,
+                        "approval_mode": "single_choice",
+                        "business_uid": "9ec2ea20q48brjq5",
+                        "business_enabled": true,
+                        "providers_staff": [
+                          "bqhvdcsdg90twblu",
+                          "bmk9iai9wft19yqa",
+                          "u5kpxrf7j8caq9yl"
+                        ],
+                        "staff_settings": {
+                          "random_selection": false,
+                          "joint_availability": null
+                        },
+                        "booking_restriction": {
+                          "is_client_restricted": false
+                        },
+                        "max_attendance": 1,
+                        "padding": 0
+                      },
+                      {
+                        "id": "cbyjybsjr9aunwv4",
+                        "type": "EventService",
+                        "service_type": "event",
+                        "name": "Demo class / event",
+                        "duration": 60,
+                        "charge_type": "no_price",
+                        "interaction_type": "default_business_location",
+                        "business_uid": "9ec2ea20q48brjq5",
+                        "providers_staff": [
+                          "bqhvdcsdg90twblu"
+                        ],
+                        "max_attendance": 10,
+                        "event_display_remaining_spots": true
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing a mandatory parameter",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "Error",
+                  "error": "Mandatory parameter business_id is missing",
+                  "error_code": "PARAMETER_MISSING"
+                }
+              }
+            }
+          }
+        },
+        "summary": "List Services",
+        "tags": [
+          "Services"
+        ],
+        "x-amazon-apigateway-auth": {
+          "type": "NONE"
+        },
+        "x-amazon-apigateway-integration": {
+          "httpMethod": "GET",
+          "responses": {
+            "default": {
+              "statusCode": "200"
+            }
+          },
+          "type": "http_proxy",
+          "uri": "https:///platform/v1/services"
+        },
+        "x-auth-type": "Application & Application User",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/platform/v1/staff/availability": {
       "get": {
         "description": "## Overview\nReturns available time slots for one or more staff members. The endpoint considers staff weekly availability schedules, calendar sync conflicts, blocked times, and existing bookings to compute open appointment or event slots.\n\nThe response can be aggregated by date (default) or by staff member using the `aggregate_by` parameter.\n\nAuthentication is optional. When a valid client token is provided, availability may be filtered based on the client's context. When no token is provided, the endpoint returns availability without client-specific filtering.\n\nAvailable for **Staff, Directory, and Client tokens**. Also accessible without authentication.",
@@ -3508,9 +4072,9 @@
             "in": "query",
             "name": "time_zone",
             "required": false,
-            "default": "UTC",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "default": "UTC"
             }
           },
           {
@@ -3518,13 +4082,13 @@
             "in": "query",
             "name": "aggregate_by",
             "required": false,
-            "default": "date",
             "schema": {
               "type": "string",
               "enum": [
                 "date",
                 "staff"
-              ]
+              ],
+              "default": "date"
             }
           },
           {
@@ -3554,13 +4118,13 @@
             "in": "query",
             "name": "show_past_availabilities",
             "required": false,
-            "default": "false",
             "schema": {
               "type": "string",
               "enum": [
                 "true",
                 "false"
-              ]
+              ],
+              "default": "false"
             }
           },
           {
@@ -3568,13 +4132,13 @@
             "in": "query",
             "name": "ignore_min_schedule",
             "required": false,
-            "default": "false",
             "schema": {
               "type": "string",
               "enum": [
                 "true",
                 "false"
-              ]
+              ],
+              "default": "false"
             }
           },
           {
@@ -3582,13 +4146,13 @@
             "in": "query",
             "name": "type",
             "required": false,
-            "default": "AppointmentService",
             "schema": {
               "type": "string",
               "enum": [
                 "AppointmentService",
                 "EventService"
-              ]
+              ],
+              "default": "AppointmentService"
             }
           }
         ],
@@ -3839,7 +4403,50 @@
                 "schema": {
                   "allOf": [
                     {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
                     },
                     {
                       "properties": {
@@ -3931,7 +4538,50 @@
                 "schema": {
                   "allOf": [
                     {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
                     },
                     {
                       "properties": {
@@ -4003,12 +4653,108 @@
                 "schema": {
                   "allOf": [
                     {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
                     },
                     {
                       "properties": {
                         "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/resourceType.json"
+                          "type": "object",
+                          "properties": {
+                            "uid": {
+                              "type": "string",
+                              "description": "The entity's unique identifier",
+                              "readOnly": true
+                            },
+                            "created_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Creation date and time",
+                              "readOnly": true
+                            },
+                            "updated_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Last update date and time",
+                              "readOnly": true
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "The name of the resource type",
+                              "example": "Treatment Room"
+                            },
+                            "services": {
+                              "type": "array",
+                              "description": "Array of service UIDs that require this resource type",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "deleted_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Soft delete timestamp. Null for active resource types",
+                              "nullable": true,
+                              "readOnly": true
+                            }
+                          },
+                          "required": [
+                            "name"
+                          ],
+                          "example": {
+                            "uid": "94ca2054-3bb0-4788-8e9e-ee2442975cdd",
+                            "created_at": "2023-06-15T10:30:00Z",
+                            "updated_at": "2023-06-15T14:45:10Z",
+                            "name": "Treatment Room",
+                            "services": [
+                              "treatment-service-uid",
+                              "consultation-service-uid"
+                            ],
+                            "deleted_at": null
+                          },
+                          "description": "Defines a type/category of resource required by services (e.g., room type)."
                         }
                       }
                     }
@@ -4070,12 +4816,108 @@
                 "schema": {
                   "allOf": [
                     {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
                     },
                     {
                       "properties": {
                         "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/resourceType.json"
+                          "type": "object",
+                          "properties": {
+                            "uid": {
+                              "type": "string",
+                              "description": "The entity's unique identifier",
+                              "readOnly": true
+                            },
+                            "created_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Creation date and time",
+                              "readOnly": true
+                            },
+                            "updated_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Last update date and time",
+                              "readOnly": true
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "The name of the resource type",
+                              "example": "Treatment Room"
+                            },
+                            "services": {
+                              "type": "array",
+                              "description": "Array of service UIDs that require this resource type",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "deleted_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Soft delete timestamp. Null for active resource types",
+                              "nullable": true,
+                              "readOnly": true
+                            }
+                          },
+                          "required": [
+                            "name"
+                          ],
+                          "example": {
+                            "uid": "94ca2054-3bb0-4788-8e9e-ee2442975cdd",
+                            "created_at": "2023-06-15T10:30:00Z",
+                            "updated_at": "2023-06-15T14:45:10Z",
+                            "name": "Treatment Room",
+                            "services": [
+                              "treatment-service-uid",
+                              "consultation-service-uid"
+                            ],
+                            "deleted_at": null
+                          },
+                          "description": "Defines a type/category of resource required by services (e.g., room type)."
                         }
                       }
                     }
@@ -4155,12 +4997,108 @@
                 "schema": {
                   "allOf": [
                     {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
                     },
                     {
                       "properties": {
                         "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/resourceType.json"
+                          "type": "object",
+                          "properties": {
+                            "uid": {
+                              "type": "string",
+                              "description": "The entity's unique identifier",
+                              "readOnly": true
+                            },
+                            "created_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Creation date and time",
+                              "readOnly": true
+                            },
+                            "updated_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Last update date and time",
+                              "readOnly": true
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "The name of the resource type",
+                              "example": "Treatment Room"
+                            },
+                            "services": {
+                              "type": "array",
+                              "description": "Array of service UIDs that require this resource type",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "deleted_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Soft delete timestamp. Null for active resource types",
+                              "nullable": true,
+                              "readOnly": true
+                            }
+                          },
+                          "required": [
+                            "name"
+                          ],
+                          "example": {
+                            "uid": "94ca2054-3bb0-4788-8e9e-ee2442975cdd",
+                            "created_at": "2023-06-15T10:30:00Z",
+                            "updated_at": "2023-06-15T14:45:10Z",
+                            "name": "Treatment Room",
+                            "services": [
+                              "treatment-service-uid",
+                              "consultation-service-uid"
+                            ],
+                            "deleted_at": null
+                          },
+                          "description": "Defines a type/category of resource required by services (e.g., room type)."
                         }
                       }
                     }
@@ -4223,7 +5161,50 @@
                 "schema": {
                   "allOf": [
                     {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
                     }
                   ]
                 }
@@ -4351,7 +5332,50 @@
                 "schema": {
                   "allOf": [
                     {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
                     },
                     {
                       "properties": {
@@ -4420,12 +5444,103 @@
                 "schema": {
                   "allOf": [
                     {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
                     },
                     {
                       "properties": {
                         "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/resource.json"
+                          "type": "object",
+                          "properties": {
+                            "uid": {
+                              "type": "string",
+                              "description": "The entity's unique identifier",
+                              "readOnly": true
+                            },
+                            "created_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Creation date and time",
+                              "readOnly": true
+                            },
+                            "updated_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Last update date and time",
+                              "readOnly": true
+                            },
+                            "resource_type_uid": {
+                              "type": "string",
+                              "description": "The resource type this instance belongs to. Links to the ResourceType entity"
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "The name of the resource",
+                              "example": "Treatment Room 1"
+                            },
+                            "deleted_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Soft delete timestamp. Null for active resources",
+                              "nullable": true,
+                              "readOnly": true
+                            }
+                          },
+                          "required": [
+                            "name",
+                            "resource_type_uid"
+                          ],
+                          "example": {
+                            "uid": "a4ca2054-3bb0-4788-8e9e-ee2442975e22",
+                            "created_at": "2023-06-15T11:30:00Z",
+                            "updated_at": "2023-06-15T15:45:10Z",
+                            "resource_type_uid": "94ca2054-3bb0-4788-8e9e-ee2442975cdd",
+                            "name": "Treatment Room 1",
+                            "deleted_at": null
+                          },
+                          "description": "A schedulable resource instance (e.g., room, equipment) belonging to a resource type."
                         }
                       }
                     }
@@ -4496,12 +5611,103 @@
                 "schema": {
                   "allOf": [
                     {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
                     },
                     {
                       "properties": {
                         "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/resource.json"
+                          "type": "object",
+                          "properties": {
+                            "uid": {
+                              "type": "string",
+                              "description": "The entity's unique identifier",
+                              "readOnly": true
+                            },
+                            "created_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Creation date and time",
+                              "readOnly": true
+                            },
+                            "updated_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Last update date and time",
+                              "readOnly": true
+                            },
+                            "resource_type_uid": {
+                              "type": "string",
+                              "description": "The resource type this instance belongs to. Links to the ResourceType entity"
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "The name of the resource",
+                              "example": "Treatment Room 1"
+                            },
+                            "deleted_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Soft delete timestamp. Null for active resources",
+                              "nullable": true,
+                              "readOnly": true
+                            }
+                          },
+                          "required": [
+                            "name",
+                            "resource_type_uid"
+                          ],
+                          "example": {
+                            "uid": "a4ca2054-3bb0-4788-8e9e-ee2442975e22",
+                            "created_at": "2023-06-15T11:30:00Z",
+                            "updated_at": "2023-06-15T15:45:10Z",
+                            "resource_type_uid": "94ca2054-3bb0-4788-8e9e-ee2442975cdd",
+                            "name": "Treatment Room 1",
+                            "deleted_at": null
+                          },
+                          "description": "A schedulable resource instance (e.g., room, equipment) belonging to a resource type."
                         }
                       }
                     }
@@ -4578,12 +5784,103 @@
                 "schema": {
                   "allOf": [
                     {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
                     },
                     {
                       "properties": {
                         "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/resource.json"
+                          "type": "object",
+                          "properties": {
+                            "uid": {
+                              "type": "string",
+                              "description": "The entity's unique identifier",
+                              "readOnly": true
+                            },
+                            "created_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Creation date and time",
+                              "readOnly": true
+                            },
+                            "updated_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Last update date and time",
+                              "readOnly": true
+                            },
+                            "resource_type_uid": {
+                              "type": "string",
+                              "description": "The resource type this instance belongs to. Links to the ResourceType entity"
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "The name of the resource",
+                              "example": "Treatment Room 1"
+                            },
+                            "deleted_at": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Soft delete timestamp. Null for active resources",
+                              "nullable": true,
+                              "readOnly": true
+                            }
+                          },
+                          "required": [
+                            "name",
+                            "resource_type_uid"
+                          ],
+                          "example": {
+                            "uid": "a4ca2054-3bb0-4788-8e9e-ee2442975e22",
+                            "created_at": "2023-06-15T11:30:00Z",
+                            "updated_at": "2023-06-15T15:45:10Z",
+                            "resource_type_uid": "94ca2054-3bb0-4788-8e9e-ee2442975cdd",
+                            "name": "Treatment Room 1",
+                            "deleted_at": null
+                          },
+                          "description": "A schedulable resource instance (e.g., room, equipment) belonging to a resource type."
                         }
                       }
                     }
@@ -4646,7 +5943,50 @@
                 "schema": {
                   "allOf": [
                     {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
                     }
                   ]
                 }
@@ -4754,7 +6094,50 @@
                 "schema": {
                   "allOf": [
                     {
-                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
                     },
                     {
                       "properties": {
@@ -4812,7 +6195,91 @@
             "description": "List of AvailabilitySlots",
             "type": "array",
             "items": {
-              "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/availabilitySlot.json"
+              "type": "object",
+              "properties": {
+                "start": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "Start date and time of the availability slot",
+                  "example": "2025-05-19T10:00:00.000Z"
+                },
+                "end": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "End date and time of the availability slot",
+                  "example": "2025-05-19T11:00:00.000Z"
+                },
+                "available_entities": {
+                  "type": "array",
+                  "description": "List of available entities for this time slot",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "entity_uid": {
+                        "type": "string",
+                        "description": "Unique identifier of the entity",
+                        "example": "staff-789"
+                      },
+                      "entity_type": {
+                        "type": "string",
+                        "enum": [
+                          "staff",
+                          "resource"
+                        ],
+                        "description": "Type of the entity"
+                      },
+                      "group_entity_type": {
+                        "type": "string",
+                        "enum": [
+                          "staff",
+                          "resource_type"
+                        ],
+                        "description": "Type of the group this entity belongs to",
+                        "nullable": true
+                      },
+                      "group_entity_uid": {
+                        "type": "string",
+                        "description": "Unique identifier of the group this entity belongs to (optional)",
+                        "nullable": true,
+                        "example": "rt-456"
+                      }
+                    },
+                    "required": [
+                      "entity_uid",
+                      "entity_type"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "start",
+                "end",
+                "available_entities"
+              ],
+              "example": {
+                "start": "2025-05-19T10:00:00.000Z",
+                "end": "2025-05-19T11:00:00.000Z",
+                "available_entities": [
+                  {
+                    "entity_uid": "staff-789",
+                    "entity_type": "staff",
+                    "group_entity_type": "staff"
+                  },
+                  {
+                    "entity_uid": "res-123",
+                    "entity_type": "resource",
+                    "group_entity_type": "resource_type",
+                    "group_entity_uid": "rt-456"
+                  },
+                  {
+                    "entity_uid": "res-124",
+                    "entity_type": "resource",
+                    "group_entity_type": "resource_type",
+                    "group_entity_uid": "rt-456"
+                  }
+                ]
+              },
+              "description": "Represents a time window and the entities available for booking within it."
             }
           }
         }
@@ -4824,7 +6291,55 @@
             "description": "List of Resources",
             "type": "array",
             "items": {
-              "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/resource.json"
+              "type": "object",
+              "properties": {
+                "uid": {
+                  "type": "string",
+                  "description": "The entity's unique identifier",
+                  "readOnly": true
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "Creation date and time",
+                  "readOnly": true
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "Last update date and time",
+                  "readOnly": true
+                },
+                "resource_type_uid": {
+                  "type": "string",
+                  "description": "The resource type this instance belongs to. Links to the ResourceType entity"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "The name of the resource",
+                  "example": "Treatment Room 1"
+                },
+                "deleted_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "Soft delete timestamp. Null for active resources",
+                  "nullable": true,
+                  "readOnly": true
+                }
+              },
+              "required": [
+                "name",
+                "resource_type_uid"
+              ],
+              "example": {
+                "uid": "a4ca2054-3bb0-4788-8e9e-ee2442975e22",
+                "created_at": "2023-06-15T11:30:00Z",
+                "updated_at": "2023-06-15T15:45:10Z",
+                "resource_type_uid": "94ca2054-3bb0-4788-8e9e-ee2442975cdd",
+                "name": "Treatment Room 1",
+                "deleted_at": null
+              },
+              "description": "A schedulable resource instance (e.g., room, equipment) belonging to a resource type."
             }
           }
         }
@@ -4836,7 +6351,60 @@
             "description": "List of ResourceTypes",
             "type": "array",
             "items": {
-              "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/resourceType.json"
+              "type": "object",
+              "properties": {
+                "uid": {
+                  "type": "string",
+                  "description": "The entity's unique identifier",
+                  "readOnly": true
+                },
+                "created_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "Creation date and time",
+                  "readOnly": true
+                },
+                "updated_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "Last update date and time",
+                  "readOnly": true
+                },
+                "name": {
+                  "type": "string",
+                  "description": "The name of the resource type",
+                  "example": "Treatment Room"
+                },
+                "services": {
+                  "type": "array",
+                  "description": "Array of service UIDs that require this resource type",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "deleted_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "Soft delete timestamp. Null for active resource types",
+                  "nullable": true,
+                  "readOnly": true
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "example": {
+                "uid": "94ca2054-3bb0-4788-8e9e-ee2442975cdd",
+                "created_at": "2023-06-15T10:30:00Z",
+                "updated_at": "2023-06-15T14:45:10Z",
+                "name": "Treatment Room",
+                "services": [
+                  "treatment-service-uid",
+                  "consultation-service-uid"
+                ],
+                "deleted_at": null
+              },
+              "description": "Defines a type/category of resource required by services (e.g., room type)."
             }
           }
         }
@@ -4848,7 +6416,34 @@
             "description": "List of BusinessAvailabilities",
             "type": "array",
             "items": {
-              "$ref": "https://vcita.github.io/developers-hub/entities/scheduling/businessAvailability.json"
+              "type": "object",
+              "required": [
+                "booking_slots",
+                "business_uid"
+              ],
+              "properties": {
+                "booking_slots": {
+                  "type": "array",
+                  "description": "Array of available booking time slots in ISO format",
+                  "items": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                },
+                "business_uid": {
+                  "type": "string",
+                  "description": "Unique identifier for a business account"
+                }
+              },
+              "example": {
+                "booking_slots": [
+                  "2023-03-15T09:00:00Z",
+                  "2023-03-15T09:30:00Z",
+                  "2023-03-15T10:00:00Z"
+                ],
+                "business_uid": "c4kektjxu9o2nqw6"
+              },
+              "description": "A BusinessBookingSlots entity represents the available booking time slots for a business. It includes an array of available time slots in ISO 8601 format and a unique identifier for the business account."
             }
           }
         }

@@ -18,7 +18,7 @@
           "AI Recommendations"
         ],
         "summary": "Get all AIRecommendations",
-        "description": "## Overview\nRetrieve a list of AIRecommendations with optional filtering by status, target, and context.\n\nAvailable for **Staff, Directory, and Client tokens**",
+        "description": "## Overview\nRetrieve a list of AIRecommendations with optional filtering by status, category, target, context, context type, producer, and action UID. All filters combine with AND logic.\n\nAvailable for **Staff tokens**",
         "security": [
           {
             "Bearer": []
@@ -26,12 +26,50 @@
         ],
         "parameters": [
           {
+            "name": "page",
+            "in": "query",
+            "description": "Page number of results.",
+            "schema": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 10000,
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "How many items to return per page. Max: 100",
+            "schema": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Sort by fields. Example: sort=created_at:asc,updated_at:desc",
+            "schema": {
+              "type": "string",
+              "default": "updated_at:desc"
+            }
+          },
+          {
             "name": "status",
             "in": "query",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "enum": [
+                "active",
+                "completed",
+                "dismissed",
+                "approved",
+                "snoozed"
+              ]
             },
-            "description": "Filter by recommendation status."
+            "description": "Filter by recommendation lifecycle state: 'active', 'completed', 'dismissed', 'approved', or 'snoozed'. Defaults to 'active' when omitted."
           },
           {
             "name": "target",
@@ -48,6 +86,106 @@
               "type": "string"
             },
             "description": "Filter by context UID."
+          },
+          {
+            "name": "context_type",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "matter",
+                "client",
+                "business",
+                "ai_rec_conversation"
+              ]
+            },
+            "description": "Filter by context type: 'matter', 'client', 'business' or 'ai_rec_conversation'."
+          },
+          {
+            "name": "action_uid",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by action UID. Returns only the recommendation that owns this action (e.g., \"44b026bb-242c-46e1-a9fa-47f7231e4444\")."
+          },
+          {
+            "name": "state_source_type",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "user",
+                "system"
+              ]
+            },
+            "description": "Filter by who set the current status: 'user' or 'system'."
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "needs_attention",
+                "opportunity",
+                "fyi",
+                "upcoming"
+              ]
+            },
+            "description": "Filter by category bucket. Each record belongs to exactly one bucket:\nupcoming – due_at is in the future, whatever the stored category.\nneeds_attention – due_at is in the past or unset, stored category is needs_attention.\nopportunity – due_at is in the past or unset, stored category is opportunity.\nfyi – due_at is in the past or unset, stored category is fyi."
+          },
+          {
+            "name": "producer",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Filter by the record's 'producer' (creation source). When omitted, only legacy records with an empty 'producer' are returned (default). Pass 'any' to return only records that have a non-empty 'producer', or pass a specific producer value (for example: 'client_agent') to return only records from that producer."
+          },
+          {
+            "name": "view",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "my_view",
+                "team"
+              ],
+              "default": "my_view"
+            },
+            "description": "Which staff members' recommendations to return. 'my_view' (default) returns only the caller's own recommendations; 'team' returns recommendations across every staff member in the business. 'team' requires organization access \u2014 the staff member must hold both 'clients.all_activities.manage' and 'clients.all_clients.manage'. A caller without both receives 403; 'my_view' is always permitted."
+          },
+          {
+            "name": "due_after",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Return only recommendations with no 'due_at' or a 'due_at' later than this time, in ISO 8601 format. Applies to the list and to 'meta.counts', and to every producer unless 'due_at_producers' is set (e.g., \"2026-06-08T09:00:00Z\")."
+          },
+          {
+            "name": "due_at_producers",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma-separated list of producers that 'due_after' applies to. Recommendations from any other producer are returned regardless of it. Ignored when 'due_after' is not set (e.g., \"client_agent\", \"client_agent,lead_agent\")."
+          },
+          {
+            "name": "include",
+            "in": "query",
+            "description": "Optional data sets to include in the response, beyond the recommendations list. Supported values: 'counts' (adds per-category totals under 'meta.counts'). Repeat the parameter to request multiple. When omitted, no extra data is returned and 'meta' is absent.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "counts"
+                ]
+              }
+            }
           }
         ],
         "responses": {
@@ -65,6 +203,34 @@
                         "data": {
                           "type": "object",
                           "$ref": "#/components/schemas/AIRecommendationList"
+                        },
+                        "meta": {
+                          "type": "object",
+                          "description": "Additional response metadata not tied to the returned page of recommendations. Present only when requested via the 'include' query parameter.",
+                          "properties": {
+                            "counts": {
+                              "type": "object",
+                              "description": "Returned only when 'include=counts' is requested. Number of recommendations per bucket, matching every query filter except 'category' and pagination. 'status' applies, so counts describe the same lifecycle state as the list (active when omitted). Every recommendation is counted in exactly one bucket: future 'due_at' -> 'upcoming'; else by stored category -> 'needs_attention', 'opportunity', or 'fyi'.",
+                              "properties": {
+                                "needs_attention": {
+                                  "type": "integer",
+                                  "description": "Active recommendations with stored category 'needs_attention' and a non-future 'due_at' (past or unset)."
+                                },
+                                "upcoming": {
+                                  "type": "integer",
+                                  "description": "Active recommendations whose 'due_at' is in the future, regardless of stored category. Derived bucket - these are excluded from every other bucket."
+                                },
+                                "opportunity": {
+                                  "type": "integer",
+                                  "description": "Active recommendations with stored category 'opportunity' and a non-future 'due_at' (past or unset)."
+                                },
+                                "fyi": {
+                                  "type": "integer",
+                                  "description": "Active recommendations with stored category 'fyi' and a non-future 'due_at' (past or unset)."
+                                }
+                              }
+                            }
+                          }
                         }
                       }
                     }
@@ -123,6 +289,145 @@
       }
     },
     "/v3/ai/ai_recommendations/{uid}": {
+      "get": {
+        "tags": [
+          "AI Recommendations"
+        ],
+        "summary": "Get an AIRecommendation by uid",
+        "operationId": "getAiRecommendation",
+        "description": "## Overview\nRetrieve a single AIRecommendation by uid, scoped to the requesting staff member.\n\nUnlike the list endpoint, this endpoint applies no defaults: the recommendation is returned in any lifecycle state (including 'completed' and 'dismissed') and regardless of its 'producer'.\n\nReturns 404 both when no recommendation with this uid exists and when it belongs to another staff member, so the existence of another staff member's recommendation is never revealed.\n\nAvailable for **Staff tokens**",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "description": "The uid of the AIRecommendation to retrieve (e.g., \"44b026bb-242c-46e1-a9fa-47f7231e3131\").",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The requested AIRecommendation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/AIRecommendation.json"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "uid": "44b026bb-242c-46e1-a9fa-47f7231e3131",
+                    "producer": "client_agent",
+                    "business_uid": "biz-1234abcd",
+                    "created_at": "2026-02-04T12:00:00Z",
+                    "updated_at": "2026-02-04T12:30:00Z",
+                    "category": "opportunity",
+                    "priority": "standard",
+                    "execution_policy": "requires_human_approval",
+                    "tags": [
+                      "Hot lead"
+                    ],
+                    "due_at": "2026-02-06T09:00:00Z",
+                    "expired_at": null,
+                    "actions": [
+                      {
+                        "uid": "act-456",
+                        "action": "reply",
+                        "display": {
+                          "btn_text": "Generate Reply"
+                        },
+                        "payload": {
+                          "suggested_reply": "Hi Elizabeth, Friday 6:00PM works for me."
+                        },
+                        "reason": "The client asked to confirm a time",
+                        "evidence": [
+                          "Client asked for Friday 6:00PM"
+                        ],
+                        "confidence": 0.85
+                      }
+                    ],
+                    "display": {
+                      "title": "Elizabeth's carpet cleaning request for Friday 6:00PM includes all the details you need."
+                    },
+                    "context": {
+                      "context_uid": "matter-456",
+                      "context_type": "matter",
+                      "context_name": "Elizabeth Blake"
+                    },
+                    "target": {
+                      "target_actor_uid": "staff-789",
+                      "target_actor_type": "staff"
+                    },
+                    "status": {
+                      "state": "completed",
+                      "state_source_type": "user",
+                      "dismissed": false,
+                      "dismissed_source_type": null
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - the token is missing or invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Unauthorized"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No AIRecommendation with this uid is accessible to the requesting staff member - it does not exist, or it belongs to another staff member",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "AIRecommendation not found"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
       "put": {
         "tags": [
           "AI Recommendations"
@@ -186,6 +491,10 @@
       "AIRecommendationRequest": {
         "type": "object",
         "properties": {
+          "producer": {
+            "type": "string",
+            "description": "Upstream agent or partner system that produced this recommendation (for example: 'client_agent', 'lead_capture_agent', 'partner_x')."
+          },
           "actions": {
             "type": "array",
             "description": "A list of recommended actions related to this entity.",
@@ -203,6 +512,52 @@
               }
             }
           },
+          "category": {
+            "type": "string",
+            "enum": [
+              "needs_attention",
+              "opportunity",
+              "fyi"
+            ],
+            "default": "needs_attention",
+            "description": "Recommendation category set by the producer for interface use: 'needs_attention' (time-sensitive and requires the user's attention), 'opportunity' (growth-focused value opportunity that does not require immediate action), or 'fyi' (informational only, no action required)."
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "high",
+              "standard"
+            ],
+            "default": "standard",
+            "description": "Relative ordering priority within the same category: 'high' (higher priority, surfaced first) or 'standard' (default priority)."
+          },
+          "execution_policy": {
+            "type": "string",
+            "enum": [
+              "auto_execute",
+              "requires_human_approval"
+            ],
+            "default": "requires_human_approval",
+            "description": "Indicates whether this recommendation is auto-executed by an agent or requires human review: 'auto_execute' (may be executed automatically by the system or an authorized agent) or 'requires_human_approval' (must be reviewed and approved by a human before execution)."
+          },
+          "tags": {
+            "type": "array",
+            "maxItems": 10,
+            "description": "Optional user-facing tags that label the item's urgency, value, or context (for example: 'Hot lead', 'New', 'High value', 'Urgent', 'At risk', 'Follow up').",
+            "items": {
+              "type": "string"
+            }
+          },
+          "due_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Optional due or target time, in ISO 8601 format."
+          },
+          "expired_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Optional expiry time used for dismissing or clearing the recommendation, in ISO 8601 format."
+          },
           "context": {
             "type": "object",
             "description": "The context in which the recommendation was generated.",
@@ -219,6 +574,10 @@
                   "client",
                   "business"
                 ]
+              },
+              "context_name": {
+                "type": "string",
+                "description": "The display name of the context object (referenced by 'context_uid') this recommendation is about, according to its 'context_type' - for example, the client's name when 'context_type' is 'client' (e.g., 'John Smith')."
               }
             }
           },
@@ -243,6 +602,26 @@
           "status": {
             "type": "object",
             "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "active",
+                  "completed",
+                  "dismissed",
+                  "approved",
+                  "snoozed"
+                ],
+                "default": "active",
+                "description": "Lifecycle state of the recommendation: 'active' (available and not yet completed), 'completed' (executed successfully or otherwise resolved), 'dismissed' (explicitly dismissed without resolving the underlying need), 'approved' (approved by the user but not yet at a terminal outcome), or 'snoozed' (deferred to a later time or trigger condition)."
+              },
+              "state_source_type": {
+                "type": "string",
+                "enum": [
+                  "user",
+                  "system"
+                ],
+                "description": "Source of the current status: 'user' (change via Pulse UI) or 'system' (change by the originating service or agent)."
+              },
               "dismissed": {
                 "type": "boolean",
                 "description": "Indicates whether the recommendation has been dismissed."
@@ -263,10 +642,9 @@
           }
         },
         "required": [
-          "user_description",
-          "staff_uid",
-          "sources",
-          "actions"
+          "actions",
+          "context",
+          "target"
         ]
       },
       "AIRecommendationUpdateRequest": {
@@ -275,6 +653,25 @@
           "status": {
             "type": "object",
             "properties": {
+              "state": {
+                "type": "string",
+                "enum": [
+                  "active",
+                  "completed",
+                  "dismissed",
+                  "approved",
+                  "snoozed"
+                ],
+                "description": "Lifecycle state of the recommendation: 'active' (available and not yet completed), 'completed' (executed successfully or otherwise resolved), 'dismissed' (explicitly dismissed without resolving the underlying need), 'approved' (approved by the user but not yet at a terminal outcome), or 'snoozed' (deferred to a later time or trigger condition)."
+              },
+              "state_source_type": {
+                "type": "string",
+                "enum": [
+                  "user",
+                  "system"
+                ],
+                "description": "Source of the current status: 'user' (change via Pulse UI) or 'system' (change by the originating service or agent)."
+              },
               "dismissed": {
                 "type": "boolean",
                 "description": "Indicates whether the recommendation has been dismissed."
@@ -315,18 +712,30 @@
             "enum": [
               "reply",
               "estimate",
-              "schedule"
+              "schedule",
+              "acknowledge",
+              "chat_with_bizai",
+              "navigate",
+              "call"
             ],
-            "description": "The type of action recommended. Possible values:\n- 'reply': Suggests responding to a user message.\n- 'estimate': Suggests providing a price estimate.\n- 'schedule': Suggests scheduling an appointment or meeting."
+            "description": "The type of action recommended. Possible values:\n- 'reply': Suggests responding to a user message.\n- 'estimate': Suggests providing a price estimate.\n- 'schedule': Suggests scheduling an appointment or meeting.\n- 'acknowledge': No action or artifact is prepared; the user reviews the item and then completes or dismisses it.\n- 'chat_with_bizai': Hands the item off to BizAI (the business AI chat assistant) to handle on the user's behalf.\n- 'navigate': Takes the user to the item's context; nothing is prepared or handed off.\n- 'call': Suggests phoning the contact; the call is placed from the user's own device and nothing is prepared or sent."
           },
           "display": {
             "type": "object",
-            "description": "Contains display-related information for the recommendation.",
+            "description": "Presentation-only information for the recommendation.",
             "properties": {
               "btn_text": {
                 "type": "string",
-                "description": "A human-readable title describing the recommendation."
+                "description": "Label for the control that triggers the action (e.g., \"Generate Reply\")."
+              },
+              "body_markdown": {
+                "type": "string",
+                "description": "Markdown describing what the action proposes, for the consumer to render. Optional and available for every action type; absent is valid, and the consumer decides how to present the recommendation without it. Presentation only - execution always reads `payload`, never this field, so a mismatch between the two is a producer bug. Consumers must sanitise it before rendering it as markup. Not a copy of `reason`: `reason` explains why the recommendation surfaced (e.g., \"**Suggested reply:**\\n\\nHi Elizabeth - Friday 6:00PM works for a 2 hour slot.\")."
               }
+            },
+            "example": {
+              "btn_text": "Generate Reply",
+              "body_markdown": "**Suggested reply:**\n\nHi Elizabeth - Friday 6:00PM works for a 2 hour slot."
             }
           },
           "reason": {
@@ -343,8 +752,49 @@
             "items": {
               "type": "string"
             }
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "A confidence score (0-1) indicating how confident the AI is in this recommendation (e.g., 0.85)."
           }
-        }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "The name of the field that caused the error (e.g., \"uid\", \"status\")."
+                },
+                "code": {
+                  "type": "string",
+                  "description": "A machine-readable error code (e.g., \"invalid\", \"required\", \"not_found\")."
+                },
+                "message": {
+                  "type": "string",
+                  "description": "A human-readable error message describing the issue."
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "success",
+          "errors"
+        ]
       }
     },
     "securitySchemes": {

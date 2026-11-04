@@ -1,0 +1,62 @@
+{
+  "type": "object",
+  "description": "Represents the availability of a single communication channel for a specific contact. It combines the business-level capability of the channel with a contact-level eligibility check, so callers can decide how to reach a contact in one lookup. This is a computed, read-only resource (evaluated on request) and therefore has no uid, business_uid, or timestamps.",
+  "properties": {
+    "channel_uid": {
+      "type": "string",
+      "description": "Unique identifier of the channel. For the core channels this is the fixed email/sms channel UID; for third-party apps it is the business channel UID, so multiple channels of the same app can be told apart and targeted individually. Treat this as an opaque value returned by the API rather than one to hardcode."
+    },
+    "channel": {
+      "type": "string",
+      "description": "Identifier of the communication channel. Core channels are \"email\" and \"sms\"; installed third-party apps use their app code name (e.g., \"facebook\", \"whatsapp\", \"instagram\"). The set of possible values grows as new apps are installed, so treat this as an open string rather than a fixed enum. Note: a business can have multiple channels of the same app, so this value is not unique within the response — use channel_uid to distinguish them."
+    },
+    "display_name": {
+      "type": "string",
+      "nullable": true,
+      "description": "Human-readable name of the channel as set by the business (e.g., a specific Facebook page or WhatsApp number name). Null for the core email and sms channels."
+    },
+    "available": {
+      "type": "boolean",
+      "description": "Whether the contact can currently be reached on this channel. True only when both the business supports the channel and the contact is individually eligible."
+    },
+    "reason": {
+      "type": "string",
+      "nullable": true,
+      "description": "Machine-readable reason the channel is unavailable. Null when the channel is available. Possible values: \"no_email\" (contact has no email address), \"email_blocked\" (email is bounced/blocked and cannot receive), \"no_phone\" (contact has no mobile phone number), \"opted_out\" (contact opted out of transactional SMS), \"no_active_session\" (third-party channel has no active session for the contact), \"app_not_installed\" (business does not have the channel enabled/installed), \"no_sms_credits\" (business has no SMS credits left in its quota).",
+      "enum": [
+        "no_email",
+        "email_blocked",
+        "no_phone",
+        "opted_out",
+        "no_active_session",
+        "app_not_installed",
+        "no_sms_credits"
+      ]
+    },
+    "channel_path": {
+      "type": "string",
+      "nullable": true,
+      "description": "The contact's destination on this channel: the email address for email, the mobile phone for sms as it is displayed to the business (it includes the country code when the business allows clients from other countries), and the contact's identifier on the app for third-party channels (e.g. a WhatsApp number or a page-scoped Facebook ID, which is usable for sending but not meant for display). Returned even when the channel is unavailable, so the phone of a contact who opted out of SMS can still be used for calling. Null only when the contact has no destination on the channel (e.g., \"dana@example.com\", \"+972 050-123-4567\")."
+    },
+    "primary": {
+      "type": "boolean",
+      "description": "Whether this is the contact's primary channel: the available channel the contact most recently wrote on (SMS or a third-party app). When none of those is available, email is primary if it is available. At most one entry in the response is primary; none is when no channel qualifies (e.g., true, false)."
+    }
+  },
+  "required": [
+    "channel_uid",
+    "channel",
+    "available",
+    "channel_path",
+    "primary"
+  ],
+  "example": {
+    "channel_uid": "kx7m2p9qw4rt8vzn",
+    "channel": "whatsapp",
+    "display_name": "Acme Main Line",
+    "available": true,
+    "reason": null,
+    "channel_path": "+15551234567",
+    "primary": true
+  }
+}

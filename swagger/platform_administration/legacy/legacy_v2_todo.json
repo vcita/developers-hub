@@ -1,0 +1,344 @@
+{
+  "basePath": "/",
+  "host": "api.vcita.biz",
+  "info": {
+    "title": "Business ToDo (Getting Started Checklist) API",
+    "version": "v2.0",
+    "description": "Endpoints for reading and updating the business's onboarding \"todo\" flags — the state behind the **Getting Started / \"Let's personalize your account\"** checklist shown in the app. Each flag is a single business-level status (`done`, `skipped`, or `null`) describing whether an onboarding step was completed or dismissed.\n\nThe checklist rows and their order are composed by the client; this API only stores and returns the per-step status. On every read the server first re-evaluates the flags against actual business data (clients imported, invoices created, payment gateway connected, staff invited, …) and persists any newly satisfied step, so `GET` can return values that were never explicitly written.\n\nAvailable for **Staff & Directory tokens** — a Staff token of a staff member belonging to the business, or a Directory token of the owning directory. Directory tokens MUST send the business in the `X-On-Behalf-Of` header. Writes are accepted **only from the business owner**; a request from a non-owner staff member succeeds but changes nothing and returns the current state."
+  },
+  "paths": {
+    "/v2/todo": {
+      "get": {
+        "tags": [
+          "Business Settings"
+        ],
+        "summary": "[Deprecated] Get the business onboarding todo flags",
+        "description": "## Overview\nReturns the full set of onboarding todo flags for the business in context.\n\nBefore responding, the server refreshes the flags from live business data — for example `todo_clients` becomes `done` once the business has more than 5 clients, `todo_invoice` once any invoice exists, `todo_payments` once a payment gateway or payment wallet app is connected, and `todo_staff` once more than one staff member exists. The refreshed values are persisted, so the response is always the authoritative current state.\n\nAvailable for **Staff & Directory tokens**. Directory tokens MUST send the business in the `X-On-Behalf-Of` header (a Directory token without it is rejected with 403).",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "description": "The business UID to act on behalf of. Required when authenticating with a Directory token; not needed for a Staff token (e.g., \"fyclhomrzdspdyk6\").",
+            "in": "header",
+            "name": "X-On-Behalf-Of",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The business onboarding todo flags.",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "todo_scheduling": {
+                  "type": "string",
+                  "enum": [
+                    "done",
+                    "skipped"
+                  ],
+                  "x-nullable": true,
+                  "description": "Set to `done` when the business reaches the last page of the scheduling wizard (the step before success / early upgrade call). Synced with HubSpot. Status of the item. `done` — completed; `skipped` — explicitly dismissed by the business; `null` — not started. The internally stored value `manual` is always translated to `done` in the response."
+                },
+                "todo_staff": {
+                  "type": "string",
+                  "enum": [
+                    "done",
+                    "skipped"
+                  ],
+                  "x-nullable": true,
+                  "description": "Set to `done` after a staff member is invited (auto-refreshed when the business has more than one staff member). Status of the item. `done` — completed; `skipped` — explicitly dismissed by the business; `null` — not started. The internally stored value `manual` is always translated to `done` in the response."
+                },
+                "todo_services": {
+                  "type": "string",
+                  "enum": [
+                    "done",
+                    "skipped"
+                  ],
+                  "x-nullable": true,
+                  "description": "Set to `done` when a service is created or an existing service is updated in the settings page; in the wizard it is set only when the services page is viewed. Status of the item. `done` — completed; `skipped` — explicitly dismissed by the business; `null` — not started. The internally stored value `manual` is always translated to `done` in the response."
+                },
+                "todo_payments": {
+                  "type": "string",
+                  "enum": [
+                    "done",
+                    "skipped"
+                  ],
+                  "x-nullable": true,
+                  "description": "Set to `done` when the business successfully connects a payment gateway (PayPal / Stripe / Square / Braintree) or an external payment wallet app. Status of the item. `done` — completed; `skipped` — explicitly dismissed by the business; `null` — not started. The internally stored value `manual` is always translated to `done` in the response."
+                },
+                "todo_clients": {
+                  "type": "string",
+                  "enum": [
+                    "done",
+                    "skipped"
+                  ],
+                  "x-nullable": true,
+                  "description": "Set to `done` when the business imports clients (including Square import) or has more than 5 clients. Synced with HubSpot. Status of the item. `done` — completed; `skipped` — explicitly dismissed by the business; `null` — not started. The internally stored value `manual` is always translated to `done` in the response."
+                },
+                "todo_mobile_app": {
+                  "type": "string",
+                  "enum": [
+                    "done",
+                    "skipped"
+                  ],
+                  "x-nullable": true,
+                  "description": "Set to `done` after login from the mobile app only. Status of the item. `done` — completed; `skipped` — explicitly dismissed by the business; `null` — not started. The internally stored value `manual` is always translated to `done` in the response."
+                },
+                "todo_invoice": {
+                  "type": "string",
+                  "enum": [
+                    "done",
+                    "skipped"
+                  ],
+                  "x-nullable": true,
+                  "description": "Set to `done` when the first invoice is sent (auto-refreshed when the business has any invoice). Status of the item. `done` — completed; `skipped` — explicitly dismissed by the business; `null` — not started. The internally stored value `manual` is always translated to `done` in the response."
+                },
+                "todo_business_info": {
+                  "type": "string",
+                  "enum": [
+                    "done",
+                    "skipped"
+                  ],
+                  "x-nullable": true,
+                  "description": "Set to `done` when any of phone, address, profession or website is entered for the business. Status of the item. `done` — completed; `skipped` — explicitly dismissed by the business; `null` — not started. The internally stored value `manual` is always translated to `done` in the response."
+                }
+              }
+            },
+            "examples": {
+              "application/json": {
+                "todo_scheduling": null,
+                "todo_staff": "done",
+                "todo_services": "done",
+                "todo_payments": "done",
+                "todo_clients": "done",
+                "todo_mobile_app": "done",
+                "todo_invoice": "done",
+                "todo_business_info": "done"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "The token is not allowed to access this business — for example a Directory token sent without the `X-On-Behalf-Of` header, or a staff member without admin account access."
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Business Settings"
+        ],
+        "summary": "[Deprecated] Update the business onboarding todo flags",
+        "description": "## Overview\nUpdates one or more onboarding todo flags for the business in context. Send only the flags you want to change; omitted flags keep their current value. The full, refreshed flag set is returned.\n\nAllowed values are `done` and `skipped` (`skipped` marks a step the business explicitly dismissed in the checklist). Sending any other value is rejected with 422.\n\n**Only the business owner may write.** A request from a staff member who is not the owner is accepted and returns 200, but no flag is changed.\n\nAvailable for **Staff & Directory tokens**. Directory tokens MUST send the business in the `X-On-Behalf-Of` header (a Directory token without it is rejected with 403).",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "description": "The business UID to act on behalf of. Required when authenticating with a Directory token; not needed for a Staff token (e.g., \"fyclhomrzdspdyk6\").",
+            "in": "header",
+            "name": "X-On-Behalf-Of",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "description": "The todo flags to update. Every property is optional.",
+            "in": "body",
+            "name": "body",
+            "required": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "todo_scheduling": {
+                  "type": "string",
+                  "enum": [
+                    "done",
+                    "skipped"
+                  ],
+                  "x-nullable": true,
+                  "description": "Set to `done` when the business reaches the last page of the scheduling wizard (the step before success / early upgrade call). Synced with HubSpot. Status of the item. `done` — completed; `skipped` — explicitly dismissed by the business; `null` — not started. The internally stored value `manual` is always translated to `done` in the response."
+                },
+                "todo_staff": {
+                  "type": "string",
+                  "enum": [
+                    "done",
+                    "skipped"
+                  ],
+                  "x-nullable": true,
+                  "description": "Set to `done` after a staff member is invited (auto-refreshed when the business has more than one staff member). Status of the item. `done` — completed; `skipped` — explicitly dismissed by the business; `null` — not started. The internally stored value `manual` is always translated to `done` in the response."
+                },
+                "todo_services": {
+                  "type": "string",
+                  "enum": [
+                    "done",
+                    "skipped"
+                  ],
+                  "x-nullable": true,
+                  "description": "Set to `done` when a service is created or an existing service is updated in the settings page; in the wizard it is set only when the services page is viewed. Status of the item. `done` — completed; `skipped` — explicitly dismissed by the business; `null` — not started. The internally stored value `manual` is always translated to `done` in the response."
+                },
+                "todo_payments": {
+                  "type": "string",
+                  "enum": [
+                    "done",
+                    "skipped"
+                  ],
+                  "x-nullable": true,
+                  "description": "Set to `done` when the business successfully connects a payment gateway (PayPal / Stripe / Square / Braintree) or an external payment wallet app. Status of the item. `done` — completed; `skipped` — explicitly dismissed by the business; `null` — not started. The internally stored value `manual` is always translated to `done` in the response."
+                },
+                "todo_clients": {
+                  "type": "string",
+                  "enum": [
+                    "done",
+                    "skipped"
+                  ],
+                  "x-nullable": true,
+                  "description": "Set to `done` when the business imports clients (including Square import) or has more than 5 clients. Synced with HubSpot. Status of the item. `done` — completed; `skipped` — explicitly dismissed by the business; `null` — not started. The internally stored value `manual` is always translated to `done` in the response."
+                },
+                "todo_mobile_app": {
+                  "type": "string",
+                  "enum": [
+                    "done",
+                    "skipped"
+                  ],
+                  "x-nullable": true,
+                  "description": "Set to `done` after login from the mobile app only. Status of the item. `done` — completed; `skipped` — explicitly dismissed by the business; `null` — not started. The internally stored value `manual` is always translated to `done` in the response."
+                },
+                "todo_invoice": {
+                  "type": "string",
+                  "enum": [
+                    "done",
+                    "skipped"
+                  ],
+                  "x-nullable": true,
+                  "description": "Set to `done` when the first invoice is sent (auto-refreshed when the business has any invoice). Status of the item. `done` — completed; `skipped` — explicitly dismissed by the business; `null` — not started. The internally stored value `manual` is always translated to `done` in the response."
+                },
+                "todo_business_info": {
+                  "type": "string",
+                  "enum": [
+                    "done",
+                    "skipped"
+                  ],
+                  "x-nullable": true,
+                  "description": "Set to `done` when any of phone, address, profession or website is entered for the business. Status of the item. `done` — completed; `skipped` — explicitly dismissed by the business; `null` — not started. The internally stored value `manual` is always translated to `done` in the response."
+                }
+              }
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The updated business onboarding todo flags.",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "todo_scheduling": {
+                  "type": "string",
+                  "enum": [
+                    "done",
+                    "skipped"
+                  ],
+                  "x-nullable": true,
+                  "description": "Set to `done` when the business reaches the last page of the scheduling wizard (the step before success / early upgrade call). Synced with HubSpot. Status of the item. `done` — completed; `skipped` — explicitly dismissed by the business; `null` — not started. The internally stored value `manual` is always translated to `done` in the response."
+                },
+                "todo_staff": {
+                  "type": "string",
+                  "enum": [
+                    "done",
+                    "skipped"
+                  ],
+                  "x-nullable": true,
+                  "description": "Set to `done` after a staff member is invited (auto-refreshed when the business has more than one staff member). Status of the item. `done` — completed; `skipped` — explicitly dismissed by the business; `null` — not started. The internally stored value `manual` is always translated to `done` in the response."
+                },
+                "todo_services": {
+                  "type": "string",
+                  "enum": [
+                    "done",
+                    "skipped"
+                  ],
+                  "x-nullable": true,
+                  "description": "Set to `done` when a service is created or an existing service is updated in the settings page; in the wizard it is set only when the services page is viewed. Status of the item. `done` — completed; `skipped` — explicitly dismissed by the business; `null` — not started. The internally stored value `manual` is always translated to `done` in the response."
+                },
+                "todo_payments": {
+                  "type": "string",
+                  "enum": [
+                    "done",
+                    "skipped"
+                  ],
+                  "x-nullable": true,
+                  "description": "Set to `done` when the business successfully connects a payment gateway (PayPal / Stripe / Square / Braintree) or an external payment wallet app. Status of the item. `done` — completed; `skipped` — explicitly dismissed by the business; `null` — not started. The internally stored value `manual` is always translated to `done` in the response."
+                },
+                "todo_clients": {
+                  "type": "string",
+                  "enum": [
+                    "done",
+                    "skipped"
+                  ],
+                  "x-nullable": true,
+                  "description": "Set to `done` when the business imports clients (including Square import) or has more than 5 clients. Synced with HubSpot. Status of the item. `done` — completed; `skipped` — explicitly dismissed by the business; `null` — not started. The internally stored value `manual` is always translated to `done` in the response."
+                },
+                "todo_mobile_app": {
+                  "type": "string",
+                  "enum": [
+                    "done",
+                    "skipped"
+                  ],
+                  "x-nullable": true,
+                  "description": "Set to `done` after login from the mobile app only. Status of the item. `done` — completed; `skipped` — explicitly dismissed by the business; `null` — not started. The internally stored value `manual` is always translated to `done` in the response."
+                },
+                "todo_invoice": {
+                  "type": "string",
+                  "enum": [
+                    "done",
+                    "skipped"
+                  ],
+                  "x-nullable": true,
+                  "description": "Set to `done` when the first invoice is sent (auto-refreshed when the business has any invoice). Status of the item. `done` — completed; `skipped` — explicitly dismissed by the business; `null` — not started. The internally stored value `manual` is always translated to `done` in the response."
+                },
+                "todo_business_info": {
+                  "type": "string",
+                  "enum": [
+                    "done",
+                    "skipped"
+                  ],
+                  "x-nullable": true,
+                  "description": "Set to `done` when any of phone, address, profession or website is entered for the business. Status of the item. `done` — completed; `skipped` — explicitly dismissed by the business; `null` — not started. The internally stored value `manual` is always translated to `done` in the response."
+                }
+              }
+            },
+            "examples": {
+              "application/json": {
+                "todo_scheduling": null,
+                "todo_staff": "done",
+                "todo_services": "done",
+                "todo_payments": "done",
+                "todo_clients": "done",
+                "todo_mobile_app": "done",
+                "todo_invoice": "done",
+                "todo_business_info": "done"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid access token."
+          },
+          "403": {
+            "description": "The token is not allowed to access this business — for example a Directory token sent without the `X-On-Behalf-Of` header, or a staff member without admin account access."
+          },
+          "422": {
+            "description": "A flag was sent with a value other than `done` or `skipped`."
+          }
+        }
+      }
+    }
+  },
+  "swagger": "2.0"
+}
