@@ -352,13 +352,13 @@
       "get": {
         "summary": "List a template's StaffNotifications",
         "operationId": "listStaffNotifications",
-        "description": "## Overview\nReturn one page of the StaffNotifications that were created from one notification template.\n\nUse it to get the delivery statuses of many StaffNotifications with one request per page, instead of one request per StaffNotification.\n\n## Filters\nEvery filter names a field of the StaffNotification. `filter[notification_template_code_name]` is required. Only the filters listed here are supported. Any other filter field or operator returns `400`.\n\n## Incremental sync\nPass the highest `updated_at` that you already have as `filter[updated_at][gte]`. The bound is inclusive, so a StaffNotification on the boundary can be returned again. De-duplicate the rows by `uid`.\n\n## Paging\nThe response has no total count. Request the next page until a page has fewer rows than `per_page`.\n\nOnly the creator of the notification template can list its StaffNotifications.\n\nAvailable for **Directory and App tokens**. The token must be the one that created the notification template.",
+        "description": "## Overview\nReturn one page of the StaffNotifications that were created from one notification template.\n\nUse it to get the delivery statuses of many StaffNotifications with one request per page, instead of one request per StaffNotification.\n\n## Filters\nEvery filter is a query parameter. `notification_template_code_name` is required. Unknown query parameters are ignored.\n\n## Incremental sync\nPass the highest `updated_at` that you already have as `updated_since`. The bound is inclusive, so a StaffNotification on the boundary can be returned again. De-duplicate the rows by `uid`.\n\n## Paging\nTo read every page, pass the `next_cursor` of each response as `cursor`, with the same filters and `sort`. Stop when `next_cursor` is `null`. When a StaffNotification changes between two requests, paging with `page` can skip another StaffNotification. The cursor does not skip one.\n\nThe response has no total count.\n\nOnly the creator of the notification template can list its StaffNotifications.\n\nAvailable for **Directory and Application tokens**. The token must be the one that created the notification template.",
         "tags": [
           "Staff Notification"
         ],
         "parameters": [
           {
-            "name": "filter[notification_template_code_name]",
+            "name": "notification_template_code_name",
             "in": "query",
             "required": true,
             "description": "The code name of the notification template whose StaffNotifications to return (e.g., \"campaign_abc123\")",
@@ -367,7 +367,7 @@
             }
           },
           {
-            "name": "filter[updated_at][gte]",
+            "name": "updated_since",
             "in": "query",
             "required": false,
             "description": "Return only StaffNotifications updated at or after this ISO 8601 time. Inclusive (e.g., \"2026-09-09T05:30:21.000Z\")",
@@ -377,7 +377,7 @@
             }
           },
           {
-            "name": "filter[updated_at][lt]",
+            "name": "updated_before",
             "in": "query",
             "required": false,
             "description": "Return only StaffNotifications updated before this ISO 8601 time. Exclusive (e.g., \"2026-09-10T00:00:00.000Z\")",
@@ -387,7 +387,7 @@
             }
           },
           {
-            "name": "filter[pane_status]",
+            "name": "pane_status",
             "in": "query",
             "required": false,
             "description": "Return only StaffNotifications whose pane notification has this status. Both values require that the pane notification was sent (e.g., \"sent\", \"read\")",
@@ -400,10 +400,10 @@
             }
           },
           {
-            "name": "filter[push_clicked]",
+            "name": "push_clicked",
             "in": "query",
             "required": false,
-            "description": "Return only StaffNotifications whose push notification was clicked (true) or was not clicked (false) (e.g., true, false)",
+            "description": "Return only StaffNotifications sent by push, whose push notification was clicked (true) or was not clicked (false) (e.g., true, false)",
             "schema": {
               "type": "boolean"
             }
@@ -412,7 +412,7 @@
             "name": "sort",
             "in": "query",
             "required": false,
-            "description": "Sort order. Rows with the same updated_at are sorted by uid in the same direction (e.g., \"updated_at:asc\", \"updated_at:desc\")",
+            "description": "Sort order. Rows with the same updated_at always come in the same order (e.g., \"updated_at:asc\", \"updated_at:desc\")",
             "schema": {
               "type": "string",
               "enum": [
@@ -423,10 +423,19 @@
             }
           },
           {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "Return the page after the page that returned this cursor. Use the next_cursor of the previous response, with the same filters and sort. Cannot be used with page (e.g., \"WyIyMDI2LTA5LTA5IDA1OjMxOjEyLjAwMDAwMCIsNDJd\")",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "page",
             "in": "query",
             "required": false,
-            "description": "The page number (e.g., 1, 2)",
+            "description": "The page number. Cannot be used with cursor (e.g., 1, 2)",
             "schema": {
               "type": "integer",
               "minimum": 1,
@@ -464,10 +473,15 @@
                           "properties": {
                             "staff_notifications": {
                               "type": "array",
-                              "description": "The StaffNotifications on this page, oldest `updated_at` first.",
+                              "description": "The StaffNotifications on this page, in the order of `sort`.",
                               "items": {
                                 "$ref": "https://vcita.github.io/developers-hub/entities/communication/staff_notification.json"
                               }
+                            },
+                            "next_cursor": {
+                              "type": "string",
+                              "nullable": true,
+                              "description": "Pass as `cursor` to get the next page. `null` when this page has fewer StaffNotifications than `per_page`."
                             }
                           }
                         }
@@ -495,14 +509,15 @@
                         "created_at": "2026-09-09T05:30:00.000Z",
                         "updated_at": "2026-09-09T05:31:12.000Z"
                       }
-                    ]
+                    ],
+                    "next_cursor": null
                   }
                 }
               }
             }
           },
           "400": {
-            "description": "A filter or query parameter is not valid, the notification template does not exist, or the token is not the creator of the template",
+            "description": "A filter or query parameter is not valid, cursor is used with page, the notification template does not exist, or the token is not the creator of the template",
             "content": {
               "application/json": {
                 "schema": {
@@ -513,7 +528,7 @@
                   "errors": [
                     {
                       "code": "bad_request",
-                      "message": "filter does not support: read. Supported: notification_template_code_name, updated_at, pane_status, push_clicked"
+                      "message": "pane_status must be one of the following values: sent, read"
                     }
                   ]
                 }
@@ -626,17 +641,17 @@
         ]
       }
     },
-    "/v3/communication/reports/staff_notification_stats": {
+    "/v3/communication/reports/staff_notifications": {
       "get": {
         "summary": "Get a notification template's delivery and engagement stats",
         "operationId": "getStaffNotificationStats",
-        "description": "## Overview\nReturn delivery and engagement counts for the StaffNotifications of one notification template, grouped by channel.\n\nEvery count is a number of distinct staff members. A staff member who received the template more than once is counted once.\n\n## Channels\nOnly the channels that the template uses are returned under `channels`: `pane`, `push`, `email` and `sms`.\n\n## Engagement\n`engaged` counts the staff members who clicked the push, opened or clicked the email, or clicked the SMS. Pane read is not counted, because \"mark all as read\" also sets it.\n\nOnly the creator of the notification template can read its stats.\n\nAvailable for **Directory and App tokens**. The token must be the one that created the notification template.",
+        "description": "## Overview\nReturn delivery and engagement counts for the StaffNotifications of one notification template, grouped by channel.\n\nEvery count is a number of distinct staff members. A staff member who received the template more than once is counted once.\n\n## Channels\nOnly the channels that the template uses are returned under `channels`: `pane`, `push`, `email` and `sms`.\n\n## Engagement\n`engaged` counts the staff members who clicked the push, opened or clicked the email, or clicked the SMS. Pane read is not counted, because \"mark all as read\" also sets it.\n\nOnly the creator of the notification template can read its stats.\n\nAvailable for **Directory and Application tokens**. The token must be the one that created the notification template.",
         "tags": [
           "Staff Notification"
         ],
         "parameters": [
           {
-            "name": "filter[notification_template_code_name]",
+            "name": "notification_template_code_name",
             "in": "query",
             "required": true,
             "description": "The code name of the notification template to report on (e.g., \"campaign_abc123\")",
@@ -708,7 +723,7 @@
             }
           },
           "400": {
-            "description": "The filter is not valid, the notification template does not exist, or the token is not the creator of the template",
+            "description": "A query parameter is not valid, the notification template does not exist, or the token is not the creator of the template",
             "content": {
               "application/json": {
                 "schema": {
