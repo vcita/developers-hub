@@ -249,7 +249,7 @@
     "SessionResponse": {
       "properties": {
         "ai_status": {
-          "description": "AI routing status for the session. `none` means the session is not currently owned by the AI receptionist; `ai_intercepted` means inbound messages are routed to the AI receptionist; `ai_released` means the AI receptionist handed the active session back to the CRM.",
+          "description": "AI routing status for the session. `none` means the session is not currently owned by the AI receptionist; `ai_intercepted` means inbound messages are routed to the AI receptionist; `ai_released` means the session went back to the CRM: the AI receptionist handed it back, or the source channel app released it after the AI receptionist could not take a message (e.g., \"none\", \"ai_intercepted\", \"ai_released\").",
           "enum": [
             "none",
             "ai_intercepted",
@@ -346,7 +346,7 @@
     "UpdateSessionDto": {
       "properties": {
         "ai_status": {
-          "description": "AI routing status. Only the AI receptionist app may set `ai_released`; source channel apps must not set this field.",
+          "description": "AI routing status. The AI receptionist app may set any value. A source channel app may set only `ai_released`, and only on a session with `ai_status` `ai_intercepted` and a contact (`contact_uid` in this request or already on the session). The source app does this after its own flow handled a message that the AI receptionist could not take (503 `err_receptionist_unavailable` on Create a Business Communication Message). Other values from a source app are refused (e.g., \"ai_intercepted\", \"ai_released\").",
           "enum": [
             "none",
             "ai_intercepted",
@@ -562,6 +562,23 @@
             "description": "Unauthorized to perform action.",
             "schema": {
               "$ref": "#/definitions/ErrorResponse"
+            }
+          },
+          "503": {
+            "description": "The AI Receptionist cannot take an inbound message on a channel it intercepts. For example, the business turned the AI Receptionist off, the AI chats for this month are used up, or the AI Receptionist app is not installed. The message is not saved and does not go to the inbox. The channel app must handle the message with its own flow, for example a bot that asks for the sender's details. After that, the app can set `ai_status` to `ai_released` on the session (see Update a Business Communication Session). The error code is `err_receptionist_unavailable` (e.g., \"err_receptionist_unavailable\").",
+            "schema": {
+              "$ref": "#/definitions/ErrorResponse"
+            },
+            "examples": {
+              "application/json": {
+                "success": false,
+                "errors": [
+                  {
+                    "code": "err_receptionist_unavailable",
+                    "message": "AI receptionist unavailable for channel [ch_8f2a1c] — channel app should handle this message."
+                  }
+                ]
+              }
             }
           }
         },
