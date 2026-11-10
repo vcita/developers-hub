@@ -32,11 +32,15 @@
                 },
                 "code": {
                   "type": "string",
-                  "description": "A machine-readable error code (e.g., \"invalid\", \"required\", \"not_found\")."
+                  "description": "A machine-readable error code (e.g., \"bad_request\", \"forbidden\", \"not_found\", \"BUSINESS_HAS_EXISTING_RULES\", \"BUSINESS_HAS_ONGOING_JOB\", \"RATE_LIMIT_EXCEEDED\")."
                 },
                 "message": {
                   "type": "string",
                   "description": "A human-readable error message describing the issue."
+                },
+                "retry_after": {
+                  "type": "integer",
+                  "description": "Seconds until the next request is allowed. Present on a 429 response only (e.g., 42)."
                 }
               }
             }
@@ -52,8 +56,9 @@
         "properties": {
           "content": {
             "type": "string",
-            "description": "The content or text of the business rule (e.g., \"Always use a friendly and professional tone\"). For FAQ rules, include both the question and answer.",
-            "example": "Always use a friendly and professional tone"
+            "description": "The content or text of the business rule (e.g., \"Always use a friendly and professional tone\"). For FAQ rules, include both the question and answer. At most 20,000 characters.",
+            "example": "Always use a friendly and professional tone",
+            "maxLength": 20000
           },
           "sort_order": {
             "type": "integer",
@@ -72,6 +77,24 @@
               "lead_handling"
             ],
             "example": "tone_of_voice"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "system",
+              "user"
+            ],
+            "description": "The source of the rule. Only an app token that acts for a staff member can set it (e.g., \"system\"). A staff token always gets `user`.",
+            "example": "system"
+          },
+          "metadata": {
+            "type": "object",
+            "nullable": true,
+            "description": "Free-form metadata stored with the rule, for example the question and answer of an FAQ rule. Only an app token that acts for a staff member can set it; a staff token gets `null`. Serialized size at most 4,096 characters (e.g., {\"question\": \"What are your hours?\", \"answer\": \"9 to 5\"}).",
+            "example": {
+              "question": "What are your hours?",
+              "answer": "9 to 5"
+            }
           }
         },
         "required": [
@@ -84,7 +107,8 @@
         "properties": {
           "content": {
             "type": "string",
-            "description": "The content or text of the business rule (e.g., \"Always maintain a warm, friendly, and professional tone in all client communications\")."
+            "description": "The content or text of the business rule (e.g., \"Always maintain a warm, friendly, and professional tone in all client communications\"). At most 20,000 characters.",
+            "maxLength": 20000
           },
           "status": {
             "type": "string",
@@ -111,7 +135,8 @@
               "lead_handling"
             ]
           }
-        }
+        },
+        "description": "Only `category_code`, `content`, `status` and `sort_order` change. Other fields in the body are ignored."
       },
       "BusinessRuleHistoryListResponseDto": {
         "type": "object",
@@ -137,11 +162,14 @@
         "type": "object",
         "properties": {
           "business_rules": {
-            "description": "List of BusinessRules",
+            "description": "List of BusinessRules. Without `page` the list holds every matching rule, at most 500.",
             "type": "array",
             "items": {
               "$ref": "https://vcita.github.io/developers-hub/entities/ai/BusinessRule.json"
             }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ListMeta"
           }
         },
         "required": [
@@ -162,11 +190,61 @@
             "enum": [
               "pending"
             ]
+          },
+          "message": {
+            "type": "string",
+            "description": "A human-readable status message (e.g., \"Bulk import job created successfully. Processing will begin shortly.\")."
           }
         },
         "required": [
           "job_uid",
-          "status"
+          "status",
+          "message"
+        ]
+      },
+      "BusinessRuleResponseDto": {
+        "type": "object",
+        "properties": {
+          "business_rule": {
+            "$ref": "https://vcita.github.io/developers-hub/entities/ai/BusinessRule.json"
+          }
+        },
+        "required": [
+          "business_rule"
+        ]
+      },
+      "BusinessRuleHistoryResponseDto": {
+        "type": "object",
+        "properties": {
+          "business_rule_history": {
+            "$ref": "https://vcita.github.io/developers-hub/entities/ai/BusinessRuleHistory.json"
+          }
+        },
+        "required": [
+          "business_rule_history"
+        ]
+      },
+      "ListMeta": {
+        "type": "object",
+        "description": "Paging information. Present only when the request carries `page`.",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "description": "The page returned, starting at 1 (e.g., 1)."
+          },
+          "per_page": {
+            "type": "integer",
+            "description": "The page size (e.g., 25)."
+          },
+          "total": {
+            "type": "integer",
+            "description": "The number of rules that match the filters (e.g., 42)."
+          }
+        },
+        "required": [
+          "page",
+          "per_page",
+          "total"
         ]
       }
     },
@@ -183,8 +261,8 @@
     "/v3/ai/business_rules/bulk": {
       "post": {
         "operationId": "BusinessRulesController_createBulkImportJob",
-        "summary": "Bulk import business rules",
-        "description": "## Overview\nCreate an async job to extract business rules from raw text using LLM. The system analyzes content, extracts rules, classifies by category, and deduplicates against existing rules.\n\n## Webhook Notification\nWhen the job completes, a webhook notification will be sent to subscribers of the `business_rules_bulk_import/completed` event. The webhook payload includes the complete list of created business rules.\n\n**To receive notifications:**\n1. Subscribe to the webhook event: `POST /platform/v1/webhook/subscribe` with `{\"event\": \"business_rules_bulk_import/completed\", \"target_url\": \"https://your-domain.com/webhook\"}`\n2. Your webhook will receive the job results including all created business rules\n\n**Webhook Payload Structure:**\n```json\n{\n  \"event\": \"business_rules_bulk_import/completed\",\n  \"data\": {\n    \"job_uid\": \"job-xxx\",\n    \"business_uid\": \"biz-xxx\",\n    \"status\": \"completed\",\n    \"business_rules\": [\n      {\n        \"uid\": \"br-xxx\",\n        \"content\": \"Rule content\",\n        \"category_code\": \"policies_and_info\",\n        \"status\": \"pending_approval\",\n        \"created_at\": \"2026-03-01T10:30:00.000Z\"\n      }\n    ],\n    \"created_rules\": 15,\n    \"skipped_duplicates\": 8\n  }\n}\n```\n\nAvailable for **Staff** tokens.",
+        "summary": "Create a Business Rules Bulk Import",
+        "description": "## Overview\nCreate an async job to extract business rules from raw text using LLM. The system analyzes content, extracts rules, classifies by category, and deduplicates against existing rules.\n\n## Webhook Notification\nWhen the job completes, a webhook notification will be sent to subscribers of the `business_rules_bulk_import/completed` event. The webhook payload includes the complete list of created business rules.\n\n**To receive notifications:**\n1. Subscribe to the webhook event: `POST /platform/v1/webhook/subscribe` with `{\"event\": \"business_rules_bulk_import/completed\", \"target_url\": \"https://your-domain.com/webhook\"}`\n2. Your webhook will receive the job results including all created business rules\n\n**Webhook Payload Structure:**\n```json\n{\n  \"event\": \"business_rules_bulk_import/completed\",\n  \"data\": {\n    \"job_uid\": \"job-xxx\",\n    \"business_uid\": \"biz-xxx\",\n    \"status\": \"completed\",\n    \"business_rules\": [\n      {\n        \"uid\": \"br-xxx\",\n        \"content\": \"Rule content\",\n        \"category_code\": \"policies_and_info\",\n        \"status\": \"pending_approval\",\n        \"created_at\": \"2026-03-01T10:30:00.000Z\"\n      }\n    ],\n    \"created_rules\": 15,\n    \"skipped_duplicates\": 8\n  }\n}\n```\n\nAvailable for **Staff** tokens with `account.settings.manage`.",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -196,8 +274,8 @@
                 "properties": {
                   "content": {
                     "type": "string",
-                    "description": "Raw unstructured text content to analyze for rule extraction (e.g., business profile, email threads, policy documents). Maximum 100KB.",
-                    "maxLength": 102400
+                    "description": "Raw unstructured text content to analyze for rule extraction (e.g., business profile, email threads, policy documents). Maximum 50KB (51,200 characters).",
+                    "maxLength": 51200
                   },
                   "category_code": {
                     "type": "string",
@@ -214,13 +292,13 @@
                   },
                   "schema_description": {
                     "type": "string",
-                    "description": "Optional description of the content structure to help LLM understand the format (e.g., \"Structured business profile from onboarding intake. Fields: business identity, hours, About Us narrative, services list, service area, special notes.\").",
-                    "maxLength": 1000
+                    "description": "Optional description of the content structure to help LLM understand the format (e.g., \"Structured business profile from onboarding intake. Fields: business identity, hours, About Us narrative, services list, service area, special notes.\"). Maximum 500 characters.",
+                    "maxLength": 500
                   },
                   "ingestion_prompt": {
                     "type": "string",
-                    "description": "Optional instructions for the LLM on how to extract and categorize rules from the content (e.g., \"Extract FAQ pairs from services. Infer tone from About Us. Special Notes become individual policies_and_info rules.\").",
-                    "maxLength": 2000
+                    "description": "Optional instructions for the LLM on how to extract and categorize rules from the content (e.g., \"Extract FAQ pairs from services. Infer tone from About Us. Special Notes become individual policies_and_info rules.\"). Maximum 500 characters.",
+                    "maxLength": 500
                   }
                 },
                 "required": [
@@ -259,28 +337,57 @@
                   "success": true,
                   "data": {
                     "job_uid": "job-a1b2c3d4-5678-90ef-ghij-klmnopqrstuv",
-                    "status": "pending"
+                    "status": "pending",
+                    "message": "Bulk import job created successfully. Processing will begin shortly."
                   }
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request - malformed request or invalid syntax",
+            "description": "Bad request - validation error, or the business cannot start a bulk import",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "field": "content",
-                      "code": "required",
-                      "message": "content is required"
+                "examples": {
+                  "validation": {
+                    "summary": "Validation error",
+                    "value": {
+                      "success": false,
+                      "errors": [
+                        {
+                          "code": "bad_request",
+                          "message": "content must be shorter than or equal to 51200 characters"
+                        }
+                      ]
                     }
-                  ]
+                  },
+                  "existing_rules": {
+                    "summary": "The business already has rules",
+                    "value": {
+                      "success": false,
+                      "errors": [
+                        {
+                          "code": "BUSINESS_HAS_EXISTING_RULES",
+                          "message": "Bulk import is only available for businesses without existing rules"
+                        }
+                      ]
+                    }
+                  },
+                  "ongoing_job": {
+                    "summary": "Another import job is in progress",
+                    "value": {
+                      "success": false,
+                      "errors": [
+                        {
+                          "code": "BUSINESS_HAS_ONGOING_JOB",
+                          "message": "Bulk import is not available while another import job is in progress"
+                        }
+                      ]
+                    }
+                  }
                 }
               }
             }
@@ -295,8 +402,16 @@
               }
             }
           },
-          "422": {
-            "description": "Unprocessable Entity - Validation error",
+          "429": {
+            "description": "Too many requests - at most 5 bulk imports per minute per business. The `Retry-After` header and `errors[0].retry_after` give the seconds to wait.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the next request is allowed (e.g., 42).",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -306,22 +421,17 @@
                   "success": false,
                   "errors": [
                     {
-                      "field": "content",
-                      "code": "string.max",
-                      "message": "content must not exceed 100KB"
-                    },
-                    {
-                      "field": "options.deduplication_threshold",
-                      "code": "number.max",
-                      "message": "deduplication_threshold must be between 0 and 1"
+                      "code": "RATE_LIMIT_EXCEEDED",
+                      "message": "Rate limit exceeded. Maximum 5 requests per minute.",
+                      "retry_after": 42
                     }
                   ]
                 }
               }
             }
           },
-          "429": {
-            "description": "Too Many Requests - Rate limit exceeded",
+          "403": {
+            "description": "Forbidden - the token is not a staff token, or the staff member lacks `account.settings.manage`",
             "content": {
               "application/json": {
                 "schema": {
@@ -331,8 +441,8 @@
                   "success": false,
                   "errors": [
                     {
-                      "code": "rate_limit_exceeded",
-                      "message": "Rate limit exceeded. Maximum 5 requests per minute."
+                      "code": "forbidden",
+                      "message": "This endpoint is available for staff tokens only"
                     }
                   ]
                 }
@@ -353,14 +463,14 @@
     "/v3/ai/business_rules": {
       "get": {
         "operationId": "BusinessRulesController_getBusinessRules",
-        "summary": "Get all BusinessRules",
-        "description": "## Overview\nGet a list of all business rules for the authenticated business. Optionally filter by category.\n\nAvailable for **Staff** tokens.",
+        "summary": "Get all Business Rules",
+        "description": "## Overview\nGet all business rules of the authenticated business, ordered by `category_code` and `sort_order` unless `sort` says otherwise.\n\nWithout `page` the response holds every matching rule, at most 500. When the cap cuts the list, the response carries the header `Warning: 299 - \"unpaginated list capped at 500 rows; use page and per_page\"`.\n\nWith `page` the response holds one page and a `meta` object with `page`, `per_page` and `total`.\n\nAvailable for **Staff** tokens.",
         "parameters": [
           {
             "name": "category_code",
             "required": false,
             "in": "query",
-            "description": "Filter by rule category code(s). Accepts a single value, a repeated parameter, or a comma-separated list (e.g., \"?category_code=faq\", \"?category_code=faq&category_code=tone_of_voice\", \"?category_code=faq,tone_of_voice\"). Omit to retrieve every category.",
+            "description": "Filter by rule category code(s). Accepts a single value, a repeated parameter, or a comma-separated list (e.g., \"?category_code=faq\", \"?category_code=faq&category_code=tone_of_voice\", \"?category_code=faq,tone_of_voice\"). An unknown value returns 400. Omit to retrieve every category.",
             "schema": {
               "type": "array",
               "items": {
@@ -377,11 +487,44 @@
             },
             "style": "form",
             "explode": true
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number, starting at 1 (e.g., 1). When omitted, the response is unpaged (at most 500 rules) and has no `meta` object.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            }
+          },
+          {
+            "name": "per_page",
+            "required": false,
+            "in": "query",
+            "description": "Rules per page, used only together with `page` (e.g., 25). Defaults to 25, at most 100.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "description": "Sort clauses as `field:asc|desc`, comma-separated, over `category_code`, `sort_order`, `created_at` and `updated_at` (e.g., \"category_code:asc,sort_order:asc\"). An unknown field or direction returns 400.",
+            "schema": {
+              "type": "string",
+              "default": "category_code:asc,sort_order:asc"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Business rules retrieved successfully",
+            "description": "Business rules retrieved successfully. The example shows a paged response.",
             "content": {
               "application/json": {
                 "schema": {
@@ -435,7 +578,12 @@
                         "updated_at": "2024-12-15T11:00:00.000Z",
                         "category_code": "faq"
                       }
-                    ]
+                    ],
+                    "meta": {
+                      "page": 1,
+                      "per_page": 25,
+                      "total": 2
+                    }
                   }
                 }
               }
@@ -447,6 +595,44 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid query parameter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "bad_request",
+                      "message": "page must not be less than 1"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - the token is not a staff token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "This endpoint is available for staff tokens only"
+                    }
+                  ]
                 }
               }
             }
@@ -463,8 +649,8 @@
       },
       "post": {
         "operationId": "BusinessRulesController_createBusinessRule",
-        "summary": "Create a BusinessRule",
-        "description": "## Overview\nCreate a new business rule for the authenticated business.\n\nAvailable for **Staff** tokens.",
+        "summary": "Create a Business Rule",
+        "description": "## Overview\nCreate a new business rule for the authenticated business. The business comes from the token. `source` and `metadata` are stored only for an app token that acts for a staff member; a staff token gets `source: user` and `metadata: null`.\n\nAvailable for **Staff** tokens with `account.settings.manage`.",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -494,7 +680,7 @@
                     {
                       "properties": {
                         "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/BusinessRule.json"
+                          "$ref": "#/components/schemas/BusinessRuleResponseDto"
                         }
                       }
                     }
@@ -533,9 +719,8 @@
                   "success": false,
                   "errors": [
                     {
-                      "field": "category_code",
-                      "code": "required",
-                      "message": "category_code is required"
+                      "code": "bad_request",
+                      "message": "content must be shorter than or equal to 20000 characters"
                     }
                   ]
                 }
@@ -552,8 +737,8 @@
               }
             }
           },
-          "422": {
-            "description": "Unprocessable Entity - Validation error.",
+          "403": {
+            "description": "Forbidden - the token is not a staff token, or the staff member lacks `account.settings.manage`",
             "content": {
               "application/json": {
                 "schema": {
@@ -563,9 +748,8 @@
                   "success": false,
                   "errors": [
                     {
-                      "field": "category_code",
-                      "code": "invalid",
-                      "message": "category_code must be one of: tone_of_voice, policies_and_info, things_to_avoid, faq"
+                      "code": "forbidden",
+                      "message": "This endpoint is available for staff tokens only"
                     }
                   ]
                 }
@@ -586,8 +770,8 @@
     "/v3/ai/business_rule_histories": {
       "get": {
         "operationId": "BusinessRulesController_getHistory",
-        "summary": "Get all BusinessRule History Records",
-        "description": "## Overview\nGet the change history for business rules. Supports optional filtering by rule UID and action type, with pagination.\n\nAvailable for **Staff** tokens.",
+        "summary": "Get all Business Rule Histories",
+        "description": "## Overview\nGet the change history of the business rules of the authenticated business, newest first, with optional filters by rule UID and action, paged.\n\nAvailable for **Staff** tokens.",
         "parameters": [
           {
             "name": "rule_uid",
@@ -602,7 +786,7 @@
             "name": "action",
             "required": false,
             "in": "query",
-            "description": "Filter history by the type of action performed",
+            "description": "Filter history by the type of action performed. An unknown value returns 400.",
             "schema": {
               "type": "string",
               "enum": [
@@ -616,19 +800,23 @@
             "name": "page",
             "required": false,
             "in": "query",
-            "description": "Page number for pagination (0-indexed). Defaults to 0.",
+            "description": "Page number, starting at 1 (e.g., 1). Defaults to 1.",
             "schema": {
               "type": "integer",
-              "default": 0
+              "minimum": 1,
+              "maximum": 10000,
+              "default": 1
             }
           },
           {
             "name": "per_page",
             "required": false,
             "in": "query",
-            "description": "Number of records per page. Defaults to 25.",
+            "description": "Records per page (e.g., 25). Defaults to 25, at most 100.",
             "schema": {
               "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
               "default": 25
             }
           }
@@ -685,6 +873,44 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Bad request - invalid query parameter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "bad_request",
+                      "message": "page must not be less than 1"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - the token is not a staff token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "This endpoint is available for staff tokens only"
+                    }
+                  ]
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -700,8 +926,8 @@
     "/v3/ai/business_rule_histories/{uid}": {
       "get": {
         "operationId": "BusinessRulesController_getHistoryRecord",
-        "summary": "Retrieve a BusinessRule History Record",
-        "description": "## Overview\nRetrieve a specific history record by its unique identifier (UID).\n\nAvailable for **Staff** tokens.",
+        "summary": "Retrieve a Business Rule History",
+        "description": "## Overview\nRetrieve one history record of the authenticated business by UID. A record of another business returns 404.\n\nAvailable for **Staff** tokens.",
         "parameters": [
           {
             "name": "uid",
@@ -727,7 +953,7 @@
                     {
                       "properties": {
                         "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/BusinessRuleHistory.json"
+                          "$ref": "#/components/schemas/BusinessRuleHistoryResponseDto"
                         }
                       }
                     }
@@ -736,21 +962,19 @@
                 "example": {
                   "success": true,
                   "data": {
-                    "business_rule_histories": [
-                      {
-                        "uid": "hist-a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-                        "rule_uid": "br-a1b2c3d4-5678-90ef-ghij-klmnopqrstuv",
-                        "business_uid": "biz-1234abcd-5678-90ef-ghij-klmnopqrstuv",
-                        "content": "Always use a friendly and professional tone",
-                        "source": "user",
-                        "action": "updated",
-                        "changed_by_staff_uid": "stf-9876wxyz-5432-10ab-cdef-ghijklmnopqr",
-                        "changed_at": "2024-12-16T14:30:00.000Z",
-                        "created_at": "2024-12-16T14:30:00.000Z",
-                        "updated_at": "2024-12-16T14:30:00.000Z",
-                        "category_code": "tone_of_voice"
-                      }
-                    ]
+                    "business_rule_history": {
+                      "uid": "hist-a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                      "rule_uid": "br-a1b2c3d4-5678-90ef-ghij-klmnopqrstuv",
+                      "business_uid": "biz-1234abcd-5678-90ef-ghij-klmnopqrstuv",
+                      "content": "Always use a friendly and professional tone",
+                      "source": "user",
+                      "action": "updated",
+                      "changed_by_staff_uid": "stf-9876wxyz-5432-10ab-cdef-ghijklmnopqr",
+                      "changed_at": "2024-12-16T14:30:00.000Z",
+                      "created_at": "2024-12-16T14:30:00.000Z",
+                      "updated_at": "2024-12-16T14:30:00.000Z",
+                      "category_code": "tone_of_voice"
+                    }
                   }
                 }
               }
@@ -767,21 +991,39 @@
             }
           },
           "403": {
-            "description": "Forbidden - history record belongs to another business",
+            "description": "Forbidden - the token is not a staff token",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "This endpoint is available for staff tokens only"
+                    }
+                  ]
                 }
               }
             }
           },
           "404": {
-            "description": "History record not found",
+            "description": "History record not found, or the record belongs to another business",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "History record not found"
+                    }
+                  ]
                 }
               }
             }
@@ -800,8 +1042,8 @@
     "/v3/ai/business_rules/{uid}": {
       "get": {
         "operationId": "BusinessRulesController_getBusinessRule",
-        "summary": "Retrieve a BusinessRule",
-        "description": "## Overview\nRetrieve a specific business rule based on its unique identifier (UID).\n\nAvailable for **Staff** tokens.",
+        "summary": "Retrieve a Business Rule",
+        "description": "## Overview\nRetrieve a business rule of the authenticated business by UID. A rule of another business returns 404.\n\nAvailable for **Staff** tokens.",
         "parameters": [
           {
             "name": "uid",
@@ -827,7 +1069,7 @@
                     {
                       "properties": {
                         "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/BusinessRule.json"
+                          "$ref": "#/components/schemas/BusinessRuleResponseDto"
                         }
                       }
                     }
@@ -866,21 +1108,39 @@
             }
           },
           "403": {
-            "description": "Forbidden - rule belongs to another business",
+            "description": "Forbidden - the token is not a staff token",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "This endpoint is available for staff tokens only"
+                    }
+                  ]
                 }
               }
             }
           },
           "404": {
-            "description": "Business rule not found",
+            "description": "Business rule not found, or the rule belongs to another business",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Business rule not found"
+                    }
+                  ]
                 }
               }
             }
@@ -897,8 +1157,8 @@
       },
       "put": {
         "operationId": "BusinessRulesController_updateBusinessRule",
-        "summary": "Update a BusinessRule",
-        "description": "## Overview\nUpdate an existing business rule by UID. All fields are optional - only provided fields will be updated.\n\nAvailable for **Staff** tokens.",
+        "summary": "Update a Business Rule",
+        "description": "## Overview\nUpdate a business rule of the authenticated business by UID. Only `category_code`, `content`, `status` and `sort_order` change; other fields in the body are ignored. A rule of another business returns 404.\n\nAvailable for **Staff** tokens with `account.settings.manage`.",
         "parameters": [
           {
             "name": "uid",
@@ -938,7 +1198,7 @@
                     {
                       "properties": {
                         "data": {
-                          "$ref": "https://vcita.github.io/developers-hub/entities/ai/BusinessRule.json"
+                          "$ref": "#/components/schemas/BusinessRuleResponseDto"
                         }
                       }
                     }
@@ -987,27 +1247,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - rule belongs to another business",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Business rule not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Unprocessable Entity - Validation error.",
+            "description": "Forbidden - the token is not a staff token, or the staff member lacks `account.settings.manage`",
             "content": {
               "application/json": {
                 "schema": {
@@ -1017,9 +1257,27 @@
                   "success": false,
                   "errors": [
                     {
-                      "field": "status",
-                      "code": "invalid",
-                      "message": "Status must be one of: active, pending_approval, inactive"
+                      "code": "forbidden",
+                      "message": "This endpoint is available for staff tokens only"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Business rule not found, or the rule belongs to another business",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Business rule not found"
                     }
                   ]
                 }
@@ -1038,8 +1296,8 @@
       },
       "delete": {
         "operationId": "BusinessRulesController_deleteBusinessRule",
-        "summary": "Delete a BusinessRule",
-        "description": "## Overview\nDelete a business rule by UID.\n\nAvailable for **Staff** tokens.",
+        "summary": "Delete a Business Rule",
+        "description": "## Overview\nDelete a business rule of the authenticated business by UID. The response holds the deleted rule. A rule of another business returns 404.\n\nAvailable for **Staff** tokens with `account.settings.manage`.",
         "parameters": [
           {
             "name": "uid",
@@ -1054,18 +1312,41 @@
         ],
         "responses": {
           "200": {
-            "description": "Business rule deleted successfully",
+            "description": "Business rule deleted successfully. The response holds the deleted rule.",
             "content": {
               "application/json": {
                 "schema": {
                   "allOf": [
                     {
                       "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/BusinessRuleResponseDto"
+                        }
+                      }
                     }
                   ]
                 },
                 "example": {
-                  "success": true
+                  "success": true,
+                  "data": {
+                    "business_rule": {
+                      "uid": "br-a1b2c3d4-5678-90ef-ghij-klmnopqrstuv",
+                      "business_uid": "biz-1234abcd-5678-90ef-ghij-klmnopqrstuv",
+                      "content": "Always use a friendly and professional tone when communicating with clients",
+                      "status": "active",
+                      "source": "user",
+                      "created_by_staff_uid": "stf-9876wxyz-5432-10ab-cdef-ghijklmnopqr",
+                      "updated_by_staff_uid": null,
+                      "sort_order": 0,
+                      "metadata": null,
+                      "created_at": "2024-12-15T10:30:00.000Z",
+                      "updated_at": "2024-12-15T10:30:00.000Z",
+                      "category_code": "tone_of_voice"
+                    }
+                  }
                 }
               }
             }
@@ -1081,21 +1362,39 @@
             }
           },
           "403": {
-            "description": "Forbidden - rule belongs to another business",
+            "description": "Forbidden - the token is not a staff token, or the staff member lacks `account.settings.manage`",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "forbidden",
+                      "message": "This endpoint is available for staff tokens only"
+                    }
+                  ]
                 }
               }
             }
           },
           "404": {
-            "description": "Business rule not found",
+            "description": "Business rule not found, or the rule belongs to another business",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Business rule not found"
+                    }
+                  ]
                 }
               }
             }
