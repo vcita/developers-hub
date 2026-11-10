@@ -177,11 +177,16 @@
             "enum": [
               "pending"
             ]
+          },
+          "message": {
+            "type": "string",
+            "description": "A human-readable status message (e.g., \"Bulk import job created successfully. Processing will begin shortly.\")."
           }
         },
         "required": [
           "job_uid",
-          "status"
+          "status",
+          "message"
         ]
       },
       "BusinessRuleResponseDto": {
@@ -308,8 +313,8 @@
                 "properties": {
                   "content": {
                     "type": "string",
-                    "description": "Raw unstructured text content to analyze for rule extraction (e.g., business profile, email threads, policy documents). Maximum 100KB.",
-                    "maxLength": 102400
+                    "description": "Raw unstructured text content to analyze for rule extraction (e.g., business profile, email threads, policy documents). Maximum 50KB (51,200 characters).",
+                    "maxLength": 51200
                   },
                   "category_code": {
                     "type": "string",
@@ -319,13 +324,13 @@
                   },
                   "schema_description": {
                     "type": "string",
-                    "description": "Optional description of the content structure to help LLM understand the format (e.g., \"Structured business profile from onboarding intake. Fields: business identity, hours, About Us narrative, services list, service area, special notes.\").",
-                    "maxLength": 1000
+                    "description": "Optional description of the content structure to help LLM understand the format (e.g., \"Structured business profile from onboarding intake. Fields: business identity, hours, About Us narrative, services list, service area, special notes.\"). Maximum 500 characters.",
+                    "maxLength": 500
                   },
                   "ingestion_prompt": {
                     "type": "string",
-                    "description": "Optional instructions for the LLM on how to extract and categorize rules from the content (e.g., \"Extract FAQ pairs from services. Infer tone from About Us. Special Notes become individual policies_and_info rules.\").",
-                    "maxLength": 2000
+                    "description": "Optional instructions for the LLM on how to extract and categorize rules from the content (e.g., \"Extract FAQ pairs from services. Infer tone from About Us. Special Notes become individual policies_and_info rules.\"). Maximum 500 characters.",
+                    "maxLength": 500
                   }
                 },
                 "required": [
@@ -364,27 +369,57 @@
                   "success": true,
                   "data": {
                     "job_uid": "job-a1b2c3d4-5678-90ef-ghij-klmnopqrstuv",
-                    "status": "pending"
+                    "status": "pending",
+                    "message": "Bulk import job created successfully. Processing will begin shortly."
                   }
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request - malformed request or invalid syntax",
+            "description": "Bad request - validation error, or the business cannot start a bulk import",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "BUSINESS_HAS_EXISTING_RULES",
-                      "message": "Bulk import is only available for businesses without existing rules"
+                "examples": {
+                  "validation": {
+                    "summary": "Validation error",
+                    "value": {
+                      "success": false,
+                      "errors": [
+                        {
+                          "code": "bad_request",
+                          "message": "content must be shorter than or equal to 51200 characters"
+                        }
+                      ]
                     }
-                  ]
+                  },
+                  "existing_rules": {
+                    "summary": "The business already has rules",
+                    "value": {
+                      "success": false,
+                      "errors": [
+                        {
+                          "code": "BUSINESS_HAS_EXISTING_RULES",
+                          "message": "Bulk import is only available for businesses without existing rules"
+                        }
+                      ]
+                    }
+                  },
+                  "ongoing_job": {
+                    "summary": "Another import job is in progress",
+                    "value": {
+                      "success": false,
+                      "errors": [
+                        {
+                          "code": "BUSINESS_HAS_ONGOING_JOB",
+                          "message": "Bulk import is not available while another import job is in progress"
+                        }
+                      ]
+                    }
+                  }
                 }
               }
             }
@@ -395,31 +430,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Unprocessable Entity - Validation error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "field": "content",
-                      "code": "string.max",
-                      "message": "content must not exceed 100KB"
-                    },
-                    {
-                      "field": "options.deduplication_threshold",
-                      "code": "number.max",
-                      "message": "deduplication_threshold must be between 0 and 1"
-                    }
-                  ]
                 }
               }
             }
