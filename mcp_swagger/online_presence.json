@@ -6,14 +6,23 @@
     "version": "3.0",
     "x-generated": {
       "sourceFiles": [
-        "ai_receptionist_insights.json",
+        "widget_configurations.json",
         "ai_chat_configurations.json",
         "ai_receptionist_conversations.json",
-        "widget_configurations.json"
+        "ai_receptionist_insights.json"
       ],
       "pathNormalizations": [],
       "pathConflicts": [],
       "componentConflicts": [
+        {
+          "type": "schema",
+          "name": "ErrorResponse",
+          "resolution": "Renamed to ErrorResponse_ai_chat_configurations",
+          "files": [
+            "merged",
+            "ai_chat_configurations.json"
+          ]
+        },
         {
           "type": "schema",
           "name": "NestHttpException",
@@ -21,24 +30,6 @@
           "files": [
             "merged",
             "ai_receptionist_conversations.json"
-          ]
-        },
-        {
-          "type": "schema",
-          "name": "ErrorResponse",
-          "resolution": "Renamed to ErrorResponse_widget_configurations",
-          "files": [
-            "merged",
-            "widget_configurations.json"
-          ]
-        },
-        {
-          "type": "schema",
-          "name": "NestHttpException",
-          "resolution": "Renamed to NestHttpException_widget_configurations",
-          "files": [
-            "merged",
-            "widget_configurations.json"
           ]
         }
       ],
@@ -53,75 +44,51 @@
     }
   ],
   "paths": {
-    "/v3/online_presence/ai_receptionist/questions_report": {
+    "/v3/online_presence/widget_configurations": {
       "get": {
-        "operationId": "getAiReceptionistQuestionsReport",
-        "summary": "Get the questions customers asked the AI Receptionist",
-        "description": "Returns the distinct questions customers asked the receptionist in a trailing period, how often each was asked, the receptionist's average confidence when answering, every ask with a link to its conversation, and whether an answer has been applied. Questions are grouped across wordings and languages and written in the business's language; booking-flow steps (picking a slot, confirming) are not included. Simulated (test) conversations are never included, so `simulated=only` returns an empty list. Available for **Staff, App and Business tokens**.",
+        "operationId": "listWidgetConfigurations",
+        "summary": "Get all WidgetConfigurations",
+        "description": "Lists widget configurations. Available for **Staff tokens**",
         "tags": [
-          "AI Receptionist Insights"
+          "Web AI Widget"
         ],
         "parameters": [
           {
-            "name": "range",
+            "name": "page",
             "in": "query",
-            "description": "Trailing period ending now.",
+            "required": false,
+            "description": "1-based page index",
             "schema": {
-              "type": "string",
-              "enum": [
-                "7d",
-                "30d",
-                "3m",
-                "6m",
-                "1y"
-              ],
-              "default": "3m"
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
             }
           },
           {
-            "name": "channel",
+            "name": "per_page",
             "in": "query",
-            "description": "Only asks from conversations on this channel.",
+            "required": false,
             "schema": {
-              "type": "string",
-              "enum": [
-                "all",
-                "web",
-                "voice",
-                "messaging",
-                "assistant"
-              ],
-              "default": "all"
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
             }
           },
           {
-            "name": "app",
+            "name": "sort",
             "in": "query",
-            "description": "Only asks from conversations of this messaging app, by the app id comm-gw stored with the conversation (for example `messenger`, `instagramdm`). Compared case-insensitively.",
+            "required": false,
+            "description": "e.g. `created_at:desc` or `updated_at:asc`. Direction defaults to `asc` if omitted.",
             "schema": {
               "type": "string",
-              "maxLength": 64,
-              "pattern": "^[A-Za-z0-9_.-]+$"
-            }
-          },
-          {
-            "name": "simulated",
-            "in": "query",
-            "description": "Simulated conversations are never part of the ledger; `only` therefore returns no questions.",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "exclude",
-                "only",
-                "all"
-              ],
-              "default": "exclude"
+              "example": "created_at:desc"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "The report (`{ success: true, data: { source, window, filters, questions } }`)",
+            "description": "List result",
             "content": {
               "application/json": {
                 "schema": {
@@ -173,49 +140,14 @@
                       "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
                     },
                     {
+                      "type": "object",
                       "properties": {
                         "data": {
-                          "$ref": "#/components/schemas/QuestionsReportPayload"
+                          "$ref": "#/components/schemas/ListWidgetConfigurationsPayload"
                         }
                       }
                     }
                   ]
-                },
-                "example": {
-                  "success": true,
-                  "data": {
-                    "source": "ledger",
-                    "window": {
-                      "range": "3m",
-                      "start_date": "2026-07-16T00:00:00.000Z",
-                      "end_date": "2026-10-16T14:00:00.000Z",
-                      "generated_at": "2026-10-16T14:00:00.000Z"
-                    },
-                    "filters": {
-                      "channel": "all",
-                      "simulated": "exclude"
-                    },
-                    "questions": [
-                      {
-                        "question_uid": "7a9908af-39c9-4e3c-b8d7-f36789e392c4",
-                        "question": "When is Handyman for a Day available?",
-                        "count": 3,
-                        "avg_certainty": 4.3,
-                        "conversions": 2,
-                        "conversion_rate": 33,
-                        "answered": false,
-                        "occurrences": [
-                          {
-                            "conversation_uid": "92346484-1d5b-470a-9d39-9d680b7b9ad9",
-                            "text": "What days are open for Handyman for a Day?",
-                            "asked_at": "2026-09-13T12:37:55.000Z",
-                            "certainty": 4,
-                            "message_index": 0
-                          }
-                        ]
-                      }
-                    ]
-                  }
                 }
               }
             }
@@ -226,21 +158,32 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/NestHttpException"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "unauthorized",
-                      "message": "Authentication required"
-                    }
-                  ]
                 }
               }
             }
           },
           "403": {
-            "description": "Access denied",
+            "description": "Forbidden — business mismatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found (masked as 404 for business mismatch in some cases)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Semantic validation or bad query (e.g. legacy sort params)",
             "content": {
               "application/json": {
                 "schema": {
@@ -250,8 +193,9 @@
                   "success": false,
                   "errors": [
                     {
-                      "code": "forbidden",
-                      "message": "Access denied"
+                      "field": "sort",
+                      "code": "invalid",
+                      "message": "sort field must be one of: created_at, updated_at, business_uid"
                     }
                   ]
                 }
@@ -261,7 +205,529 @@
         },
         "security": [
           {
-            "AiReceptionistInsights": []
+            "WidgetConfigurations": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createWidgetConfiguration",
+        "summary": "Create a WidgetConfigurations",
+        "description": "Creates a widget configuration for a business. Available for **Staff token**;",
+        "tags": [
+          "Web AI Widget"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestCreateWidgetConfiguration"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/WidgetConfigurationResource"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request syntax (e.g., invalid JSON payload)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Semantic validation or business-rule failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "WidgetConfigurations": []
+          }
+        ]
+      }
+    },
+    "/v3/online_presence/widget_configurations/{uid}": {
+      "get": {
+        "operationId": "getWidgetConfigurationByUid",
+        "summary": "Retrieve a WidgetConfigurations",
+        "description": "Returns one widget configuration. Available for **Staff token**",
+        "tags": [
+          "Web AI Widget"
+        ],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/WidgetConfigurationResource"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "WidgetConfigurations": []
+          }
+        ]
+      },
+      "put": {
+        "operationId": "updateWidgetConfiguration",
+        "summary": "Update WidgetConfigurations",
+        "description": "Updates an existing widget configuration. Available fo **Staff token**",
+        "tags": [
+          "Web AI Widget"
+        ],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestUpdateWidgetConfiguration"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/WidgetConfigurationResource"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed request syntax (e.g., invalid JSON payload)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Semantic validation or business-rule failure",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "WidgetConfigurations": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "deleteWidgetConfiguration",
+        "summary": "Delete a WidgetConfigurations",
+        "description": "Deletes a widget configuration. Available for **Staff token**",
+        "tags": [
+          "Web AI Widget"
+        ],
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The deleted widget configuration (`{ success: true, data }`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/WidgetConfigurationResource"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NestHttpException"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "WidgetConfigurations": []
           }
         ]
       }
@@ -470,6 +936,12 @@
                                       "should_offer"
                                     ]
                                   }
+                                },
+                                "receptionist_enabled": {
+                                  "type": "boolean",
+                                  "nullable": true,
+                                  "default": true,
+                                  "description": "Whether the AI Receptionist is enabled. **false** turns the AI off for new conversations: website visitors can leave a message, messages from messaging apps go to the inbox, and calls go to voicemail. **true** or null runs the AI until the monthly AI chat quota is used up. Defaults to true. A business with no AiReceptionistConfiguration at all (GET returns 404) has the AI Receptionist off until a configuration is saved (e.g., true, false or null)."
                                 }
                               }
                             }
@@ -497,6 +969,7 @@
                               "guidance_urls": [
                                 "https://example.com/faq"
                               ],
+                              "receptionist_enabled": true,
                               "ai_actions": [
                                 {
                                   "action_uid": "action_book",
@@ -532,7 +1005,7 @@
             }
           },
           "404": {
-            "description": "Not Found — no AI chat configuration exists for this business yet.",
+            "description": "Not Found — no AI chat configuration exists for this business yet. Until one is saved, the AI Receptionist is off on every channel.",
             "content": {
               "application/json": {
                 "schema": {
@@ -570,6 +1043,22 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UpsertAiChatConfigRequest"
+              },
+              "examples": {
+                "turn_off_ai": {
+                  "summary": "Turn the AI Receptionist off",
+                  "description": "New conversations run without AI. Other settings are unchanged.",
+                  "value": {
+                    "receptionist_enabled": false
+                  }
+                },
+                "turn_on_ai": {
+                  "summary": "Turn the AI Receptionist on",
+                  "description": "New conversations run the AI until the monthly AI chat quota is used up.",
+                  "value": {
+                    "receptionist_enabled": true
+                  }
+                }
               }
             }
           }
@@ -770,6 +1259,12 @@
                                       "should_offer"
                                     ]
                                   }
+                                },
+                                "receptionist_enabled": {
+                                  "type": "boolean",
+                                  "nullable": true,
+                                  "default": true,
+                                  "description": "Whether the AI Receptionist is enabled. **false** turns the AI off for new conversations: website visitors can leave a message, messages from messaging apps go to the inbox, and calls go to voicemail. **true** or null runs the AI until the monthly AI chat quota is used up. Defaults to true. A business with no AiReceptionistConfiguration at all (GET returns 404) has the AI Receptionist off until a configuration is saved (e.g., true, false or null)."
                                 }
                               }
                             }
@@ -797,6 +1292,7 @@
                               "guidance_urls": [
                                 "https://example.com/faq"
                               ],
+                              "receptionist_enabled": true,
                               "ai_actions": [
                                 {
                                   "action_uid": "action_book",
@@ -3377,51 +3873,75 @@
         ]
       }
     },
-    "/v3/online_presence/widget_configurations": {
+    "/v3/online_presence/ai_receptionist/questions_report": {
       "get": {
-        "operationId": "listWidgetConfigurations",
-        "summary": "Get all WidgetConfigurations",
-        "description": "Lists widget configurations. Available for **Staff tokens**",
+        "operationId": "getAiReceptionistQuestionsReport",
+        "summary": "Get the questions customers asked the AI Receptionist",
+        "description": "Returns the distinct questions customers asked the receptionist in a trailing period, how often each was asked, the receptionist's average confidence when answering, every ask with a link to its conversation, and whether an answer has been applied. Questions are grouped across wordings and languages and written in the business's language; booking-flow steps (picking a slot, confirming) are not included. Simulated (test) conversations are never included, so `simulated=only` returns an empty list. Available for **Staff, App and Business tokens**.",
         "tags": [
-          "Web AI Widget"
+          "AI Receptionist Insights"
         ],
         "parameters": [
           {
-            "name": "page",
+            "name": "range",
             "in": "query",
-            "required": false,
-            "description": "1-based page index",
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "default": 1
-            }
-          },
-          {
-            "name": "per_page",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100,
-              "default": 25
-            }
-          },
-          {
-            "name": "sort",
-            "in": "query",
-            "required": false,
-            "description": "e.g. `created_at:desc` or `updated_at:asc`. Direction defaults to `asc` if omitted.",
+            "description": "Trailing period ending now.",
             "schema": {
               "type": "string",
-              "example": "created_at:desc"
+              "enum": [
+                "7d",
+                "30d",
+                "3m",
+                "6m",
+                "1y"
+              ],
+              "default": "3m"
+            }
+          },
+          {
+            "name": "channel",
+            "in": "query",
+            "description": "Only asks from conversations on this channel.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "web",
+                "voice",
+                "messaging",
+                "assistant"
+              ],
+              "default": "all"
+            }
+          },
+          {
+            "name": "app",
+            "in": "query",
+            "description": "Only asks from conversations of this messaging app, by the app id comm-gw stored with the conversation (for example `messenger`, `instagramdm`). Compared case-insensitively.",
+            "schema": {
+              "type": "string",
+              "maxLength": 64,
+              "pattern": "^[A-Za-z0-9_.-]+$"
+            }
+          },
+          {
+            "name": "simulated",
+            "in": "query",
+            "description": "Simulated conversations are never part of the ledger; `only` therefore returns no questions.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "exclude",
+                "only",
+                "all"
+              ],
+              "default": "exclude"
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "List result",
+            "description": "The report (`{ success: true, data: { source, window, filters, questions } }`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3473,50 +3993,55 @@
                       "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
                     },
                     {
-                      "type": "object",
                       "properties": {
                         "data": {
-                          "$ref": "#/components/schemas/ListWidgetConfigurationsPayload"
+                          "$ref": "#/components/schemas/QuestionsReportPayload"
                         }
                       }
                     }
                   ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "source": "ledger",
+                    "window": {
+                      "range": "3m",
+                      "start_date": "2026-07-16T00:00:00.000Z",
+                      "end_date": "2026-10-16T14:00:00.000Z",
+                      "generated_at": "2026-10-16T14:00:00.000Z"
+                    },
+                    "filters": {
+                      "channel": "all",
+                      "simulated": "exclude"
+                    },
+                    "questions": [
+                      {
+                        "question_uid": "7a9908af-39c9-4e3c-b8d7-f36789e392c4",
+                        "question": "When is Handyman for a Day available?",
+                        "count": 3,
+                        "avg_certainty": 4.3,
+                        "conversions": 2,
+                        "conversion_rate": 33,
+                        "answered": false,
+                        "occurrences": [
+                          {
+                            "conversation_uid": "92346484-1d5b-470a-9d39-9d680b7b9ad9",
+                            "text": "What days are open for Handyman for a Day?",
+                            "asked_at": "2026-09-13T12:37:55.000Z",
+                            "certainty": 4,
+                            "message_index": 0
+                          }
+                        ]
+                      }
+                    ]
+                  }
                 }
               }
             }
           },
           "401": {
             "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NestHttpException"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden — business mismatch",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NestHttpException"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found (masked as 404 for business mismatch in some cases)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NestHttpException"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Semantic validation or bad query (e.g. legacy sort params)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3526,541 +4051,37 @@
                   "success": false,
                   "errors": [
                     {
-                      "field": "sort",
-                      "code": "invalid",
-                      "message": "sort field must be one of: created_at, updated_at, business_uid"
+                      "code": "unauthorized",
+                      "message": "Authentication required"
                     }
                   ]
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "WidgetConfigurations": []
-          }
-        ]
-      },
-      "post": {
-        "operationId": "createWidgetConfiguration",
-        "summary": "Create a WidgetConfigurations",
-        "description": "Creates a widget configuration for a business. Available for **Staff token**;",
-        "tags": [
-          "Web AI Widget"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RequestCreateWidgetConfiguration"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "success": {
-                          "type": "boolean",
-                          "description": "Indicates whether the API request was successful (true) or failed (false)."
-                        },
-                        "data": {
-                          "type": "object",
-                          "description": "The response payload. Present on successful responses (success: true)."
-                        },
-                        "error": {
-                          "type": "string",
-                          "description": "Error message for simple error responses. Used in some legacy endpoints."
-                        },
-                        "errors": {
-                          "type": "array",
-                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "code": {
-                                "type": "string",
-                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
-                              },
-                              "message": {
-                                "type": "string",
-                                "description": "Human-readable error message."
-                              },
-                              "field": {
-                                "type": "string",
-                                "description": "The field that caused the error (for validation errors)."
-                              }
-                            },
-                            "required": [
-                              "code",
-                              "message"
-                            ]
-                          }
-                        }
-                      },
-                      "required": [
-                        "success"
-                      ],
-                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/WidgetConfigurationResource"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Malformed request syntax (e.g., invalid JSON payload)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NestHttpException"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NestHttpException"
                 }
               }
             }
           },
           "403": {
-            "description": "Forbidden",
+            "description": "Access denied",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/NestHttpException"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Semantic validation or business-rule failure",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NestHttpException"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "WidgetConfigurations": []
-          }
-        ]
-      }
-    },
-    "/v3/online_presence/widget_configurations/{uid}": {
-      "get": {
-        "operationId": "getWidgetConfigurationByUid",
-        "summary": "Retrieve a WidgetConfigurations",
-        "description": "Returns one widget configuration. Available for **Staff token**",
-        "tags": [
-          "Web AI Widget"
-        ],
-        "parameters": [
-          {
-            "name": "uid",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Configuration",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
                     {
-                      "type": "object",
-                      "properties": {
-                        "success": {
-                          "type": "boolean",
-                          "description": "Indicates whether the API request was successful (true) or failed (false)."
-                        },
-                        "data": {
-                          "type": "object",
-                          "description": "The response payload. Present on successful responses (success: true)."
-                        },
-                        "error": {
-                          "type": "string",
-                          "description": "Error message for simple error responses. Used in some legacy endpoints."
-                        },
-                        "errors": {
-                          "type": "array",
-                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "code": {
-                                "type": "string",
-                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
-                              },
-                              "message": {
-                                "type": "string",
-                                "description": "Human-readable error message."
-                              },
-                              "field": {
-                                "type": "string",
-                                "description": "The field that caused the error (for validation errors)."
-                              }
-                            },
-                            "required": [
-                              "code",
-                              "message"
-                            ]
-                          }
-                        }
-                      },
-                      "required": [
-                        "success"
-                      ],
-                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/WidgetConfigurationResource"
-                        }
-                      }
+                      "code": "forbidden",
+                      "message": "Access denied"
                     }
                   ]
                 }
               }
             }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NestHttpException"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NestHttpException"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NestHttpException"
-                }
-              }
-            }
           }
         },
         "security": [
           {
-            "WidgetConfigurations": []
-          }
-        ]
-      },
-      "put": {
-        "operationId": "updateWidgetConfiguration",
-        "summary": "Update WidgetConfigurations",
-        "description": "Updates an existing widget configuration. Available fo **Staff token**",
-        "tags": [
-          "Web AI Widget"
-        ],
-        "parameters": [
-          {
-            "name": "uid",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RequestUpdateWidgetConfiguration"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Updated configuration",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "success": {
-                          "type": "boolean",
-                          "description": "Indicates whether the API request was successful (true) or failed (false)."
-                        },
-                        "data": {
-                          "type": "object",
-                          "description": "The response payload. Present on successful responses (success: true)."
-                        },
-                        "error": {
-                          "type": "string",
-                          "description": "Error message for simple error responses. Used in some legacy endpoints."
-                        },
-                        "errors": {
-                          "type": "array",
-                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "code": {
-                                "type": "string",
-                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
-                              },
-                              "message": {
-                                "type": "string",
-                                "description": "Human-readable error message."
-                              },
-                              "field": {
-                                "type": "string",
-                                "description": "The field that caused the error (for validation errors)."
-                              }
-                            },
-                            "required": [
-                              "code",
-                              "message"
-                            ]
-                          }
-                        }
-                      },
-                      "required": [
-                        "success"
-                      ],
-                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/WidgetConfigurationResource"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Malformed request syntax (e.g., invalid JSON payload)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NestHttpException"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NestHttpException"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NestHttpException"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NestHttpException"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Semantic validation or business-rule failure",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NestHttpException"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "WidgetConfigurations": []
-          }
-        ]
-      },
-      "delete": {
-        "operationId": "deleteWidgetConfiguration",
-        "summary": "Delete a WidgetConfigurations",
-        "description": "Deletes a widget configuration. Available for **Staff token**",
-        "tags": [
-          "Web AI Widget"
-        ],
-        "parameters": [
-          {
-            "name": "uid",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The deleted widget configuration (`{ success: true, data }`)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "success": {
-                          "type": "boolean",
-                          "description": "Indicates whether the API request was successful (true) or failed (false)."
-                        },
-                        "data": {
-                          "type": "object",
-                          "description": "The response payload. Present on successful responses (success: true)."
-                        },
-                        "error": {
-                          "type": "string",
-                          "description": "Error message for simple error responses. Used in some legacy endpoints."
-                        },
-                        "errors": {
-                          "type": "array",
-                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "code": {
-                                "type": "string",
-                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
-                              },
-                              "message": {
-                                "type": "string",
-                                "description": "Human-readable error message."
-                              },
-                              "field": {
-                                "type": "string",
-                                "description": "The field that caused the error (for validation errors)."
-                              }
-                            },
-                            "required": [
-                              "code",
-                              "message"
-                            ]
-                          }
-                        }
-                      },
-                      "required": [
-                        "success"
-                      ],
-                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/WidgetConfigurationResource"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NestHttpException"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NestHttpException"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NestHttpException"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "WidgetConfigurations": []
+            "AiReceptionistInsights": []
           }
         ]
       }
@@ -4068,9 +4089,44 @@
   },
   "components": {
     "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "description": "Standard v3 error envelope.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Always false for error responses."
+          },
+          "errors": {
+            "type": "array",
+            "description": "List of error details describing what failed.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {
+                  "type": "string",
+                  "description": "Request field that failed validation, when applicable."
+                },
+                "code": {
+                  "type": "string",
+                  "description": "Machine-readable error code."
+                },
+                "message": {
+                  "type": "string",
+                  "description": "Human-readable error message."
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "success",
+          "errors"
+        ]
+      },
       "NestHttpException": {
         "type": "object",
-        "description": "Standard v3 error envelope for online_presence chat APIs.",
+        "description": "Standard v3 error envelope.",
         "properties": {
           "success": {
             "type": "boolean",
@@ -4111,178 +4167,391 @@
           "errors"
         ]
       },
-      "QuestionsReportOccurrence": {
+      "WelcomeButton": {
         "type": "object",
-        "description": "One time the question was asked in the period.",
+        "description": "Quick-reply button shown under the welcome message in the Web AI Widget.",
         "properties": {
-          "conversation_uid": {
+          "label": {
             "type": "string",
-            "description": "The conversation the question was asked in (see `ai_receptionist_conversations`)."
+            "description": "Button label shown to the visitor."
           },
-          "text": {
+          "message": {
             "type": "string",
-            "description": "The customer's wording, generalized (no names, contact details, dates or times); falls back to the question in the business language."
-          },
-          "asked_at": {
-            "type": "string",
-            "format": "date-time",
-            "description": "When the conversation ended (ISO 8601)."
-          },
-          "certainty": {
-            "type": "integer",
-            "nullable": true,
-            "minimum": 1,
-            "maximum": 5,
-            "description": "The receptionist's own 1–5 confidence in its reply to this ask, when it recorded one."
-          },
-          "message_index": {
-            "type": "integer",
-            "minimum": 0,
-            "description": "Zero-based index of the visitor message in the conversation's transcript `messages`."
+            "description": "Message text sent to the assistant when the button is clicked."
           }
         },
         "required": [
-          "conversation_uid",
-          "text",
-          "asked_at",
-          "message_index"
+          "label",
+          "message"
         ]
       },
-      "QuestionsReportQuestion": {
+      "ActionConfigItem": {
         "type": "object",
-        "description": "One distinct question, with every time it was asked in the period.",
+        "description": "A single client-portal action in the stored widget configuration. Order follows array position in the API.",
         "properties": {
-          "question_uid": {
+          "uid": {
             "type": "string",
-            "description": "Stable identifier of the question (UUID)."
+            "nullable": true,
+            "description": "Portal action UID. Required by the API for persisted actions; nullable only for legacy/backfill reads."
           },
-          "question": {
+          "action": {
             "type": "string",
-            "description": "The question in the business's language, generalized the way any customer would ask it."
+            "description": "Action key/type (client-portal action identifier)."
           },
-          "count": {
-            "type": "integer",
-            "minimum": 1,
-            "description": "How many times it was asked in the period (a customer asking twice in one conversation counts twice)."
+          "label": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200,
+            "description": "Display label override; omit or null to resolve from portal defaults."
           },
-          "avg_certainty": {
+          "availability": {
+            "type": "boolean",
+            "description": "Whether this action is available in the widget."
+          }
+        },
+        "required": [
+          "uid",
+          "action",
+          "availability"
+        ]
+      },
+      "RequestCreateWidgetConfiguration": {
+        "type": "object",
+        "properties": {
+          "widget_title": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200,
+            "description": "Widget title shown in the chat header."
+          },
+          "welcome_message": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 1000,
+            "description": "Message shown when the widget chat opens."
+          },
+          "brand_color": {
+            "type": "string",
+            "nullable": true,
+            "description": "Hex color"
+          },
+          "text_color": {
+            "type": "string",
+            "nullable": true,
+            "description": "Hex color"
+          },
+          "logo_url": {
+            "type": "string",
+            "nullable": true,
+            "format": "uri",
+            "description": "Public logo URL shown in the widget."
+          },
+          "actions": {
+            "type": "array",
+            "nullable": true,
+            "description": "Ordered list of configured portal actions.",
+            "items": {
+              "$ref": "#/components/schemas/ActionConfigItem"
+            }
+          },
+          "auto_popup_enabled": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether the widget auto-opens for visitors."
+          },
+          "auto_popup_delay": {
             "type": "number",
             "nullable": true,
-            "minimum": 1,
-            "maximum": 5,
-            "description": "Mean of the receptionist's 1–5 confidence on its replies to this question; `null` when none carried one."
-          },
-          "conversions": {
-            "type": "integer",
             "minimum": 0,
-            "description": "How many of `count` asks came from a conversation that ended linked to a CRM contact: a captured lead or a returning customer. Counted per ask, like `count`."
+            "maximum": 3600,
+            "description": "Auto-open delay in seconds."
           },
-          "conversion_rate": {
-            "type": "integer",
-            "minimum": 0,
-            "maximum": 100,
-            "description": "`conversions` as a whole percentage of `count`."
-          },
-          "occurrences": {
+          "welcome_buttons": {
             "type": "array",
-            "description": "The asks in the period, newest first, at most 50; `count` is still exact.",
+            "nullable": true,
+            "description": "Quick-reply buttons shown under the welcome message.",
             "items": {
-              "$ref": "#/components/schemas/QuestionsReportOccurrence"
+              "$ref": "#/components/schemas/WelcomeButton"
             }
           },
-          "answered": {
+          "button_text": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200,
+            "description": "Launcher button label shown before opening the widget."
+          },
+          "ai_receptionist_enabled": {
             "type": "boolean",
-            "description": "At least one learning linked to this question has been applied to the receptionist's knowledge."
+            "nullable": true,
+            "description": "Whether the AI Receptionist answers chats in the website widget (the Web channel). **false** makes the widget open with the welcome message, the actions and a \"Leave a message\" button, without AI. Other channels are not affected. **true** or null runs the AI while the AI Receptionist is enabled and AI chats are left this month. Null means true (e.g., true, false or null)."
+          }
+        }
+      },
+      "RequestUpdateWidgetConfiguration": {
+        "type": "object",
+        "description": "Partial update request. All fields are optional.",
+        "properties": {
+          "widget_title": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200,
+            "description": "Widget title shown in the chat header."
+          },
+          "welcome_message": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 1000,
+            "description": "Message shown when the widget chat opens."
+          },
+          "brand_color": {
+            "type": "string",
+            "nullable": true,
+            "description": "Widget brand color in hex format."
+          },
+          "text_color": {
+            "type": "string",
+            "nullable": true,
+            "description": "Widget text color in hex format."
+          },
+          "logo_url": {
+            "type": "string",
+            "nullable": true,
+            "format": "uri",
+            "description": "Public logo URL shown in the widget."
+          },
+          "actions": {
+            "type": "array",
+            "nullable": true,
+            "description": "Ordered list of configured portal actions.",
+            "items": {
+              "$ref": "#/components/schemas/ActionConfigItem"
+            }
+          },
+          "auto_popup_enabled": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether the widget auto-opens for visitors."
+          },
+          "auto_popup_delay": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0,
+            "maximum": 3600,
+            "description": "Auto-open delay in seconds."
+          },
+          "welcome_buttons": {
+            "type": "array",
+            "nullable": true,
+            "description": "Quick-reply buttons shown under the welcome message.",
+            "items": {
+              "$ref": "#/components/schemas/WelcomeButton"
+            }
+          },
+          "button_text": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200,
+            "description": "Launcher button label shown before opening the widget."
+          },
+          "ai_receptionist_enabled": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether the AI Receptionist answers chats in the website widget (the Web channel). **false** makes the widget open with the welcome message, the actions and a \"Leave a message\" button, without AI. Other channels are not affected. **true** or null runs the AI while the AI Receptionist is enabled and AI chats are left this month. Null means true (e.g., true, false or null)."
+          }
+        }
+      },
+      "WidgetConfigurationResource": {
+        "type": "object",
+        "description": "The Web AI Widget configuration for a business — controls the embedded chat widget's appearance, welcome message, quick-reply buttons, and client-portal actions. Sparse: any field you omit falls back to the product default. Returned directly under `data` (wrapped by the standard response envelope) by the widget configuration APIs.",
+        "properties": {
+          "uid": {
+            "type": "string",
+            "readOnly": true,
+            "description": "Configuration row UID."
+          },
+          "business_uid": {
+            "type": "string",
+            "description": "Owning business UID."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true,
+            "description": "Row creation time (ISO 8601)."
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true,
+            "description": "Last update time (ISO 8601)."
+          },
+          "owner_uid": {
+            "type": "string",
+            "nullable": true,
+            "description": "Staff UID of the last editor (widget editor saves)."
+          },
+          "widget_title": {
+            "type": "string",
+            "description": "Header title shown in the widget."
+          },
+          "welcome_message": {
+            "type": "string",
+            "description": "Opening message when chat starts."
+          },
+          "brand_color": {
+            "type": "string",
+            "description": "Brand/theme color (hex)."
+          },
+          "text_color": {
+            "type": "string",
+            "description": "Text color (hex)."
+          },
+          "logo_url": {
+            "type": "string",
+            "nullable": true,
+            "format": "uri",
+            "description": "Logo image URL."
+          },
+          "actions": {
+            "type": "array",
+            "description": "Structured portal actions; order = array order.",
+            "items": {
+              "type": "object",
+              "description": "A single client-portal action in the stored widget configuration. Order follows array position in the API.",
+              "properties": {
+                "uid": {
+                  "type": "string",
+                  "nullable": true,
+                  "description": "Portal action UID. Required by the API for persisted actions; nullable only for legacy/backfill reads."
+                },
+                "action": {
+                  "type": "string",
+                  "description": "Action key/type (client-portal action identifier)."
+                },
+                "label": {
+                  "type": "string",
+                  "nullable": true,
+                  "maxLength": 200,
+                  "description": "Display label override; omit or null to resolve from portal defaults."
+                },
+                "availability": {
+                  "type": "boolean",
+                  "description": "Whether this action is available in the widget."
+                }
+              },
+              "required": [
+                "uid",
+                "action",
+                "availability"
+              ]
+            }
+          },
+          "auto_popup_enabled": {
+            "type": "boolean",
+            "description": "Whether the widget auto-opens."
+          },
+          "auto_popup_delay": {
+            "type": "number",
+            "description": "Delay before auto-popup (seconds, 0–3600)."
+          },
+          "welcome_buttons": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "Quick-reply button shown under the welcome message in the Web AI Widget.",
+              "properties": {
+                "label": {
+                  "type": "string",
+                  "description": "Button label shown to the visitor."
+                },
+                "message": {
+                  "type": "string",
+                  "description": "Message text sent to the assistant when the button is clicked."
+                }
+              },
+              "required": [
+                "label",
+                "message"
+              ]
+            }
+          },
+          "button_text": {
+            "type": "string",
+            "description": "Engage / launcher button label."
+          },
+          "ai_receptionist_enabled": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether the AI Receptionist answers chats in the website widget (the Web channel). **false** makes the widget open with the welcome message, the actions and a \"Leave a message\" button, without AI. Other channels are not affected. **true** or null runs the AI while the AI Receptionist is enabled and AI chats are left this month. Null means true (e.g., true, false or null)."
+          },
+          "website_widget_detected": {
+            "type": "boolean",
+            "nullable": true,
+            "readOnly": true,
+            "description": "Whether the widget has loaded on a website at least once. Loads in the widget editor and the widget preview do not count. Set by the server only. The AI Receptionist uses it to tell whether the new widget is on the website (e.g., true, false or null)."
           }
         },
-        "required": [
-          "question_uid",
-          "question",
-          "count",
-          "conversions",
-          "conversion_rate",
-          "occurrences",
-          "answered"
-        ]
+        "example": {
+          "uid": "widcfg_48b3f7a2",
+          "business_uid": "biz_2f8f7ab1",
+          "created_at": "2026-04-22T10:30:00.000Z",
+          "updated_at": "2026-04-22T11:12:45.000Z",
+          "owner_uid": "staff_1182abc",
+          "widget_title": "Acme Plumbing AI Assistant",
+          "welcome_message": "Hi! Need help with plumbing services?",
+          "brand_color": "#1f7ae0",
+          "text_color": "#ffffff",
+          "logo_url": "https://cdn.example.com/acme/logo.png",
+          "actions": [
+            {
+              "uid": "action_book",
+              "action": "book_appointment",
+              "label": "Book now",
+              "availability": true
+            },
+            {
+              "uid": "action_call",
+              "action": "call_business",
+              "label": "Call us",
+              "availability": true
+            }
+          ],
+          "auto_popup_enabled": true,
+          "auto_popup_delay": 8,
+          "welcome_buttons": [
+            {
+              "label": "Book an appointment",
+              "message": "I want to book an appointment."
+            },
+            {
+              "label": "Emergency service",
+              "message": "Do you provide emergency plumbing service?"
+            }
+          ],
+          "button_text": "Chat with us",
+          "ai_receptionist_enabled": true,
+          "website_widget_detected": true
+        }
       },
-      "QuestionsReportPayload": {
+      "ListWidgetConfigurationsPayload": {
         "type": "object",
         "properties": {
-          "source": {
-            "type": "string",
-            "enum": [
-              "ledger"
-            ],
-            "description": "Where the report comes from. Always `ledger`."
-          },
-          "window": {
-            "type": "object",
-            "properties": {
-              "range": {
-                "type": "string",
-                "enum": [
-                  "7d",
-                  "30d",
-                  "3m",
-                  "6m",
-                  "1y"
-                ]
-              },
-              "start_date": {
-                "type": "string",
-                "format": "date-time"
-              },
-              "end_date": {
-                "type": "string",
-                "format": "date-time"
-              },
-              "generated_at": {
-                "type": "string",
-                "format": "date-time"
-              }
-            }
-          },
-          "filters": {
-            "type": "object",
-            "properties": {
-              "channel": {
-                "type": "string",
-                "enum": [
-                  "all",
-                  "web",
-                  "voice",
-                  "messaging",
-                  "assistant"
-                ]
-              },
-              "app": {
-                "type": "string",
-                "nullable": true,
-                "description": "The messaging app filter, lowercased, or null."
-              },
-              "simulated": {
-                "type": "string",
-                "enum": [
-                  "exclude",
-                  "only",
-                  "all"
-                ]
-              }
-            }
-          },
-          "questions": {
+          "widget_configurations": {
             "type": "array",
-            "description": "Sorted by `count`, descending.",
+            "description": "Widget configurations for the authenticated business on the current page.",
             "items": {
-              "$ref": "#/components/schemas/QuestionsReportQuestion"
+              "$ref": "#/components/schemas/WidgetConfigurationResource"
             }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total number of widget configurations across all pages."
           }
         },
         "required": [
-          "source",
-          "window",
-          "filters",
-          "questions"
+          "widget_configurations",
+          "total"
         ]
       },
       "UpsertAiChatConfigRequest": {
@@ -4400,10 +4669,16 @@
                 "should_offer"
               ]
             }
+          },
+          "receptionist_enabled": {
+            "type": "boolean",
+            "nullable": true,
+            "default": true,
+            "description": "Whether the AI Receptionist is enabled. **false** turns the AI off for new conversations: website visitors can leave a message, messages from messaging apps go to the inbox, and calls go to voicemail. **true** or null runs the AI until the monthly AI chat quota is used up. Defaults to true. A business with no AiReceptionistConfiguration at all (GET returns 404) has the AI Receptionist off until a configuration is saved (e.g., true, false or null)."
           }
         }
       },
-      "ErrorResponse": {
+      "ErrorResponse_ai_chat_configurations": {
         "type": "object",
         "properties": {
           "success": {
@@ -5247,446 +5522,178 @@
           }
         }
       },
-      "ErrorResponse_widget_configurations": {
+      "QuestionsReportOccurrence": {
         "type": "object",
-        "description": "Standard v3 error envelope.",
+        "description": "One time the question was asked in the period.",
         "properties": {
-          "success": {
-            "type": "boolean",
-            "description": "Always false for error responses."
-          },
-          "errors": {
-            "type": "array",
-            "description": "List of error details describing what failed.",
-            "items": {
-              "type": "object",
-              "properties": {
-                "field": {
-                  "type": "string",
-                  "description": "Request field that failed validation, when applicable."
-                },
-                "code": {
-                  "type": "string",
-                  "description": "Machine-readable error code."
-                },
-                "message": {
-                  "type": "string",
-                  "description": "Human-readable error message."
-                }
-              }
-            }
-          }
-        },
-        "required": [
-          "success",
-          "errors"
-        ]
-      },
-      "NestHttpException_widget_configurations": {
-        "type": "object",
-        "description": "Standard v3 error envelope.",
-        "properties": {
-          "success": {
-            "type": "boolean",
-            "description": "Always false for error responses.",
-            "enum": [
-              false
-            ]
-          },
-          "errors": {
-            "type": "array",
-            "description": "List of error details describing what failed.",
-            "items": {
-              "type": "object",
-              "properties": {
-                "field": {
-                  "type": "string",
-                  "nullable": true,
-                  "description": "Request field that failed validation, when applicable."
-                },
-                "code": {
-                  "type": "string",
-                  "description": "Machine-readable error code."
-                },
-                "message": {
-                  "type": "string",
-                  "description": "Human-readable error message."
-                }
-              },
-              "required": [
-                "code",
-                "message"
-              ]
-            }
-          }
-        },
-        "required": [
-          "success",
-          "errors"
-        ]
-      },
-      "WelcomeButton": {
-        "type": "object",
-        "description": "Quick-reply button shown under the welcome message in the Web AI Widget.",
-        "properties": {
-          "label": {
+          "conversation_uid": {
             "type": "string",
-            "description": "Button label shown to the visitor."
+            "description": "The conversation the question was asked in (see `ai_receptionist_conversations`)."
           },
-          "message": {
+          "text": {
             "type": "string",
-            "description": "Message text sent to the assistant when the button is clicked."
-          }
-        },
-        "required": [
-          "label",
-          "message"
-        ]
-      },
-      "ActionConfigItem": {
-        "type": "object",
-        "description": "A single client-portal action in the stored widget configuration. Order follows array position in the API.",
-        "properties": {
-          "uid": {
-            "type": "string",
-            "nullable": true,
-            "description": "Portal action UID. Required by the API for persisted actions; nullable only for legacy/backfill reads."
+            "description": "The customer's wording, generalized (no names, contact details, dates or times); falls back to the question in the business language."
           },
-          "action": {
-            "type": "string",
-            "description": "Action key/type (client-portal action identifier)."
-          },
-          "label": {
-            "type": "string",
-            "nullable": true,
-            "maxLength": 200,
-            "description": "Display label override; omit or null to resolve from portal defaults."
-          },
-          "availability": {
-            "type": "boolean",
-            "description": "Whether this action is available in the widget."
-          }
-        },
-        "required": [
-          "uid",
-          "action",
-          "availability"
-        ]
-      },
-      "RequestCreateWidgetConfiguration": {
-        "type": "object",
-        "properties": {
-          "widget_title": {
-            "type": "string",
-            "nullable": true,
-            "maxLength": 200,
-            "description": "Widget title shown in the chat header."
-          },
-          "welcome_message": {
-            "type": "string",
-            "nullable": true,
-            "maxLength": 1000,
-            "description": "Message shown when the widget chat opens."
-          },
-          "brand_color": {
-            "type": "string",
-            "nullable": true,
-            "description": "Hex color"
-          },
-          "text_color": {
-            "type": "string",
-            "nullable": true,
-            "description": "Hex color"
-          },
-          "logo_url": {
-            "type": "string",
-            "nullable": true,
-            "format": "uri",
-            "description": "Public logo URL shown in the widget."
-          },
-          "actions": {
-            "type": "array",
-            "nullable": true,
-            "description": "Ordered list of configured portal actions.",
-            "items": {
-              "$ref": "#/components/schemas/ActionConfigItem"
-            }
-          },
-          "auto_popup_enabled": {
-            "type": "boolean",
-            "nullable": true,
-            "description": "Whether the widget auto-opens for visitors."
-          },
-          "auto_popup_delay": {
-            "type": "number",
-            "nullable": true,
-            "minimum": 0,
-            "maximum": 3600,
-            "description": "Auto-open delay in seconds."
-          },
-          "welcome_buttons": {
-            "type": "array",
-            "nullable": true,
-            "description": "Quick-reply buttons shown under the welcome message.",
-            "items": {
-              "$ref": "#/components/schemas/WelcomeButton"
-            }
-          },
-          "button_text": {
-            "type": "string",
-            "nullable": true,
-            "maxLength": 200,
-            "description": "Launcher button label shown before opening the widget."
-          }
-        }
-      },
-      "RequestUpdateWidgetConfiguration": {
-        "type": "object",
-        "description": "Partial update request. All fields are optional.",
-        "properties": {
-          "widget_title": {
-            "type": "string",
-            "nullable": true,
-            "maxLength": 200,
-            "description": "Widget title shown in the chat header."
-          },
-          "welcome_message": {
-            "type": "string",
-            "nullable": true,
-            "maxLength": 1000,
-            "description": "Message shown when the widget chat opens."
-          },
-          "brand_color": {
-            "type": "string",
-            "nullable": true,
-            "description": "Widget brand color in hex format."
-          },
-          "text_color": {
-            "type": "string",
-            "nullable": true,
-            "description": "Widget text color in hex format."
-          },
-          "logo_url": {
-            "type": "string",
-            "nullable": true,
-            "format": "uri",
-            "description": "Public logo URL shown in the widget."
-          },
-          "actions": {
-            "type": "array",
-            "nullable": true,
-            "description": "Ordered list of configured portal actions.",
-            "items": {
-              "$ref": "#/components/schemas/ActionConfigItem"
-            }
-          },
-          "auto_popup_enabled": {
-            "type": "boolean",
-            "nullable": true,
-            "description": "Whether the widget auto-opens for visitors."
-          },
-          "auto_popup_delay": {
-            "type": "number",
-            "nullable": true,
-            "minimum": 0,
-            "maximum": 3600,
-            "description": "Auto-open delay in seconds."
-          },
-          "welcome_buttons": {
-            "type": "array",
-            "nullable": true,
-            "description": "Quick-reply buttons shown under the welcome message.",
-            "items": {
-              "$ref": "#/components/schemas/WelcomeButton"
-            }
-          },
-          "button_text": {
-            "type": "string",
-            "nullable": true,
-            "maxLength": 200,
-            "description": "Launcher button label shown before opening the widget."
-          }
-        }
-      },
-      "WidgetConfigurationResource": {
-        "type": "object",
-        "description": "The Web AI Widget configuration for a business — controls the embedded chat widget's appearance, welcome message, quick-reply buttons, and client-portal actions. Sparse: any field you omit falls back to the product default. Returned directly under `data` (wrapped by the standard response envelope) by the widget configuration APIs.",
-        "properties": {
-          "uid": {
-            "type": "string",
-            "readOnly": true,
-            "description": "Configuration row UID."
-          },
-          "business_uid": {
-            "type": "string",
-            "description": "Owning business UID."
-          },
-          "created_at": {
+          "asked_at": {
             "type": "string",
             "format": "date-time",
-            "readOnly": true,
-            "description": "Row creation time (ISO 8601)."
+            "description": "When the conversation ended (ISO 8601)."
           },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time",
-            "readOnly": true,
-            "description": "Last update time (ISO 8601)."
-          },
-          "owner_uid": {
-            "type": "string",
+          "certainty": {
+            "type": "integer",
             "nullable": true,
-            "description": "Staff UID of the last editor (widget editor saves)."
+            "minimum": 1,
+            "maximum": 5,
+            "description": "The receptionist's own 1–5 confidence in its reply to this ask, when it recorded one."
           },
-          "widget_title": {
-            "type": "string",
-            "description": "Header title shown in the widget."
-          },
-          "welcome_message": {
-            "type": "string",
-            "description": "Opening message when chat starts."
-          },
-          "brand_color": {
-            "type": "string",
-            "description": "Brand/theme color (hex)."
-          },
-          "text_color": {
-            "type": "string",
-            "description": "Text color (hex)."
-          },
-          "logo_url": {
-            "type": "string",
-            "nullable": true,
-            "format": "uri",
-            "description": "Logo image URL."
-          },
-          "actions": {
-            "type": "array",
-            "description": "Structured portal actions; order = array order.",
-            "items": {
-              "type": "object",
-              "description": "A single client-portal action in the stored widget configuration. Order follows array position in the API.",
-              "properties": {
-                "uid": {
-                  "type": "string",
-                  "nullable": true,
-                  "description": "Portal action UID. Required by the API for persisted actions; nullable only for legacy/backfill reads."
-                },
-                "action": {
-                  "type": "string",
-                  "description": "Action key/type (client-portal action identifier)."
-                },
-                "label": {
-                  "type": "string",
-                  "nullable": true,
-                  "maxLength": 200,
-                  "description": "Display label override; omit or null to resolve from portal defaults."
-                },
-                "availability": {
-                  "type": "boolean",
-                  "description": "Whether this action is available in the widget."
-                }
-              },
-              "required": [
-                "uid",
-                "action",
-                "availability"
-              ]
-            }
-          },
-          "auto_popup_enabled": {
-            "type": "boolean",
-            "description": "Whether the widget auto-opens."
-          },
-          "auto_popup_delay": {
-            "type": "number",
-            "description": "Delay before auto-popup (seconds, 0–3600)."
-          },
-          "welcome_buttons": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "description": "Quick-reply button shown under the welcome message in the Web AI Widget.",
-              "properties": {
-                "label": {
-                  "type": "string",
-                  "description": "Button label shown to the visitor."
-                },
-                "message": {
-                  "type": "string",
-                  "description": "Message text sent to the assistant when the button is clicked."
-                }
-              },
-              "required": [
-                "label",
-                "message"
-              ]
-            }
-          },
-          "button_text": {
-            "type": "string",
-            "description": "Engage / launcher button label."
-          }
-        },
-        "example": {
-          "uid": "widcfg_48b3f7a2",
-          "business_uid": "biz_2f8f7ab1",
-          "created_at": "2026-04-22T10:30:00.000Z",
-          "updated_at": "2026-04-22T11:12:45.000Z",
-          "owner_uid": "staff_1182abc",
-          "widget_title": "Acme Plumbing AI Assistant",
-          "welcome_message": "Hi! Need help with plumbing services?",
-          "brand_color": "#1f7ae0",
-          "text_color": "#ffffff",
-          "logo_url": "https://cdn.example.com/acme/logo.png",
-          "actions": [
-            {
-              "uid": "action_book",
-              "action": "book_appointment",
-              "label": "Book now",
-              "availability": true
-            },
-            {
-              "uid": "action_call",
-              "action": "call_business",
-              "label": "Call us",
-              "availability": true
-            }
-          ],
-          "auto_popup_enabled": true,
-          "auto_popup_delay": 8,
-          "welcome_buttons": [
-            {
-              "label": "Book an appointment",
-              "message": "I want to book an appointment."
-            },
-            {
-              "label": "Emergency service",
-              "message": "Do you provide emergency plumbing service?"
-            }
-          ],
-          "button_text": "Chat with us"
-        }
-      },
-      "ListWidgetConfigurationsPayload": {
-        "type": "object",
-        "properties": {
-          "widget_configurations": {
-            "type": "array",
-            "description": "Widget configurations for the authenticated business on the current page.",
-            "items": {
-              "$ref": "#/components/schemas/WidgetConfigurationResource"
-            }
-          },
-          "total": {
+          "message_index": {
             "type": "integer",
             "minimum": 0,
-            "description": "Total number of widget configurations across all pages."
+            "description": "Zero-based index of the visitor message in the conversation's transcript `messages`."
           }
         },
         "required": [
-          "widget_configurations",
-          "total"
+          "conversation_uid",
+          "text",
+          "asked_at",
+          "message_index"
+        ]
+      },
+      "QuestionsReportQuestion": {
+        "type": "object",
+        "description": "One distinct question, with every time it was asked in the period.",
+        "properties": {
+          "question_uid": {
+            "type": "string",
+            "description": "Stable identifier of the question (UUID)."
+          },
+          "question": {
+            "type": "string",
+            "description": "The question in the business's language, generalized the way any customer would ask it."
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "How many times it was asked in the period (a customer asking twice in one conversation counts twice)."
+          },
+          "avg_certainty": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 1,
+            "maximum": 5,
+            "description": "Mean of the receptionist's 1–5 confidence on its replies to this question; `null` when none carried one."
+          },
+          "conversions": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "How many of `count` asks came from a conversation that ended linked to a CRM contact: a captured lead or a returning customer. Counted per ask, like `count`."
+          },
+          "conversion_rate": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "`conversions` as a whole percentage of `count`."
+          },
+          "occurrences": {
+            "type": "array",
+            "description": "The asks in the period, newest first, at most 50; `count` is still exact.",
+            "items": {
+              "$ref": "#/components/schemas/QuestionsReportOccurrence"
+            }
+          },
+          "answered": {
+            "type": "boolean",
+            "description": "At least one learning linked to this question has been applied to the receptionist's knowledge."
+          }
+        },
+        "required": [
+          "question_uid",
+          "question",
+          "count",
+          "conversions",
+          "conversion_rate",
+          "occurrences",
+          "answered"
+        ]
+      },
+      "QuestionsReportPayload": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "ledger"
+            ],
+            "description": "Where the report comes from. Always `ledger`."
+          },
+          "window": {
+            "type": "object",
+            "properties": {
+              "range": {
+                "type": "string",
+                "enum": [
+                  "7d",
+                  "30d",
+                  "3m",
+                  "6m",
+                  "1y"
+                ]
+              },
+              "start_date": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "end_date": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "generated_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          },
+          "filters": {
+            "type": "object",
+            "properties": {
+              "channel": {
+                "type": "string",
+                "enum": [
+                  "all",
+                  "web",
+                  "voice",
+                  "messaging",
+                  "assistant"
+                ]
+              },
+              "app": {
+                "type": "string",
+                "nullable": true,
+                "description": "The messaging app filter, lowercased, or null."
+              },
+              "simulated": {
+                "type": "string",
+                "enum": [
+                  "exclude",
+                  "only",
+                  "all"
+                ]
+              }
+            }
+          },
+          "questions": {
+            "type": "array",
+            "description": "Sorted by `count`, descending.",
+            "items": {
+              "$ref": "#/components/schemas/QuestionsReportQuestion"
+            }
+          }
+        },
+        "required": [
+          "source",
+          "window",
+          "filters",
+          "questions"
         ]
       }
     },
@@ -5724,8 +5731,8 @@
   },
   "tags": [
     {
-      "name": "AI Receptionist Insights",
-      "description": "What customers ask the AI Receptionist, for the authenticated business (**Staff, App and Business tokens**)."
+      "name": "Web AI Widget",
+      "description": "Widget configuration resources under `/v3/online_presence/widget_configurations`."
     },
     {
       "name": "AI Chat Configuration",
@@ -5736,8 +5743,8 @@
       "description": "Persisted AI Receptionist conversations for the authenticated business (**Staff tokens**)."
     },
     {
-      "name": "Web AI Widget",
-      "description": "Widget configuration resources under `/v3/online_presence/widget_configurations`."
+      "name": "AI Receptionist Insights",
+      "description": "What customers ask the AI Receptionist, for the authenticated business (**Staff, App and Business tokens**)."
     }
   ]
 }
