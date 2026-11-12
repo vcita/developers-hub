@@ -71,15 +71,6 @@
             "description": "The category code of the business rule. It must be the code of an active catalog category, see `GET /v3/ai/business_rule_categories?is_active=true`. Today these codes are `tone_of_voice`, `policies_and_info`, `things_to_avoid`, `lead_handling`, `whats_important`, `faq`, `knowledge_item`, `document` and `client_facing_bot_policies`. An unknown code returns 400 (e.g., \"tone_of_voice\", \"knowledge_item\").",
             "example": "tone_of_voice"
           },
-          "source": {
-            "type": "string",
-            "enum": [
-              "system",
-              "user"
-            ],
-            "description": "The source of the rule. Only an app token that acts for a staff member can set it (e.g., \"system\"). A staff token always gets `user`.",
-            "example": "system"
-          },
           "metadata": {
             "type": "object",
             "nullable": true,
@@ -88,6 +79,106 @@
               "question": "What are your hours?",
               "answer": "9 to 5"
             }
+          },
+          "topic": {
+            "type": "string",
+            "maxLength": 32,
+            "description": "The topic of the rule (e.g., \"ai_receptionist\"). The pair of `topic` and `category_code` must be an active catalog category, otherwise 400 `invalid_topic_for_category`. Without `topic`, the entry point places the rule (`knowledge_page` in `knowledge_and_files`, `receptionist_training` and `receptionist_setup` in `ai_receptionist`), and otherwise the default topic of the category does. The response tells which in `placed_by`.",
+            "example": "ai_receptionist"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255,
+            "description": "A short title of the rule (e.g., \"No price quotes to leads\"). `null` clears it on update.",
+            "example": "No price quotes to leads"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 1000,
+            "description": "A description of the rule. `null` clears it on update."
+          },
+          "load_mode": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "always",
+              "search"
+            ],
+            "description": "The own load mode of the rule. `null` or no value means the default load mode of the catalog category.\n\nAvailable values:\n* `always` - Agents get the rule in every list call.\n* `search` - Agents get the rule only from search."
+          },
+          "entry_point": {
+            "type": "string",
+            "enum": [
+              "rules_page",
+              "knowledge_page",
+              "api",
+              "bizai_chat",
+              "receptionist_training",
+              "receptionist_setup",
+              "setup_generation",
+              "partner_bulk_import"
+            ],
+            "description": "Where the write comes from (e.g., \"api\"). No value means `api`. Together with the token it sets `author_type` and the confirmation of the rule. A staff token writes as `owner`, confirmed, except `bizai_chat` and `receptionist_training` (`owner_via_ai`, confirmed), `setup_generation` (`platform`) and `partner_bulk_import` (`partner`). An app token that acts for a staff member writes as `partner`, not confirmed, whatever the entry point. Only vcita's own AI agents get `owner` or `owner_via_ai` from an entry point.",
+            "example": "api"
+          },
+          "evidence": {
+            "type": "object",
+            "description": "Where the rule came from. Only an app token that acts for a staff member can set it; a staff token gets `null` on create and keeps the stored value on update. Serialized size at most 4,096 characters.",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "conversation",
+                  "bulk_job",
+                  "website",
+                  "learning"
+                ],
+                "description": "The kind of source."
+              },
+              "uid": {
+                "type": "string",
+                "maxLength": 2000,
+                "description": "The uid of the source, for example the conversation uid."
+              },
+              "url": {
+                "type": "string",
+                "maxLength": 2000,
+                "description": "The URL of the source."
+              },
+              "confidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "How sure the writer is, from 0 to 1."
+              },
+              "reasoning": {
+                "type": "string",
+                "maxLength": 2000,
+                "description": "Why the writer created the rule."
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "example": {
+              "type": "conversation",
+              "uid": "c3f1a7e2-5b9d-4c08-9e1f-2a6b7c8d9e0f"
+            }
+          },
+          "search_aliases": {
+            "type": "array",
+            "nullable": true,
+            "maxItems": 10,
+            "items": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "description": "Customer phrasings of the rule, used by search (e.g., [\"where do I park\"]). `null` clears them on update.",
+            "example": [
+              "where do I park"
+            ]
           }
         },
         "required": [
@@ -120,9 +211,110 @@
             "type": "string",
             "maxLength": 50,
             "description": "The category code of the business rule. It must be the code of an active catalog category, see `GET /v3/ai/business_rule_categories?is_active=true`. Today these codes are `tone_of_voice`, `policies_and_info`, `things_to_avoid`, `lead_handling`, `whats_important`, `faq`, `knowledge_item`, `document` and `client_facing_bot_policies`. An unknown code returns 400 (e.g., \"tone_of_voice\", \"knowledge_item\")."
+          },
+          "topic": {
+            "type": "string",
+            "maxLength": 32,
+            "description": "The topic of the rule (e.g., \"ai_receptionist\"). The pair of `topic` and `category_code` must be an active catalog category, otherwise 400 `invalid_topic_for_category`. Without `topic`, the entry point places the rule (`knowledge_page` in `knowledge_and_files`, `receptionist_training` and `receptionist_setup` in `ai_receptionist`), and otherwise the default topic of the category does. The response tells which in `placed_by`.",
+            "example": "ai_receptionist"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 255,
+            "description": "A short title of the rule (e.g., \"No price quotes to leads\"). `null` clears it on update.",
+            "example": "No price quotes to leads"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 1000,
+            "description": "A description of the rule. `null` clears it on update."
+          },
+          "load_mode": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "always",
+              "search"
+            ],
+            "description": "The own load mode of the rule. `null` or no value means the default load mode of the catalog category.\n\nAvailable values:\n* `always` - Agents get the rule in every list call.\n* `search` - Agents get the rule only from search."
+          },
+          "entry_point": {
+            "type": "string",
+            "enum": [
+              "rules_page",
+              "knowledge_page",
+              "api",
+              "bizai_chat",
+              "receptionist_training",
+              "receptionist_setup",
+              "setup_generation",
+              "partner_bulk_import"
+            ],
+            "description": "Where the write comes from (e.g., \"api\"). No value means `api`. Together with the token it sets `author_type` and the confirmation of the rule. A staff token writes as `owner`, confirmed, except `bizai_chat` and `receptionist_training` (`owner_via_ai`, confirmed), `setup_generation` (`platform`) and `partner_bulk_import` (`partner`). An app token that acts for a staff member writes as `partner`, not confirmed, whatever the entry point. Only vcita's own AI agents get `owner` or `owner_via_ai` from an entry point.",
+            "example": "api"
+          },
+          "evidence": {
+            "type": "object",
+            "description": "Where the rule came from. Only an app token that acts for a staff member can set it. `null` clears it, and a tone copy keeps its `copied_from`. A staff token gets `null` on create and keeps the stored value on update. Serialized size at most 4,096 characters.",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "conversation",
+                  "bulk_job",
+                  "website",
+                  "learning"
+                ],
+                "description": "The kind of source."
+              },
+              "uid": {
+                "type": "string",
+                "maxLength": 2000,
+                "description": "The uid of the source, for example the conversation uid."
+              },
+              "url": {
+                "type": "string",
+                "maxLength": 2000,
+                "description": "The URL of the source."
+              },
+              "confidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "How sure the writer is, from 0 to 1."
+              },
+              "reasoning": {
+                "type": "string",
+                "maxLength": 2000,
+                "description": "Why the writer created the rule."
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "example": {
+              "type": "conversation",
+              "uid": "c3f1a7e2-5b9d-4c08-9e1f-2a6b7c8d9e0f"
+            },
+            "nullable": true
+          },
+          "search_aliases": {
+            "type": "array",
+            "nullable": true,
+            "maxItems": 10,
+            "items": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "description": "Customer phrasings of the rule, used by search (e.g., [\"where do I park\"]). `null` clears them on update.",
+            "example": [
+              "where do I park"
+            ]
           }
         },
-        "description": "Only `category_code`, `content`, `status` and `sort_order` change. Other fields in the body are ignored."
+        "description": "The fields in the body change; fields that are not in the body stay. A change of `content`, `title`, `description`, `category_code`, `topic`, `load_mode` or `search_aliases` sets the author of the rule again from the token and the entry point. A change of only `status` or `sort_order` keeps the author. Server fields such as `business_uid`, `author_type`, `placed_by` and `confirmed_at` in the body are ignored."
       },
       "BusinessRuleHistoryListResponseDto": {
         "type": "object",
@@ -173,9 +365,9 @@
           },
           "status": {
             "type": "string",
-            "description": "Initial status of the job, always 'pending' when first created.",
+            "description": "Initial status of the job, always `processing` when the job is created: the job was sent for rule generation.",
             "enum": [
-              "pending"
+              "processing"
             ]
           },
           "message": {
@@ -301,7 +493,7 @@
       "post": {
         "operationId": "BusinessRulesController_createBulkImportJob",
         "summary": "Create a Business Rules Bulk Import",
-        "description": "## Overview\nCreate an async job to extract business rules from raw text using LLM. The system analyzes content, extracts rules, classifies by category, and deduplicates against existing rules.\n\n## Webhook Notification\nWhen the job completes, a webhook notification will be sent to subscribers of the `business_rules_bulk_import/completed` event. The webhook payload includes the complete list of created business rules.\n\n**To receive notifications:**\n1. Subscribe to the webhook event: `POST /platform/v1/webhook/subscribe` with `{\"event\": \"business_rules_bulk_import/completed\", \"target_url\": \"https://your-domain.com/webhook\"}`\n2. Your webhook will receive the job results including all created business rules\n\n**Webhook Payload Structure:**\n```json\n{\n  \"event\": \"business_rules_bulk_import/completed\",\n  \"data\": {\n    \"job_uid\": \"job-xxx\",\n    \"business_uid\": \"biz-xxx\",\n    \"status\": \"completed\",\n    \"business_rules\": [\n      {\n        \"uid\": \"br-xxx\",\n        \"content\": \"Rule content\",\n        \"category_code\": \"policies_and_info\",\n        \"status\": \"pending_approval\",\n        \"created_at\": \"2026-03-01T10:30:00.000Z\"\n      }\n    ],\n    \"created_rules\": 15,\n    \"skipped_duplicates\": 8\n  }\n}\n```\n\nAvailable for **Staff** tokens with `account.settings.manage`.",
+        "description": "## Overview\nCreate an async job to extract business rules from raw text using LLM. The system analyzes content, extracts rules, classifies by category, and deduplicates against existing rules.\n\n## Webhook Notification\nWhen the job completes, a webhook notification will be sent to subscribers of the `business_rules_bulk_import/completed` event. The webhook payload includes the complete list of created business rules.\n\n**To receive notifications:**\n1. Subscribe to the webhook event: `POST /platform/v1/webhook/subscribe` with `{\"event\": \"business_rules_bulk_import/completed\", \"target_url\": \"https://your-domain.com/webhook\"}`\n2. Your webhook will receive the job results including all created business rules\n\n**Webhook Payload Structure:**\nThe payload is flat. A completed job lists the created rules:\n```json\n{\n  \"event\": \"business_rules_bulk_import/completed\",\n  \"job_uid\": \"6f0c2b1e-8a4d-4f3b-9c2e-1d5a7b9c3e4f\",\n  \"business_uid\": \"9i3ap2o3aw3gktlo\",\n  \"staff_uid\": \"x1y2z3\",\n  \"status\": \"completed\",\n  \"completed_at\": \"2026-11-09T10:30:00.000Z\",\n  \"business_rules\": [\n    {\n      \"uid\": \"c2d6b8a0-1f0e-4a1b-9c3d-2e4f5a6b7c8d\",\n      \"category_code\": \"policies_and_info\",\n      \"topic\": \"reply_to_clients\",\n      \"effective_load_mode\": \"always\",\n      \"content\": \"Returns are accepted within 30 days\",\n      \"status\": \"active\",\n      \"source\": \"system\"\n    }\n  ]\n}\n```\nA failed job has `status: failed`, `error_message` and `error_code`:\n* `TIMED_OUT` - no result arrived within 35 minutes. A new import can start after this.\n* `GENERATION_FAILED` - the rule generation failed.\n* `PUBLISH_FAILED` - the job could not be sent for processing.\n\nContent can hold any UTF-8 text. Control characters other than tab, line feed and carriage return return 400. Duplicate rules in one result are created once. Bulk rules are `partner` rules with `entry_point: partner_bulk_import`.\n\nAvailable for **Staff** tokens with `account.settings.manage`.",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -369,7 +561,7 @@
                   "success": true,
                   "data": {
                     "job_uid": "job-a1b2c3d4-5678-90ef-ghij-klmnopqrstuv",
-                    "status": "pending",
+                    "status": "processing",
                     "message": "Bulk import job created successfully. Processing will begin shortly."
                   }
                 }
@@ -781,7 +973,7 @@
       "post": {
         "operationId": "BusinessRulesController_createBusinessRule",
         "summary": "Create a Business Rule",
-        "description": "## Overview\nCreate a new business rule for the authenticated business. The business comes from the token. `source` and `metadata` are stored only for an app token that acts for a staff member; a staff token gets `source: user` and `metadata: null`.\n\nAvailable for **Staff** tokens with `account.settings.manage`.",
+        "description": "## Overview\nCreate a new business rule for the authenticated business. The business comes from the token.\n\nEvery new rule gets a topic (`topic`, `placed_by`) and an author (`author_type`, `entry_point`, `confirmed_at`, derived `tier` and `source`). See `topic` and `entry_point` in the body for the rules. `metadata` and `evidence` are stored only for an app token that acts for a staff member.\n\nA business can hold at most 1,000 rules and at most 100 rules with effective load mode `always` in one topic. A write over a limit returns 422 `rule_limit_reached`.\n\n## Partners\nA partner app can write in two ways. With a staff token, the rule is an `owner` rule. With an app token that acts for a staff member, the rule is a `partner` rule and is not confirmed, so agents rank it below the owner's rules.\n\n## Webhooks\nEvery create, update and delete sends the webhook `business_rule/created`, `business_rule/updated` or `business_rule/deleted` (subscribe with `POST /platform/v1/webhook/subscribe`), within about 10 seconds and at least once. Deduplicate by `business_rule.uid` and `business_rule.updated_at`. Payload:\n```json\n{\n  \"event\": \"business_rule/created\",\n  \"business_uid\": \"9i3ap2o3aw3gktlo\",\n  \"business_rule\": {\n    \"uid\": \"c2d6b8a0-1f0e-4a1b-9c3d-2e4f5a6b7c8d\",\n    \"category_code\": \"tone_of_voice\",\n    \"topic\": \"reply_to_clients\",\n    \"content\": \"Always use a friendly tone\",\n    \"status\": \"active\",\n    \"author_type\": \"owner\",\n    \"tier\": \"owner\",\n    \"effective_load_mode\": \"always\",\n    \"updated_at\": \"2026-11-09T10:00:00.000Z\",\n    \"deleted_at\": null\n  }\n}\n```\n`business_rule` has the fields of the rule in the API response, plus `deleted_at`. Rules that a bulk import creates send no `business_rule/created` webhook; the `business_rules_bulk_import/completed` webhook lists them.\n\nAvailable for **Staff** tokens with `account.settings.manage`.",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -858,14 +1050,29 @@
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "code": "bad_request",
-                      "message": "content must be shorter than or equal to 20000 characters"
+                "examples": {
+                  "validation": {
+                    "value": {
+                      "success": false,
+                      "errors": [
+                        {
+                          "code": "bad_request",
+                          "message": "content must be shorter than or equal to 20000 characters"
+                        }
+                      ]
                     }
-                  ]
+                  },
+                  "invalid_topic_for_category": {
+                    "value": {
+                      "success": false,
+                      "errors": [
+                        {
+                          "code": "invalid_topic_for_category",
+                          "message": "Topic preferences has no active category faq"
+                        }
+                      ]
+                    }
+                  }
                 }
               }
             }
@@ -893,6 +1100,25 @@
                     {
                       "code": "forbidden",
                       "message": "This endpoint is available for staff tokens only"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable - the business reached a rule limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "rule_limit_reached",
+                      "message": "The business has reached the limit of 100 always-load rules in topic reply_to_clients"
                     }
                   ]
                 }
@@ -1335,7 +1561,7 @@
       "put": {
         "operationId": "BusinessRulesController_updateBusinessRule",
         "summary": "Update a Business Rule",
-        "description": "## Overview\nUpdate a business rule of the authenticated business by UID. Only `category_code`, `content`, `status` and `sort_order` change; other fields in the body are ignored. A rule of another business returns 404.\n\nAvailable for **Staff** tokens with `account.settings.manage`.",
+        "description": "## Overview\nUpdate a business rule of the authenticated business by UID. The fields in the body change. A content change sets the author again from the token and `entry_point`; a change of only `status` or `sort_order` keeps it. A rule without a topic gets one on any update. A rule of another business, or a deleted rule, returns 404. An update that moves a rule into a topic or into load mode `always` over the limit returns 422 `rule_limit_reached`. The update sends the webhook `business_rule/updated`.\n\nAvailable for **Staff** tokens with `account.settings.manage`.",
         "parameters": [
           {
             "name": "uid",
@@ -1472,6 +1698,25 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Unprocessable - the business reached a rule limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "rule_limit_reached",
+                      "message": "The business has reached the limit of 100 always-load rules in topic reply_to_clients"
+                    }
+                  ]
+                }
+              }
+            }
           }
         },
         "tags": [
@@ -1486,7 +1731,7 @@
       "delete": {
         "operationId": "BusinessRulesController_deleteBusinessRule",
         "summary": "Delete a Business Rule",
-        "description": "## Overview\nDelete a business rule of the authenticated business by UID. The response holds the deleted rule. A rule of another business returns 404.\n\nAvailable for **Staff** tokens with `account.settings.manage`.",
+        "description": "## Overview\nDelete a business rule of the authenticated business by UID. The delete is soft: the rule gets `deleted_at`, no read returns it again, and its history stays. The response holds the deleted rule. A rule of another business, or a rule that is already deleted, returns 404. The delete sends the webhook `business_rule/deleted`.\n\nAvailable for **Staff** tokens with `account.settings.manage`.",
         "parameters": [
           {
             "name": "uid",
