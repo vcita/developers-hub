@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "BizAI Business Rules",
-    "description": "AI-powered business rules management. Enables businesses to define and manage rules that guide AI agent behavior across categories like tone of voice, policies and info, things to avoid, and FAQ.",
+    "description": "AI-powered business rules management. Enables businesses to define and manage rules that guide AI agent behavior. Each rule has a category code from the catalog of business rule categories, and each category belongs to a topic: Reply to clients, AI Receptionist, BizAI Chat, Notes, Preferences & Priorities, or Knowledge & Files.",
     "version": "3.0",
     "contact": {}
   },
@@ -67,15 +67,8 @@
           },
           "category_code": {
             "type": "string",
-            "description": "The category code of the business rule. Determines how the AI agent uses this rule.\n\nAvailable values:\n* `tone_of_voice` - Rules about communication style and tone the AI should adopt when interacting with clients.\n* `policies_and_info` - Rules about business operations, pricing, and scheduling policies.\n* `things_to_avoid` - Rules about topics, phrases, or actions the AI should not mention or perform.\n* `faq` - Frequently asked questions and their answers.\n* `client_facing_bot_policies` - Rules specifically for client-facing bot interactions, defining bot behavior, limitations, and escalation policies.\n* `lead_handling` - Rules about how incoming leads should be qualified, prioritized, and followed up.",
-            "enum": [
-              "tone_of_voice",
-              "policies_and_info",
-              "things_to_avoid",
-              "faq",
-              "client_facing_bot_policies",
-              "lead_handling"
-            ],
+            "maxLength": 50,
+            "description": "The category code of the business rule. It must be the code of an active catalog category, see `GET /v3/ai/business_rule_categories?is_active=true`. Today these codes are `tone_of_voice`, `policies_and_info`, `things_to_avoid`, `lead_handling`, `whats_important`, `faq`, `knowledge_item`, `document` and `client_facing_bot_policies`. An unknown code returns 400 (e.g., \"tone_of_voice\", \"knowledge_item\").",
             "example": "tone_of_voice"
           },
           "source": {
@@ -125,15 +118,8 @@
           },
           "category_code": {
             "type": "string",
-            "description": "The category code of the business rule. Determines how the AI agent uses this rule.\n\nAvailable values:\n* `tone_of_voice` - Rules about communication style and tone.\n* `policies_and_info` - Rules about business operations and policies.\n* `things_to_avoid` - Rules about what the AI should not do or say.\n* `faq` - Frequently asked questions and their answers.\n* `client_facing_bot_policies` - Rules specifically for client-facing bot interactions.\n* `lead_handling` - Rules about how incoming leads should be qualified, prioritized, and followed up.",
-            "enum": [
-              "tone_of_voice",
-              "policies_and_info",
-              "things_to_avoid",
-              "faq",
-              "client_facing_bot_policies",
-              "lead_handling"
-            ]
+            "maxLength": 50,
+            "description": "The category code of the business rule. It must be the code of an active catalog category, see `GET /v3/ai/business_rule_categories?is_active=true`. Today these codes are `tone_of_voice`, `policies_and_info`, `things_to_avoid`, `lead_handling`, `whats_important`, `faq`, `knowledge_item`, `document` and `client_facing_bot_policies`. An unknown code returns 400 (e.g., \"tone_of_voice\", \"knowledge_item\")."
           }
         },
         "description": "Only `category_code`, `content`, `status` and `sort_order` change. Other fields in the body are ignored."
@@ -173,7 +159,8 @@
           }
         },
         "required": [
-          "business_rules"
+          "business_rules",
+          "meta"
         ]
       },
       "BulkImportJobCreatedResponse": {
@@ -226,25 +213,77 @@
       },
       "ListMeta": {
         "type": "object",
-        "description": "Paging information. Present only when the request carries `page`.",
+        "description": "The settings of the business, and the paging values when the request carries `page`.",
         "properties": {
+          "rules_mode": {
+            "type": "string",
+            "enum": [
+              "legacy",
+              "topics"
+            ],
+            "description": "How the business reads its rules (e.g., \"legacy\", \"topics\").\n\n* `legacy` - Readers get the legacy list and filter by category.\n* `topics` - Readers get the scoped list of their topics."
+          },
+          "gate_mode": {
+            "type": "string",
+            "enum": [
+              "off",
+              "log",
+              "warn",
+              "block"
+            ],
+            "description": "The write gate mode of the business (e.g., \"off\", \"warn\")."
+          },
+          "receptionist_rules_source": {
+            "type": "string",
+            "enum": [
+              "webaiwidgetserver",
+              "aiagents"
+            ],
+            "description": "The service that builds the rules of the AI Receptionist (e.g., \"webaiwidgetserver\", \"aiagents\")."
+          },
           "page": {
             "type": "integer",
-            "description": "The page returned, starting at 1 (e.g., 1)."
+            "description": "The page returned, starting at 1 (e.g., 1). Present only with `page`."
           },
           "per_page": {
             "type": "integer",
-            "description": "The page size (e.g., 25)."
+            "description": "The page size (e.g., 25). Present only with `page`."
           },
           "total": {
             "type": "integer",
-            "description": "The number of rules that match the filters (e.g., 42)."
+            "description": "The number of rules that match the filters (e.g., 42). Present only with `page`."
           }
         },
         "required": [
-          "page",
-          "per_page",
-          "total"
+          "rules_mode",
+          "gate_mode",
+          "receptionist_rules_source"
+        ]
+      },
+      "BusinessRuleCategoryListResponseDto": {
+        "type": "object",
+        "properties": {
+          "business_rule_categories": {
+            "description": "The catalog categories that match the filters, ordered by `sort_order`.",
+            "type": "array",
+            "items": {
+              "$ref": "https://vcita.github.io/developers-hub/entities/ai/BusinessRuleCategory.json"
+            }
+          }
+        },
+        "required": [
+          "business_rule_categories"
+        ]
+      },
+      "BusinessRuleCategoryResponseDto": {
+        "type": "object",
+        "properties": {
+          "business_rule_category": {
+            "$ref": "https://vcita.github.io/developers-hub/entities/ai/BusinessRuleCategory.json"
+          }
+        },
+        "required": [
+          "business_rule_category"
         ]
       }
     },
@@ -279,15 +318,8 @@
                   },
                   "category_code": {
                     "type": "string",
-                    "description": "The category of business rules to extract from the content. All extracted rules will be assigned to this category. If no category supplied, the system will attempt to infer the category based on the content.\n\nAvailable values:\n* `tone_of_voice` - Rules about communication style and tone.\n* `policies_and_info` - Rules about business operations and policies.\n* `things_to_avoid` - Rules about what the AI should not do or say.\n* `faq` - Frequently asked questions and their answers.\n* `client_facing_bot_policies` - Rules specifically for client-facing bot interactions.\n* `lead_handling` - Rules about how incoming leads should be qualified, prioritized, and followed up.",
-                    "enum": [
-                      "tone_of_voice",
-                      "policies_and_info",
-                      "things_to_avoid",
-                      "faq",
-                      "client_facing_bot_policies",
-                      "lead_handling"
-                    ],
+                    "maxLength": 50,
+                    "description": "The category of business rules to extract from the content. All extracted rules will be assigned to this category. If no category supplied, the system will attempt to infer the category based on the content. It must be the code of an active catalog category, see `GET /v3/ai/business_rule_categories?is_active=true` (e.g., \"policies_and_info\", \"faq\"). An unknown code returns 400 with the code `INVALID_CATEGORY_CODE`.",
                     "example": "policies_and_info"
                   },
                   "schema_description": {
@@ -464,35 +496,107 @@
       "get": {
         "operationId": "BusinessRulesController_getBusinessRules",
         "summary": "Get all Business Rules",
-        "description": "## Overview\nGet all business rules of the authenticated business, ordered by `category_code` and `sort_order` unless `sort` says otherwise.\n\nWithout `page` the response holds every matching rule, at most 500. When the cap cuts the list, the response carries the header `Warning: 299 - \"unpaginated list capped at 500 rows; use page and per_page\"`.\n\nWith `page` the response holds one page and a `meta` object with `page`, `per_page` and `total`.\n\nAvailable for **Staff** tokens.",
+        "description": "## Overview\nGet the business rules of the authenticated business.\n\nWithout `topics`, or for a business on `rules_mode = legacy`, the response is the legacy list: every rule of the business, ordered by `category_code` and `sort_order` unless `sort` says otherwise, and narrowed only by the filters the request sends.\n\nWith `topics` and a business on `rules_mode = topics`, the response is the scoped list: the rules of those topics with status `active` and effective load mode `always`, ordered by the catalog `sort_order`, then the rule `sort_order`, then `uid`. An explicit `status` or `load_mode` replaces these defaults. `sort` has no effect on the scoped list. A reader sends its `topics` in both modes and reads `meta.rules_mode` to know which list it got.\n\nWithout `page` the response holds every matching rule, at most 500. When the cap cuts the list, the response carries the header `Warning: 299 - \"unpaginated list capped at 500 rows; use page and per_page\"`.\n\n`meta` always carries `rules_mode`, `gate_mode` and `receptionist_rules_source`. With `page` it also carries `page`, `per_page` and `total`.\n\nAvailable for **Staff** tokens.",
         "parameters": [
           {
             "name": "category_code",
             "required": false,
             "in": "query",
-            "description": "Filter by rule category code(s). Accepts a single value, a repeated parameter, or a comma-separated list (e.g., \"?category_code=faq\", \"?category_code=faq&category_code=tone_of_voice\", \"?category_code=faq,tone_of_voice\"). An unknown value returns 400. Omit to retrieve every category.",
+            "description": "Filter by catalog category code(s). Accepts a single value, a repeated parameter, or a comma-separated list (e.g., \"?category_code=faq\", \"?category_code=faq&category_code=tone_of_voice\", \"?category_code=faq,tone_of_voice\"). Every code of the catalog is accepted. An unknown value returns 400. Omit to retrieve every category.",
             "schema": {
               "type": "array",
               "items": {
                 "type": "string",
-                "enum": [
-                  "tone_of_voice",
-                  "policies_and_info",
-                  "things_to_avoid",
-                  "faq",
-                  "client_facing_bot_policies",
-                  "lead_handling"
-                ]
+                "maxLength": 50
               }
             },
             "style": "form",
             "explode": true
           },
           {
+            "name": "topics",
+            "required": false,
+            "in": "query",
+            "description": "The topics the reader loads, comma-separated or repeated (e.g., \"reply_to_clients,preferences\"). For a business on `rules_mode = topics` the response is the scoped list of these topics. For a business on `legacy` the response is the legacy list. An unknown topic returns 400.\n\nAvailable values: `reply_to_clients`, `ai_receptionist`, `bizai_chat`, `notes`, `preferences`, `knowledge_and_files`.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "reply_to_clients",
+                  "ai_receptionist",
+                  "bizai_chat",
+                  "notes",
+                  "preferences",
+                  "knowledge_and_files"
+                ]
+              }
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Filter by status, comma-separated or repeated (e.g., \"active\", \"active,inactive\"). The scoped list uses `active` when the request does not send it.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "active",
+                  "pending_approval",
+                  "inactive"
+                ]
+              }
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "load_mode",
+            "required": false,
+            "in": "query",
+            "description": "Filter by the effective load mode: the own load mode of the rule, or the default load mode of its catalog category (e.g., \"always\", \"always,search\"). The scoped list uses `always` when the request does not send it.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "always",
+                  "search"
+                ]
+              }
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "author_type",
+            "required": false,
+            "in": "query",
+            "description": "Filter by author type, comma-separated or repeated (e.g., \"owner\", \"owner,owner_via_ai\").",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "platform",
+                  "partner",
+                  "owner",
+                  "owner_via_ai"
+                ]
+              }
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
             "name": "page",
             "required": false,
             "in": "query",
-            "description": "Page number, starting at 1 (e.g., 1). When omitted, the response is unpaged (at most 500 rules) and has no `meta` object.",
+            "description": "Page number, starting at 1 (e.g., 1). When omitted, the response is unpaged (at most 500 rules) and `meta` has no paging fields.",
             "schema": {
               "type": "integer",
               "minimum": 1,
@@ -515,7 +619,7 @@
             "name": "sort",
             "required": false,
             "in": "query",
-            "description": "Sort clauses as `field:asc|desc`, comma-separated, over `category_code`, `sort_order`, `created_at` and `updated_at` (e.g., \"category_code:asc,sort_order:asc\"). An unknown field or direction returns 400.",
+            "description": "Sort clauses as `field:asc|desc`, comma-separated, over `category_code`, `sort_order`, `created_at` and `updated_at` (e.g., \"category_code:asc,sort_order:asc\"). An unknown field or direction returns 400. The scoped list ignores it.",
             "schema": {
               "type": "string",
               "default": "category_code:asc,sort_order:asc"
@@ -524,7 +628,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Business rules retrieved successfully. The example shows a paged response.",
+            "description": "Business rules retrieved successfully. The example shows a paged scoped list of a business on `rules_mode = topics`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -557,7 +661,19 @@
                         "metadata": null,
                         "created_at": "2024-12-15T10:30:00.000Z",
                         "updated_at": "2024-12-15T10:30:00.000Z",
-                        "category_code": "tone_of_voice"
+                        "category_code": "tone_of_voice",
+                        "topic": "reply_to_clients",
+                        "title": null,
+                        "description": null,
+                        "load_mode": null,
+                        "effective_load_mode": "always",
+                        "author_type": "owner",
+                        "entry_point": null,
+                        "placed_by": "migration",
+                        "confirmed_at": "2024-12-15T10:30:00.000Z",
+                        "tier": "owner",
+                        "evidence": null,
+                        "conflict_flags": null
                       },
                       {
                         "uid": "br-e5f6a7b8-9012-34cd-efgh-ijklmnopqrst",
@@ -576,10 +692,25 @@
                         },
                         "created_at": "2024-12-15T11:00:00.000Z",
                         "updated_at": "2024-12-15T11:00:00.000Z",
-                        "category_code": "faq"
+                        "category_code": "faq",
+                        "topic": "knowledge_and_files",
+                        "title": null,
+                        "description": null,
+                        "load_mode": null,
+                        "effective_load_mode": "always",
+                        "author_type": "platform",
+                        "entry_point": null,
+                        "placed_by": "migration",
+                        "confirmed_at": null,
+                        "tier": "inferred",
+                        "evidence": null,
+                        "conflict_flags": null
                       }
                     ],
                     "meta": {
+                      "rules_mode": "topics",
+                      "gate_mode": "off",
+                      "receptionist_rules_source": "webaiwidgetserver",
                       "page": 1,
                       "per_page": 25,
                       "total": 2
@@ -611,7 +742,7 @@
                   "errors": [
                     {
                       "code": "bad_request",
-                      "message": "page must not be less than 1"
+                      "message": "Unknown topic: customer_service"
                     }
                   ]
                 }
@@ -701,7 +832,19 @@
                       "metadata": null,
                       "created_at": "2024-12-15T10:30:00.000Z",
                       "updated_at": "2024-12-15T10:30:00.000Z",
-                      "category_code": "tone_of_voice"
+                      "category_code": "tone_of_voice",
+                      "topic": null,
+                      "title": null,
+                      "description": null,
+                      "load_mode": null,
+                      "effective_load_mode": "always",
+                      "author_type": "platform",
+                      "entry_point": null,
+                      "placed_by": null,
+                      "confirmed_at": null,
+                      "tier": "inferred",
+                      "evidence": null,
+                      "conflict_flags": null
                     }
                   }
                 }
@@ -855,7 +998,18 @@
                         "changed_at": "2024-12-15T10:30:00.000Z",
                         "created_at": "2024-12-15T10:30:00.000Z",
                         "updated_at": "2024-12-15T10:30:00.000Z",
-                        "category_code": "tone_of_voice"
+                        "category_code": "tone_of_voice",
+                        "title": null,
+                        "description": null,
+                        "topic": null,
+                        "load_mode": null,
+                        "status": "active",
+                        "tier": "inferred",
+                        "entry_point": null,
+                        "author_type": "platform",
+                        "placed_by": null,
+                        "reason": null,
+                        "findings": null
                       }
                     ],
                     "total": 1
@@ -973,7 +1127,18 @@
                       "changed_at": "2024-12-16T14:30:00.000Z",
                       "created_at": "2024-12-16T14:30:00.000Z",
                       "updated_at": "2024-12-16T14:30:00.000Z",
-                      "category_code": "tone_of_voice"
+                      "category_code": "tone_of_voice",
+                      "title": null,
+                      "description": null,
+                      "topic": null,
+                      "load_mode": null,
+                      "status": "active",
+                      "tier": "inferred",
+                      "entry_point": null,
+                      "author_type": "platform",
+                      "placed_by": null,
+                      "reason": null,
+                      "findings": null
                     }
                   }
                 }
@@ -1090,7 +1255,19 @@
                       "metadata": null,
                       "created_at": "2024-12-15T10:30:00.000Z",
                       "updated_at": "2024-12-15T10:30:00.000Z",
-                      "category_code": "tone_of_voice"
+                      "category_code": "tone_of_voice",
+                      "topic": null,
+                      "title": null,
+                      "description": null,
+                      "load_mode": null,
+                      "effective_load_mode": "always",
+                      "author_type": "platform",
+                      "entry_point": null,
+                      "placed_by": null,
+                      "confirmed_at": null,
+                      "tier": "inferred",
+                      "evidence": null,
+                      "conflict_flags": null
                     }
                   }
                 }
@@ -1219,7 +1396,19 @@
                       "metadata": null,
                       "created_at": "2024-12-15T10:30:00.000Z",
                       "updated_at": "2024-12-16T14:00:00.000Z",
-                      "category_code": "tone_of_voice"
+                      "category_code": "tone_of_voice",
+                      "topic": null,
+                      "title": null,
+                      "description": null,
+                      "load_mode": null,
+                      "effective_load_mode": "always",
+                      "author_type": "platform",
+                      "entry_point": null,
+                      "placed_by": null,
+                      "confirmed_at": null,
+                      "tier": "inferred",
+                      "evidence": null,
+                      "conflict_flags": null
                     }
                   }
                 }
@@ -1344,7 +1533,19 @@
                       "metadata": null,
                       "created_at": "2024-12-15T10:30:00.000Z",
                       "updated_at": "2024-12-15T10:30:00.000Z",
-                      "category_code": "tone_of_voice"
+                      "category_code": "tone_of_voice",
+                      "topic": null,
+                      "title": null,
+                      "description": null,
+                      "load_mode": null,
+                      "effective_load_mode": "always",
+                      "author_type": "platform",
+                      "entry_point": null,
+                      "placed_by": null,
+                      "confirmed_at": null,
+                      "tier": "inferred",
+                      "evidence": null,
+                      "conflict_flags": null
                     }
                   }
                 }
@@ -1408,6 +1609,250 @@
             "Bearer": []
           }
         ]
+      }
+    },
+    "/v3/ai/business_rule_categories": {
+      "get": {
+        "operationId": "BusinessRuleCategoriesController_listCategories",
+        "summary": "List Business Rule Categories",
+        "description": "## Overview\nList the catalog of business rule categories, ordered by `sort_order`. vcita manages the catalog. Each category belongs to one topic and has a default load mode. `label_key` and `description` are translation keys.\n\nA category with `is_active = false` belongs to a topic that is not open yet. Writes accept only the codes of active categories.\n\nAvailable for every authenticated token.",
+        "parameters": [
+          {
+            "name": "topic",
+            "required": false,
+            "in": "query",
+            "description": "Filter by topic, a single value, a repeated parameter or a comma-separated list (e.g., \"knowledge_and_files\", \"reply_to_clients,preferences\"). An unknown topic returns 400.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "reply_to_clients",
+                  "ai_receptionist",
+                  "bizai_chat",
+                  "notes",
+                  "preferences",
+                  "knowledge_and_files"
+                ]
+              }
+            },
+            "style": "form",
+            "explode": false
+          },
+          {
+            "name": "is_active",
+            "required": false,
+            "in": "query",
+            "description": "Filter by the active flag (e.g., true, false). Another value returns 400.",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "tags": [
+          "BizAI Business Rules"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Catalog categories retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/BusinessRuleCategoryListResponseDto"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "business_rule_categories": [
+                      {
+                        "uid": "a357419e-93f4-4ce2-abc4-0e0c12e945c5",
+                        "topic": "knowledge_and_files",
+                        "code": "faq",
+                        "default_load_mode": "always",
+                        "label_key": "bizai.rules_knowledge.groups.knowledge_and_files.faq.name",
+                        "description": "bizai.rules_knowledge.groups.knowledge_and_files.faq.description",
+                        "sort_order": 140,
+                        "is_active": true,
+                        "created_at": "2026-11-09T00:00:00.000Z",
+                        "updated_at": "2026-11-09T00:00:00.000Z"
+                      },
+                      {
+                        "uid": "83dac339-e080-4d21-bb63-4b6da9aaccc9",
+                        "topic": "knowledge_and_files",
+                        "code": "knowledge_item",
+                        "default_load_mode": "always",
+                        "label_key": "bizai.rules_knowledge.groups.knowledge_and_files.knowledge_item.name",
+                        "description": "bizai.rules_knowledge.groups.knowledge_and_files.knowledge_item.description",
+                        "sort_order": 150,
+                        "is_active": true,
+                        "created_at": "2026-11-09T00:00:00.000Z",
+                        "updated_at": "2026-11-09T00:00:00.000Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request - invalid query parameter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "bad_request",
+                      "message": "Unknown topic: customer_service"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Unauthorized"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/ai/business_rule_categories/{uid}": {
+      "get": {
+        "operationId": "BusinessRuleCategoriesController_getCategory",
+        "summary": "Retrieve a Business Rule Category",
+        "description": "## Overview\nRetrieve one catalog category by UID.\n\nAvailable for every authenticated token.",
+        "parameters": [
+          {
+            "name": "uid",
+            "required": true,
+            "in": "path",
+            "description": "The UID of the category (e.g., \"a357419e-93f4-4ce2-abc4-0e0c12e945c5\").",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "tags": [
+          "BizAI Business Rules"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Catalog category retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/BusinessRuleCategoryResponseDto"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "business_rule_category": {
+                      "uid": "a357419e-93f4-4ce2-abc4-0e0c12e945c5",
+                      "topic": "knowledge_and_files",
+                      "code": "faq",
+                      "default_load_mode": "always",
+                      "label_key": "bizai.rules_knowledge.groups.knowledge_and_files.faq.name",
+                      "description": "bizai.rules_knowledge.groups.knowledge_and_files.faq.description",
+                      "sort_order": 140,
+                      "is_active": true,
+                      "created_at": "2026-11-09T00:00:00.000Z",
+                      "updated_at": "2026-11-09T00:00:00.000Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Unauthorized"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Business rule category not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "not_found",
+                      "message": "Business rule category not found"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
       }
     }
   }

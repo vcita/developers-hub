@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "Represents a business rule that guides AI behavior for a specific business. Rules are organized by category (tone of voice, business policies, things to avoid, FAQ) and can be AI-generated (system) or user-created. For FAQ category rules, the metadata contains structured question and answer fields extracted from the content. Rules can be activated, deactivated, or held in a pending approval state.",
+  "description": "Represents a business rule that guides AI behavior for a specific business. Each rule has a category code from the catalog (`GET /v3/ai/business_rule_categories`) and, once placed, a topic. Rules can be AI-generated (system) or user-created. For FAQ category rules, the metadata contains structured question and answer fields extracted from the content. Rules can be activated, deactivated, or held in a pending approval state.",
   "properties": {
     "uid": {
       "type": "string",
@@ -117,15 +117,99 @@
     },
     "category_code": {
       "type": "string",
-      "description": "The category of the business rule. Determines how the AI agent uses this rule.\n\n* `tone_of_voice` - Rules about communication style, language, and tone the AI should adopt when interacting with clients.\n* `policies_and_info` - Rules about business operations, pricing, scheduling policies, and other operational guidelines.\n* `things_to_avoid` - Rules about topics, phrases, or actions the AI should not mention or perform.\n* `faq` - Frequently asked questions and their answers. When this category is used, the metadata field should contain structured `question` and `answer` fields.\n* `client_facing_bot_policies` - Rules specifically for client-facing bot interactions, defining bot behavior, limitations, and escalation policies.\n* `lead_handling` - Rules about how incoming leads should be qualified, prioritized, and followed up.",
+      "maxLength": 50,
+      "description": "The catalog category code of the rule (e.g., \"tone_of_voice\", \"faq\"). The code belongs to a category of the catalog, see `GET /v3/ai/business_rule_categories`. The same code can exist in more than one topic, for example `tone_of_voice` under `reply_to_clients` and under `ai_receptionist`."
+    },
+    "topic": {
+      "type": "string",
+      "nullable": true,
+      "readOnly": true,
+      "description": "The topic of the rule, one of the catalog topics (e.g., \"reply_to_clients\", \"knowledge_and_files\" or null). Null until the rule is placed in a topic.\n\n* `reply_to_clients` - Rules for replies to clients.\n* `ai_receptionist` - Rules for the AI Receptionist.\n* `bizai_chat` - Rules for BizAI Chat.\n* `notes` - Rules for note summaries and call transcripts.\n* `preferences` - Preferences and priorities that every agent reads.\n* `knowledge_and_files` - Knowledge items, FAQ and documents."
+    },
+    "title": {
+      "type": "string",
+      "nullable": true,
+      "readOnly": true,
+      "maxLength": 255,
+      "description": "A short title of the rule (e.g., \"No price quotes to leads\" or null)."
+    },
+    "description": {
+      "type": "string",
+      "nullable": true,
+      "readOnly": true,
+      "maxLength": 1000,
+      "description": "A description of the rule (e.g., \"How we answer price questions\" or null)."
+    },
+    "load_mode": {
+      "type": "string",
+      "nullable": true,
+      "readOnly": true,
       "enum": [
-        "tone_of_voice",
-        "policies_and_info",
-        "things_to_avoid",
-        "faq",
-        "client_facing_bot_policies",
-        "lead_handling"
-      ]
+        "always",
+        "search",
+        null
+      ],
+      "description": "The own load mode of the rule (e.g., \"always\", \"search\" or null). Null means the default load mode of the catalog category.\n\n* `always` - Agents load the rule with the list.\n* `search` - Agents find the rule through search only."
+    },
+    "effective_load_mode": {
+      "type": "string",
+      "readOnly": true,
+      "enum": [
+        "always",
+        "search"
+      ],
+      "description": "The own load mode of the rule, or the default load mode of its catalog category when the rule has none (e.g., \"always\", \"search\"). A rule without a topic is `always`."
+    },
+    "author_type": {
+      "type": "string",
+      "readOnly": true,
+      "enum": [
+        "platform",
+        "partner",
+        "owner",
+        "owner_via_ai"
+      ],
+      "description": "Who wrote the rule (e.g., \"owner\", \"platform\").\n\n* `platform` - The platform generated the rule.\n* `partner` - A partner app wrote the rule.\n* `owner` - A staff member of the business wrote the rule.\n* `owner_via_ai` - A staff member wrote the rule through an AI assistant."
+    },
+    "entry_point": {
+      "type": "string",
+      "nullable": true,
+      "readOnly": true,
+      "description": "The entry point that wrote the rule (e.g., \"rules_page\", \"bizai_chat\" or null)."
+    },
+    "placed_by": {
+      "type": "string",
+      "nullable": true,
+      "readOnly": true,
+      "description": "What chose the topic of the rule (e.g., \"writer\", \"migration\" or null)."
+    },
+    "confirmed_at": {
+      "type": "string",
+      "format": "date-time",
+      "nullable": true,
+      "readOnly": true,
+      "description": "When a staff member confirmed the rule, in ISO 8601 format (e.g., \"2026-11-09T10:30:00.000Z\" or null)."
+    },
+    "tier": {
+      "type": "string",
+      "readOnly": true,
+      "enum": [
+        "owner",
+        "inferred"
+      ],
+      "description": "The precedence tier of the rule (e.g., \"owner\", \"inferred\").\n\n* `owner` - The author type is `owner`, or `owner_via_ai` with `confirmed_at` set.\n* `inferred` - Every other rule."
+    },
+    "evidence": {
+      "type": "object",
+      "nullable": true,
+      "readOnly": true,
+      "description": "Where the rule came from (e.g., {\"type\": \"conversation\", \"uid\": \"conv-123\"} or null)."
+    },
+    "conflict_flags": {
+      "type": "object",
+      "nullable": true,
+      "readOnly": true,
+      "description": "The latest verdict of the write gate on the rule (e.g., {\"gate_mode\": \"warn\", \"gate_status\": \"passed\", \"findings\": []} or null)."
     }
   },
   "required": [
@@ -137,7 +221,10 @@
     "source",
     "sort_order",
     "created_at",
-    "updated_at"
+    "updated_at",
+    "effective_load_mode",
+    "author_type",
+    "tier"
   ],
   "example": {
     "uid": "br-a1b2c3d4-5678-90ef-ghij-klmnopqrstuv",
@@ -154,6 +241,18 @@
     },
     "created_at": "2024-12-15T10:30:00.000Z",
     "updated_at": "2024-12-15T10:30:00.000Z",
-    "category_code": "tone_of_voice"
+    "category_code": "tone_of_voice",
+    "topic": "reply_to_clients",
+    "title": null,
+    "description": null,
+    "load_mode": null,
+    "effective_load_mode": "always",
+    "author_type": "platform",
+    "entry_point": null,
+    "placed_by": null,
+    "confirmed_at": null,
+    "tier": "inferred",
+    "evidence": null,
+    "conflict_flags": null
   }
 }
