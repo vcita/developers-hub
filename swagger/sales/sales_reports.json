@@ -27,14 +27,59 @@
               },
               "data": {
                 "type": "object",
+                "description": "Collected payment totals in the business currency. A payment is counted when its status is paid, it is not archived, its currency is the business currency, and its paid date is in the period. Refunded and partially refunded payments are not counted. Without `start_time` and `end_time`, the year-to-date fields are returned. With both, the date range fields are returned.",
                 "properties": {
                   "current_year": {
                     "type": "number",
-                    "description": "Total payment amount collected for the current year."
+                    "description": "Year-to-date mode only. Amount collected from January 1 of the current year until today (e.g., 15230.5)."
                   },
                   "last_year": {
                     "type": "number",
-                    "description": "Total payment amount collected in the previous year."
+                    "nullable": true,
+                    "description": "Year-to-date mode only. Amount collected in the same period of the previous year, from January 1 until the same day last year. Null when the business was created during that period (e.g., 12100.0 or null)."
+                  },
+                  "current_year_by_payment_method": {
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/PaymentMethodBreakdown"
+                      }
+                    ],
+                    "description": "Year-to-date mode only, and only when `group_by=payment_method`. The `current_year` amount split by online/offline and by payment method."
+                  },
+                  "last_year_by_payment_method": {
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/PaymentMethodBreakdown"
+                      }
+                    ],
+                    "nullable": true,
+                    "description": "Year-to-date mode only, and only when `group_by=payment_method`. The `last_year` amount split by online/offline and by payment method. Null when `last_year` is null."
+                  },
+                  "date_range_total": {
+                    "type": "number",
+                    "description": "Date range mode only. Amount collected between `start_time` and `end_time` (e.g., 8400.0)."
+                  },
+                  "date_range_by_payment_method": {
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/PaymentMethodBreakdown"
+                      }
+                    ],
+                    "description": "Date range mode only, and only when `group_by=payment_method`. The `date_range_total` amount split by online/offline and by payment method."
+                  },
+                  "date_range": {
+                    "type": "object",
+                    "description": "Date range mode only. The range that was applied, echoed from the request.",
+                    "properties": {
+                      "start_date": {
+                        "type": "string",
+                        "description": "The `start_time` value from the request (e.g., \"2026-01-01T00:00:00Z\")."
+                      },
+                      "end_date": {
+                        "type": "string",
+                        "description": "The `end_time` value from the request (e.g., \"2026-06-30T23:59:59Z\")."
+                      }
+                    }
                   }
                 }
               }
@@ -111,6 +156,82 @@
             }
           }
         }
+      },
+      "PaymentMethodBreakdown": {
+        "type": "object",
+        "description": "A collected amount split first by collection type (online or offline) and then by payment method. The split uses the same payments as the total it belongs to, so `online.amount + offline.amount` equals that total. The same payment method name (e.g., \"Credit Card\") can appear under both `online` and `offline`, so the two groups must not be merged when answering a question about a payment method.",
+        "properties": {
+          "online": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PaymentCollectionTypeTotal"
+              }
+            ],
+            "description": "Payments collected through a payment gateway connected to the business (e.g., Stripe, Square, PayPal). This also includes payments recorded with the payment method \"Credit Card (Online)\", and offline-recorded payments that are linked to a gateway transaction and can be refunded online."
+          },
+          "offline": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PaymentCollectionTypeTotal"
+              }
+            ],
+            "description": "Payments that were collected outside the platform and only recorded in it: entered manually by staff, created through the API as offline payments, or imported from an external system. The money did not move through a gateway connected to the business."
+          }
+        },
+        "required": [
+          "online",
+          "offline"
+        ]
+      },
+      "PaymentCollectionTypeTotal": {
+        "type": "object",
+        "description": "Totals for one collection type (online or offline).",
+        "properties": {
+          "amount": {
+            "type": "number",
+            "description": "Total amount collected with this collection type (e.g., 6200.0)."
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of payments collected with this collection type (e.g., 42)."
+          },
+          "payment_methods": {
+            "type": "array",
+            "description": "The amount split by payment method, sorted by amount, highest first. Empty when no payments match.",
+            "items": {
+              "$ref": "#/components/schemas/PaymentMethodTotal"
+            }
+          }
+        },
+        "required": [
+          "amount",
+          "count",
+          "payment_methods"
+        ]
+      },
+      "PaymentMethodTotal": {
+        "type": "object",
+        "description": "Totals for one payment method within one collection type.",
+        "properties": {
+          "payment_method": {
+            "type": "string",
+            "nullable": true,
+            "description": "The payment method as stored on the payment. It is free text, not a fixed list. Common offline values: \"Cash\", \"Cheque\" (a check), \"Credit Card\", \"Bank Transfer\", \"ACH\", \"PayPal\", \"Other\". Common online values: \"Credit Card\", \"Bank Payment - ACH\", \"Bank Payment - SEPA\", \"Google Pay\", \"Apple Pay\", \"iDEAL\", \"Bancontact\", \"Twint\", \"Wallet\". Payments recorded as \"Other\" are grouped under \"Other\" and are not split by their free-text description. Null groups payments that have no payment method recorded (e.g., \"Cheque\", \"Credit Card\" or null)."
+          },
+          "amount": {
+            "type": "number",
+            "description": "Total amount collected with this payment method (e.g., 3150.0)."
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of payments collected with this payment method (e.g., 12)."
+          }
+        },
+        "required": [
+          "payment_method",
+          "amount",
+          "count"
+        ]
       },
       "PaymentsForecast": {
         "type": "object",
@@ -290,8 +411,43 @@
   "paths": {
     "/v3/sales/reports/payments_widget": {
       "get": {
+        "operationId": "getPaymentsWidget",
         "summary": "Retrieve Payments Widget Data",
-        "description": "## Overview\nFetch summarized data for the Payments widget, including total payments, overdue payments, and pending estimates. This endpoint is accessible with **Staff Tokens** only.\n\nAvailable for **Staff, Directory, and Client tokens**",
+        "description": "## Overview\nFetch summarized data for the Payments widget: collected payments, overdue payments, and pending estimates.\n\nCollected payments are returned for one of two periods:\n- **Year to date** (no `start_time` / `end_time`): the current year until today, and the same period of the previous year.\n- **Date range** (both `start_time` and `end_time`): the given range. When only one of them is sent, year-to-date totals are returned. The range must start on or after January 1 of the previous year.\n\nSend `group_by=payment_method` to also get the collected amount split by collection type (online or offline) and by payment method. Without `group_by`, the response is unchanged. Overdue payments and pending estimates are always current and do not depend on the period or on `group_by`.\n\nAll amounts are in the business currency. Payments in other currencies are not included.\n\n## Errors\nAn invalid date range, an invalid `group_by` value, or a staff member who is not allowed to view payments returns HTTP 200 with `success: true` at the top level and `data.success: false` with the error in `data.errors`.\n\nAvailable for **Staff, Directory, and Client tokens**",
+        "parameters": [
+          {
+            "name": "start_time",
+            "in": "query",
+            "required": false,
+            "description": "Start of the date range, ISO 8601. Date range mode is used only when both `start_time` and `end_time` are sent. When only one of them is sent, it is ignored and year-to-date totals are returned. Must be on or after January 1 of the previous year (e.g., \"2026-01-01T00:00:00Z\").",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "end_time",
+            "in": "query",
+            "required": false,
+            "description": "End of the date range, ISO 8601. Date range mode is used only when both `start_time` and `end_time` are sent. Must not be before `start_time` (e.g., \"2026-06-30T23:59:59Z\").",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "group_by",
+            "in": "query",
+            "required": false,
+            "description": "Adds a breakdown of the collected amount. `payment_method`: split by collection type (online or offline) and then by payment method; adds `current_year_by_payment_method` and `last_year_by_payment_method` in year-to-date mode, or `date_range_by_payment_method` in date range mode (e.g., \"payment_method\").",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "payment_method"
+              ]
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful response containing Payments widget data.",
@@ -311,6 +467,152 @@
                       }
                     }
                   ]
+                },
+                "examples": {
+                  "date_range_by_payment_method": {
+                    "summary": "Date range with group_by=payment_method",
+                    "value": {
+                      "success": true,
+                      "data": {
+                        "total_payments": {
+                          "success": true,
+                          "data": {
+                            "date_range_total": 8400.0,
+                            "date_range_by_payment_method": {
+                              "online": {
+                                "amount": 5200.0,
+                                "count": 31,
+                                "payment_methods": [
+                                  {
+                                    "payment_method": "Credit Card",
+                                    "amount": 4700.0,
+                                    "count": 28
+                                  },
+                                  {
+                                    "payment_method": "Bank Payment - ACH",
+                                    "amount": 500.0,
+                                    "count": 3
+                                  }
+                                ]
+                              },
+                              "offline": {
+                                "amount": 3200.0,
+                                "count": 19,
+                                "payment_methods": [
+                                  {
+                                    "payment_method": "Cheque",
+                                    "amount": 2100.0,
+                                    "count": 9
+                                  },
+                                  {
+                                    "payment_method": "Cash",
+                                    "amount": 700.0,
+                                    "count": 8
+                                  },
+                                  {
+                                    "payment_method": "Credit Card",
+                                    "amount": 400.0,
+                                    "count": 2
+                                  }
+                                ]
+                              }
+                            },
+                            "date_range": {
+                              "start_date": "2026-01-01T00:00:00Z",
+                              "end_date": "2026-06-30T23:59:59Z"
+                            }
+                          }
+                        },
+                        "overdue_payments_summary": {
+                          "success": true,
+                          "data": {
+                            "total_overdue": 774.0,
+                            "total_overdue_count": 3,
+                            "last_week": 120.0,
+                            "last_week_count": 1,
+                            "last_month": 254.0,
+                            "last_month_count": 1,
+                            "old": 400.0,
+                            "old_count": 1
+                          }
+                        },
+                        "pending_estimates": {
+                          "success": true,
+                          "data": {
+                            "count": 2
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "year_to_date": {
+                    "summary": "Year to date without group_by",
+                    "value": {
+                      "success": true,
+                      "data": {
+                        "total_payments": {
+                          "success": true,
+                          "data": {
+                            "current_year": 15230.5,
+                            "last_year": 12100.0
+                          }
+                        },
+                        "overdue_payments_summary": {
+                          "success": true,
+                          "data": {
+                            "total_overdue": null,
+                            "total_overdue_count": 0,
+                            "last_week": null,
+                            "last_week_count": 0,
+                            "last_month": null,
+                            "last_month_count": 0,
+                            "old": null,
+                            "old_count": 0
+                          }
+                        },
+                        "pending_estimates": {
+                          "success": true,
+                          "data": {
+                            "count": 0
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "invalid_date_range": {
+                    "summary": "Invalid date range (returned with HTTP 200)",
+                    "value": {
+                      "success": true,
+                      "data": {
+                        "success": false,
+                        "errors": [
+                          {
+                            "code": "invalid",
+                            "message": "invalid date range"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "401 Unauthorized"
+                    }
+                  ]
                 }
               }
             }
@@ -318,6 +620,11 @@
         },
         "tags": [
           "Sales Reports"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
         ]
       }
     },
