@@ -14,12 +14,10 @@
   "paths": {
     "/v3/ai/business_ai_settings/{business_uid}": {
       "get": {
-        "tags": [
-          "Business AI Settings"
-        ],
+        "tags": ["Business AI Settings"],
         "operationId": "getBusinessAiSettings",
         "summary": "Retrieve a BusinessAiSettings",
-        "description": "## Overview\nRetrieve the AI settings of a business. Every known key is returned, with its default filled in for keys the business has never changed, so the response is the same whether or not the business has stored settings.\n\nThe business is resolved from the token - a staff member can only read the settings of their own business.\n\n**Available for Staff tokens**",
+        "description": "## Overview\nRetrieve the AI settings of a business. Every known key is returned, with its default filled in for keys the business has never changed, so the response is the same whether or not the business has stored settings.\n\nA Staff token can only read the settings of its own business. A Directory token can read the settings of any business in its directory.\n\nAvailable for **Staff, Directory and Application tokens**",
         "security": [
           {
             "Bearer": []
@@ -73,6 +71,12 @@
                         },
                         "opted_in": {
                           "allow": false
+                        },
+                        "client_agent": {
+                          "allow": true
+                        },
+                        "pulse_client_agent": {
+                          "allow": true
                         }
                       }
                     }
@@ -101,7 +105,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - the settings belong to another business",
+            "description": "Forbidden - the settings belong to another business, or to a business outside the token's directory",
             "content": {
               "application/json": {
                 "schema": {
@@ -122,12 +126,10 @@
         }
       },
       "put": {
-        "tags": [
-          "Business AI Settings"
-        ],
+        "tags": ["Business AI Settings"],
         "operationId": "updateBusinessAiSettings",
         "summary": "Update a BusinessAiSettings",
-        "description": "## Overview\nCreate or update the AI settings of a business. Keys left out of the request keep their stored value, and unknown keys are rejected.\n\nThe business is resolved from the token - a staff member can only update the settings of their own business.\n\n**Available for Staff tokens holding the `account.settings.manage` permission**",
+        "description": "## Overview\nCreate or update the AI settings of a business. Keys left out of the request keep their stored value, and unknown keys are rejected.\n\nWho may change which key:\n- A Staff token holding the `account.settings.manage` permission can change every key except `pulse_client_agent`, and only for its own business.\n- A Directory token can change every key for any business in its directory. This is how a partner opts a business in to or out of Pulse and the AI Client Agent.\n- An Application token can change every key for any business.\n\nA Staff token that sends `pulse_client_agent` is rejected with HTTP 403 and nothing is changed, even when the request also carries keys the staff member may change.\n\nAvailable for **Staff, Directory and Application tokens**",
         "security": [
           {
             "Bearer": []
@@ -187,10 +189,16 @@
                       "business_uid": "biz_abc123",
                       "settings": {
                         "note_summary": {
-                          "allow": false
+                          "allow": true
                         },
                         "opted_in": {
                           "allow": false
+                        },
+                        "client_agent": {
+                          "allow": false
+                        },
+                        "pulse_client_agent": {
+                          "allow": true
                         }
                       }
                     }
@@ -211,7 +219,7 @@
                   "errors": [
                     {
                       "code": "bad_request",
-                      "message": "Unknown AI setting key(s): ai_global. Allowed keys: note_summary, opted_in"
+                      "message": "Unknown AI setting key(s): ai_global. Allowed keys: note_summary, opted_in, client_agent, pulse_client_agent"
                     }
                   ]
                 }
@@ -238,7 +246,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - the settings belong to another business, or the staff member lacks the account.settings.manage permission",
+            "description": "Forbidden - the settings belong to another business or to a business outside the token's directory, the staff member lacks the account.settings.manage permission, or a Staff token sent the pulse_client_agent key",
             "content": {
               "application/json": {
                 "schema": {
@@ -249,7 +257,7 @@
                   "errors": [
                     {
                       "code": "forbidden",
-                      "message": "Insufficient permissions to manage business settings"
+                      "message": "Setting key(s) pulse_client_agent can only be changed by the business's partner"
                     }
                   ]
                 }
@@ -283,10 +291,7 @@
             }
           }
         },
-        "required": [
-          "success",
-          "errors"
-        ]
+        "required": ["success", "errors"]
       },
       "BusinessAiSettingsRequest": {
         "type": "object",
@@ -304,9 +309,7 @@
                     "description": "Whether AI note summaries are allowed for this business (e.g., true, false)"
                   }
                 },
-                "required": [
-                  "allow"
-                ]
+                "required": ["allow"]
               },
               "opted_in": {
                 "type": "object",
@@ -317,16 +320,34 @@
                     "description": "Whether the business has opted in to AI (e.g., false, true)"
                   }
                 },
-                "required": [
-                  "allow"
-                ]
+                "required": ["allow"]
+              },
+              "client_agent": {
+                "type": "object",
+                "description": "The Client Communication switch in Settings > BizAI. While not allowed, the AI Client Agent does not run for the business, its existing recommendations are not listed in Pulse or on the client card, and no new reply suggestions are written to the composer. Recommendations are hidden, not deleted, and appear again once allowed",
+                "properties": {
+                  "allow": {
+                    "type": "boolean",
+                    "description": "Whether the AI Client Agent runs for this business (e.g., true, false)"
+                  }
+                },
+                "required": ["allow"]
+              },
+              "pulse_client_agent": {
+                "type": "object",
+                "description": "Whether the business is opted in to Pulse and the AI Client Agent. While not allowed, Pulse is hidden, the Client Agent does not run, and the Client Communication setting is not shown. Set by the business's partner or by vcita, never by the business itself: a Staff token that sends this key is rejected with HTTP 403. Available for **Directory and Application tokens** only",
+                "properties": {
+                  "allow": {
+                    "type": "boolean",
+                    "description": "Whether the business is opted in to Pulse and the AI Client Agent (e.g., true, false)"
+                  }
+                },
+                "required": ["allow"]
               }
             }
           }
         },
-        "required": [
-          "settings"
-        ],
+        "required": ["settings"],
         "example": {
           "settings": {
             "note_summary": {
