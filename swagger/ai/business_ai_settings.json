@@ -76,7 +76,7 @@
                           "allow": true
                         },
                         "pulse_client_agent": {
-                          "allow": true
+                          "allow": false
                         }
                       }
                     }
@@ -129,7 +129,7 @@
         "tags": ["Business AI Settings"],
         "operationId": "updateBusinessAiSettings",
         "summary": "Update a BusinessAiSettings",
-        "description": "## Overview\nCreate or update the AI settings of a business. Keys left out of the request keep their stored value, and unknown keys are rejected.\n\nWho may change which key:\n- A Staff token holding the `account.settings.manage` permission can change every key except `pulse_client_agent`, and only for its own business.\n- A Directory token can change every key for any business in its directory. This is how a partner opts a business in to or out of Pulse and the AI Client Agent.\n- An Application token can change every key for any business.\n\nA Staff token that sends `pulse_client_agent` is rejected with HTTP 403 and nothing is changed, even when the request also carries keys the staff member may change. `pulse_client_agent` is accepted only for a business that has the `pkg.ai.bizai_pulse` or `pkg.ai.client_agent` feature; otherwise the request is rejected with HTTP 422 and nothing is changed.\n\nAvailable for **Staff, Directory and Application tokens**",
+        "description": "## Overview\nCreate or update the AI settings of a business. Keys left out of the request keep their stored value, and unknown keys are rejected.\n\nWho may change which key:\n- A Staff token holding the `account.settings.manage` permission can change every key except `pulse_client_agent`, and only for its own business.\n- A Directory token can change every key for any business in its directory. This is how a partner opts a business in to or out of Pulse and the AI Client Agent.\n- An Application token can change every key for any business.\n\nA Staff token that sends `pulse_client_agent` is rejected with HTTP 403 and nothing is changed, even when the request also carries keys the staff member may change. `pulse_client_agent` is accepted only for a business that has the `rollout.ai.pulse_require_optin` feature together with `pkg.ai.bizai_pulse` or `pkg.ai.client_agent`; otherwise the request is rejected with HTTP 422 and nothing is changed.\n\nAvailable for **Staff, Directory and Application tokens**",
         "security": [
           {
             "Bearer": []
@@ -265,7 +265,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Entity - pulse_client_agent was sent for a business that has neither the pkg.ai.bizai_pulse nor the pkg.ai.client_agent feature",
+            "description": "Unprocessable Entity - pulse_client_agent was sent for a business that lacks the rollout.ai.pulse_require_optin feature, or has neither the pkg.ai.bizai_pulse nor the pkg.ai.client_agent feature",
             "content": {
               "application/json": {
                 "schema": {
@@ -276,7 +276,7 @@
                   "errors": [
                     {
                       "code": "unprocessable_entity",
-                      "message": "pulse_client_agent applies only to a business with one of: pkg.ai.bizai_pulse, pkg.ai.client_agent"
+                      "message": "pulse_client_agent applies only to a business with rollout.ai.pulse_require_optin and one of: pkg.ai.bizai_pulse, pkg.ai.client_agent"
                     }
                   ]
                 }
@@ -354,7 +354,7 @@
               },
               "pulse_client_agent": {
                 "type": "object",
-                "description": "Whether the business is opted in to Pulse and the AI Client Agent. While not allowed, Pulse is hidden, the Client Agent does not run, and the Client Communication setting is not shown. Set by the business's partner or by vcita, never by the business itself: a Staff token that sends this key is rejected with HTTP 403. Accepted only for a business with the pkg.ai.bizai_pulse or pkg.ai.client_agent feature. Available for **Directory and Application tokens** only",
+                "description": "Whether the business is opted in to Pulse and the AI Client Agent. Consulted only for a business with the rollout.ai.pulse_require_optin feature, where it defaults to false: until the partner opts the business in, Pulse is hidden, the Client Agent does not run, and the Client Communication setting is not shown. Without that feature the setting is ignored and the pkg.ai.bizai_pulse and pkg.ai.client_agent features alone decide. Set by the business's partner or by vcita, never by the business itself: a Staff token that sends this key is rejected with HTTP 403. Accepted only for a business with rollout.ai.pulse_require_optin and pkg.ai.bizai_pulse or pkg.ai.client_agent. Available for **Directory and Application tokens** only",
                 "properties": {
                   "allow": {
                     "type": "boolean",
