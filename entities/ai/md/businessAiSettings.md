@@ -1,6 +1,6 @@
 ## BusinessAiSettings
 
-Business-level AI settings, controlling which AI features a business allows. Evaluated independently of the packaging flags that make a feature available in the first place. Most keys are the business's own choice; the pulse_client_agent key is the partner's or vcita's choice and cannot be changed with a Staff token
+Business-level AI settings, controlling which AI features a business allows. Evaluated independently of the packaging flags that make a feature available in the first place. Most keys are the business's own choice; the client_agent_optin key is the partner's or vcita's choice and cannot be changed with a Staff token
 
 ## Properties
 
@@ -16,8 +16,8 @@ Business-level AI settings, controlling which AI features a business allows. Eva
 | --- | --- | --- | --- |
 | note_summary | AI note summaries. While not allowed, no new note gets a summary and existing summaries are withheld from note responses. Speech-to-text on notes is unaffected | object | Yes |
 | opted_in | Whether the business has opted in to AI. A business with no stored record is treated as not opted in until it explicitly opts in | object | Yes |
-| client_agent | The Client Communication switch in Settings > BizAI. While not allowed, the AI Client Agent does not run for the business, its existing recommendations are not listed in Pulse or on the client card, and no new reply suggestions are written to the composer. Recommendations are hidden, not deleted, and appear again once allowed | object | Yes |
-| pulse_client_agent | Whether the partner opted the business in to Pulse and the AI Client Agent. Consulted only for a business with the rollout.ai.pulse_require_optin feature; until the partner opts it in, Pulse is hidden, the Client Agent does not run, and the Client Communication setting is not shown. Set by the business's partner or by vcita, never by the business itself: a Staff token that sends this key is rejected with HTTP 403 | object | Yes |
+| client_agent | The Client Communication switch in Settings > BizAI. While not allowed, the AI Client Agent does not run for the business, its existing recommendations are not listed in the business's AI recommendations or on the client card, and no new reply suggestions are written to the composer. Recommendations are hidden, not deleted, and appear again once allowed | object | Yes |
+| client_agent_optin | Whether the business's partner opted it in to the AI Client Agent. Applies only to a business whose package requires the partner opt-in: until the partner opts the business in, the AI Client Agent does not run, its recommendations are not shown, and the Client Communication setting is not shown. Set by the business's partner or by vcita, never by the business itself: a Staff token that sends this key is rejected with HTTP 403 | object | Yes |
 
 ## Example
 
@@ -37,7 +37,7 @@ JSON
     "client_agent": {
       "allow": true
     },
-    "pulse_client_agent": {
+    "client_agent_optin": {
       "allow": true
     }
   }
