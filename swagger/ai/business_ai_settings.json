@@ -129,7 +129,7 @@
         "tags": ["Business AI Settings"],
         "operationId": "updateBusinessAiSettings",
         "summary": "Update a BusinessAiSettings",
-        "description": "## Overview\nCreate or update the AI settings of a business. Keys left out of the request keep their stored value, and unknown keys are rejected.\n\nWho may change which key:\n- A Staff token holding the `account.settings.manage` permission can change every key except `client_agent_optin`, and only for its own business.\n- A Directory token can change every key for any business in its directory. This is how a partner opts a business in to or out of the AI Client Agent.\n- An Application token can change every key for any business.\n\nA Staff token that sends `client_agent_optin` is rejected with HTTP 403 and nothing is changed, even when the request also carries keys the staff member may change. `client_agent_optin` is accepted only for a business whose package includes the AI Client Agent and requires the partner opt-in; otherwise the request is rejected with HTTP 422 and nothing is changed.\n\nAvailable for **Staff, Directory and Application tokens**",
+        "description": "## Overview\nCreate or update the AI settings of a business. Keys left out of the request keep their stored value, and unknown keys are rejected.\n\nWho may write:\n- A Staff token holding the `account.settings.manage` permission, for its own business.\n- A Directory token, for any business in its directory. This is how a partner opts a business in to or out of the AI Client Agent.\n- An Application token, for any business.\n\n`client_agent_optin` is accepted only for a business whose package includes the AI Client Agent and requires the opt-in; otherwise the request is rejected with HTTP 422 and nothing is changed.\n\nAvailable for **Staff, Directory and Application tokens**",
         "security": [
           {
             "Bearer": []
@@ -246,7 +246,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - the settings belong to another business or to a business outside the token's directory, the staff member lacks the account.settings.manage permission, or a Staff token sent the client_agent_optin key",
+            "description": "Forbidden - the settings belong to another business or to a business outside the token's directory, or the staff member lacks the account.settings.manage permission",
             "content": {
               "application/json": {
                 "schema": {
@@ -257,7 +257,7 @@
                   "errors": [
                     {
                       "code": "forbidden",
-                      "message": "Setting key(s) client_agent_optin can only be changed by the business's partner"
+                      "message": "Insufficient permissions to manage business AI settings"
                     }
                   ]
                 }
@@ -265,7 +265,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Entity - client_agent_optin was sent for a business whose package does not include the AI Client Agent or does not require the partner opt-in",
+            "description": "Unprocessable Entity - client_agent_optin was sent for a business whose package does not include the AI Client Agent or does not require the opt-in",
             "content": {
               "application/json": {
                 "schema": {
@@ -276,7 +276,7 @@
                   "errors": [
                     {
                       "code": "unprocessable_entity",
-                      "message": "client_agent_optin applies only to a business whose package requires the partner opt-in for the AI Client Agent"
+                      "message": "client_agent_optin applies only to a business whose package requires the opt-in for the AI Client Agent"
                     }
                   ]
                 }
@@ -354,7 +354,7 @@
               },
               "client_agent_optin": {
                 "type": "object",
-                "description": "Whether the business's partner opted it in to the AI Client Agent. Applies only to a business whose package requires the partner opt-in, where it defaults to false: until the partner opts the business in, the AI Client Agent does not run, its recommendations are not shown, and the Client Communication setting is not shown. For every other business the setting is ignored. Set by the business's partner or by vcita, never by the business itself: a Staff token that sends this key is rejected with HTTP 403. Available for **Directory and Application tokens** only",
+                "description": "Whether the business is opted in to the AI Client Agent. Applies only to a business whose package requires the opt-in, where it defaults to false: until the business, its partner or vcita opts it in, the AI Client Agent does not run, its recommendations are not shown, and the Client Communication setting is not shown. For every other business the setting is ignored",
                 "properties": {
                   "allow": {
                     "type": "boolean",
