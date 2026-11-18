@@ -3890,7 +3890,7 @@
       "post": {
         "operationId": "createQuotaConsumption",
         "summary": "Create a QuotaConsumption",
-        "description": "Report one usage of a metered addon SKU. The report is accepted as sent and published for the quota ingest, which validates it, charges the business's allowances in order (the monthly first, then packs), records a repeated `consumption_attempt_uid` once and rejects usage it cannot record; a rejection is logged, not answered. The response echoes the usage as accepted; `uid`, `subscription_uid`, `period` and `window_start` are filled in once it is recorded, as `GET /v3/license/quota_consumptions?source=…&consumption_attempt_uid=…` shows.\n\nAvailable for **App and Internal tokens**. An App reports for the business its token acts for, as itself (`business_uid` is required only when it acts for no business); an Internal token names `business_uid` and `source`.",
+        "description": "Report one usage of a metered addon SKU. The report is accepted as sent and published for the quota ingest, which validates it, charges the business's allowances in order (the monthly first, then packs), records a repeated `consumption_attempt_uid` once and rejects usage it cannot record; a rejection is logged, not answered. While reporting from a source is paused, an App token that reports for it gets `503` and a `Retry-After` header instead. An Internal token can still report for a paused source. The response echoes the usage as accepted; `uid`, `subscription_uid`, `period` and `window_start` are filled in once it is recorded, as `GET /v3/license/quota_consumptions?source=…&consumption_attempt_uid=…` shows.\n\nAvailable for **App and Internal tokens**. An App reports for the business its token acts for, as itself (`business_uid` is required only when it acts for no business); an Internal token names `business_uid` and `source`.",
         "requestBody": {
           "required": true,
           "content": {
@@ -3956,6 +3956,34 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Reporting from this source is paused for App tokens. Internal tokens are not paused. Keep the usage and send it again, with the same `consumption_attempt_uid`, after the number of seconds in the `Retry-After` header",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before sending the usage again (e.g., 60)",
+                "schema": {
+                  "type": "integer"
+                },
+                "example": 60
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "quota usage from source aiagents is paused, send it again later",
+                      "code": "unexpected"
+                    }
+                  ]
                 }
               }
             }
