@@ -14,7 +14,7 @@ A quota consumption is one row of the usage ledger: units of a metered SKU charg
 | sku | The metered addon SKU (e.g., "ai_credit") | string | Yes |
 | period | The period of the allowance that was charged. **monthly**: resets every month on the day of the month the subscription was created; **life_long**: a pack that never resets (e.g., "monthly") | string (enum: `monthly`, `life_long`) | Yes |
 | window_start | The first UTC day of the period this usage was charged against: for a monthly allowance its current window, anchored on the day the subscription started, which is also the key of its per-period counter; 1970-01-01 for a life_long pack, whose single period never ends (e.g., "2026-09-10") | string | Yes |
-| quantity | The units charged to this allowance (e.g., 120) | integer | Yes |
+| quantity | The units charged to this allowance, with at most 4 decimal places (e.g., 120, 0.5) | number | Yes |
 | source | The registered service that reported the usage (e.g., "aiagents") | string | Yes |
 | actor_uid | The uid of the actor that published the usage, an App or an admin, taken from the event's publisher and never from the payload. An App token sees only rows carrying its own uid (e.g., "aiagents") | string |  |
 | consumption_attempt_uid | The publisher's own id for the reported event; every row of one event shares it (e.g., "msg_7f3a") | string | Yes |
