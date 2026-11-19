@@ -11,12 +11,13 @@ The AIRecommendation entity.
 | business_uid | The unique identifier (UID) of the business that owns this recommendation. Automatically set based on the authenticated token. | string |  |
 | created_at | The timestamp when the recommendation was created, in ISO 8601 format. | string |  |
 | updated_at | The timestamp when the recommendation was last updated, in ISO 8601 format. | string |  |
-| category | Recommendation category set by the producer for interface use: 'needs_attention' (time-sensitive and requires the user's attention) or 'opportunity' (growth-focused value opportunity that does not require immediate action). | string (enum: `needs_attention`, `opportunity`) |  |
+| category | Recommendation category set by the producer for interface use: 'needs_attention' (time-sensitive and requires the user's attention), 'opportunity' (growth-focused value opportunity that does not require immediate action), or 'fyi' (informational only, no action required). | string (enum: `needs_attention`, `opportunity`, `fyi`) |  |
 | priority | Relative ordering priority within the same category: 'high' (higher priority, surfaced first) or 'standard' (default priority). | string (enum: `high`, `standard`) |  |
 | execution_policy | Indicates whether this recommendation is auto-executed by an agent or requires human review: 'auto_execute' (may be executed automatically by the system or an authorized agent) or 'requires_human_approval' (must be reviewed and approved by a human before execution). | string (enum: `auto_execute`, `requires_human_approval`) |  |
 | tags | Optional user-facing tags that label the item's urgency, value, or context (for example: 'Hot lead', 'New', 'High value', 'Urgent', 'At risk', 'Follow up'). | array of strings |  |
 | due_at | Optional due or target time, in ISO 8601 format. | string |  |
 | expired_at | Optional expiry time used for dismissing or clearing the recommendation, in ISO 8601 format. | string |  |
+| read | Whether the target staff member (see 'target') has read this recommendation. A new recommendation is unread ('false'). It is independent of 'status': a change to 'read' does not change the lifecycle state, and a change to the lifecycle state does not change 'read'. | boolean |  |
 | actions | A list of recommended actions related to this entity. | array of ref to AIRecommendedAction.jsons | Yes |
 | display | Contains display-related information for the recommendation. | object | Yes |
 | context | The context in which the recommendation was generated. | object | Yes |
@@ -71,6 +72,7 @@ JSON
     "Hot lead"
   ],
   "due_at": "2026-06-08T09:00:00Z",
+  "read": false,
   "actions": [
     {
       "uid": "act-456",
