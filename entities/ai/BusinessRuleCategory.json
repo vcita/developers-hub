@@ -1,21 +1,22 @@
 {
   "type": "object",
-  "description": "A category of the business rules catalog. vcita manages the catalog. Each category belongs to one topic and has a default load mode. The pair of topic and code is unique.",
+  "description": "A category of the business rules catalog. vcita manages the catalog. The catalog is a tree: a top-level category has no parent, and a sub-category has the code of its top-level category in `parent_code`. The code is unique. A category is available for a business when the business has every feature flag in `required_feature_flags` and every app in `required_apps`, and its parent is available. An API response holds only the available categories.",
   "properties": {
     "uid": {
       "type": "string",
       "readOnly": true,
       "description": "The unique identifier (UID) of the category (e.g., \"a357419e-93f4-4ce2-abc4-0e0c12e945c5\")."
     },
-    "topic": {
-      "type": "string",
-      "readOnly": true,
-      "description": "The topic of the category (e.g., \"reply_to_clients\", \"knowledge_and_files\").\n\n* `reply_to_clients` - Rules for replies to clients.\n* `ai_receptionist` - Rules for the AI Receptionist.\n* `bizai_chat` - Rules for BizAI Chat.\n* `notes` - Rules for note summaries and call transcripts.\n* `preferences` - Preferences and priorities that every agent reads.\n* `knowledge_and_files` - Knowledge items, FAQ and documents."
-    },
     "code": {
       "type": "string",
       "readOnly": true,
-      "description": "The category code, unique within the topic (e.g., \"tone_of_voice\", \"faq\"). Rules carry it as `category_code`."
+      "description": "The unique category code (e.g., \"ai_receptionist\", \"lead_handling\"). Rules carry the code of a sub-category as `category_code`."
+    },
+    "parent_code": {
+      "type": "string",
+      "nullable": true,
+      "readOnly": true,
+      "description": "The code of the top-level category of a sub-category, or null for a top-level category (e.g., \"ai_receptionist\" or null)."
     },
     "default_load_mode": {
       "type": "string",
@@ -24,12 +25,22 @@
         "always",
         "search"
       ],
-      "description": "How agents load the rules of the category when a rule has no own load mode (e.g., \"always\", \"search\").\n\n* `always` - Agents load the rules with the list.\n* `search` - Agents find the rules through search only."
+      "description": "The own default load mode of the category, or null to take the default load mode of its parent (e.g., \"always\", \"search\" or null).\n\n* `always` - Agents load the rules with the list.\n* `search` - Agents find the rules through search only.",
+      "nullable": true
+    },
+    "effective_default_load_mode": {
+      "type": "string",
+      "readOnly": true,
+      "enum": [
+        "always",
+        "search"
+      ],
+      "description": "The default load mode that applies to the rules of the category: its own, else the one of its parent, else `always` (e.g., \"always\", \"search\")."
     },
     "label_key": {
       "type": "string",
       "readOnly": true,
-      "description": "The translation key of the category name (e.g., \"bizai.rules_knowledge.groups.knowledge_and_files.faq.name\")."
+      "description": "The translation key of the category name (e.g., \"bizai.rules_knowledge.topics.ai_receptionist.name\", \"bizai.rules_knowledge.groups.knowledge_and_files.faq.name\")."
     },
     "description": {
       "type": "string",
@@ -40,12 +51,25 @@
     "sort_order": {
       "type": "integer",
       "readOnly": true,
-      "description": "The display order of the category across the catalog (e.g., 10, 140). Lower values come first."
+      "description": "The display order of the category among its siblings (e.g., 20, 140). Lower values come first."
     },
-    "is_active": {
-      "type": "boolean",
+    "required_feature_flags": {
+      "type": "array",
+      "nullable": true,
       "readOnly": true,
-      "description": "Whether the category is open for rules (e.g., true, false). Writes accept only the codes of active categories."
+      "items": {
+        "type": "string"
+      },
+      "description": "The feature flags that a business must have to see the category, or null for none (e.g., [\"pkg.ai.client_agent\"] or null)."
+    },
+    "required_apps": {
+      "type": "array",
+      "nullable": true,
+      "readOnly": true,
+      "items": {
+        "type": "string"
+      },
+      "description": "The app code names that a business must have installed to see the category, or null for none (e.g., [\"aireceptionist\"] or null)."
     },
     "created_at": {
       "type": "string",
@@ -58,29 +82,61 @@
       "format": "date-time",
       "readOnly": true,
       "description": "When the category was last updated, in ISO 8601 format (e.g., \"2026-11-09T00:00:00.000Z\")."
+    },
+    "children": {
+      "type": "array",
+      "readOnly": true,
+      "items": {
+        "$ref": "https://vcita.github.io/developers-hub/entities/ai/BusinessRuleCategory.json"
+      },
+      "description": "The available sub-categories of the category in `sort_order`. Empty for a sub-category."
     }
   },
   "required": [
     "uid",
-    "topic",
     "code",
+    "parent_code",
     "default_load_mode",
+    "effective_default_load_mode",
     "label_key",
     "sort_order",
-    "is_active",
+    "required_feature_flags",
+    "required_apps",
     "created_at",
-    "updated_at"
+    "updated_at",
+    "children"
   ],
   "example": {
-    "uid": "a357419e-93f4-4ce2-abc4-0e0c12e945c5",
-    "topic": "knowledge_and_files",
-    "code": "faq",
+    "uid": "0fb55ad6-7a36-4038-9258-9e1c857fff22",
+    "code": "ai_receptionist",
+    "parent_code": null,
     "default_load_mode": "always",
-    "label_key": "bizai.rules_knowledge.groups.knowledge_and_files.faq.name",
-    "description": "bizai.rules_knowledge.groups.knowledge_and_files.faq.description",
-    "sort_order": 140,
-    "is_active": true,
+    "effective_default_load_mode": "always",
+    "label_key": "bizai.rules_knowledge.topics.ai_receptionist.name",
+    "description": "bizai.rules_knowledge.topics.ai_receptionist.description",
+    "sort_order": 20,
+    "required_feature_flags": null,
+    "required_apps": [
+      "aireceptionist"
+    ],
     "created_at": "2026-11-09T00:00:00.000Z",
-    "updated_at": "2026-11-09T00:00:00.000Z"
+    "updated_at": "2026-11-09T00:00:00.000Z",
+    "children": [
+      {
+        "uid": "7b8cd1ad-30b2-49d5-826f-e1d5022c1b98",
+        "code": "lead_handling",
+        "parent_code": "ai_receptionist",
+        "default_load_mode": "always",
+        "effective_default_load_mode": "always",
+        "label_key": "bizai.rules_knowledge.groups.ai_receptionist.lead_handling.name",
+        "description": "bizai.rules_knowledge.groups.ai_receptionist.lead_handling.description",
+        "sort_order": 70,
+        "required_feature_flags": null,
+        "required_apps": null,
+        "created_at": "2026-11-09T00:00:00.000Z",
+        "updated_at": "2026-11-09T00:00:00.000Z",
+        "children": []
+      }
+    ]
   }
 }
