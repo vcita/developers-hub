@@ -17,7 +17,7 @@ The AIRecommendation entity.
 | tags | Optional user-facing tags that label the item's urgency, value, or context (for example: 'Hot lead', 'New', 'High value', 'Urgent', 'At risk', 'Follow up'). | array of strings |  |
 | due_at | Optional due or target time, in ISO 8601 format. | string |  |
 | expired_at | Optional expiry time used for dismissing or clearing the recommendation, in ISO 8601 format. | string |  |
-| read | Whether the target staff member (see 'target') has read this recommendation. A new recommendation is unread ('false'). It does not change 'status'. | boolean |  |
+| read | Whether the calling staff member has read this recommendation. Each staff member who can see the recommendation has their own read state. A new recommendation is unread ('false') for every staff member. It does not change 'status'. | boolean |  |
 | actions | A list of recommended actions related to this entity. | array of ref to AIRecommendedAction.jsons | Yes |
 | display | Contains display-related information for the recommendation. | object | Yes |
 | context | The context in which the recommendation was generated. | object | Yes |
