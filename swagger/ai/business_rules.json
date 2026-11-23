@@ -32,7 +32,7 @@
                 },
                 "code": {
                   "type": "string",
-                  "description": "A machine-readable error code (e.g., \"bad_request\", \"forbidden\", \"not_found\", \"BUSINESS_HAS_EXISTING_RULES\", \"BUSINESS_HAS_ONGOING_JOB\", \"RATE_LIMIT_EXCEEDED\")."
+                  "description": "A machine-readable error code (e.g., \"bad_request\", \"forbidden\", \"not_found\", \"BUSINESS_HAS_EXISTING_RULES\", \"BUSINESS_HAS_ONGOING_JOB\", \"RATE_LIMIT_EXCEEDED\", \"category_not_available\")."
                 },
                 "message": {
                   "type": "string",
@@ -41,6 +41,40 @@
                 "retry_after": {
                   "type": "integer",
                   "description": "Seconds until the next request is allowed. Present on a 429 response only (e.g., 42)."
+                },
+                "reason": {
+                  "type": "string",
+                  "enum": [
+                    "unknown_code",
+                    "missing_requirement",
+                    "not_a_sub_category"
+                  ],
+                  "description": "Why the category is not available. Present on `category_not_available` only.\n\n* `unknown_code` - No category has this code.\n* `missing_requirement` - The business lacks a feature flag or an app that the category or its parent needs.\n* `not_a_sub_category` - The code is a top-level category. A rule needs one of its sub-categories."
+                },
+                "missing": {
+                  "type": "object",
+                  "description": "The feature flags and the apps that the business lacks for the category or its parent. Present when `reason` is `missing_requirement` (e.g., {\"feature_flags\": [], \"apps\": [\"aireceptionist\"]}).",
+                  "properties": {
+                    "feature_flags": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "apps": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                },
+                "suggestions": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Sub-category codes that are available for the business and fit the request: first the sub-category with the same legacy code under an available parent, then the other sub-categories of the requested parent when it is available. Empty when nothing fits. Present on `category_not_available` only (e.g., [\"policies_and_info\"])."
                 }
               }
             }
@@ -68,7 +102,7 @@
           "category_code": {
             "type": "string",
             "maxLength": 50,
-            "description": "The category code of the business rule. It must be the code of a sub-category that is available for the business, see `GET /v3/ai/business_rule_categories`. A top-level category, an unknown code or a sub-category that is not available returns 400 with the code `category_not_available`. The sub-category codes are `tone_of_voice`, `policies_and_info`, `things_to_avoid` (Reply to clients), `ai_receptionist_tone_of_voice`, `ai_receptionist_policy`, `ai_receptionist_what_to_avoid`, `lead_handling` (AI Receptionist), `preferences_whats_important`, `preferences_things_to_avoid` (Preferences & Priorities), `faq`, `knowledge_item`, `document`, `client_facing_bot_policies` (Knowledge & Files) (e.g., \"tone_of_voice\", \"knowledge_item\"). The legacy code `client_handling` is also accepted: the rule gets `category_code` `policies_and_info` and `legacy_category_code` `client_handling`.",
+            "description": "The category code of the business rule. It must be the code of a sub-category that is available for the business, see `GET /v3/ai/business_rule_categories`. A top-level category, an unknown code or a sub-category that is not available returns 400 with the code `category_not_available`, a `reason`, a `message`, `missing` and `suggestions`. The sub-category codes are `tone_of_voice`, `policies_and_info`, `things_to_avoid` (Reply to clients), `ai_receptionist_tone_of_voice`, `ai_receptionist_policy`, `ai_receptionist_what_to_avoid`, `lead_handling` (AI Receptionist), `preferences_whats_important`, `preferences_things_to_avoid` (Preferences & Priorities), `faq`, `knowledge_item`, `document`, `client_facing_bot_policies` (Knowledge & Files) (e.g., \"tone_of_voice\", \"knowledge_item\"). The legacy code `client_handling` is also accepted: the rule gets `category_code` `policies_and_info` and `legacy_category_code` `client_handling`.",
             "example": "tone_of_voice"
           },
           "source": {
@@ -119,7 +153,7 @@
           "category_code": {
             "type": "string",
             "maxLength": 50,
-            "description": "The category code of the business rule. It must be the code of a sub-category that is available for the business, see `GET /v3/ai/business_rule_categories`. A top-level category, an unknown code or a sub-category that is not available returns 400 with the code `category_not_available`. The sub-category codes are `tone_of_voice`, `policies_and_info`, `things_to_avoid` (Reply to clients), `ai_receptionist_tone_of_voice`, `ai_receptionist_policy`, `ai_receptionist_what_to_avoid`, `lead_handling` (AI Receptionist), `preferences_whats_important`, `preferences_things_to_avoid` (Preferences & Priorities), `faq`, `knowledge_item`, `document`, `client_facing_bot_policies` (Knowledge & Files) (e.g., \"tone_of_voice\", \"knowledge_item\"). The legacy code `client_handling` is also accepted: the rule gets `category_code` `policies_and_info` and `legacy_category_code` `client_handling`."
+            "description": "The category code of the business rule. It must be the code of a sub-category that is available for the business, see `GET /v3/ai/business_rule_categories`. A top-level category, an unknown code or a sub-category that is not available returns 400 with the code `category_not_available`, a `reason`, a `message`, `missing` and `suggestions`. The sub-category codes are `tone_of_voice`, `policies_and_info`, `things_to_avoid` (Reply to clients), `ai_receptionist_tone_of_voice`, `ai_receptionist_policy`, `ai_receptionist_what_to_avoid`, `lead_handling` (AI Receptionist), `preferences_whats_important`, `preferences_things_to_avoid` (Preferences & Priorities), `faq`, `knowledge_item`, `document`, `client_facing_bot_policies` (Knowledge & Files) (e.g., \"tone_of_voice\", \"knowledge_item\"). The legacy code `client_handling` is also accepted: the rule gets `category_code` `policies_and_info` and `legacy_category_code` `client_handling`."
           }
         },
         "description": "Only `category_code`, `content`, `status` and `sort_order` change. Other fields in the body are ignored."
@@ -765,7 +799,7 @@
       "post": {
         "operationId": "BusinessRulesController_createBusinessRule",
         "summary": "Create a Business Rule",
-        "description": "## Overview\nCreate a new business rule for the authenticated business. The business comes from the token. `source` and `metadata` are stored only for an app token that acts for a staff member; a staff token gets `source: user` and `metadata: null`.\n\n`category_code` must be a sub-category that is available for the business. Another code returns 400 with the code `category_not_available`. The response holds the tree code in `category_code`, its parent in `parent_category_code` and the legacy code in `legacy_category_code`.\n\nAvailable for **Staff** tokens with `account.settings.manage`.",
+        "description": "## Overview\nCreate a new business rule for the authenticated business. The business comes from the token. `source` and `metadata` are stored only for an app token that acts for a staff member; a staff token gets `source: user` and `metadata: null`.\n\n`category_code` must be a sub-category that is available for the business. Another code returns 400 with the code `category_not_available`. The error tells why in `reason` and `message`, names what the business lacks in `missing`, and lists the sub-categories that fit in `suggestions`. The response holds the tree code in `category_code`, its parent in `parent_category_code` and the legacy code in `legacy_category_code`.\n\nAvailable for **Staff** tokens with `account.settings.manage`.",
         "parameters": [],
         "requestBody": {
           "required": true,
@@ -848,7 +882,17 @@
                   "errors": [
                     {
                       "code": "category_not_available",
-                      "message": "Category is not available for this business: lead_handling"
+                      "reason": "missing_requirement",
+                      "message": "AI Receptionist is not available: the business has not installed the AI Receptionist app.",
+                      "missing": {
+                        "feature_flags": [],
+                        "apps": [
+                          "aireceptionist"
+                        ]
+                      },
+                      "suggestions": [
+                        "policies_and_info"
+                      ]
                     }
                   ]
                 }
@@ -1340,7 +1384,7 @@
       "put": {
         "operationId": "BusinessRulesController_updateBusinessRule",
         "summary": "Update a Business Rule",
-        "description": "## Overview\nUpdate a business rule of the authenticated business by UID. Only `category_code`, `content`, `status` and `sort_order` change; other fields in the body are ignored. A rule of another business returns 404.\n\n`category_code` must be a sub-category that is available for the business. Another code returns 400 with the code `category_not_available`. The response holds the tree code in `category_code`, its parent in `parent_category_code` and the legacy code in `legacy_category_code`.\n\nAvailable for **Staff** tokens with `account.settings.manage`.",
+        "description": "## Overview\nUpdate a business rule of the authenticated business by UID. Only `category_code`, `content`, `status` and `sort_order` change; other fields in the body are ignored. A rule of another business returns 404.\n\n`category_code` must be a sub-category that is available for the business. Another code returns 400 with the code `category_not_available`. The error tells why in `reason` and `message`, names what the business lacks in `missing`, and lists the sub-categories that fit in `suggestions`. The response holds the tree code in `category_code`, its parent in `parent_category_code` and the legacy code in `legacy_category_code`.\n\nAvailable for **Staff** tokens with `account.settings.manage`.",
         "parameters": [
           {
             "name": "uid",
@@ -1433,7 +1477,17 @@
                   "errors": [
                     {
                       "code": "category_not_available",
-                      "message": "Category is not available for this business: lead_handling"
+                      "reason": "missing_requirement",
+                      "message": "AI Receptionist is not available: the business has not installed the AI Receptionist app.",
+                      "missing": {
+                        "feature_flags": [],
+                        "apps": [
+                          "aireceptionist"
+                        ]
+                      },
+                      "suggestions": [
+                        "policies_and_info"
+                      ]
                     }
                   ]
                 }
