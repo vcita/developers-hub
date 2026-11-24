@@ -35,6 +35,54 @@
                   "last_year": {
                     "type": "number",
                     "description": "Total payment amount collected in the previous year."
+                  },
+                  "current_year_by_payment_method": {
+                    "description": "Payments collected in the current year, by payment method.",
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/PaymentMethodBreakdown"
+                      }
+                    ]
+                  },
+                  "last_year_by_payment_method": {
+                    "description": "Payments collected in the previous year, by payment method.",
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/PaymentMethodBreakdown"
+                      }
+                    ]
+                  },
+                  "date_range_by_payment_method": {
+                    "description": "Payments collected between start_time and end_time, by payment method.",
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/PaymentMethodBreakdown"
+                      }
+                    ]
+                  },
+                  "current_year_by_item": {
+                    "description": "Payments collected in the current year, by item.",
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/ItemBreakdown"
+                      }
+                    ]
+                  },
+                  "last_year_by_item": {
+                    "description": "Payments collected in the previous year, by item.",
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/ItemBreakdown"
+                      }
+                    ]
+                  },
+                  "date_range_by_item": {
+                    "description": "Payments collected between start_time and end_time, by item.",
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/ItemBreakdown"
+                      }
+                    ]
                   }
                 }
               }
@@ -109,6 +157,125 @@
                 }
               }
             }
+          }
+        }
+      },
+      "PaymentMethodBreakdown": {
+        "type": "object",
+        "description": "Collected amount split by online/offline and then by payment method. The same payment method (e.g., \"Credit Card\") can appear in both. Returned only with group_by=payment_method.",
+        "properties": {
+          "online": {
+            "description": "Payments made through a payment gateway.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PaymentCollectionTypeTotal"
+              }
+            ]
+          },
+          "offline": {
+            "description": "Payments recorded in the system but paid elsewhere.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PaymentCollectionTypeTotal"
+              }
+            ]
+          }
+        }
+      },
+      "PaymentCollectionTypeTotal": {
+        "type": "object",
+        "description": "Online: paid through a payment gateway. Offline: recorded in the system but paid elsewhere (e.g., cash, check).",
+        "properties": {
+          "amount": {
+            "type": "number",
+            "description": "Total amount (e.g., 6200.0)."
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of payments (e.g., 42)."
+          },
+          "payment_methods": {
+            "description": "Totals for each payment method.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PaymentMethodTotal"
+            }
+          }
+        }
+      },
+      "PaymentMethodTotal": {
+        "type": "object",
+        "properties": {
+          "payment_method": {
+            "type": "string",
+            "nullable": true,
+            "description": "Payment method as stored on the payment (e.g., \"Cheque\", \"Cash\", \"Credit Card\")."
+          },
+          "amount": {
+            "type": "number",
+            "description": "Total amount (e.g., 3150.0)."
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of payments (e.g., 12)."
+          }
+        }
+      },
+      "ItemBreakdown": {
+        "type": "object",
+        "description": "Collected amount split by the 20 largest items and the rest. Returned only with group_by=item.",
+        "properties": {
+          "items": {
+            "description": "The 20 items with the largest amounts, largest first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ItemTotal"
+            }
+          },
+          "other_items": {
+            "description": "Number and total amount of the items after the top 20.",
+            "type": "object",
+            "properties": {
+              "count": {
+                "type": "integer",
+                "description": "Number of items (e.g., 14)."
+              },
+              "amount": {
+                "type": "number",
+                "description": "Total amount (e.g., 1540.0)."
+              }
+            }
+          }
+        }
+      },
+      "ItemTotal": {
+        "type": "object",
+        "properties": {
+          "item_type": {
+            "type": "string",
+            "enum": [
+              "service",
+              "product",
+              "custom",
+              "fee",
+              "deposit",
+              "other"
+            ],
+            "description": "Kind of item. custom is any other invoice line, or a payment plan, under its name (e.g., \"service\", \"custom\")."
+          },
+          "item_uid": {
+            "type": "string",
+            "nullable": true,
+            "description": "UID of the service or product (e.g., \"3k2j1h4g5f6d7s8a\")."
+          },
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "description": "Item name (e.g., \"Haircut\")."
+          },
+          "amount": {
+            "type": "number",
+            "description": "Total amount (e.g., 5200.0)."
           }
         }
       },
@@ -292,6 +459,21 @@
       "get": {
         "summary": "Retrieve Payments Widget Data",
         "description": "## Overview\nFetch summarized data for the Payments widget, including total payments, overdue payments, and pending estimates. This endpoint is accessible with **Staff Tokens** only.\n\nAvailable for **Staff, Directory, and Client tokens**",
+        "parameters": [
+          {
+            "name": "group_by",
+            "in": "query",
+            "required": false,
+            "description": "Set to payment_method to add the *_by_payment_method fields to total_payments. Set to item to add the *_by_item fields (e.g., \"payment_method\", \"item\").",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "payment_method",
+                "item"
+              ]
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful response containing Payments widget data.",
