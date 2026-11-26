@@ -6,8 +6,8 @@
     "version": "3.0",
     "x-generated": {
       "sourceFiles": [
-        "legacy_v1_sales.json",
         "sales_reports.json",
+        "legacy_v1_sales.json",
         "payment_plans.json",
         "payments.json",
         "payment_gateway.json",
@@ -368,7 +368,7 @@
         }
       ],
       "totalPaths": 87,
-      "totalComponents": 16
+      "totalComponents": 18
     }
   },
   "servers": [
@@ -378,6 +378,320 @@
     }
   ],
   "paths": {
+    "/v3/sales/reports/payments_widget": {
+      "get": {
+        "summary": "Retrieve Payments Widget Data",
+        "description": "## Overview\nFetch summarized data for the Payments widget, including total payments, overdue payments, and pending estimates. This endpoint is accessible with **Staff Tokens** only.\n\nAvailable for **Staff, Directory, and Client tokens**",
+        "parameters": [
+          {
+            "name": "group_by",
+            "in": "query",
+            "required": false,
+            "description": "Set to payment_method to add the *_by_payment_method fields to total_payments. Set to item to add the *_by_item fields (e.g., \"payment_method\", \"item\").",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "payment_method",
+                "item"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response containing Payments widget data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/PaymentsWidget"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Sales Reports"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/sales/reports/forecast_payments": {
+      "get": {
+        "summary": "Retrieve Payments Forecast Data",
+        "description": "## Overview\nFetch detailed data for the Payments forecast widget, providing predictions of future payments on a month-by-month basis. This endpoint is accessible with **Staff Tokens** only.\n\nAvailable for **Staff, Directory, and Client tokens**",
+        "responses": {
+          "200": {
+            "description": "Successful response containing Payments forecast data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/PaymentsForecast"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Sales Reports"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v3/sales/reports/payment_plans_summary": {
+      "get": {
+        "operationId": "getPaymentPlansSummary",
+        "summary": "Retrieve Payment Plans Summary",
+        "description": "## Overview\nFetch the totals shown at the top of the payment plans page: what plans collected this year, how many plans are active, what active plans will charge in the next 4 weeks, and what failed installments of paused plans require review. The totals cover all of the business's plans and do not take any list filters.\n\nAmounts are in the business currency, and payments and plans in any other currency are not included in them. Plan counts include every currency. Only the plans the requesting staff member can see in the payment plans list are counted.\n\nAvailable for **Staff tokens**.",
+        "responses": {
+          "200": {
+            "description": "Successful response containing the payment plans summary.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "success": {
+                          "type": "boolean",
+                          "description": "Indicates whether the API request was successful (true) or failed (false)."
+                        },
+                        "data": {
+                          "type": "object",
+                          "description": "The response payload. Present on successful responses (success: true)."
+                        },
+                        "error": {
+                          "type": "string",
+                          "description": "Error message for simple error responses. Used in some legacy endpoints."
+                        },
+                        "errors": {
+                          "type": "array",
+                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
+                              },
+                              "message": {
+                                "type": "string",
+                                "description": "Human-readable error message."
+                              },
+                              "field": {
+                                "type": "string",
+                                "description": "The field that caused the error (for validation errors)."
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "success"
+                      ],
+                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/PaymentPlansSummary"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "currency": "USD",
+                    "collected_this_year": {
+                      "amount": 12500,
+                      "count": 41
+                    },
+                    "plans": {
+                      "active_count": 18,
+                      "paused_count": 3,
+                      "total_count": 27
+                    },
+                    "active_installments_due_4_weeks": {
+                      "amount": 4200,
+                      "count": 14
+                    },
+                    "plans_require_review": {
+                      "amount": 950
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, expired or invalid bearer token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "Authentication is required to access this resource"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but not permitted to view payments of this business.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "message": "You are not allowed to perform this action"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Sales Reports"
+        ],
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/platform/v1/leadgen": {
       "post": {
         "parameters": [
@@ -3308,6 +3622,7 @@
                         "offset_fee_enabled": false,
                         "offset_fee_eligible": false,
                         "surcharge_fee_rate": 0,
+                        "surcharge_fee_rate_max": null,
                         "convenience_fee_type": null,
                         "convenience_fee_value": 0
                       },
@@ -3411,6 +3726,7 @@
                         "offset_fee_enabled": true,
                         "offset_fee_eligible": true,
                         "surcharge_fee_rate": 2.9,
+                        "surcharge_fee_rate_max": 3,
                         "convenience_fee_type": null,
                         "convenience_fee_value": 0
                       },
@@ -3568,9 +3884,14 @@
                             "default": false
                           },
                           "surcharge_fee_rate": {
-                            "description": "Read-only field. Current credit card surcharge rate for SMB cost recovery (e.g., 2.9).",
-                            "readOnly": true,
+                            "description": "Credit card surcharge rate in percent. Used only when offset_fee_mode is \"surcharge_fee\". Must be greater than 0 and not higher than surcharge_fee_rate_max. If not sent, the country maximum is used (e.g., 2.15).",
                             "type": "number"
+                          },
+                          "surcharge_fee_rate_max": {
+                            "description": "Maximum surcharge rate in percent for the business country. Null when the country does not support a surcharge (e.g., 3.0).",
+                            "readOnly": true,
+                            "type": "number",
+                            "x-nullable": true
                           },
                           "convenience_fee_type": {
                             "description": "Convenience fee type. Required if \"convenience_fee\".",
@@ -4183,319 +4504,6 @@
           "uri": "https:///platform/v1/services/{service_uid}/availability"
         },
         "x-auth-type": "Application & Application User",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/sales/reports/payments_widget": {
-      "get": {
-        "summary": "Retrieve Payments Widget Data",
-        "description": "## Overview\nFetch summarized data for the Payments widget, including total payments, overdue payments, and pending estimates. This endpoint is accessible with **Staff Tokens** only.\n\nAvailable for **Staff, Directory, and Client tokens**",
-        "parameters": [
-          {
-            "name": "group_by",
-            "in": "query",
-            "required": false,
-            "description": "Set to payment_method to add the *_by_payment_method fields to total_payments (e.g., \"payment_method\").",
-            "schema": {
-              "type": "string",
-              "enum": [
-                "payment_method"
-              ]
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful response containing Payments widget data.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "success": {
-                          "type": "boolean",
-                          "description": "Indicates whether the API request was successful (true) or failed (false)."
-                        },
-                        "data": {
-                          "type": "object",
-                          "description": "The response payload. Present on successful responses (success: true)."
-                        },
-                        "error": {
-                          "type": "string",
-                          "description": "Error message for simple error responses. Used in some legacy endpoints."
-                        },
-                        "errors": {
-                          "type": "array",
-                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "code": {
-                                "type": "string",
-                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
-                              },
-                              "message": {
-                                "type": "string",
-                                "description": "Human-readable error message."
-                              },
-                              "field": {
-                                "type": "string",
-                                "description": "The field that caused the error (for validation errors)."
-                              }
-                            },
-                            "required": [
-                              "code",
-                              "message"
-                            ]
-                          }
-                        }
-                      },
-                      "required": [
-                        "success"
-                      ],
-                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/PaymentsWidget"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Sales Reports"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/sales/reports/forecast_payments": {
-      "get": {
-        "summary": "Retrieve Payments Forecast Data",
-        "description": "## Overview\nFetch detailed data for the Payments forecast widget, providing predictions of future payments on a month-by-month basis. This endpoint is accessible with **Staff Tokens** only.\n\nAvailable for **Staff, Directory, and Client tokens**",
-        "responses": {
-          "200": {
-            "description": "Successful response containing Payments forecast data.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "success": {
-                          "type": "boolean",
-                          "description": "Indicates whether the API request was successful (true) or failed (false)."
-                        },
-                        "data": {
-                          "type": "object",
-                          "description": "The response payload. Present on successful responses (success: true)."
-                        },
-                        "error": {
-                          "type": "string",
-                          "description": "Error message for simple error responses. Used in some legacy endpoints."
-                        },
-                        "errors": {
-                          "type": "array",
-                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "code": {
-                                "type": "string",
-                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
-                              },
-                              "message": {
-                                "type": "string",
-                                "description": "Human-readable error message."
-                              },
-                              "field": {
-                                "type": "string",
-                                "description": "The field that caused the error (for validation errors)."
-                              }
-                            },
-                            "required": [
-                              "code",
-                              "message"
-                            ]
-                          }
-                        }
-                      },
-                      "required": [
-                        "success"
-                      ],
-                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/PaymentsForecast"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Sales Reports"
-        ],
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v3/sales/reports/payment_plans_summary": {
-      "get": {
-        "operationId": "getPaymentPlansSummary",
-        "summary": "Retrieve Payment Plans Summary",
-        "description": "## Overview\nFetch the totals shown at the top of the payment plans page: what plans collected this year, how many plans are active, what active plans will charge in the next 4 weeks, and what failed installments of paused plans require review. The totals cover all of the business's plans and do not take any list filters.\n\nAmounts are in the business currency, and payments and plans in any other currency are not included in them. Plan counts include every currency. Only the plans the requesting staff member can see in the payment plans list are counted.\n\nAvailable for **Staff tokens**.",
-        "responses": {
-          "200": {
-            "description": "Successful response containing the payment plans summary.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "success": {
-                          "type": "boolean",
-                          "description": "Indicates whether the API request was successful (true) or failed (false)."
-                        },
-                        "data": {
-                          "type": "object",
-                          "description": "The response payload. Present on successful responses (success: true)."
-                        },
-                        "error": {
-                          "type": "string",
-                          "description": "Error message for simple error responses. Used in some legacy endpoints."
-                        },
-                        "errors": {
-                          "type": "array",
-                          "description": "Array of error objects for detailed error responses. Present on error responses (success: false).",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "code": {
-                                "type": "string",
-                                "description": "Machine-readable error code (e.g., 'already_exists', 'invalid', 'not_found')."
-                              },
-                              "message": {
-                                "type": "string",
-                                "description": "Human-readable error message."
-                              },
-                              "field": {
-                                "type": "string",
-                                "description": "The field that caused the error (for validation errors)."
-                              }
-                            },
-                            "required": [
-                              "code",
-                              "message"
-                            ]
-                          }
-                        }
-                      },
-                      "required": [
-                        "success"
-                      ],
-                      "description": "Generic wrapper object for API responses. Success responses contain 'data', while error responses contain 'errors' array or 'error' string."
-                    },
-                    {
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/PaymentPlansSummary"
-                        }
-                      }
-                    }
-                  ]
-                },
-                "example": {
-                  "success": true,
-                  "data": {
-                    "currency": "USD",
-                    "collected_this_year": {
-                      "amount": 12500,
-                      "count": 41
-                    },
-                    "plans": {
-                      "active_count": 18,
-                      "paused_count": 3,
-                      "total_count": 27
-                    },
-                    "active_installments_due_4_weeks": {
-                      "amount": 4200,
-                      "count": 14
-                    },
-                    "plans_require_review": {
-                      "amount": 950
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing, expired or invalid bearer token.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "message": "Authentication is required to access this resource"
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "The token is valid but not permitted to view payments of this business.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "errors": [
-                    {
-                      "message": "You are not allowed to perform this action"
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "tags": [
-          "Sales Reports"
-        ],
         "security": [
           {
             "Bearer": []
@@ -21532,25 +21540,6 @@
     }
   },
   "components": {
-    "securitySchemes": {
-      "Bearer": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT",
-        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
-      },
-      "ClientPaymentCards": {
-        "type": "http",
-        "scheme": "bearer",
-        "description": "Provide a valid bearer token in the Authorization header."
-      },
-      "PaymentPlans": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT",
-        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {token}'"
-      }
-    },
     "schemas": {
       "PaymentsWidget": {
         "type": "object",
@@ -21576,13 +21565,52 @@
                     "description": "Total payment amount collected in the previous year."
                   },
                   "current_year_by_payment_method": {
-                    "$ref": "#/components/schemas/PaymentMethodBreakdown"
+                    "description": "Payments collected in the current year, by payment method.",
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/PaymentMethodBreakdown"
+                      }
+                    ]
                   },
                   "last_year_by_payment_method": {
-                    "$ref": "#/components/schemas/PaymentMethodBreakdown"
+                    "description": "Payments collected in the previous year, by payment method.",
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/PaymentMethodBreakdown"
+                      }
+                    ]
                   },
                   "date_range_by_payment_method": {
-                    "$ref": "#/components/schemas/PaymentMethodBreakdown"
+                    "description": "Payments collected between start_time and end_time, by payment method.",
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/PaymentMethodBreakdown"
+                      }
+                    ]
+                  },
+                  "current_year_by_item": {
+                    "description": "Payments collected in the current year, by item.",
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/ItemBreakdown"
+                      }
+                    ]
+                  },
+                  "last_year_by_item": {
+                    "description": "Payments collected in the previous year, by item.",
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/ItemBreakdown"
+                      }
+                    ]
+                  },
+                  "date_range_by_item": {
+                    "description": "Payments collected between start_time and end_time, by item.",
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/ItemBreakdown"
+                      }
+                    ]
                   }
                 }
               }
@@ -21665,10 +21693,20 @@
         "description": "Collected amount split by online/offline and then by payment method. The same payment method (e.g., \"Credit Card\") can appear in both. Returned only with group_by=payment_method.",
         "properties": {
           "online": {
-            "$ref": "#/components/schemas/PaymentCollectionTypeTotal"
+            "description": "Payments made through a payment gateway.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PaymentCollectionTypeTotal"
+              }
+            ]
           },
           "offline": {
-            "$ref": "#/components/schemas/PaymentCollectionTypeTotal"
+            "description": "Payments recorded in the system but paid elsewhere.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PaymentCollectionTypeTotal"
+              }
+            ]
           }
         }
       },
@@ -21685,6 +21723,7 @@
             "description": "Number of payments (e.g., 42)."
           },
           "payment_methods": {
+            "description": "Totals for each payment method.",
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/PaymentMethodTotal"
@@ -21707,6 +21746,64 @@
           "count": {
             "type": "integer",
             "description": "Number of payments (e.g., 12)."
+          }
+        }
+      },
+      "ItemBreakdown": {
+        "type": "object",
+        "description": "Collected amount split by the 20 largest items and the rest. Returned only with group_by=item.",
+        "properties": {
+          "items": {
+            "description": "The 20 items with the largest amounts, largest first.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ItemTotal"
+            }
+          },
+          "other_items": {
+            "description": "Number and total amount of the items after the top 20.",
+            "type": "object",
+            "properties": {
+              "count": {
+                "type": "integer",
+                "description": "Number of items (e.g., 14)."
+              },
+              "amount": {
+                "type": "number",
+                "description": "Total amount (e.g., 1540.0)."
+              }
+            }
+          }
+        }
+      },
+      "ItemTotal": {
+        "type": "object",
+        "properties": {
+          "item_type": {
+            "type": "string",
+            "enum": [
+              "service",
+              "product",
+              "custom",
+              "fee",
+              "deposit",
+              "other"
+            ],
+            "description": "Kind of item. custom is any other invoice line, or a payment plan, under its name (e.g., \"service\", \"custom\")."
+          },
+          "item_uid": {
+            "type": "string",
+            "nullable": true,
+            "description": "UID of the service or product (e.g., \"3k2j1h4g5f6d7s8a\")."
+          },
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "description": "Item name (e.g., \"Haircut\")."
+          },
+          "amount": {
+            "type": "number",
+            "description": "Total amount (e.g., 5200.0)."
           }
         }
       },
@@ -22809,6 +22906,25 @@
             }
           }
         }
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+      },
+      "ClientPaymentCards": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Provide a valid bearer token in the Authorization header."
+      },
+      "PaymentPlans": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {token}'"
       }
     }
   },

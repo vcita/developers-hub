@@ -6,6 +6,7 @@
     "version": "3.0",
     "x-generated": {
       "sourceFiles": [
+        "legacy_v2_communication.json",
         "contact_channels.json",
         "communication.json",
         "staff_notification.json",
@@ -15,10 +16,25 @@
         "communication.json",
         "conversations.json",
         "notification_template.json",
-        "legacy_v2_communication.json",
         "messages.json"
       ],
       "pathNormalizations": [
+        {
+          "file": "legacy_v2_communication.json",
+          "basePath": "/v2",
+          "transformations": [
+            {
+              "original": "/documents/{uid}/share_with_client",
+              "normalized": "/v2/documents/{uid}/share_with_client",
+              "basePath": "/v2"
+            },
+            {
+              "original": "/conversations/{conversation_id}/messages",
+              "normalized": "/v2/conversations/{conversation_id}/messages",
+              "basePath": "/v2"
+            }
+          ]
+        },
         {
           "file": "communication.json",
           "basePath": "/business/communication",
@@ -113,17 +129,6 @@
           ]
         },
         {
-          "file": "legacy_v2_communication.json",
-          "basePath": "/v2",
-          "transformations": [
-            {
-              "original": "/conversations/{conversation_id}/messages",
-              "normalized": "/v2/conversations/{conversation_id}/messages",
-              "basePath": "/v2"
-            }
-          ]
-        },
-        {
           "file": "messages.json",
           "basePath": "/business/messaging",
           "transformations": [
@@ -206,7 +211,7 @@
           ]
         }
       ],
-      "totalPaths": 36,
+      "totalPaths": 37,
       "totalComponents": 50
     }
   },
@@ -217,6 +222,213 @@
     }
   ],
   "paths": {
+    "/v2/documents/{uid}/share_with_client": {
+      "post": {
+        "operationId": "shareDocumentWithClient",
+        "summary": "Share a document with the client",
+        "description": "## Overview\nShares a document that is already on a matter with the matter's client. The document becomes visible to the client, and a new document message is added to the matter's conversation. The client gets an email unless `shared_with_email` is false. When the client has no email address, no email is sent and the request still succeeds.\n\nThe message has no custom text. The document stays on its own matter.\n\nDo not use it for a document that the client sent (`direction` is `client_to_business`): the call changes its direction to business-to-client.\n\nThe staff member must own the document, have organization access, or collaborate on the client.\n\nAvailable for **Staff tokens**.",
+        "parameters": [
+          {
+            "description": "The UID of the document to share (e.g., \"k2v8qz1m9xw3rt5p\").",
+            "in": "path",
+            "name": "uid",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The document is shared.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "document": "k2v8qz1m9xw3rt5p",
+                  "conversation_uid": "mt5f1c9a2b7d4e6q"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden. The staff member may not share this document.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": "Unauthorized"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found. The document does not exist in this business.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": "Couldn't find Document"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Documents"
+        ],
+        "x-auth-type": "Application User",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "shared_with_email": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "When true or omitted, the client also gets an email (e.g., true, false)."
+                  }
+                },
+                "example": {
+                  "shared_with_email": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/conversations/{conversation_id}/messages": {
+      "get": {
+        "description": "## Overview\nRetrieves a paginated list of messages within a specific conversation. Messages are returned in chronological order and include staff details, document attachments, and delivery status.\n\nAvailable for **Staff and Directory tokens**. Directory tokens require the `X-On-Behalf-Of` header with the target business UID.",
+        "parameters": [
+          {
+            "description": "The unique identifier (UID) of the conversation to retrieve messages from.",
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page number of results. Default: 1",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "How many items to return per page. Default: 20",
+            "in": "query",
+            "name": "per_page",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "If set, returns only messages updated in the last minute. Useful for polling for new messages.",
+            "in": "query",
+            "name": "last_update",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "When set to 'me', filters messages to only those visible to the current staff member's team view.",
+            "in": "query",
+            "name": "teams_view_filter",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Business UID to act on behalf of. Required for Directory tokens.",
+            "in": "header",
+            "name": "X-On-Behalf-Of",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success - Returns an array of message objects.",
+            "content": {
+              "application/json": {
+                "example": [
+                  {
+                    "uid": "gn5zqo7nfbwee21c",
+                    "text": "Hi, this is a sample message.",
+                    "sub_type": "text",
+                    "data": [],
+                    "message_description": "Sample conversation",
+                    "appointment_title": null,
+                    "title": "Sample conversation",
+                    "mail_delivered": false,
+                    "mail_sent": true,
+                    "mail_read": false,
+                    "direction": "client_to_business",
+                    "created_at": "2026-02-10T13:19:05.000-08:00",
+                    "created_at_h": "Feb 10, 1:19 pm",
+                    "updated_at": "2026-02-10T13:19:05.000-08:00",
+                    "conversation_uid": "3zumor3etkwgzun6",
+                    "message_of": "message",
+                    "message_type": "system",
+                    "messageable": null,
+                    "documents": [],
+                    "attachments": null,
+                    "trust": false,
+                    "channels": [
+                      "email"
+                    ],
+                    "channel_uid": "dujrmr24hpmerwkr",
+                    "staff": {
+                      "uid": "3so2q8r2b35x7phd",
+                      "full_name": "John Doe",
+                      "display_name": "John Doe",
+                      "email": "john@example.com"
+                    },
+                    "subject": "Sample conversation",
+                    "was_read": false,
+                    "external_data": {}
+                  }
+                ]
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found - Conversation does not exist.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": "Couldn't find Conversation"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get Conversation Messages",
+        "tags": [
+          "Messages"
+        ],
+        "x-auth-type": "Application & Application User",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v3/communication/contact_channels": {
       "get": {
         "operationId": "ContactChannelsController_index",
@@ -13489,134 +13701,6 @@
         ]
       }
     },
-    "/v2/conversations/{conversation_id}/messages": {
-      "get": {
-        "description": "## Overview\nRetrieves a paginated list of messages within a specific conversation. Messages are returned in chronological order and include staff details, document attachments, and delivery status.\n\nAvailable for **Staff and Directory tokens**. Directory tokens require the `X-On-Behalf-Of` header with the target business UID.",
-        "parameters": [
-          {
-            "description": "The unique identifier (UID) of the conversation to retrieve messages from.",
-            "in": "path",
-            "name": "conversation_id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Page number of results. Default: 1",
-            "in": "query",
-            "name": "page",
-            "required": false,
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "description": "How many items to return per page. Default: 20",
-            "in": "query",
-            "name": "per_page",
-            "required": false,
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "description": "If set, returns only messages updated in the last minute. Useful for polling for new messages.",
-            "in": "query",
-            "name": "last_update",
-            "required": false,
-            "schema": {
-              "type": "boolean"
-            }
-          },
-          {
-            "description": "When set to 'me', filters messages to only those visible to the current staff member's team view.",
-            "in": "query",
-            "name": "teams_view_filter",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Business UID to act on behalf of. Required for Directory tokens.",
-            "in": "header",
-            "name": "X-On-Behalf-Of",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success - Returns an array of message objects.",
-            "content": {
-              "application/json": {
-                "example": [
-                  {
-                    "uid": "gn5zqo7nfbwee21c",
-                    "text": "Hi, this is a sample message.",
-                    "sub_type": "text",
-                    "data": [],
-                    "message_description": "Sample conversation",
-                    "appointment_title": null,
-                    "title": "Sample conversation",
-                    "mail_delivered": false,
-                    "mail_sent": true,
-                    "mail_read": false,
-                    "direction": "client_to_business",
-                    "created_at": "2026-02-10T13:19:05.000-08:00",
-                    "created_at_h": "Feb 10, 1:19 pm",
-                    "updated_at": "2026-02-10T13:19:05.000-08:00",
-                    "conversation_uid": "3zumor3etkwgzun6",
-                    "message_of": "message",
-                    "message_type": "system",
-                    "messageable": null,
-                    "documents": [],
-                    "attachments": null,
-                    "trust": false,
-                    "channels": [
-                      "email"
-                    ],
-                    "channel_uid": "dujrmr24hpmerwkr",
-                    "staff": {
-                      "uid": "3so2q8r2b35x7phd",
-                      "full_name": "John Doe",
-                      "display_name": "John Doe",
-                      "email": "john@example.com"
-                    },
-                    "subject": "Sample conversation",
-                    "was_read": false,
-                    "external_data": {}
-                  }
-                ]
-              }
-            }
-          },
-          "404": {
-            "description": "Not Found - Conversation does not exist.",
-            "content": {
-              "application/json": {
-                "example": {
-                  "error": "Couldn't find Conversation"
-                }
-              }
-            }
-          }
-        },
-        "summary": "Get Conversation Messages",
-        "tags": [
-          "Messages"
-        ],
-        "x-auth-type": "Application & Application User",
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
     "/business/messaging/v1/channels": {
       "post": {
         "description": "## Overview\nConnecting a business to a primitive messaging channel through known providers.\n\n**Prerequisites:**\n- Business must have a valid `callsandtexting` subscription to use this endpoint.\n- For businesses without the `claim_dedicated_number` feature enabled, the `voice_text_app_installed` parameter must be set to `true`.\n\nAvailable for **Staff, App, and Directory tokens**.",
@@ -13801,6 +13885,20 @@
     }
   },
   "components": {
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
+      },
+      "Conversations": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Provide a valid staff bearer token in the Authorization header. Example: 'Authorization: Bearer {staff_token}'."
+      }
+    },
     "schemas": {
       "ErrorResponse": {
         "type": "object",
@@ -16242,20 +16340,6 @@
             "description": "Only present in the deep representation. UID of the polymorphic source object (when applicable)."
           }
         }
-      }
-    },
-    "securitySchemes": {
-      "Bearer": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT",
-        "description": "Provide a valid bearer token in the Authorization header. Example: 'Authorization: Bearer {app_token}'"
-      },
-      "Conversations": {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT",
-        "description": "Provide a valid staff bearer token in the Authorization header. Example: 'Authorization: Bearer {staff_token}'."
       }
     }
   },

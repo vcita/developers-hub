@@ -6,8 +6,8 @@
     "version": "3.0",
     "x-generated": {
       "sourceFiles": [
-        "files.json",
-        "legacy_documents.json"
+        "legacy_documents.json",
+        "files.json"
       ],
       "pathNormalizations": [],
       "pathConflicts": [],
@@ -15,15 +15,15 @@
         {
           "type": "schema",
           "name": "ErrorResponse",
-          "resolution": "Renamed to ErrorResponse_legacy_documents",
+          "resolution": "Renamed to ErrorResponse_files",
           "files": [
             "merged",
-            "legacy_documents.json"
+            "files.json"
           ]
         }
       ],
-      "totalPaths": 11,
-      "totalComponents": 9
+      "totalPaths": 13,
+      "totalComponents": 12
     }
   },
   "servers": [
@@ -33,6 +33,1259 @@
     }
   ],
   "paths": {
+    "/v2/documents": {
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "operationId": "listDocuments",
+        "summary": "List documents",
+        "description": "## Overview\nLists the business's documents, newest first. Filter by client with `client` and by matter with `conversation_uid`. Each document says who it is from in `direction`.\n\n### Staff Scoping\n- Staff with organization access see all of the business's documents.\n- Staff whose document access is `no` see none.\n- Other staff see their own documents and the documents of clients they collaborate on.\n\nThe response is an array. Pagination totals are in the `Total`, `Per-Page` and `Link` response headers.\n\nAvailable for **Staff tokens**.",
+        "parameters": [
+          {
+            "name": "client",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Client UID. Returns only this client's documents (e.g., \"c9i4nkl5tzp9o42k\")."
+          },
+          {
+            "name": "conversation_uid",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Matter UID. Returns only the documents on this matter (e.g., \"mt5f1c9a2b7d4e6q\")."
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "Page number, starting at 1 (e.g., 1, 2)."
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Number of documents per page (e.g., 20, 50)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "An array of documents.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Document"
+                  }
+                },
+                "example": [
+                  {
+                    "uid": "k2v8qz1m9xw3rt5p",
+                    "name": "termite_warranty.pdf",
+                    "title": "One-year termite warranty",
+                    "description": "",
+                    "size_in_kb": 182,
+                    "notes": "Hi Dana, here is the warranty document we promised.",
+                    "time_sent": "2026-11-26T10:30:00.000+02:00",
+                    "time_sent_h": "Nov 26",
+                    "time_downloaded": null,
+                    "time_downloaded_h": null,
+                    "conversation_uid": "mt5f1c9a2b7d4e6q",
+                    "matter": {
+                      "display_name": "Kitchen project",
+                      "uid": "mt5f1c9a2b7d4e6q"
+                    },
+                    "created_at": "2026-11-26T10:30:00.000+02:00",
+                    "created_at_h": "10:30 am",
+                    "client": {
+                      "uid": "c9i4nkl5tzp9o42k",
+                      "first_name": "Dana",
+                      "last_name": "Levi",
+                      "full_name": "Dana Levi",
+                      "email": "dana@example.com",
+                      "phone_to_display": "+1 555-0100"
+                    },
+                    "staff": {
+                      "uid": "3so2q8r2b35x7phd",
+                      "first_name": "John",
+                      "last_name": "Doe",
+                      "display_name": "John Doe"
+                    },
+                    "direction": "business_to_client",
+                    "file_display_download_btn": true,
+                    "file_scan_state": "clean",
+                    "infected": false,
+                    "file_storage_type": "s3",
+                    "source_data": {}
+                  }
+                ]
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing, invalid, or not allowed to access the requested resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": "401 Unauthorized"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found. The client or the matter does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": "Couldn't find Client"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "Documents"
+        ],
+        "operationId": "createDocuments",
+        "summary": "Send documents to a client",
+        "description": "## Overview\nCreates one document per file on a matter. Unless `direction` is `internal`, it also adds a message with the documents to the matter's conversation, so the client sees them in the client portal.\n\n### Files\n- Send files that are already in the business's library (\"My documents\", see `GET /v2/file_records`) as JSON, with their UIDs in `file_record_ids`.\n- Upload new files as `multipart/form-data`, in `files[N][file]`.\n- Both can be combined in one multipart request. Up to 10 files per request, up to 100 MB per file. ZIP files are rejected.\n\n### Matter\nPass `conversation_id` (the matter UID) to send on one matter. With `client_id` instead, a copy is created on every matter of the client that the staff member can see.\n\n### Email\nWith `shared_with_email: true`, the client also gets an email. When the client has no email address, no email is sent and the request still succeeds, so check the client's email first.\n\n### Signature\nThe client is asked to sign when a library file's `signature_required` is true, or when `files[N][signature_required]` is true for an upload. The message is then a signature request.\n\nAvailable for **Staff tokens**.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Send library files. Pass `conversation_id` or `client_id`, and `file_record_ids`.",
+                "properties": {
+                  "conversation_id": {
+                    "type": "string",
+                    "description": "Matter UID to send the documents on. Prefer it over `client_id` (e.g., \"mt5f1c9a2b7d4e6q\")."
+                  },
+                  "client_id": {
+                    "type": "string",
+                    "description": "Client UID. Creates a copy on every visible matter of the client (e.g., \"c9i4nkl5tzp9o42k\")."
+                  },
+                  "file_record_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "UIDs of library files to send (e.g., [\"fr7d2k9q4m1x8z3c\"])."
+                  },
+                  "message_text": {
+                    "type": "string",
+                    "description": "Text of the message that goes with the documents. HTML is removed. Under 50,000 characters (e.g., \"Hi Dana, here is the warranty document.\")."
+                  },
+                  "shared_with_email": {
+                    "type": "boolean",
+                    "description": "When true, the client also gets an email (e.g., true, false).",
+                    "default": false
+                  },
+                  "direction": {
+                    "type": "string",
+                    "description": "`pivot_to_client` shares the documents with the client. `internal` stores them on the matter without a message (e.g., \"pivot_to_client\", \"internal\").",
+                    "enum": [
+                      "pivot_to_client",
+                      "internal"
+                    ],
+                    "default": "pivot_to_client"
+                  },
+                  "title": {
+                    "type": "string",
+                    "description": "Document title. Used only when one file is sent (e.g., \"One-year termite warranty\")."
+                  },
+                  "staff_id": {
+                    "type": "string",
+                    "description": "UID of the staff member the documents are sent as. Defaults to the token's staff member (e.g., \"3so2q8r2b35x7phd\")."
+                  }
+                }
+              },
+              "example": {
+                "conversation_id": "mt5f1c9a2b7d4e6q",
+                "file_record_ids": [
+                  "fr7d2k9q4m1x8z3c"
+                ],
+                "message_text": "Hi Dana, here is the warranty document we promised.",
+                "shared_with_email": true
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "description": "Upload new files. Use the same top-level fields as the JSON body, plus `files[N][...]` for each file, starting at N = 0.",
+                "properties": {
+                  "conversation_id": {
+                    "type": "string",
+                    "description": "Matter UID to send the documents on (e.g., \"mt5f1c9a2b7d4e6q\")."
+                  },
+                  "message_text": {
+                    "type": "string",
+                    "description": "Text of the message that goes with the documents (e.g., \"Here are the photos.\")."
+                  },
+                  "shared_with_email": {
+                    "type": "boolean",
+                    "description": "When true, the client also gets an email (e.g., true, false)."
+                  },
+                  "direction": {
+                    "type": "string",
+                    "description": "Document direction (e.g., \"pivot_to_client\", \"internal\").",
+                    "enum": [
+                      "pivot_to_client",
+                      "internal"
+                    ]
+                  },
+                  "file_record_ids[]": {
+                    "type": "string",
+                    "description": "UID of a library file to send with the uploads. Repeat the field for more files (e.g., \"fr7d2k9q4m1x8z3c\")."
+                  },
+                  "files[0][file]": {
+                    "type": "string",
+                    "description": "The file to upload (e.g., a PDF file).",
+                    "format": "binary"
+                  },
+                  "files[0][title]": {
+                    "type": "string",
+                    "description": "File title (e.g., \"Before-and-after photos\")."
+                  },
+                  "files[0][description]": {
+                    "type": "string",
+                    "description": "File description (e.g., \"Air duct cleaning\")."
+                  },
+                  "files[0][signature_required]": {
+                    "type": "boolean",
+                    "description": "When true, the client is asked to sign the document (e.g., true, false)."
+                  },
+                  "files[0][template]": {
+                    "type": "boolean",
+                    "description": "When true, the file is also saved to the library (\"My documents\") (e.g., true, false)."
+                  },
+                  "files[0][file_privacy]": {
+                    "type": "string",
+                    "description": "File privacy (e.g., \"Private\", \"Public\").",
+                    "enum": [
+                      "Private",
+                      "Public"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The documents were created. One document per file and per matter.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "description": "Result status (e.g., \"OK\")."
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Document"
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "status": "OK",
+                  "data": [
+                    {
+                      "uid": "k2v8qz1m9xw3rt5p",
+                      "name": "termite_warranty.pdf",
+                      "title": "One-year termite warranty",
+                      "description": "",
+                      "size_in_kb": 182,
+                      "notes": "Hi Dana, here is the warranty document we promised.",
+                      "time_sent": "2026-11-26T10:30:00.000+02:00",
+                      "time_sent_h": "Nov 26",
+                      "time_downloaded": null,
+                      "time_downloaded_h": null,
+                      "conversation_uid": "mt5f1c9a2b7d4e6q",
+                      "matter": {
+                        "display_name": "Kitchen project",
+                        "uid": "mt5f1c9a2b7d4e6q"
+                      },
+                      "created_at": "2026-11-26T10:30:00.000+02:00",
+                      "created_at_h": "10:30 am",
+                      "client": {
+                        "uid": "c9i4nkl5tzp9o42k",
+                        "first_name": "Dana",
+                        "last_name": "Levi",
+                        "full_name": "Dana Levi",
+                        "email": "dana@example.com",
+                        "phone_to_display": "+1 555-0100"
+                      },
+                      "staff": {
+                        "uid": "3so2q8r2b35x7phd",
+                        "first_name": "John",
+                        "last_name": "Doe",
+                        "display_name": "John Doe"
+                      },
+                      "direction": "business_to_client",
+                      "file_display_download_btn": true,
+                      "file_scan_state": "clean",
+                      "infected": false,
+                      "file_storage_type": "s3",
+                      "source_data": {}
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing, invalid, or not allowed to access the requested resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": "401 Unauthorized"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden. The staff member may not send on this matter, or the business limits bulk actions and the request names more than one matter or client.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentsErrorResponse"
+                },
+                "example": {
+                  "error": "Unauthorized"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity. A file or the message is invalid, the business has no document storage left, or the sharing limit is reached (`SHARE_ERROR`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentsErrorResponse"
+                },
+                "example": {
+                  "status": "SHARE_ERROR",
+                  "message": "You can share documents with up to 10 clients at a time"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/file_records": {
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "operationId": "listFileRecords",
+        "summary": "List library files",
+        "description": "## Overview\nLists the business's file records, newest first. With `templates_only=true` it lists the library files (\"My documents\"). Send a library file to a client with `POST /v2/documents` and its UID in `file_record_ids`.\n\n### Staff Scoping\n- Staff with organization access (for example the owner) see all of the business's files.\n- Staff whose document access is `no` see none.\n- Other staff see only the files they uploaded.\n\nThe response is an array. Without `page`, all matching files are returned.\n\nAvailable for **Staff tokens**.",
+        "parameters": [
+          {
+            "name": "templates_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "When true, returns only library files (\"My documents\") (e.g., true)."
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Page number, starting at 1. Omit it to get all files (e.g., 1)."
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Number of files per page (e.g., 100)."
+          },
+          {
+            "name": "teams_view_filter",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "me"
+              ]
+            },
+            "description": "When `me`, returns only the current staff member's files (e.g., \"me\")."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "An array of file records.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FileRecord"
+                  }
+                },
+                "example": [
+                  {
+                    "uid": "fr7d2k9q4m1x8z3c",
+                    "name": "termite_warranty.pdf",
+                    "title": "One-year termite warranty",
+                    "description": "",
+                    "size_in_kb": 182,
+                    "size": 186368,
+                    "download_url": "https://example.vcita.biz/v/acme/files/fr7d2k9q4m1x8z3c/download",
+                    "created_at": "2026-11-20T09:00:00.000+02:00",
+                    "created_at_h": "Nov 20",
+                    "staff": {
+                      "uid": "3so2q8r2b35x7phd",
+                      "first_name": "John",
+                      "last_name": "Doe",
+                      "display_name": "John Doe"
+                    },
+                    "scan_state": "clean",
+                    "file_storage_type": "s3",
+                    "infected": false,
+                    "display_download_btn": true,
+                    "signature_required": false
+                  }
+                ]
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing, invalid, or not allowed to access the requested resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": "401 Unauthorized"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/client_api/v1/portals/{business_uid}/contact/get_form": {
+      "get": {
+        "tags": [
+          "Forms"
+        ],
+        "summary": "Get Leave Details Form",
+        "description": "## Overview\nGets the leave details form of the business.\n\n## Authentication\n**Available for Client Tokens only.**",
+        "parameters": [
+          {
+            "name": "business_uid",
+            "in": "path",
+            "description": "business_uid",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data": {
+                    "description": "Please fill out your details below so we can process your request.",
+                    "sections": [
+                      {
+                        "description": "Please fill out your details below so we can process your request.",
+                        "fields": [
+                          [
+                            {
+                              "hidden": false,
+                              "id": "subject",
+                              "label": "Subject",
+                              "required": true,
+                              "type": "subject"
+                            }
+                          ],
+                          [
+                            {
+                              "hidden": false,
+                              "id": "message",
+                              "label": "Message",
+                              "required": true,
+                              "type": "multiline"
+                            }
+                          ]
+                        ],
+                        "title": "",
+                        "type": "message_info"
+                      },
+                      {
+                        "description": "translation missing: en.settings.forms.leave_details.section.client_details.description",
+                        "editable": true,
+                        "fields": [
+                          [
+                            {
+                              "default_value": "",
+                              "id": "6tg9ode4uj2accvx",
+                              "keep_asking": false,
+                              "label": "email_label",
+                              "object_type": "contact",
+                              "required": true,
+                              "type": "email"
+                            }
+                          ],
+                          [
+                            {
+                              "default_value": "",
+                              "id": "qkq65wh8577vio6q",
+                              "keep_asking": false,
+                              "label": "firstname_label",
+                              "object_type": "contact",
+                              "required": true,
+                              "type": "firstname"
+                            }
+                          ]
+                        ],
+                        "title": "Client Info",
+                        "type": "fields"
+                      },
+                      {
+                        "description": "Enter a message you want your clients to read before they submit",
+                        "fields": [
+                          [
+                            {
+                              "default_value": "",
+                              "enabled": false,
+                              "label": "Business policy",
+                              "type": "policy"
+                            }
+                          ]
+                        ],
+                        "title": "Business policy",
+                        "type": "policies"
+                      }
+                    ],
+                    "title": "Leave details form",
+                    "type": "leave_details"
+                  },
+                  "status": "OK"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/client_api/v1/portals/{business_uid}/contact/submit": {
+      "post": {
+        "tags": [
+          "Forms"
+        ],
+        "summary": "Submits Leave Details Form",
+        "description": "## Overview\nSubmits Leave Details Form to the business.\n\n## Authentication\n**Available for Client Tokens only.**\n\n## Required Fields\nBefore submitting, call `GET /client_api/v1/portals/{business_uid}/contact/get_form` to discover required fields for the business's form configuration.\n\nFor the default `leave_details` form, `subject` and `message` are typically required fields. Any field marked with `required: true` in the form response must be provided with a non-empty value, or the API returns HTTP 422.\n\n## Request Body Structure\nThe `form_data.fields` object is a dynamic map where keys are field IDs and values are the field values. Field IDs can be obtained from the GET form response.",
+        "parameters": [
+          {
+            "name": "business_uid",
+            "in": "path",
+            "description": "business_uid",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "form_data"
+                ],
+                "properties": {
+                  "form_data": {
+                    "type": "object",
+                    "required": [
+                      "fields"
+                    ],
+                    "description": "Form data containing field values. This is an object (NOT an array) with a 'fields' property.",
+                    "properties": {
+                      "fields": {
+                        "type": "object",
+                        "description": "Dynamic map of field IDs to values. Field IDs include fixed keys like 'subject' and 'message', plus any custom field IDs from the form configuration. Get valid field IDs from GET /client_api/v1/portals/{business_uid}/contact/get_form.",
+                        "additionalProperties": {
+                          "type": "string"
+                        },
+                        "example": {
+                          "subject": "Contact inquiry",
+                          "message": "Hello, I would like more information"
+                        }
+                      }
+                    }
+                  },
+                  "source_data": {
+                    "type": "object",
+                    "properties": {
+                      "isWidget": {
+                        "description": "Whether the form was submitted from a widget. **Must be a boolean value (true/false), not a string.**",
+                        "type": "boolean"
+                      },
+                      "o": {
+                        "description": "The origin type in Base64",
+                        "type": "string"
+                      },
+                      "s": {
+                        "description": "The source url",
+                        "type": "string"
+                      },
+                      "topUrl": {
+                        "description": "The top url in Base64",
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data": {
+                    "auto_reply_message": null,
+                    "conversation_uid": "ppnmz70yqxltzz6j",
+                    "id": 22,
+                    "uid": "xlc8czadb3tyag1k"
+                  },
+                  "status": "OK"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error - Empty or missing required fields. Use GET .../contact/get_form to discover required field IDs.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "errors": [
+                    {
+                      "code": "invalid",
+                      "field": "subject",
+                      "message": "This field cannot be empty"
+                    }
+                  ],
+                  "success": false
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/client_api/v1/portals/{business_uid}/share_documents_form/get_form": {
+      "get": {
+        "tags": [
+          "Forms"
+        ],
+        "summary": "Get Share Documents Form",
+        "description": "## Overview\nGets the share documents form of the business.\n\n## Authentication\n**Available for Client Tokens only.**",
+        "parameters": [
+          {
+            "name": "business_uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Share Documents Form",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data": [
+                    {
+                      "description": "Please fill out your details below so we can process your request.",
+                      "sections": [
+                        {
+                          "description": "Please fill out your details below so we can process your request.",
+                          "fields": [
+                            [
+                              {
+                                "id": "documents",
+                                "label": "Select your files",
+                                "required": true,
+                                "type": "documents"
+                              }
+                            ],
+                            [
+                              {
+                                "id": "title",
+                                "label": "Document Title",
+                                "required": false,
+                                "type": "title"
+                              }
+                            ],
+                            [
+                              {
+                                "id": "message",
+                                "label": "Message",
+                                "required": false,
+                                "type": "multiline"
+                              }
+                            ]
+                          ],
+                          "title": "",
+                          "type": "message_info"
+                        }
+                      ],
+                      "title": "Share documents form",
+                      "type": "share_documents"
+                    }
+                  ],
+                  "status": "OK"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/client_api/v1/portals/{business_uid}/share_documents_form/submit": {
+      "post": {
+        "tags": [
+          "Forms"
+        ],
+        "summary": "Submits Share Documents Form",
+        "description": "## Overview\nSubmits Share Documents Form to the business.\n\n## Authentication\n**Available for Client Tokens only.**\n\n## Critical Requirement\nThe `matter_uid` query parameter must reference a matter with an assigned staff member. Without this, the endpoint returns 500 due to a server-side bug.\n\n## Request Format\nThis endpoint requires `multipart/form-data` format with actual binary file uploads (not JSON). Documents must be uploaded as form fields with proper content types.\n\n## Important: Field Naming Convention\n**Document fields MUST use explicit numeric indices** (e.g., `[0]`, `[1]`), NOT empty brackets `[]`.\n\n- Correct: `form_data[fields][documents][0]=@file.pdf`\n- Wrong: `form_data[fields][documents][]=@file.pdf` (causes 500 error)\n\nThis is because the server expects a Hash structure, not an Array.\n\n## Captcha\nWhen the business has the `captcha_intake_form` feature enabled, a valid `captcha_token` is required.\n\n## Example cURL\n```bash\ncurl -X POST 'https://api.vcita.biz/client_api/v1/portals/{business_uid}/share_documents_form/submit?matter_uid={matter_uid}' \\\n  -H 'Authorization: Bearer {token}' \\\n  -F 'form_data[fields][title]=My Document' \\\n  -F 'form_data[fields][message]=Please review' \\\n  -F 'form_data[fields][documents][0]=@file.pdf;type=application/pdf'\n```",
+        "parameters": [
+          {
+            "name": "business_uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "matter_uid",
+            "in": "query",
+            "required": true,
+            "description": "The matter/conversation UID to associate with the document upload. **Critical**: The matter must have an assigned staff member to avoid 500 errors.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "form_data[fields][documents][0]"
+                ],
+                "properties": {
+                  "form_data[fields][title]": {
+                    "type": "string",
+                    "description": "Document title"
+                  },
+                  "form_data[fields][message]": {
+                    "type": "string",
+                    "description": "Message accompanying the documents"
+                  },
+                  "form_data[fields][documents][0]": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "File to upload. **Important**: Use explicit indices `[0]`, `[1]`, etc. - NOT empty brackets `[]`. For multiple files, use `form_data[fields][documents][0]`, `form_data[fields][documents][1]`, etc."
+                  },
+                  "captcha_token": {
+                    "type": "string",
+                    "description": "reCAPTCHA token. Required when business has captcha_intake_form feature enabled."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success - Documents submitted successfully.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data": {
+                    "id": 142055507,
+                    "uid": "gpybls1zgpmono0o",
+                    "conversation_uid": "hf3gtvitw2ycg3ix",
+                    "auto_reply_message": "Thank you for your message."
+                  },
+                  "status": "OK"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error or Business Blocked.\n\n**Validation Error**: Missing required fields like documents.\n\n**Business Blocked**: When the business is flagged as spammer or user access is blocked, returns 422 with NO explicit error message - only `auto_reply_message` in the data object.",
+            "content": {
+              "application/json": {
+                "examples": {
+                  "validation_error": {
+                    "value": {
+                      "errors": [
+                        {
+                          "code": "invalid",
+                          "field": "documents",
+                          "message": "Documents are required"
+                        }
+                      ],
+                      "success": false
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error. Occurs when the matter does not have an assigned staff member or when an empty JSON body is sent instead of multipart/form-data.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": "undefined method `can_receive_sms?' for nil:NilClass",
+                  "status": "Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/platform/v1/forms": {
+      "get": {
+        "tags": [
+          "Forms"
+        ],
+        "summary": "Get Forms List",
+        "description": "## Overview\nGet forms list.\n\n## Authentication\n**Available for Staff, App, and Directory tokens.**",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number of results. Default: 1",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "How many items to return per page. Default: 25. Max: 100",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data": {
+                    "forms": []
+                  },
+                  "status": "OK"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "Forms"
+        ],
+        "summary": "Updates a Form",
+        "description": "## Overview\nUpdate a Form.\n\n## Authentication\n**Available for Staff, App, and Directory tokens.**",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sections": {
+                    "description": "A list sections in the form",
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "fields": {
+                          "description": "A list fields in the form",
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "default_value": {
+                                "description": "The default value the field should have",
+                                "type": "string"
+                              },
+                              "id": {
+                                "description": "Field Id",
+                                "type": "string"
+                              },
+                              "keep_asking": {
+                                "description": "Should a value be requested until one was provided?",
+                                "type": "boolean"
+                              },
+                              "required": {
+                                "description": "Is this field required?",
+                                "type": "boolean"
+                              },
+                              "type": {
+                                "description": "Field Type",
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "type": {
+                    "description": "The type of the form",
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Form Updated",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data": {
+                    "sections": [
+                      {
+                        "editable": true,
+                        "fields": [
+                          {
+                            "default_value": "",
+                            "id": "qh0ki5qtre0ayi0q",
+                            "keep_asking": false,
+                            "required": false,
+                            "type": "singleline"
+                          }
+                        ]
+                      }
+                    ],
+                    "type": "client_card"
+                  },
+                  "status": "OK"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/platform/v1/clients/{client_id}/documents": {
+      "get": {
+        "tags": [
+          "Documents"
+        ],
+        "summary": "Get Documents For A Client",
+        "description": "## Overview\nGets a list of documents for a client.\n\n## Authentication\n**Available for Staff, App, and Directory Tokens.**",
+        "parameters": [
+          {
+            "name": "client_id",
+            "in": "path",
+            "description": "Client UID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number of results. Default: 1",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "How many items to return per page. Default: 25. Max: 100",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "example": {
+                  "data": {
+                    "documents": []
+                  },
+                  "status": "OK"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
+    "/v2/search/search_docuforms": {
+      "get": {
+        "tags": [
+          "Search"
+        ],
+        "summary": "Search docuforms activities",
+        "description": "## Overview\nSearches for docuforms (documents and forms) activities within the business. Results are scoped based on the requesting staff member's permissions.\n\n### Staff Scoping\n- **Admin staff** (with full client access): Can see all docuforms activities, unless `teams_view_filter=me` is specified.\n- **Non-admin staff**: Can only see their own docuforms activities, unless they have shared view access.\n\nAvailable for **Staff and Internal tokens**.",
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "description": "The search text to match against docuforms data. Defaults to `*` (all) if not provided.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number for pagination (1-based).",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "description": "Number of results per page.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 25
+            }
+          },
+          {
+            "name": "select_all",
+            "in": "query",
+            "description": "When set to true, returns all matching docuforms without pagination limits.",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "teams_view_filter",
+            "in": "query",
+            "description": "When set to `me`, restricts results to only the current staff member's docuforms, even if the staff has admin access.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "me"
+              ]
+            }
+          },
+          {
+            "name": "signature_status",
+            "in": "query",
+            "description": "Filter by signature status. Common values include: pending, awaiting_signature, sent, signed, declined.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "awaiting_signature",
+                "sent",
+                "signed",
+                "declined"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Docuforms search completed successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocuformsSearchResponse"
+                },
+                "example": {
+                  "counts": 2,
+                  "top_hits": {
+                    "docuforms_activity": [
+                      {
+                        "uid": "dfa_abc123",
+                        "type": "invoice",
+                        "status": "sent",
+                        "signature_status": "pending",
+                        "created_at": "2026-01-20T14:30:00Z"
+                      },
+                      {
+                        "uid": "dfa_def456",
+                        "type": "estimate",
+                        "status": "viewed",
+                        "signature_status": "awaiting_signature",
+                        "created_at": "2026-01-18T09:15:00Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing, invalid, or not allowed to access the requested resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": "401 Unauthorized"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Gateway Timeout. The Seeker search service is unavailable or timed out.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      }
+    },
     "/v3/assets/files": {
       "post": {
         "operationId": "FilesController_upload",
@@ -1485,771 +2738,276 @@
           }
         ]
       }
-    },
-    "/client_api/v1/portals/{business_uid}/contact/get_form": {
-      "get": {
-        "tags": [
-          "Forms"
-        ],
-        "summary": "Get Leave Details Form",
-        "description": "## Overview\nGets the leave details form of the business.\n\n## Authentication\n**Available for Client Tokens only.**",
-        "parameters": [
-          {
-            "name": "business_uid",
-            "in": "path",
-            "description": "business_uid",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "example": {
-                  "data": {
-                    "description": "Please fill out your details below so we can process your request.",
-                    "sections": [
-                      {
-                        "description": "Please fill out your details below so we can process your request.",
-                        "fields": [
-                          [
-                            {
-                              "hidden": false,
-                              "id": "subject",
-                              "label": "Subject",
-                              "required": true,
-                              "type": "subject"
-                            }
-                          ],
-                          [
-                            {
-                              "hidden": false,
-                              "id": "message",
-                              "label": "Message",
-                              "required": true,
-                              "type": "multiline"
-                            }
-                          ]
-                        ],
-                        "title": "",
-                        "type": "message_info"
-                      },
-                      {
-                        "description": "translation missing: en.settings.forms.leave_details.section.client_details.description",
-                        "editable": true,
-                        "fields": [
-                          [
-                            {
-                              "default_value": "",
-                              "id": "6tg9ode4uj2accvx",
-                              "keep_asking": false,
-                              "label": "email_label",
-                              "object_type": "contact",
-                              "required": true,
-                              "type": "email"
-                            }
-                          ],
-                          [
-                            {
-                              "default_value": "",
-                              "id": "qkq65wh8577vio6q",
-                              "keep_asking": false,
-                              "label": "firstname_label",
-                              "object_type": "contact",
-                              "required": true,
-                              "type": "firstname"
-                            }
-                          ]
-                        ],
-                        "title": "Client Info",
-                        "type": "fields"
-                      },
-                      {
-                        "description": "Enter a message you want your clients to read before they submit",
-                        "fields": [
-                          [
-                            {
-                              "default_value": "",
-                              "enabled": false,
-                              "label": "Business policy",
-                              "type": "policy"
-                            }
-                          ]
-                        ],
-                        "title": "Business policy",
-                        "type": "policies"
-                      }
-                    ],
-                    "title": "Leave details form",
-                    "type": "leave_details"
-                  },
-                  "status": "OK"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/client_api/v1/portals/{business_uid}/contact/submit": {
-      "post": {
-        "tags": [
-          "Forms"
-        ],
-        "summary": "Submits Leave Details Form",
-        "description": "## Overview\nSubmits Leave Details Form to the business.\n\n## Authentication\n**Available for Client Tokens only.**\n\n## Required Fields\nBefore submitting, call `GET /client_api/v1/portals/{business_uid}/contact/get_form` to discover required fields for the business's form configuration.\n\nFor the default `leave_details` form, `subject` and `message` are typically required fields. Any field marked with `required: true` in the form response must be provided with a non-empty value, or the API returns HTTP 422.\n\n## Request Body Structure\nThe `form_data.fields` object is a dynamic map where keys are field IDs and values are the field values. Field IDs can be obtained from the GET form response.",
-        "parameters": [
-          {
-            "name": "business_uid",
-            "in": "path",
-            "description": "business_uid",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "form_data"
-                ],
-                "properties": {
-                  "form_data": {
-                    "type": "object",
-                    "required": [
-                      "fields"
-                    ],
-                    "description": "Form data containing field values. This is an object (NOT an array) with a 'fields' property.",
-                    "properties": {
-                      "fields": {
-                        "type": "object",
-                        "description": "Dynamic map of field IDs to values. Field IDs include fixed keys like 'subject' and 'message', plus any custom field IDs from the form configuration. Get valid field IDs from GET /client_api/v1/portals/{business_uid}/contact/get_form.",
-                        "additionalProperties": {
-                          "type": "string"
-                        },
-                        "example": {
-                          "subject": "Contact inquiry",
-                          "message": "Hello, I would like more information"
-                        }
-                      }
-                    }
-                  },
-                  "source_data": {
-                    "type": "object",
-                    "properties": {
-                      "isWidget": {
-                        "description": "Whether the form was submitted from a widget. **Must be a boolean value (true/false), not a string.**",
-                        "type": "boolean"
-                      },
-                      "o": {
-                        "description": "The origin type in Base64",
-                        "type": "string"
-                      },
-                      "s": {
-                        "description": "The source url",
-                        "type": "string"
-                      },
-                      "topUrl": {
-                        "description": "The top url in Base64",
-                        "type": "string"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "example": {
-                  "data": {
-                    "auto_reply_message": null,
-                    "conversation_uid": "ppnmz70yqxltzz6j",
-                    "id": 22,
-                    "uid": "xlc8czadb3tyag1k"
-                  },
-                  "status": "OK"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error - Empty or missing required fields. Use GET .../contact/get_form to discover required field IDs.",
-            "content": {
-              "application/json": {
-                "example": {
-                  "errors": [
-                    {
-                      "code": "invalid",
-                      "field": "subject",
-                      "message": "This field cannot be empty"
-                    }
-                  ],
-                  "success": false
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/client_api/v1/portals/{business_uid}/share_documents_form/get_form": {
-      "get": {
-        "tags": [
-          "Forms"
-        ],
-        "summary": "Get Share Documents Form",
-        "description": "## Overview\nGets the share documents form of the business.\n\n## Authentication\n**Available for Client Tokens only.**",
-        "parameters": [
-          {
-            "name": "business_uid",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Share Documents Form",
-            "content": {
-              "application/json": {
-                "example": {
-                  "data": [
-                    {
-                      "description": "Please fill out your details below so we can process your request.",
-                      "sections": [
-                        {
-                          "description": "Please fill out your details below so we can process your request.",
-                          "fields": [
-                            [
-                              {
-                                "id": "documents",
-                                "label": "Select your files",
-                                "required": true,
-                                "type": "documents"
-                              }
-                            ],
-                            [
-                              {
-                                "id": "title",
-                                "label": "Document Title",
-                                "required": false,
-                                "type": "title"
-                              }
-                            ],
-                            [
-                              {
-                                "id": "message",
-                                "label": "Message",
-                                "required": false,
-                                "type": "multiline"
-                              }
-                            ]
-                          ],
-                          "title": "",
-                          "type": "message_info"
-                        }
-                      ],
-                      "title": "Share documents form",
-                      "type": "share_documents"
-                    }
-                  ],
-                  "status": "OK"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/client_api/v1/portals/{business_uid}/share_documents_form/submit": {
-      "post": {
-        "tags": [
-          "Forms"
-        ],
-        "summary": "Submits Share Documents Form",
-        "description": "## Overview\nSubmits Share Documents Form to the business.\n\n## Authentication\n**Available for Client Tokens only.**\n\n## Critical Requirement\nThe `matter_uid` query parameter must reference a matter with an assigned staff member. Without this, the endpoint returns 500 due to a server-side bug.\n\n## Request Format\nThis endpoint requires `multipart/form-data` format with actual binary file uploads (not JSON). Documents must be uploaded as form fields with proper content types.\n\n## Important: Field Naming Convention\n**Document fields MUST use explicit numeric indices** (e.g., `[0]`, `[1]`), NOT empty brackets `[]`.\n\n- Correct: `form_data[fields][documents][0]=@file.pdf`\n- Wrong: `form_data[fields][documents][]=@file.pdf` (causes 500 error)\n\nThis is because the server expects a Hash structure, not an Array.\n\n## Captcha\nWhen the business has the `captcha_intake_form` feature enabled, a valid `captcha_token` is required.\n\n## Example cURL\n```bash\ncurl -X POST 'https://api.vcita.biz/client_api/v1/portals/{business_uid}/share_documents_form/submit?matter_uid={matter_uid}' \\\n  -H 'Authorization: Bearer {token}' \\\n  -F 'form_data[fields][title]=My Document' \\\n  -F 'form_data[fields][message]=Please review' \\\n  -F 'form_data[fields][documents][0]=@file.pdf;type=application/pdf'\n```",
-        "parameters": [
-          {
-            "name": "business_uid",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "matter_uid",
-            "in": "query",
-            "required": true,
-            "description": "The matter/conversation UID to associate with the document upload. **Critical**: The matter must have an assigned staff member to avoid 500 errors.",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "form_data[fields][documents][0]"
-                ],
-                "properties": {
-                  "form_data[fields][title]": {
-                    "type": "string",
-                    "description": "Document title"
-                  },
-                  "form_data[fields][message]": {
-                    "type": "string",
-                    "description": "Message accompanying the documents"
-                  },
-                  "form_data[fields][documents][0]": {
-                    "type": "string",
-                    "format": "binary",
-                    "description": "File to upload. **Important**: Use explicit indices `[0]`, `[1]`, etc. - NOT empty brackets `[]`. For multiple files, use `form_data[fields][documents][0]`, `form_data[fields][documents][1]`, etc."
-                  },
-                  "captcha_token": {
-                    "type": "string",
-                    "description": "reCAPTCHA token. Required when business has captcha_intake_form feature enabled."
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Success - Documents submitted successfully.",
-            "content": {
-              "application/json": {
-                "example": {
-                  "data": {
-                    "id": 142055507,
-                    "uid": "gpybls1zgpmono0o",
-                    "conversation_uid": "hf3gtvitw2ycg3ix",
-                    "auto_reply_message": "Thank you for your message."
-                  },
-                  "status": "OK"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error or Business Blocked.\n\n**Validation Error**: Missing required fields like documents.\n\n**Business Blocked**: When the business is flagged as spammer or user access is blocked, returns 422 with NO explicit error message - only `auto_reply_message` in the data object.",
-            "content": {
-              "application/json": {
-                "examples": {
-                  "validation_error": {
-                    "value": {
-                      "errors": [
-                        {
-                          "code": "invalid",
-                          "field": "documents",
-                          "message": "Documents are required"
-                        }
-                      ],
-                      "success": false
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal Server Error. Occurs when the matter does not have an assigned staff member or when an empty JSON body is sent instead of multipart/form-data.",
-            "content": {
-              "application/json": {
-                "example": {
-                  "error": "undefined method `can_receive_sms?' for nil:NilClass",
-                  "status": "Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/platform/v1/forms": {
-      "get": {
-        "tags": [
-          "Forms"
-        ],
-        "summary": "Get Forms List",
-        "description": "## Overview\nGet forms list.\n\n## Authentication\n**Available for Staff, App, and Directory tokens.**",
-        "parameters": [
-          {
-            "name": "page",
-            "in": "query",
-            "description": "Page number of results. Default: 1",
-            "required": false,
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "name": "per_page",
-            "in": "query",
-            "description": "How many items to return per page. Default: 25. Max: 100",
-            "required": false,
-            "schema": {
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "example": {
-                  "data": {
-                    "forms": []
-                  },
-                  "status": "OK"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      },
-      "put": {
-        "tags": [
-          "Forms"
-        ],
-        "summary": "Updates a Form",
-        "description": "## Overview\nUpdate a Form.\n\n## Authentication\n**Available for Staff, App, and Directory tokens.**",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "sections": {
-                    "description": "A list sections in the form",
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "fields": {
-                          "description": "A list fields in the form",
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "default_value": {
-                                "description": "The default value the field should have",
-                                "type": "string"
-                              },
-                              "id": {
-                                "description": "Field Id",
-                                "type": "string"
-                              },
-                              "keep_asking": {
-                                "description": "Should a value be requested until one was provided?",
-                                "type": "boolean"
-                              },
-                              "required": {
-                                "description": "Is this field required?",
-                                "type": "boolean"
-                              },
-                              "type": {
-                                "description": "Field Type",
-                                "type": "string"
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  },
-                  "type": {
-                    "description": "The type of the form",
-                    "type": "string"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Form Updated",
-            "content": {
-              "application/json": {
-                "example": {
-                  "data": {
-                    "sections": [
-                      {
-                        "editable": true,
-                        "fields": [
-                          {
-                            "default_value": "",
-                            "id": "qh0ki5qtre0ayi0q",
-                            "keep_asking": false,
-                            "required": false,
-                            "type": "singleline"
-                          }
-                        ]
-                      }
-                    ],
-                    "type": "client_card"
-                  },
-                  "status": "OK"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/platform/v1/clients/{client_id}/documents": {
-      "get": {
-        "tags": [
-          "Documents"
-        ],
-        "summary": "Get Documents For A Client",
-        "description": "## Overview\nGets a list of documents for a client.\n\n## Authentication\n**Available for Staff, App, and Directory Tokens.**",
-        "parameters": [
-          {
-            "name": "client_id",
-            "in": "path",
-            "description": "Client UID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "page",
-            "in": "query",
-            "description": "Page number of results. Default: 1",
-            "required": false,
-            "schema": {
-              "type": "integer"
-            }
-          },
-          {
-            "name": "per_page",
-            "in": "query",
-            "description": "How many items to return per page. Default: 25. Max: 100",
-            "required": false,
-            "schema": {
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "example": {
-                  "data": {
-                    "documents": []
-                  },
-                  "status": "OK"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
-    },
-    "/v2/search/search_docuforms": {
-      "get": {
-        "tags": [
-          "Search"
-        ],
-        "summary": "Search docuforms activities",
-        "description": "## Overview\nSearches for docuforms (documents and forms) activities within the business. Results are scoped based on the requesting staff member's permissions.\n\n### Staff Scoping\n- **Admin staff** (with full client access): Can see all docuforms activities, unless `teams_view_filter=me` is specified.\n- **Non-admin staff**: Can only see their own docuforms activities, unless they have shared view access.\n\nAvailable for **Staff and Internal tokens**.",
-        "parameters": [
-          {
-            "name": "query",
-            "in": "query",
-            "description": "The search text to match against docuforms data. Defaults to `*` (all) if not provided.",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "page",
-            "in": "query",
-            "description": "Page number for pagination (1-based).",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 1
-            }
-          },
-          {
-            "name": "per_page",
-            "in": "query",
-            "description": "Number of results per page.",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 25
-            }
-          },
-          {
-            "name": "select_all",
-            "in": "query",
-            "description": "When set to true, returns all matching docuforms without pagination limits.",
-            "required": false,
-            "schema": {
-              "type": "boolean"
-            }
-          },
-          {
-            "name": "teams_view_filter",
-            "in": "query",
-            "description": "When set to `me`, restricts results to only the current staff member's docuforms, even if the staff has admin access.",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "me"
-              ]
-            }
-          },
-          {
-            "name": "signature_status",
-            "in": "query",
-            "description": "Filter by signature status. Common values include: pending, awaiting_signature, sent, signed, declined.",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "pending",
-                "awaiting_signature",
-                "sent",
-                "signed",
-                "declined"
-              ]
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Docuforms search completed successfully.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DocuformsSearchResponse"
-                },
-                "example": {
-                  "counts": 2,
-                  "top_hits": {
-                    "docuforms_activity": [
-                      {
-                        "uid": "dfa_abc123",
-                        "type": "invoice",
-                        "status": "sent",
-                        "signature_status": "pending",
-                        "created_at": "2026-01-20T14:30:00Z"
-                      },
-                      {
-                        "uid": "dfa_def456",
-                        "type": "estimate",
-                        "status": "viewed",
-                        "signature_status": "awaiting_signature",
-                        "created_at": "2026-01-18T09:15:00Z"
-                      }
-                    ]
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized. The bearer token is missing, invalid, or not allowed to access the requested resource.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                },
-                "example": {
-                  "success": false,
-                  "error": "401 Unauthorized"
-                }
-              }
-            }
-          },
-          "504": {
-            "description": "Gateway Timeout. The Seeker search service is unavailable or timed out.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "Bearer": []
-          }
-        ]
-      }
     }
   },
   "components": {
     "schemas": {
+      "Document": {
+        "type": "object",
+        "description": "A document: a file shared on a matter, sent by the business, received from the client, or kept internal.",
+        "properties": {
+          "uid": {
+            "type": "string",
+            "description": "Document UID (e.g., \"k2v8qz1m9xw3rt5p\").",
+            "readOnly": true
+          },
+          "name": {
+            "type": "string",
+            "description": "File name (e.g., \"termite_warranty.pdf\")."
+          },
+          "title": {
+            "type": "string",
+            "description": "Document title (e.g., \"One-year termite warranty\")."
+          },
+          "description": {
+            "type": "string",
+            "description": "Document description (e.g., \"Signed copy\")."
+          },
+          "size_in_kb": {
+            "type": "integer",
+            "description": "File size in KB (e.g., 182)."
+          },
+          "notes": {
+            "type": "string",
+            "description": "Text of the message that the document was sent with (e.g., \"Here is the warranty\")."
+          },
+          "time_sent": {
+            "type": "string",
+            "description": "When the document was created (e.g., \"2026-11-26T10:30:00.000+02:00\").",
+            "format": "date-time"
+          },
+          "time_downloaded": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the client downloaded the document (e.g., \"2026-11-27T08:00:00.000+02:00\" or null)."
+          },
+          "conversation_uid": {
+            "type": "string",
+            "description": "UID of the matter's conversation. It equals the matter UID (e.g., \"mt5f1c9a2b7d4e6q\")."
+          },
+          "matter": {
+            "type": "object",
+            "description": "The matter the document belongs to.",
+            "properties": {
+              "uid": {
+                "type": "string",
+                "description": "Matter UID (e.g., \"mt5f1c9a2b7d4e6q\")."
+              },
+              "display_name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Matter name (e.g., \"Kitchen project\" or null)."
+              }
+            }
+          },
+          "client": {
+            "type": "object",
+            "description": "Summary of the client the document belongs to.",
+            "properties": {
+              "uid": {
+                "type": "string",
+                "description": "Client UID (e.g., \"c9i4nkl5tzp9o42k\")."
+              },
+              "full_name": {
+                "type": "string",
+                "description": "Client full name (e.g., \"Dana Levi\")."
+              },
+              "email": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Client email address (e.g., \"dana@example.com\" or null)."
+              }
+            }
+          },
+          "staff": {
+            "type": "object",
+            "description": "Summary of the staff member who owns the document (e.g., {\"uid\": \"3so2q8r2b35x7phd\"})."
+          },
+          "direction": {
+            "type": "string",
+            "description": "Who the document is from: sent by the business, received from the client, or internal and not shared (e.g., \"business_to_client\", \"client_to_business\", \"internal\").",
+            "enum": [
+              "business_to_client",
+              "client_to_business",
+              "internal"
+            ]
+          },
+          "file_scan_state": {
+            "type": "string",
+            "description": "Virus scan state of the file (e.g., \"clean\", \"skipped\", \"pending\")."
+          },
+          "infected": {
+            "type": "boolean",
+            "description": "True when the virus scan flagged the file (e.g., true, false)."
+          },
+          "file_storage_type": {
+            "type": "string",
+            "description": "Where the file is stored (e.g., \"s3\")."
+          }
+        }
+      },
+      "FileRecord": {
+        "type": "object",
+        "description": "A file record. A file record with `template` set is a library file (\"My documents\") that can be sent to clients again.",
+        "properties": {
+          "uid": {
+            "type": "string",
+            "description": "File record UID. Pass it in `file_record_ids` of `POST /v2/documents` (e.g., \"fr7d2k9q4m1x8z3c\").",
+            "readOnly": true
+          },
+          "name": {
+            "type": "string",
+            "description": "File name (e.g., \"termite_warranty.pdf\")."
+          },
+          "title": {
+            "type": "string",
+            "description": "File title (e.g., \"One-year termite warranty\")."
+          },
+          "description": {
+            "type": "string",
+            "description": "File description (e.g., \"Standard warranty\")."
+          },
+          "size_in_kb": {
+            "type": "integer",
+            "description": "File size in KB (e.g., 182)."
+          },
+          "size": {
+            "type": "integer",
+            "description": "File size in bytes (e.g., 186368)."
+          },
+          "download_url": {
+            "type": "string",
+            "description": "URL to download the file (e.g., \"https://example.vcita.biz/v/acme/files/fr7d2k9q4m1x8z3c/download\")."
+          },
+          "created_at": {
+            "type": "string",
+            "description": "When the file was uploaded (e.g., \"2026-11-20T09:00:00.000+02:00\").",
+            "format": "date-time"
+          },
+          "staff": {
+            "type": "object",
+            "description": "Summary of the staff member who uploaded the file (e.g., {\"uid\": \"3so2q8r2b35x7phd\"})."
+          },
+          "scan_state": {
+            "type": "string",
+            "description": "Virus scan state of the file (e.g., \"clean\", \"skipped\", \"pending\")."
+          },
+          "infected": {
+            "type": "boolean",
+            "description": "True when the virus scan flagged the file. Do not send an infected file (e.g., true, false)."
+          },
+          "signature_required": {
+            "type": "boolean",
+            "description": "True when the client is asked to sign the document when it is sent (e.g., true, false)."
+          }
+        }
+      },
+      "DocumentsErrorResponse": {
+        "type": "object",
+        "description": "Error returned by the documents API.",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Error status (e.g., \"ERROR\", \"SHARE_ERROR\")."
+          },
+          "message": {
+            "type": "string",
+            "description": "Error message (e.g., \"You can share documents with up to 10 clients at a time\")."
+          },
+          "data": {
+            "type": "object",
+            "description": "Validation errors by field (e.g., {\"message_text\": [\"is too long\"]})."
+          }
+        }
+      },
+      "DocuformsSearchResponse": {
+        "type": "object",
+        "description": "Response for docuforms (documents/forms) search.",
+        "properties": {
+          "counts": {
+            "type": "integer",
+            "description": "Total number of matching docuforms activities."
+          },
+          "top_hits": {
+            "type": "object",
+            "properties": {
+              "docuforms_activity": {
+                "type": "array",
+                "description": "Array of matching docuforms activity records.",
+                "items": {
+                  "type": "object",
+                  "description": "A docuforms activity record.",
+                  "properties": {
+                    "uid": {
+                      "type": "string",
+                      "description": "Unique identifier of the docuform activity."
+                    },
+                    "type": {
+                      "type": "string",
+                      "description": "Type of the activity (e.g., invoice, estimate, form)."
+                    },
+                    "status": {
+                      "type": "string",
+                      "description": "Current status of the activity (e.g., sent, viewed)."
+                    },
+                    "signature_status": {
+                      "type": "string",
+                      "description": "Signature status of the document (e.g., pending, awaiting_signature, sent, signed, declined)."
+                    },
+                    "created_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "The date and time when the activity was created."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "DocumentSearchHit": {
+        "type": "object",
+        "description": "A document record returned from search results.",
+        "properties": {
+          "uid": {
+            "type": "string",
+            "description": "Unique identifier of the document."
+          },
+          "direction": {
+            "type": "string",
+            "description": "Direction of the document (e.g., \"business\" for outgoing, \"client\" for incoming). Note: internal \"pivot\" direction is mapped to \"business\"."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the document was created."
+          },
+          "created_at_h": {
+            "type": "string",
+            "description": "Human-readable formatted creation date."
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message describing what went wrong."
+          }
+        }
+      },
       "Response": {
         "type": "object",
         "properties": {
@@ -2685,7 +3443,7 @@
           "file_relations"
         ]
       },
-      "ErrorResponse": {
+      "ErrorResponse_files": {
         "type": "object",
         "properties": {
           "success": {
@@ -2710,87 +3468,6 @@
                 }
               }
             }
-          }
-        }
-      },
-      "DocuformsSearchResponse": {
-        "type": "object",
-        "description": "Response for docuforms (documents/forms) search.",
-        "properties": {
-          "counts": {
-            "type": "integer",
-            "description": "Total number of matching docuforms activities."
-          },
-          "top_hits": {
-            "type": "object",
-            "properties": {
-              "docuforms_activity": {
-                "type": "array",
-                "description": "Array of matching docuforms activity records.",
-                "items": {
-                  "type": "object",
-                  "description": "A docuforms activity record.",
-                  "properties": {
-                    "uid": {
-                      "type": "string",
-                      "description": "Unique identifier of the docuform activity."
-                    },
-                    "type": {
-                      "type": "string",
-                      "description": "Type of the activity (e.g., invoice, estimate, form)."
-                    },
-                    "status": {
-                      "type": "string",
-                      "description": "Current status of the activity (e.g., sent, viewed)."
-                    },
-                    "signature_status": {
-                      "type": "string",
-                      "description": "Signature status of the document (e.g., pending, awaiting_signature, sent, signed, declined)."
-                    },
-                    "created_at": {
-                      "type": "string",
-                      "format": "date-time",
-                      "description": "The date and time when the activity was created."
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "DocumentSearchHit": {
-        "type": "object",
-        "description": "A document record returned from search results.",
-        "properties": {
-          "uid": {
-            "type": "string",
-            "description": "Unique identifier of the document."
-          },
-          "direction": {
-            "type": "string",
-            "description": "Direction of the document (e.g., \"business\" for outgoing, \"client\" for incoming). Note: internal \"pivot\" direction is mapped to \"business\"."
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "description": "The date and time when the document was created."
-          },
-          "created_at_h": {
-            "type": "string",
-            "description": "Human-readable formatted creation date."
-          }
-        }
-      },
-      "ErrorResponse_legacy_documents": {
-        "type": "object",
-        "properties": {
-          "success": {
-            "type": "boolean"
-          },
-          "error": {
-            "type": "string",
-            "description": "Error message describing what went wrong."
           }
         }
       }
