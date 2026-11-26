@@ -1,6 +1,6 @@
 ## QuotaConsumption
 
-A quota consumption is one row of the usage ledger: units of a metered SKU charged to one allowance subscription of a business. Usage is reported through `POST /v3/license/quota_consumptions` or published by internal services on the queue, and the ingest records it asynchronously: a row exists only once it was recorded, and the POST echoes the report without uid, subscription_uid, period and window_start until then. One reported event writes one row per allowance it was charged to, so an event split across a monthly allowance and a pack has two rows sharing its consumption_attempt_uid.
+A quota consumption is one row of the usage ledger: units of a metered SKU charged to one allowance subscription of a business. Usage is reported through `POST /v3/license/quota_consumptions` or published by internal services on the queue, and the ingest records it asynchronously: a row exists only once it was recorded, and the POST echoes the report without uid, subscription_uid, period, window_start and window_end until then. One reported event writes one row per allowance it was charged to, so an event split across a monthly allowance and a pack has two rows sharing its consumption_attempt_uid.
 
 ## Properties
 
@@ -14,6 +14,7 @@ A quota consumption is one row of the usage ledger: units of a metered SKU charg
 | sku | The metered addon SKU (e.g., "ai_credit") | string | Yes |
 | period | The period of the allowance that was charged. **monthly**: resets every month on the day of the month the subscription was created; **life_long**: a pack that never resets (e.g., "monthly") | string (enum: `monthly`, `life_long`) | Yes |
 | window_start | The first UTC day of the period this usage was charged against: for a monthly allowance its current window, anchored on the day the subscription started, which is also the key of its per-period counter; 1970-01-01 for a life_long pack, whose single period never ends (e.g., "2026-09-10") | string | Yes |
+| window_end | The UTC day on which the period of this usage ends, which is the first day of the next period: for a monthly allowance the day of the month the subscription started, in the month after window_start, or the last day of that month when it is shorter; null for a life_long pack, whose single period never ends (e.g., "2026-10-10" or null) | string |  |
 | quantity | The units charged to this allowance, with at most 4 decimal places (e.g., 120, 0.5) | number | Yes |
 | source | The registered service that reported the usage (e.g., "aiagents") | string | Yes |
 | actor_uid | The uid of the actor that published the usage, an App or an admin, taken from the event's publisher and never from the payload. An App token sees only rows carrying its own uid (e.g., "aiagents") | string |  |
@@ -34,6 +35,7 @@ JSON
   "sku": "ai_credit",
   "period": "monthly",
   "window_start": "2026-09-10",
+  "window_end": "2026-10-10",
   "quantity": 120,
   "source": "aiagents",
   "actor_uid": "aiagents",
