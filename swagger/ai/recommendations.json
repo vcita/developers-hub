@@ -18,7 +18,7 @@
           "AI Recommendations"
         ],
         "summary": "Get all AIRecommendations",
-        "description": "## Overview\nRetrieve a list of AIRecommendations with optional filtering by status, category, target, context, context type, producer, and action UID. All filters combine with AND logic.\n\nAvailable for **Staff tokens**",
+        "description": "## Overview\nRetrieve a list of AIRecommendations with optional filtering by status, category, read state, target, context, context type, producer, and action UID. All filters combine with AND logic.\n\nAvailable for **Staff tokens**",
         "security": [
           {
             "Bearer": []
@@ -122,6 +122,14 @@
             "description": "Filter by who set the current status: 'user' or 'system'."
           },
           {
+            "name": "read",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Filter by the calling staff member's read state. 'false' returns only the recommendations that the caller has not read, and 'true' returns only the recommendations that the caller has read. When omitted, both are returned. This filter applies to the list only and does not change 'meta.counts'."
+          },
+          {
             "name": "category",
             "in": "query",
             "schema": {
@@ -133,7 +141,7 @@
                 "upcoming"
               ]
             },
-            "description": "Filter by category bucket. Each record belongs to exactly one bucket:\nupcoming – due_at is in the future, whatever the stored category.\nneeds_attention – due_at is in the past or unset, stored category is needs_attention.\nopportunity – due_at is in the past or unset, stored category is opportunity.\nfyi – due_at is in the past or unset, stored category is fyi."
+            "description": "Filter by category bucket. Each record belongs to at most one bucket:\nupcoming – due_at is in the future, whatever the stored category.\nneeds_attention – due_at is in the past or unset, stored category is needs_attention.\nopportunity – due_at is in the past or unset, stored category is opportunity.\nfyi – due_at is in the past or unset, stored category is fyi, and created_at is less than 30 days (30 × 24 hours) before the request time.\nAn fyi record with a past or unset due_at that was created 30 days or more before the request belongs to no bucket, so no 'category' value returns it."
           },
           {
             "name": "producer",
@@ -210,7 +218,7 @@
                           "properties": {
                             "counts": {
                               "type": "object",
-                              "description": "Returned only when 'include=counts' is requested. Number of recommendations per bucket, matching every query filter except 'category' and pagination. 'status' applies, so counts describe the same lifecycle state as the list (active when omitted). Every recommendation is counted in exactly one bucket: future 'due_at' -> 'upcoming'; else by stored category -> 'needs_attention', 'opportunity', or 'fyi'.",
+                              "description": "Returned only when 'include=counts' is requested. Number of recommendations per bucket, matching every query filter except 'category', 'read' and pagination. 'status' applies, so counts describe the same lifecycle state as the list (active when omitted). Every recommendation is counted in at most one bucket: future 'due_at' -> 'upcoming'; else by stored category -> 'needs_attention', 'opportunity', or 'fyi'. An fyi recommendation with a past or unset 'due_at' that was created 30 days (30 × 24 hours) or more before the request is not counted.",
                               "properties": {
                                 "needs_attention": {
                                   "type": "integer",
@@ -226,7 +234,7 @@
                                 },
                                 "fyi": {
                                   "type": "integer",
-                                  "description": "Active recommendations with stored category 'fyi' and a non-future 'due_at' (past or unset)."
+                                  "description": "Active recommendations with stored category 'fyi', a non-future 'due_at' (past or unset), and a 'created_at' less than 30 days (30 × 24 hours) before the request time. Read and unread recommendations are both counted."
                                 }
                               }
                             }
@@ -279,6 +287,184 @@
                           "$ref": "https://vcita.github.io/developers-hub/entities/ai/AIRecommendation.json"
                         }
                       }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v3/ai/ai_recommendations/bulk": {
+      "put": {
+        "tags": [
+          "AI Recommendations"
+        ],
+        "summary": "Bulk Update AIRecommendations",
+        "description": "## Overview\nSet 'read' on up to 100 AIRecommendations in one request. Each 'uid' can appear only once. The update supports partial success: a recommendation that does not exist, or that the requesting staff member cannot access, fails with 'not_found', and the others are still updated.\n\nAvailable for **Staff tokens**",
+        "security": [
+          {
+            "Bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AIRecommendationBulkUpdateRequest"
+              },
+              "example": {
+                "airecommendations": [
+                  {
+                    "uid": "44b026bb-242c-46e1-a9fa-47f7231e3131",
+                    "read": true
+                  },
+                  {
+                    "uid": "9c1d7e52-0a3f-4b8e-9d61-2f5a8c7b4e10",
+                    "read": true
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bulk update completed. The result can contain failures for individual recommendations.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "https://vcita.github.io/developers-hub/entities/response.json"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "airecommendations": {
+                              "type": "array",
+                              "description": "One result for each item in the request, in the same order as the request.",
+                              "items": {
+                                "type": "object",
+                                "required": [
+                                  "success"
+                                ],
+                                "properties": {
+                                  "success": {
+                                    "type": "boolean",
+                                    "description": "Indicates whether the update succeeded for this recommendation."
+                                  },
+                                  "data": {
+                                    "description": "The updated AIRecommendation. Present only when 'success' is true.",
+                                    "$ref": "https://vcita.github.io/developers-hub/entities/ai/AIRecommendation.json"
+                                  },
+                                  "errors": {
+                                    "type": "array",
+                                    "description": "Error details. Present only when 'success' is false.",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "code": {
+                                          "type": "string",
+                                          "description": "A machine-readable error code (e.g., \"not_found\")."
+                                        },
+                                        "message": {
+                                          "type": "string",
+                                          "description": "A human-readable error message (e.g., \"AIRecommendation not found\")."
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "airecommendations": [
+                      {
+                        "success": true,
+                        "data": {
+                          "uid": "44b026bb-242c-46e1-a9fa-47f7231e3131",
+                          "producer": "client_agent",
+                          "business_uid": "biz-1234abcd",
+                          "created_at": "2026-02-04T12:00:00Z",
+                          "updated_at": "2026-02-04T12:30:00Z",
+                          "category": "fyi",
+                          "priority": "standard",
+                          "execution_policy": "auto_execute",
+                          "tags": [],
+                          "due_at": null,
+                          "expired_at": null,
+                          "read": true,
+                          "actions": [
+                            {
+                              "uid": "act-456",
+                              "action": "acknowledge",
+                              "display": {
+                                "btn_text": "Got it"
+                              },
+                              "reason": "BizAI confirmed the appointment with the client"
+                            }
+                          ],
+                          "display": {
+                            "title": "BizAI confirmed Elizabeth's appointment for Friday 6:00PM."
+                          },
+                          "context": {
+                            "context_uid": "matter-456",
+                            "context_type": "matter",
+                            "context_name": "Elizabeth Blake"
+                          },
+                          "target": {
+                            "target_actor_uid": "staff-789",
+                            "target_actor_type": "staff"
+                          },
+                          "status": {
+                            "state": "active",
+                            "state_source_type": "system",
+                            "dismissed": false,
+                            "dismissed_source_type": null
+                          }
+                        }
+                      },
+                      {
+                        "success": false,
+                        "errors": [
+                          {
+                            "code": "not_found",
+                            "message": "AIRecommendation not found"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - the token is missing or invalid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "errors": [
+                    {
+                      "code": "unauthorized",
+                      "message": "Unauthorized"
                     }
                   ]
                 }
@@ -348,6 +534,7 @@
                     ],
                     "due_at": "2026-02-06T09:00:00Z",
                     "expired_at": null,
+                    "read": false,
                     "actions": [
                       {
                         "uid": "act-456",
@@ -433,7 +620,7 @@
           "AI Recommendations"
         ],
         "summary": "Update an AIRecommendation",
-        "description": "## Overview\nUpdate an existing AIRecommendation by UID.\n\n**Available for Staff tokens**",
+        "description": "## Overview\nUpdate an existing AIRecommendation by UID.\n\nSend 'status', 'read', or both. To set 'read' on many recommendations in one request, use `PUT /v3/ai/ai_recommendations/bulk`.\n\n**Available for Staff tokens**",
         "security": [
           {
             "Bearer": []
@@ -715,8 +902,45 @@
                 "description": "The source that dismissed the recommendation. Null when the recommendation has not been dismissed."
               }
             }
+          },
+          "read": {
+            "type": "boolean",
+            "description": "Set to 'true' to mark the recommendation as read for the calling staff member, or to 'false' to mark it as unread. The read state of other staff members does not change. Must be an explicit boolean. Null is not allowed."
           }
-        }
+        },
+        "minProperties": 1
+      },
+      "AIRecommendationBulkUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "airecommendations": {
+            "type": "array",
+            "description": "The recommendations to update, one item per recommendation (max 100). Each 'uid' can appear only once.",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "type": "object",
+              "properties": {
+                "uid": {
+                  "type": "string",
+                  "description": "The uid of the AIRecommendation to update (e.g., \"44b026bb-242c-46e1-a9fa-47f7231e3131\")."
+                },
+                "read": {
+                  "type": "boolean",
+                  "description": "Set to 'true' to mark the recommendation as read for the calling staff member, or to 'false' to mark it as unread. The read state of other staff members does not change. Must be an explicit boolean. Null is not allowed."
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "uid",
+                "read"
+              ]
+            }
+          }
+        },
+        "required": [
+          "airecommendations"
+        ]
       },
       "AIRecommendationList": {
         "type": "object",
