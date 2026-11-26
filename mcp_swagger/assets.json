@@ -417,6 +417,147 @@
       }
     },
     "/v2/file_records": {
+      "post": {
+        "tags": [
+          "Documents"
+        ],
+        "operationId": "createFileRecords",
+        "summary": "Upload library files",
+        "description": "## Overview\nUploads files as file records of the business, without attaching them to a client. A file record with `template` set is a library file (\"My documents\"): it appears in `GET /v2/file_records?templates_only=true`, and `POST /v2/documents` can send it to a client by its UID in `file_record_ids`. A file record without `template` is not listed in the library, but `POST /v2/documents` can still attach it to a matter by its UID.\n\nSend the files as `multipart/form-data`, in `files[N][...]`, starting at N = 0. Up to 10 files per request, up to 100 MB per file. ZIP files are rejected. The file must have an extension, and its extension and content must be an allowed type (for example PDF, images, Office documents, text).\n\nThe file records belong to the staff member of the token. Staff without organization access see only their own file records.\n\nAvailable for **Staff tokens**.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "files[0][file]"
+                ],
+                "properties": {
+                  "files[0][file]": {
+                    "type": "string",
+                    "description": "The file to upload (e.g., a PDF file).",
+                    "format": "binary"
+                  },
+                  "files[0][title]": {
+                    "type": "string",
+                    "description": "File title (e.g., \"One-year termite warranty\")."
+                  },
+                  "files[0][description]": {
+                    "type": "string",
+                    "description": "File description (e.g., \"Standard warranty\")."
+                  },
+                  "files[0][template]": {
+                    "type": "boolean",
+                    "description": "When true, the file is a library file (\"My documents\") (e.g., true, false)."
+                  },
+                  "files[0][signature_required]": {
+                    "type": "boolean",
+                    "description": "When true, the client is asked to sign the document each time it is sent (e.g., true, false)."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The file records were created. One item per file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "description": "Result status (e.g., \"OK\")."
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/FileRecord"
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "status": "OK",
+                  "data": [
+                    {
+                      "uid": "fr7d2k9q4m1x8z3c",
+                      "name": "termite_warranty.pdf",
+                      "title": "One-year termite warranty",
+                      "description": "",
+                      "size_in_kb": 182,
+                      "size": 186368,
+                      "download_url": "https://example.vcita.biz/v/acme/files/fr7d2k9q4m1x8z3c/download",
+                      "created_at": "2026-11-20T09:00:00.000+02:00",
+                      "created_at_h": "Nov 20",
+                      "staff": {
+                        "uid": "3so2q8r2b35x7phd",
+                        "first_name": "John",
+                        "last_name": "Doe",
+                        "display_name": "John Doe"
+                      },
+                      "scan_state": "pending",
+                      "file_storage_type": "s3",
+                      "infected": false,
+                      "display_download_btn": false,
+                      "signature_required": false
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized. The bearer token is missing, invalid, or not allowed to access the requested resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": "401 Unauthorized"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden. The staff member may not upload files.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentsErrorResponse"
+                },
+                "example": {
+                  "error": "Unauthorized"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity. No file was sent, more than 10 files were sent, a file type or name is not allowed, or the business has no document storage left.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentsErrorResponse"
+                },
+                "example": {
+                  "status": "ERROR",
+                  "message": "This file type is not allowed"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": []
+          }
+        ]
+      },
       "get": {
         "tags": [
           "Documents"
